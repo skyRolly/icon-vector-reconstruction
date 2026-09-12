@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1024" height="1024" viewBox="0 0 1024 1024" >
+<defs><filter id="f" filterUnits="userSpaceOnUse" x="501" y="100" width="22" height="824"><feGaussianBlur stdDeviation="40"/></filter></defs><rect width="1024" height="1024" fill="#000"/><g filter="url(#f)"><rect x="509" y="200" width="6" height="624" fill="#fff"/></g>
+</svg>

@@ -1,0 +1,9 @@
+# iteration snapshots: regenerate with tools/render.py / tools/compare.py
+out/r[0-9]*.png
+out/_*.png
+__pycache__/
+*.pyc
+# resolution-sweep renders: regenerate with tools/validate.py
+out/render_512.png
+out/render_2048.png
+out/render_4096.png
