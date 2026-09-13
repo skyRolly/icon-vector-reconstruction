@@ -558,8 +558,9 @@ recorded here so they are not tried again.
 
 **The metric had to be built first, because the obvious one is backwards.**
 A high-pass "smoothness" score says the render is *smoother* than the reference:
-in the lobes its total cross-curve band-pass amplitude is 0.34 counts rms at
-sigma 3 against the reference's 0.62. Blurring would score better still. What
+in the lobes its total cross-curve band-pass amplitude is 0.51 counts rms at
+sigma 3 against the reference's 0.68, and across the open interior 0.10-0.28
+against 0.49-0.65 -- a third of it. Blurring would score better still. What
 differs is coherence along the curve. The reference's band-pass content is grain
 and JPEG texture, uncorrelated from one height to the next, so averaging along
 the curve cancels it as 1/sqrt(N) -- to 0.029 counts at N ~ 450. A layered field
@@ -591,9 +592,20 @@ anywhere), the shipped 1024 px resvg render, and a 4096 px render box-downsample
 to 1024 score 0.3920, 0.3901 and 0.3863 -- all 1.67-1.69x the reference. The
 excess is in the model, not in any rasteriser.
 
-**Refuted: one bad layer.** Removing each of the 29 layers in turn moves the
+**Refuted for the lobe as a whole, confirmed for the ridge strip: one bad
+layer.** Removing each layer in turn and scoring the *whole* lobe moves the
 coherent amplitude by at most 1.6%, and removing the field layers makes it
-slightly *worse*: the fit has arranged partial cancellation between them.
+slightly worse -- the fit has arranged partial cancellation between them. That
+is the answer to the wrong question, because the whole-lobe figure dilutes the
+strip where the excess actually is. Scored on the ridge strip alone the answer is
+unambiguous: removing `arc_glow1` takes it from 0.9215 to 0.2370 counts on the
+left curve and 0.7507 to 0.3017 on the right -- **74% and 60%** of the total,
+against the reference's own 0.4950 and 0.5791. `arc_glow1c` accounts for 4% and
+8%, and every other layer for under 1%. Removing `arc_glow1` overshoots to 0.48x
+and 0.52x of the reference, so the layer is not spurious: its cross-curve
+profile is too sharp, and the amount by which is measurable against the
+reference's own coherent amplitude rather than against a preference for
+smoothness.
 
 **What it actually is: two defects, in different places, with different causes.**
 Localising the error in cross-curve distance separates them, and pooling them

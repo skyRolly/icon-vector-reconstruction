@@ -79,3 +79,8 @@ updated /home/user/icon-vector-reconstruction/src/params.json
 optimising 124 parameters (shapes), stride=3
 sweep 1/1
   start sse=0.000221657 mae=1.8939
+  end   sse=0.000216719 mae=1.8706  (12 accepted moves, 306 renders)
+final: sse=0.00028166 mae=1.8799  (2352.2s, 307 renders)
+wrote /home/user/icon-vector-reconstruction/src/params.json
+optimising 30 parameters (tapers), stride=4
+sweep 1/1

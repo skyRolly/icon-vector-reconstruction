@@ -175,9 +175,10 @@ enough to search the geometry.
   wedges are dark because nothing in the reference puts light there, and the
   over-prediction was two model errors — a broad glow that was not one-sided
   and a central bloom with more than twice its measured reach — both fixed in
-  `docs/DECISIONS.md` D13 and D14. Their mean bias is now -0.15 code values
-  (MAE 1.33 against a JPEG noise floor of ~0.6), i.e. slightly *under*-lit
-  rather than over-lit.
+  `docs/DECISIONS.md` D13 and D14. Re-measured on the current reconstruction the
+  axial region runs +0.35 G bright while the rest of the interior runs -0.53 G
+  dark -- both under one code value, and opposite in sign to what this list used
+  to claim.
 * **The same SVG is about 2.8 code values brighter in Chromium than in resvg.**
   Chromium composites each dim screen layer 0.26-0.33 counts brighter, and over
   a stack this deep that accumulates to a near-uniform lift of the dark
@@ -186,12 +187,31 @@ enough to search the geometry.
   compositing-precision artefact rather than a structural difference, it cannot
   be merged away (a gradient modulates alpha, and each of these layers carries
   a different colour), and it is the one measure that got worse as the
-  reconstruction gained elements. `docs/DECISIONS.md` D12 has the per-layer
-  measurements.
-* The true peak radiance of the cores, the glint and the streak is
-  unrecoverable: G and B clip at 255 over those pixels in the reference. Any
-  model that clips in the same places matches them.
-* Chromium's dim-layer rounding, above.
+  reconstruction gained elements, so the reconstruction is not changed to suit
+  one engine. `docs/DECISIONS.md` D12 has the per-layer measurements.
+* The true peak radiance of the cores and the streak is unrecoverable: G and B
+  clip at 255 over those pixels in the reference. Any model that clips in the
+  same places matches them.
+* **The coherent cross-curve structure beside each curve is still about 1.8x the
+  reference's** in the 26 px strip next to the ridge (1.23x on the right curve),
+  falling to 0.96x by a 12 px scale. Across the whole open lobe it is 0.68-1.04x
+  — at or below the reference — so this is a localised defect at the curve's
+  inner edge, not the whole-lobe banding it was first measured as. What makes it
+  read more strongly than its amplitude suggests is that the reference carries
+  structure of the same size under 0.7-0.9 counts of incoherent grain, and the
+  reconstruction carries it naked; that is an observation about visibility, not
+  an excuse, and it is not a reason to add grain.
+* **The lobe interior's coherent profile error is several times its own bound.**
+  The best the basis can do there, fitted to the lobe profile and nothing else,
+  is 0.89%/0.97% — and it reaches that only by amplitudes that take the global
+  MAE from 1.90 to 8.20 and the flare from 7.5 to 35.2. So the bound is not
+  reachable, and what remains is the price of one basis serving the lobes, the
+  frame, the field and the flare at once. Reducing it needs a different
+  decomposition, not a better fit. `docs/DECISIONS.md` D19 has the measurements.
+* **Each glow layer's cross-curve profile shape is constant along the curve** —
+  only its amplitude tapers. The reference's varies. This is the structural
+  reason the reconstruction's contours run further than the reference's, and it
+  is the obvious next thing to change.
 
 `docs/METHOD.md` has the measurements; `docs/DECISIONS.md` has the decision
 record, including what was rejected and why; `out/analysis/` has the

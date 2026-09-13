@@ -313,7 +313,8 @@ def band_report(ref, rec, out):
 
     The measurement that decides what this metric has to be: the render's total
     cross-curve band-pass amplitude in the lobes is *below* the reference's
-    (0.34 rms against 0.62 at sigma 3), so a plain high-pass "smoothness" score
+    (0.51 rms against 0.68 at sigma 3 over the whole lobe, and 0.10-0.28 against
+    0.49-0.65 across the open interior), so a plain high-pass "smoothness" score
     says the render is already smoother than the reference and would call the
     visible stripes an improvement.  Blur would score better still.  What
     actually differs is coherence along the curve: the reference's band-pass
