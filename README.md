@@ -200,7 +200,14 @@ enough to search the geometry.
   read more strongly than its amplitude suggests is that the reference carries
   structure of the same size under 0.7-0.9 counts of incoherent grain, and the
   reconstruction carries it naked; that is an observation about visibility, not
-  an excuse, and it is not a reason to add grain.
+  an excuse, and it is not a reason to add grain. Softening the one layer
+  responsible (`arc_glow1` carries 74%/60% of it) does reduce the ratio, to 1.20x
+  at the widest blur its bounds allow -- and makes the profile error in the same
+  strip worse as it does so, 4.00% to 6.55%, along with MAE and SSIM. So the
+  layer is left alone: a blurred stroke that matches the reference's level there
+  necessarily carries more fine cross-curve structure than the reference does,
+  and separating the two needs a primitive that can be flat-topped, not a
+  different blur.
 * **The lobe interior's coherent profile error is several times its own bound.**
   The best the basis can do there, fitted to the lobe profile and nothing else,
   is 0.89%/0.97% — and it reaches that only by amplitudes that take the global

@@ -607,6 +607,32 @@ profile is too sharp, and the amount by which is measurable against the
 reference's own coherent amplitude rather than against a preference for
 smoothness.
 
+**And softening it is not the fix.** `arc_glow1`'s blur is the one parameter
+that sets how much 3-px-scale cross-curve content it puts in that strip, so it
+was swept with the cost reported beside the gain:
+
+| blur | sigma_eff | ridge coh L | ridge coh R | MAE | SSIM | ridge profile err | interior |
+|---|---|---|---|---|---|---|---|
+| 5.108 | 5.8 | 1.85x | 1.30x | **1.9723** | **0.9726** | **4.00%** | **4.13%** |
+| 7.0 | 7.6 | 1.99x | 1.52x | 1.9968 | 0.9720 | 3.39% | 5.36% |
+| 9.0 | 9.4 | 1.68x | 1.36x | 2.0406 | 0.9712 | 4.52% | 5.17% |
+| 11.0 | 11.4 | 1.34x | 1.16x | 2.0946 | 0.9705 | 5.96% | 5.07% |
+| 12.0 | 12.3 | 1.20x | 1.06x | 2.1181 | 0.9700 | 6.55% | 5.10% |
+
+Blurring the layer does bring the coherence ratio down, from 1.85x to 1.20x, and
+makes the *profile error in the same strip worse* as it does so -- 4.00% to
+6.55% -- along with the global MAE (+0.146) and SSIM. This is the blur-to-satisfy-
+the-metric outcome that the two-sided target exists to catch, caught here by the
+measurements beside it. The layer is left as it is.
+
+What that leaves is a real limitation of the blurred-stroke family rather than a
+parameter error: a blurred stroke that matches the reference's *level* in the
+14-40 px strip necessarily carries more 3-px-scale cross-curve structure there
+than the reference does, and the two cannot be separated by choosing a blur.
+Separating them needs a primitive whose profile can be flat-topped where a
+Gaussian is peaked -- a change of kind, on the evidence above, and not one to
+make blind at the end of an iteration.
+
 **What it actually is: two defects, in different places, with different causes.**
 Localising the error in cross-curve distance separates them, and pooling them
 was what made the earlier readings contradictory.
