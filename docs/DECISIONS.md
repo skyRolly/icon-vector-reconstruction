@@ -1222,3 +1222,64 @@ and wrong in a way that looks plausible. A tool that silently returns a
 distorted answer outside its domain is worse than one that refuses, which is
 why the two inexpressible orderings now raise `UnsupportedIsolation` instead of
 returning a number.
+
+## D28. The colour saturation: the finding is real, the global reading is not
+
+**What was asked.** The review's secondary objective was overall colour
+saturation -- the reconstruction reads paler than the reference.
+
+**The global reading is refuted.** Over the whole canvas the reconstruction's
+mean chroma is 1.2% *above* the reference's, not below it. A global saturation
+boost would therefore move the majority of the image away from the reference to
+fix a minority of it. Three related readings fail the same way and are recorded
+so they are not re-proposed: the flare is not washed out (+0.4% chroma); the
+dark field is not too pale but too *pure*, missing 21-38% of the white pedestal
+the reference has there; and the colour cone is not the limitation, since
+matching the reference exactly would violate its R <= G <= B constraint by at
+most 1.2 counts of blue.
+
+**Where the paleness actually is.** `tools/chroma_report.py` bins every interior
+pixel by its distance from the nearest curve ridge, excluding the flare and the
+frame. Against the accepted baseline render:
+
+| ridge distance | dR | dG | dB | d chroma | d hue |
+| --- | --- | --- | --- | --- | --- |
+| 0-4 px | +1.73 | -5.14 | -4.43 | **-6.15** | +1.5 deg |
+| 4-8 px | +6.73 | -10.11 | -8.43 | **-15.16** | +3.3 deg |
+| 8-12 px | +5.29 | -5.18 | -4.18 | **-9.47** | +2.4 deg |
+| 12-16 px | +2.72 | -0.18 | +0.85 | -1.87 | +1.6 deg |
+| 16-24 px | -0.14 | -0.06 | +0.65 | +0.80 | +0.8 deg |
+| 24-40 px | -0.61 | +0.67 | +1.17 | +1.78 | +0.2 deg |
+| 40-70 px | -0.94 | -0.76 | -0.25 | +0.69 | +0.8 deg |
+
+The effect is confined to the 16 px band hugging each ridge and it peaks at 4-8
+px out, where chroma is 15.2 counts short of the reference's 68.85 -- 22% -- and
+red is 6.73 counts high against a reference value of 17.08, which is 39% too
+much red. Beyond 16 px the sign reverses and the render is very slightly *more*
+chromatic than the reference, which is where the +1.2% whole-canvas figure comes
+from. Both facts are true at once; only the second one is visible in an average.
+
+**What that means mechanically.** Too much red at unchanged luminance is too
+much *white* in the mix, because white is the only cone primary with a red
+component. So the band wants its light delivered as cyan where the
+reconstruction delivers it as white plus blue.
+
+**Why the fit cannot simply fix it.** A layer has one colour triple for its
+whole footprint, and no layer's footprint is this band: the narrowest arc glow
+is much wider than 16 px, so any colour change made for the band is also made
+30, 50 and 70 px out, where the render is already right or slightly over. This
+is a basis limitation, not a fitting failure -- which is consistent with the
+cone measurement above, since the colour the band needs is inside the cone and
+simply cannot be delivered there alone.
+
+**Decision: measured, located, not fixed in this iteration.** The change it
+calls for is a new ridge-hugging glow layer roughly 6 px in effective sigma,
+carrying cyan. The nearest thing tried, `arc_glow1c` at sigma_eff ~10 px,
+measured worse on the whole-image metrics when it was tried against the
+iteration-3 state (MAE 1.9899) and was not shipped. Re-testing it against the
+reconciled baseline, with `tools/chroma_report.py` as the acceptance instrument
+rather than whole-image MAE, is the next step and is not one this iteration
+takes. Recording the measurement without acting on it is deliberate: the
+alternative on offer was a global saturation change that the first paragraph
+shows to be wrong, and a wrong fix that improves the average is worse than a
+located problem that is still open.
