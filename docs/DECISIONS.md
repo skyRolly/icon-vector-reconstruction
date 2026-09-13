@@ -647,8 +647,16 @@ scored on the same grid as everything else -- from 1.08%/0.49% to 0.32%/0.19%
 Three candidate widths between sigma_eff 10 and 12.5 px all do it; the shipped
 one is width 20, blur 8, inset 10. Position matters as much as width: the same
 effective width at inset 14 instead of 6-10 is markedly worse. That is the
-evidence for `arc_glow1c`, and it is the whole of it -- one blurred stroke on the
-existing Bezier path, six numbers, no new geometry.
+evidence for `arc_glow1c` -- one blurred stroke on the existing Bezier path, six
+numbers, no new geometry.
+
+It is **not in the shipped model.** The capacity it buys is real and so is the
+measurement, but capacity is what the basis *could* reach and the fit never
+reached it: adding the layer and re-fitting moved the achieved ridge excess from
+1.82x to 1.81x on the left curve and 1.21x to 1.23x on the right, while the
+reconstruction as a whole measured worse (D22). The layer waits for a search
+that can exploit it against the corrected objective and the corrected builder
+(D23), and this entry is the record of what it would buy if one does.
 
 *Beyond 40 px* the basis can reach the reference's profile to 0.89%/0.97%, but
 not while the rest of the image is fitted. The profile-only optimum gets there
