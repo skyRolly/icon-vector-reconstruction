@@ -1019,3 +1019,33 @@ amplitudes, which is also the minimal assumption between measured points (D23).
 The innermost east knot is held flat rather than extrapolated to a spike,
 because the right curve's ridge masks abs(dx) < 40 there and a spike inward of
 it would be invented, not measured.
+
+## D25. Fitting a new flare component without discarding the validated colours
+
+**The problem.** Introducing a layer needs a photometric fit, and a full re-fit
+of every layer under the current objective measures *worse* than the colour
+solution iteration 2 already has: same geometry, full re-fit, MAE 1.9480 against
+1.9352. So a full re-fit would trade a validated solution for the objective's
+own optimum and, worse, would hide whether the new layer helped -- the
+comparison would confound the layer with the re-fit.
+
+**The decision.** Fit only the layers the change touches, with
+`FP.fit(free=...)`, and leave every other layer's colour exactly as it was
+(`tools/fit_only.py` in the scratch tooling drives it; the same `free` mechanism
+the optimiser uses per family). Every flare result in D24 is measured this way:
+the eleven `flare_*` layers are free and the nineteen others are frozen at
+iteration 2's values, so the reported change is the change the flare model made.
+
+**Why this is not just convenience.** It is the same requirement as the
+geometry-trial fix in this iteration's optimiser work: a comparison is only
+about the thing being changed if everything else is held equal. A full re-fit on
+each side of the comparison changes nineteen layers that the flare model has
+nothing to do with.
+
+**What it does not settle.** That the current objective's optimum is worse on
+the unweighted metrics than iteration 2's is itself unexplained, and it is the
+open question behind D22. Iteration 2's colours were fitted under the
+squared-weight bug, so they minimise a quartic-weighted objective; that they
+also give lower MAE and higher SSIM than the corrected objective's optimum is a
+fact about this artwork that neither objective was designed to optimise. It is
+recorded here as a thing to explain rather than a thing to exploit.
