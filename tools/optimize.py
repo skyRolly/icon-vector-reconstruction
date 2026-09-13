@@ -74,7 +74,7 @@ def layer_index(params, lid):
 def layer_specs(params, keys=("width", "blur", "inset", "r", "squash", "rot",
                               "half_len", "height", "len", "peak_at", "cx", "cy",
                               "sigma_y", "blur_x", "spread", "dx", "dy",
-                              "scale", "inner")):
+                              "scale", "inner", "east_gain")):
     """One spec per tunable shape number on each layer.
 
     Per-layer `bounds` in params.json win over the global defaults.  They are
@@ -116,12 +116,18 @@ def layer_specs(params, keys=("width", "blur", "inset", "r", "squash", "rot",
                 st = step if step is not None else max(0.02, abs(v) * 0.12)
                 out.append({"path": path, "lo": lo, "hi": hi,
                             "step": st, "affects": [L["id"]]})
-        if isinstance(L.get("profile"), dict):
-            pk = "sigma" if "sigma" in L["profile"] else ("scale" if "scale" in L["profile"] else "n")
-            if pk in L["profile"]:
-                lo, hi = b.get("profile", (0.03, 4.0))
-                out.append({"path": "layers/%d/profile/%s" % (i, pk), "lo": lo, "hi": hi,
-                            "step": max(0.01, abs(float(L["profile"][pk])) * 0.12),
+        # `profile` and, where a primitive's two sides are fitted separately,
+        # `profile_e`.  Both are searched; a side whose falloff is not its own
+        # is simply absent from the layer and contributes no spec.
+        for key, bname in (("profile", "profile"), ("profile_e", "profile_e")):
+            pr = L.get(key)
+            if not isinstance(pr, dict):
+                continue
+            pk = "sigma" if "sigma" in pr else ("scale" if "scale" in pr else "n")
+            if pk in pr:
+                lo, hi = b.get(bname, b.get("profile", (0.03, 4.0)))
+                out.append({"path": "layers/%d/%s/%s" % (i, key, pk), "lo": lo, "hi": hi,
+                            "step": max(0.01, abs(float(pr[pk])) * 0.12),
                             "affects": [L["id"]]})
         pt = L.get("paint")
         if isinstance(pt, dict) and pt.get("kind") == "radial":
@@ -145,6 +151,9 @@ def layer_specs(params, keys=("width", "blur", "inset", "r", "squash", "rot",
 
 
 SHAPE_BOUNDS = {
+    #: The streak's east/west brightness ratio; see the `streak` kind in
+    #: src/build_svg.py for the measurement that makes it a parameter.
+    "east_gain": (0.05, 2.5, 0.04),
     "dx": (-40.0, 40.0, 0.5),
     "dy": (-40.0, 40.0, 0.5),
     "scale": (10.0, 400.0, 4.0),

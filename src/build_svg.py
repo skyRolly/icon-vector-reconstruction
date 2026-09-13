@@ -413,15 +413,25 @@ STREAK_SIGMA_NORM = math.sqrt(1.0 + STREAK_H_OVER_SB ** 2 / 12.0)
 # --------------------------------------------------------------------------- #
 
 #: Largest piecewise-linear stop error tolerated, in premultiplied code values.
-#: Chosen by measuring what the stops buy, because the adaptive sampling was
-#: added while testing whether stop interpolation caused the lobe banding and it
-#: does not (docs/DECISIONS.md D19), so it has to pay for its own bytes.  Over
-#: tolerances 1, 2, 3, 4 and 6 counts the file runs 93.6, 83.5, 78.7, 77.2 and
-#: 75.4 KB while the render's MAE runs 1.9899, 1.9921, 1.9948, 2.0011, 1.9981
-#: and the error within 110 px of the flare runs 8.50, 8.56, 8.60, 8.86, 8.84.
-#: The knee is at 2: it gives back 10.2 KB, a ninth of the file, for 0.002 code
-#: values, and past 3 the flare starts paying for it.
-STOP_TOL_COUNTS = 2.0
+#: Chosen by measuring the artifact this controls, which is NOT what MAE sees.
+#: A piecewise-linear stop leaves a contour ring, and a ring is coherent over
+#: hundreds of pixels: 0.15 counts of it is visible where 0.15 counts of grain
+#: is not.  Differencing each render against one at 0.15 counts -- which has
+#: none -- gives the ring field directly, and in the two lobes it measures
+#:
+#:   tol      0.35    0.70    1.00    2.00    4.00   counts
+#:   rms     0.077   0.098   0.141   0.150   0.230
+#:   max     1.333   1.333   1.667   3.000   4.333
+#:   file      130     104      94      83      77   KB
+#:
+#: This was first set to 2 on an MAE argument (MAE moves 0.002 between 1 and 2,
+#: and the file gives back 10 KB), and that was the wrong measure: between 1 and
+#: 2 the rms barely moves but the worst ring doubles, from 1.7 counts to 3.0,
+#: and a 3-count coherent contour in a lobe that sits at 8-35 counts is exactly
+#: the defect this iteration exists to remove.  1 it is; the 10 KB is the price
+#: of the stated priority.  Below 1 the file grows far faster than the artifact
+#: shrinks.
+STOP_TOL_COUNTS = 1.0
 #: Hard cap so a pathological curve cannot inflate the file without bound.
 STOP_MAX = 96
 
@@ -890,14 +900,44 @@ class Builder:
             h = STREAK_H_OVER_SB * sigma_y / STREAK_SIGMA_NORM
             sb = sigma_y / STREAK_SIGMA_NORM
             bx = float(L.get("blur_x", 0.0))
+            # The two sides are NOT the same, and modelling that by displacing
+            # a symmetric streak -- which is what this layer did -- gets the
+            # shape wrong in two ways at once.
+            #
+            # What is measurable: the curve ridges cross the streak row at
+            # dx -65.5 and +14.5 from the flare core, so the near field is not
+            # measurable at all on either side and a window that ignores them
+            # reads the curve core instead of the streak.  With the arcs masked
+            # (ridge distance > 30 px) the reference's thin-line residual above
+            # a 21-px median envelope is, sampled every 4 px:
+            #
+            #   dx    -210..-160  -160..-110  -110..-75   -40..-15
+            #   ref         5.15       11.75      19.44      31.57
+            #   dx      +40..+75   +75..+110  +110..+160 +160..+210
+            #   ref        15.85        7.14       3.07       1.62
+            #
+            # Both sides fall off from the core, the west more slowly than the
+            # east (fitted over the clean range: 77 px against 45-85 px, the
+            # east's range starting only at |dx| = 52 so its extrapolation to
+            # the core is not reliable and is left to the fit).  The displaced
+            # symmetric streak instead peaked 58 px west of the core -- 15.70
+            # at dx -40..-15 where the reference has 31.57, and 33.51 at
+            # -110..-75 where it has 19.44 -- and truncated its east end at
+            # core+158, leaving 2.28 against 15.85 at +40..+75 and nothing at
+            # all past +160 where the reference still carries 1.6 counts.
+            #
+            # So the layer sits on the core and the east half gets its own
+            # falloff and its own gain, both searched.
             prof = profile_stops(L["profile"])
+            prof_e = profile_stops(L["profile_e"]) if L.get("profile_e") else prof
+            ge = float(L.get("east_gain", 1.0))
             body = []
             for o, av in reversed(prof):
                 body.append('<stop offset="%s" stop-color="%s" stop-opacity="%s"/>'
                             % (f(0.5 - 0.5 * o, 5), col, f(av, 5)))
-            for o, av in prof[1:]:
+            for o, av in prof_e[1:]:
                 body.append('<stop offset="%s" stop-color="%s" stop-opacity="%s"/>'
-                            % (f(0.5 + 0.5 * o, 5), col, f(av, 5)))
+                            % (f(0.5 + 0.5 * o, 5), col, f(av * ge, 5)))
             self.add_def('<linearGradient id="%s" gradientUnits="userSpaceOnUse" x1="%s" y1="0" '
                          'x2="%s" y2="0">%s</linearGradient>'
                          % (gid, f(cx - half), f(cx + half), "".join(body)), gid)

@@ -268,10 +268,16 @@ numerical:
   270 px without filling the space between the curves; the hard edge it leaves
   at the curve is hidden under the core stroke, which is two orders of
   magnitude brighter.
-* **arc_glow2b**, the one component offset *outward*, towards the convex side.
-  Every other stroke is inset into the lobe, which left the band 28-70 px
-  between the curves 13-19% too dark while the lobe 14-38 px out was 6-11% too
-  bright. Adding it cut the profile's rms relative error from 8.6% to 7.0% and
+* **arc_glow1c**, the component that closes the gap in the series of effective
+  cross-curve widths. The others step 3.3, 5.8, 20.6, 33.9, 47.6 and 87 px, and
+  the factor-3.5 step from 5.8 to 20.6 is where the reference's shape in the
+  first 40 px beside each curve lives: without a component there, no choice of
+  amplitudes reaches it (docs/DECISIONS.md D19).
+* **arc_glow2b** and **arc_glow1b**, the two components offset *outward*,
+  towards the convex side; every other glow component is inset into the lobe.
+  With all of them inset the band 28-70 px between the curves came out 13-19%
+  too dark while the lobe 14-38 px out was 6-11% too bright. Adding the first
+  outward component cut the profile's rms relative error from 8.6% to 7.0% and
   left the global MAE unchanged.
 
 ### 4b. The asymmetry is not the same all along the curve

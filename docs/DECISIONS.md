@@ -297,8 +297,9 @@ What that settled:
 
 **Decision.** Two components were added to each curve. `arc_haze` is a wide,
 low-amplitude stroke deep in the lobe, `clip-path`-ed to that curve's own
-ellipse so it puts *nothing* on the convex side. `arc_glow2b` is the one
-component offset **outward**, towards the space between the curves.
+ellipse so it puts *nothing* on the convex side. Two components are offset
+**outward**, towards the space between the curves: `arc_glow2b` (the wider of
+the pair) and `arc_glow1b`. Every other glow component is offset inward.
 
 **Evidence.** Signed-distance profiles pooled over both curves, with everything
 within 200 px of the central light excluded (section 4a of `METHOD.md`). Above
@@ -367,9 +368,13 @@ measurements each forced a specific change:
   a parallel-sided quad can match its near part or its far part but not both.
   Rays now carry a `spread`.
 
-**Effect.** Flare radial profile agreement went from -20/-13/-11 code values at
-r<45 to within +-4.3 at every radius; MAE within 110 px of the core 10.01 ->
-7.9; peak channel error over the whole image 112 -> 96.
+**Effect, as measured at the time of this change.** Flare radial profile
+agreement went from -20/-13/-11 code values at r<45 to within +-4.3 at every
+radius; MAE within 110 px of the core 10.01 -> 7.9; peak channel error over the
+whole image 112 -> 96. These are the figures for *this* decision and not the
+current state of the reconstruction: D21 rebuilt the streak afterwards, and the
+current numbers are in the README's generated fidelity table and in
+`out/diagnostics.json`.
 
 **Rejected.**
 
@@ -396,11 +401,15 @@ r<45 to within +-4.3 at every radius; MAE within 110 px of the core 10.01 ->
 ## D15. The fitting objective scores the glow's shape cell by cell
 
 **Decision.** The per-pixel fitting weight has a third emphasis term. The
-glow's cross-section is divided into 77 cells -- (signed distance from the
-curve) x (along-curve band), plus the four interior corners past the curve
-ends -- and each cell receives the same influence, shaped as `1 / (L + 0.012)^2`
-inside the cell, *replacing* the display-curve weight there rather than
-multiplying it. The cells are disjoint by construction.
+glow's cross-section is divided into cells -- (signed distance from the curve) x
+(along-curve band), plus the four interior corners past the curve ends, and
+since the flare rebuild also the flare's radius x sector cells and its streak
+comb, 222 in all -- and each cell receives the same influence, shaped as
+`1 / (L + floor)^(2p)` inside the cell, *replacing* the display-curve weight
+there rather than multiplying it. The cells are disjoint by construction. The
+floor and the exponent are `EMPHASIS["profile"]`'s, and D20 measures them: the
+shipped values are 0.006 and 1.0. `tools/test_pipeline.py` prints the cell count
+and the cost spread on every run, so neither figure has to be remembered here.
 
 **Evidence, in three steps, each one a thing that went wrong first.**
 
@@ -429,8 +438,8 @@ multiplying it. The cells are disjoint by construction.
    there, not 30%). Splitting by along-curve band is what surfaced it.
 
 `tools/test_pipeline.py` checks all three: the cost of a 1% relative error
-across all 77 cells, that the outermost along-curve band is covered, and that
-the interior corners are covered.
+across the cells, that the outermost along-curve band is covered, and that the
+interior corners are covered.
 
 **Rejected.**
 
@@ -639,14 +648,41 @@ project has already had one builder kind rot that way -- `arc_lens` referenced a
 schema that no longer existed and would have crashed had anything used it. The
 measurements are kept here instead, which is the part worth keeping.
 
-**The gradient stops pay for their own bytes.** The adaptive stop sampling was
-added while testing the interpolation hypothesis above. With the hypothesis
-refuted, the tolerance was re-chosen by measuring it: at 1, 2, 3, 4 and 6 code
-values the file is 93.6, 83.5, 78.7, 77.2 and 75.4 KB, the render's MAE is
-1.9899, 1.9921, 1.9948, 2.0011 and 1.9981, and the error within 110 px of the
-flare is 8.50, 8.56, 8.60, 8.86 and 8.84. Two counts gives back 10.2 KB -- a
-ninth of the file -- for 0.002 code values, and past three the flare begins to
-pay. The shipped value is 2.
+**The gradient stop tolerance, and the wrong measure I first chose it with.**
+The adaptive stop sampling was added while testing the interpolation hypothesis
+above. With the hypothesis refuted it had to justify its bytes, and the first
+attempt measured it against MAE: between 1 and 2 code values of tolerance the
+file gives back 10.2 KB for 0.002 of MAE, so 2 looked free.
+
+It is not free, because MAE is not sensitive to the thing a stop tolerance
+controls. A piecewise-linear stop leaves a *contour ring*, coherent over
+hundreds of pixels, and 0.15 counts of coherent ring is visible where 0.15
+counts of grain is not. Measured properly -- each render differenced against one
+at 0.15 counts, which has no rings, over the two lobes:
+
+| tolerance | 0.35 | 0.70 | 1.00 | 2.00 | 4.00 |
+|---|---|---|---|---|---|
+| ring rms | 0.077 | 0.098 | 0.141 | 0.150 | 0.230 |
+| worst ring | 1.33 | 1.33 | 1.67 | 3.00 | 4.33 |
+| file (KB) | 130 | 104 | 94 | 83 | 77 |
+
+Between 1 and 2 the rms barely moves and the *worst* ring doubles, 1.7 counts to
+3.0, in lobes that sit at 8-35 counts. The shipped value is 1. Below it the file
+grows much faster than the artifact shrinks.
+
+**And the rings are mostly not the stops.** The same measurement bounds how much
+of the visible contour structure stop density can account for: 0.14 counts rms,
+against 0.76 counts of coherent cross-curve structure in the render overall. The
+rest is the genuine curvature of the overlapping smooth gradients. Rendered in
+arc-aligned coordinates and stretched to +-1.5 counts, the render shows several
+overlapping families of smooth contours -- one per radial gradient centre -- and
+the reference at the same stretch shows incoherent JPEG blocking. The reference's
+own coherent structure there measures 0.51 counts, so the render's excess is real
+but modest: 1.5x, not a different kind of thing. What differs as much as the
+amplitude is that the reference's structure is buried in 0.88 counts of
+incoherent grain and the render's is naked. That is an observation about why a
+1.5x excess reads as strongly as it does -- not a reason to accept it, and not a
+reason to add grain.
 
 ## D20. The profile weighting's strength is now a parameter, chosen by measurement
 
@@ -681,3 +717,53 @@ colour-only fit from a fixed set of shapes:
 
 It is a parameter rather than a constant because nothing in principle fixes it
 at 1 -- it is a claim about visibility, and this artwork answers it.
+
+## D21. The central streak is centred on the core, with a falloff per side
+
+**Decision.** `flare_streak` sits on the flare centre and carries a separate
+falloff and gain for its east half (`profile_e`, `east_gain`), both searched.
+`flare_ray_e` goes back to being a broad wedge rather than a thin spoke.
+
+**Evidence.** The streak row cannot be measured naively: the two curve ridges
+cross it at dx -65.5 and +14.5 from the flare core, so a window at dx -75..-40
+or +15..+40 is entirely inside a curve's core and reads the core, not the
+streak. Every earlier reading of this streak's asymmetry was taken that way. With
+the ridges masked (ridge distance > 30 px) the reference's thin-line residual
+above a 21-px median envelope is
+
+| dx | -210..-160 | -160..-110 | -110..-75 | -40..-15 | +40..+75 | +75..+110 | +110..+160 | +160..+210 |
+|---|---|---|---|---|---|---|---|---|
+| reference | 5.15 | 11.75 | 19.44 | 31.57 | 15.85 | 7.14 | 3.07 | 1.62 |
+| before | 5.65 | 17.14 | 38.63 | 15.70 | 2.28 | 1.39 | 0.29 | 0.01 |
+
+Both sides fall off from the core, the west more slowly than the east. The
+shipped layer instead displaced a *symmetric* streak 58 px west of the core with
+a 37 px e-folding, and that one substitution produced three separate errors: its
+peak sat 58 px off the core (15.70 at dx -40..-15 where the reference has 31.57,
+38.63 at -110..-75 where it has 19.44), its east end truncated at core+158, and
+the east side ran 7x too faint inside the span and to nothing outside it, where
+the reference still carries 1.6-3.1 counts out to +210. The bounds could not have
+recovered it either: `profile` was capped at 0.3 of a 215 px half-length, so the
+reachable e-folding stopped at 65 px against a measured 77-90.
+
+The thin-component angular scan says the same thing from the other direction:
+at 0 degrees (due east) the reference reads 5.99 counts and the render 0.83.
+
+**Effect.** Thin-line rms error along the streak 9.42 -> 6.14 code values at the
+starting parameters, before any search, for +0.005 of whole-image MAE.
+
+**`flare_ray_e`.** The same scan finds no thin spoke at 48 degrees: -0.58 counts
+in the reference against +2.02 in the render. What D14 measured at 45-60 degrees
+was a maximum in the *total* angular profile, which a broad wedge produces and a
+thin spoke does not. Iteration 3 made every ray thin while chasing the six
+spokes that are real, and then the fit drove this one hard to cover broad energy
+with a thin primitive -- which is what turned the flare into a visible starburst.
+The broad angular profile confirms the mechanism: at 165-180 degrees the render
+is 3.5-9.0 counts too *dark* broadly while its thin line there is 7.2 counts too
+*bright*. The westward energy was in the wrong shape, not the wrong amount.
+
+**Not changed.** The six thin spokes at 91, 111, 225, 248, 265 and 328 degrees
+stay: they are in the reference's thin-component scan at 1.2-3.5 counts and are
+not an invention. Their amplitudes are over-driven (111 degrees reads 7.13
+against 1.71, 249 reads 4.32 against 1.60) and that is left to the fit, because
+the over-drive is a consequence of the two errors above and not a separate one.
