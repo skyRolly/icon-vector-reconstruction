@@ -1092,3 +1092,78 @@ squared-weight bug, so they minimise a quartic-weighted objective; that they
 also give lower MAE and higher SSIM than the corrected objective's optimum is a
 fact about this artwork that neither objective was designed to optimise. It is
 recorded here as a thing to explain rather than a thing to exploit.
+
+## D26. The diagonal rays: measured widths, and two angles that were wrong
+
+**The brief's premise, tested.** The review asked why the "left-side rays look
+blurry" and whether the right-side rays are missing detail, with the caution not
+to assume the right side mirrors the left. Both questions are answered by
+measurement, and the first one's premise turns out to be the wrong way round in
+one respect and right in another.
+
+`tools/ray_report.py` scores each ray by sampling an annulus around the flare
+core, masking every sample within 30 px of a curve ridge -- the right ridge is
+only 14.5 px east of the core, so an unmasked scan reads the curve, not the
+flare -- and taking, at each radius, the peak of the excess over the surviving
+angular island's own chord. `peak / FWHM` is then the hardness: the same
+integrated light spread wider scores lower.
+
+Against `reference.png` and the accepted baseline render:
+
+| ray | theta | ref peak | ref FWHM | ref pk/FWHM | render peak | render FWHM | render pk/FWHM |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| upper-left | 113.6 deg | 8.08 cv | 10.6 px | 0.778 | 5.18 cv | 15.4 px | 0.325 |
+| lower-left | 249.7 deg | 6.88 cv | 8.3 px | 0.836 | 0.87 cv | 4.0 px | 0.234 |
+| upper-right | 45.6 deg | 2.37 cv | 3.9 px | 0.601 | 0.56 cv | 3.1 px | 0.180 |
+| lower-right | 327.8 deg | 4.77 cv | 4.6 px | 1.135 | 2.11 cv | 6.5 px | 0.295 |
+
+Every ray is softer than the reference by a factor of 2.4 to 3.9 on
+`peak / FWHM`, and every ray is dimmer at its peak. So "too blurry" is right;
+what is wrong is the implied remedy. The reconstruction is not missing
+sharpening -- it is missing *concentration*. The upper-left ray carries 82% of
+the reference's integrated energy (4045 against 4959 cv*px^2) in a cross-section
+1.5x too wide, and the lower-left ray's light is in a broad flank pedestal
+measuring 10.5% and 12.3% above the reference rather than in a ray at all.
+
+**Two of the four angles were wrong.** The right-hand pair was first scanned at
+32 and 310 degrees, inherited from an earlier pass. Within those windows the
+reference's peak does not sit at the window centre: it sits at 45.6 and 327.8
+degrees, and it holds those angles at every radius that clears the ridge mask
+(the lower-right within +-1.5 deg over r = 60..100). That is what the report's
+`ref angle` row is for, and it is why the row exists: a peak whose angle wanders
+with radius is a local maximum of something else, and adding a ray element for
+it would be fitting a feature that is not there. Re-centred on the measured
+angles, both right-hand rays resolve cleanly, and the lower-right turns out to
+be the hardest ray in the image.
+
+**The right side is not a mirror of the left.** The left rays are 8-11 px wide
+at peaks of 7-8 cv; the right rays are 4-5 px wide at peaks of 2.4-4.8 cv. A
+symmetric four-ray construction -- the obvious thing to reach for -- would make
+the right pair twice too wide and three times too bright, and the ray primitive
+is deliberately one-sided for the same reason (see the comment at
+`src/build_svg.py` around the `ray` branch).
+
+**What was changed.** Only geometry, in `scratchpad/apply_rays.py`: each ray's
+`rot` set to its measured angle, and its `height` and `blur` chosen together to
+hit the measured FWHM through the primitive's own optics -- a slab of height h
+blurred by sigma_b has sigma_eff^2 = sigma_b^2 + h^2/12, so the pair is
+determined once the FWHM is fixed. The blur bound had to be lowered from 2.0 to
+0.6 for these layers: a 3.9 px FWHM is not reachable with sigma_b >= 2, which
+alone is already 4.7 px of FWHM. Rendered with the geometry changed and nothing
+else, the measured widths land at 9.5, 9.3, 4.7 and 4.9 px against the
+reference's 10.6, 8.3, 3.9 and 4.6.
+
+**Amplitudes are not set here.** The same rendering overshoots every peak
+(13.6, 14.6, 12.9 and 6.1 cv against 8.1, 6.9, 2.4 and 4.8), because
+concentrating an unchanged opacity into a narrower slab raises the peak. That is
+a photometric quantity and it belongs to the fitter, fitted after the geometry
+is right. Doing it the other way round -- reducing opacity until the too-wide
+ray stops being conspicuous -- is what the review warned against, and it would
+have left the structure wrong while making the error smaller.
+
+**Why global MAE cannot judge any of this.** The two renders that differ by 0.04
+of whole-image MAE are bit-identical within 334 px of the flare core, so that
+difference is generated entirely outside this region and says nothing about it.
+These changes are a redistribution at nearly constant integrated light, which is
+close to invisible to a mean absolute error over any region large enough to
+contain the ray. `tools/ray_report.py` is the acceptance instrument for them.
