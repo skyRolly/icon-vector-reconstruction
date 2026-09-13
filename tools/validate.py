@@ -64,6 +64,8 @@ def main():
     ap.add_argument("--outdir", default=os.path.join(ROOT, "out"))
     ap.add_argument("--report", default=os.path.join(ROOT, "out", "validation.md"))
     ap.add_argument("--quick", action="store_true")
+    ap.add_argument("--no-chromium", action="store_true",
+                    help="skip the cross-engine comparison (it is optional)")
     a = ap.parse_args()
     os.makedirs(a.outdir, exist_ok=True)
     ref = np.asarray(Image.open(a.reference).convert("RGB")).astype(np.float64)
@@ -84,12 +86,24 @@ def main():
             note = "reference downsampled to %d" % size
         rows.append(("resvg", size, note, m))
 
-    png = R.render(a.svg, 1024, "chromium")
-    open(os.path.join(a.outdir, "render_1024_chromium.png"), "wb").write(png)
-    chrome = to_array(png)
-    rows.append(("chromium", 1024, "native", metrics(ref, chrome)))
-    resvg1024 = to_array(R.render(a.svg, 1024, "resvg"))
-    cross = metrics(resvg1024, chrome)
+    # Chromium is a second opinion, not a dependency: the resvg rows above are
+    # the report.  It is skipped -- with a note in the report, not a crash --
+    # when the binary is absent or --no-chromium is given, so a checkout with
+    # only the documented requirements can run this.
+    cross = None
+    want_chrome = not a.no_chromium and os.path.exists(R.CHROME)
+    if want_chrome:
+        try:
+            png = R.render(a.svg, 1024, "chromium")
+            open(os.path.join(a.outdir, "render_1024_chromium.png"), "wb").write(png)
+            chrome = to_array(png)
+            rows.append(("chromium", 1024, "native", metrics(ref, chrome)))
+            cross = metrics(to_array(R.render(a.svg, 1024, "resvg")), chrome)
+        except Exception as exc:                      # noqa: BLE001
+            print("chromium render failed (%s); continuing without it" % exc)
+            want_chrome = False
+    elif not a.no_chromium:
+        print("headless Chromium not found at %s; skipping the cross-engine check" % R.CHROME)
 
     lines = ["# Validation report", "",
              "Fidelity of `reconstruction.svg` against `reference.png`, plus",
@@ -99,12 +113,18 @@ def main():
     for eng, size, note, m in rows:
         lines.append("| %s | %d | %s | %.3f | %.3f | %.0f | %.3f | %.4f | %.2f |"
                      % (eng, size, note, m["mae"], m["rmse"], m["max"], m["mae_gamma"], m["ssim"], m["pct_gt8"]))
-    lines += ["", "## Cross-engine agreement at 1024 (resvg vs Chromium)", "",
-              "| MAE | RMSE | max | SSIM |", "|---|---|---|---|",
-              "| %.3f | %.3f | %.0f | %.5f |" % (cross["mae"], cross["rmse"], cross["max"], cross["ssim"]), ""]
+    lines += ["", "## Cross-engine agreement at 1024 (resvg vs Chromium)", ""]
+    if cross:
+        lines += ["| MAE | RMSE | max | SSIM |", "|---|---|---|---|",
+                  "| %.3f | %.3f | %.0f | %.5f |"
+                  % (cross["mae"], cross["rmse"], cross["max"], cross["ssim"]), ""]
+    else:
+        lines += ["Not measured in this run: headless Chromium was unavailable or disabled.",
+                  "The resvg rows above are unaffected.", ""]
     open(a.report, "w").write("\n".join(lines) + "\n")
     print("\n".join(lines))
-    json.dump({"rows": [{"engine": e, "size": s, "note": n, **m} for e, s, n, m in rows], "cross_engine": cross},
+    json.dump({"rows": [{"engine": e, "size": s, "note": n, **m} for e, s, n, m in rows],
+               "cross_engine": cross},
               open(os.path.join(a.outdir, "validation.json"), "w"), indent=1)
 
 

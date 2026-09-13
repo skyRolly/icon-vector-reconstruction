@@ -19,6 +19,10 @@ def main():
     vp = os.path.join(ROOT, "out", "validation.json")
     if os.path.exists(vp):
         v = json.load(open(vp))
+    d = None
+    dp = os.path.join(ROOT, "out", "diagnostics.json")
+    if os.path.exists(dp):
+        d = json.load(open(dp))
     lines = [
         START,
         "## Fidelity",
@@ -43,7 +47,47 @@ def main():
         "scale, the background residual implies an MAE floor of 0.57-0.61 per channel",
         "that no reconstruction of the underlying design can go below.",
     ]
-    if v:
+    if d:
+        # The two regions a whole-image metric cannot police get their own
+        # numbers here, so the README cannot claim fidelity the targeted
+        # diagnostics do not support.
+        rad = d.get("flare_radial") or []
+        worst = max((abs(r["rec"] - r["ref"]), r) for r in rad)[1] if rad else None
+        prof = d.get("profile") or []
+        pw = max((abs(b["rec"] - b["ref"]) / max(b["ref"], 1e-6), b) for b in prof)[1] if prof else None
+        lines += [
+            "",
+            "The two regions a whole-image average cannot police, from",
+            "`tools/diagnose.py` (full report in `out/diagnostics.json`):",
+            "",
+            "| targeted measurement | value |",
+            "|---|---|",
+        ]
+        if "flare_mae" in d:
+            lines.append("| MAE within 110 px of the central light | %.2f |" % d["flare_mae"])
+        if worst:
+            lines.append("| worst ring of the flare's radial profile | %+.1f code values at r = %d-%d |"
+                         % (worst["rec"] - worst["ref"], worst["r"][0], worst["r"][1]))
+        if "profile_rms_rel" in d:
+            lines.append("| curve glow, rms relative error over %d signed-distance bins | %.1f%% |"
+                         % (len(prof), 100 * d["profile_rms_rel"]))
+        if "profile_cells_rms_rel" in d:
+            lines.append("| the same, resolved along the curve (%d cells) | %.1f%% |"
+                         % (len(d.get("profile_cells") or []),
+                            100 * d["profile_cells_rms_rel"]))
+        if "corner_rms_rel" in d:
+            lines.append("| light in the four interior corners, rms relative error | %.1f%% |"
+                         % (100 * d["corner_rms_rel"]))
+        if pw:
+            lines.append("| worst single bin of that profile | %+.1f%% at s = %d..%d px |"
+                         % (100 * (pw["rec"] - pw["ref"]) / max(pw["ref"], 1e-6),
+                            pw["s"][0], pw["s"][1]))
+        for side in ("left", "right"):
+            k = "lobe_mae_" + side
+            if k in d:
+                lines.append("| %s lobe, MAE more than 25 px from the ridge | %.2f (bias %+.2f) |"
+                             % (side, d[k], d.get("lobe_bias_" + side, 0.0)))
+    if v and v.get("cross_engine"):
         ce = v["cross_engine"]
         lines += [
             "",

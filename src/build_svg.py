@@ -369,6 +369,17 @@ def taper_stops(t, side="left", n=24):
     return out
 
 
+#: Streak cross-section: source rect height as a multiple of its blur sigma.
+#: A uniform slab of height h blurred by sigma_b has on-axis value
+#: erf(h / (2*sqrt(2)*sigma_b)) and effective width sigma_eff^2 = sigma_b^2 +
+#: h^2/12.  h/sigma_b = 3.92 puts the on-axis value at 0.95, high enough that
+#: the layer's fitted colour is not forced against white, while
+#: STREAK_SIGMA_NORM = sqrt(1 + 3.92^2/12) rescales the blur so sigma_eff comes
+#: out at exactly the requested `sigma_y`.
+STREAK_H_OVER_SB = 3.92
+STREAK_SIGMA_NORM = math.sqrt(1.0 + STREAK_H_OVER_SB ** 2 / 12.0)
+
+
 def profile_stops(profile, n=18):
     """Radial falloff -> gradient stops.
 
@@ -644,28 +655,42 @@ class Builder:
 
         if kind == "streak":
             # The central light's horizontal streak.  Measured: horizontal to
-            # 0.1 degrees, an exponential falloff with e-folding length ~30 px
-            # over +-250 px, and a vertical Gaussian of sigma 2.2 px (FWHM 5.2).
-            # A radial gradient cannot do that (its transverse profile would be
-            # the same law as the longitudinal one), so it is a rect with a
-            # gradient along x and an anisotropic blur across y.
+            # 0.1 degrees, an exponential falloff along x, and a vertical
+            # Gaussian cross-section of only sigma ~2.2 px (FWHM 5.2).
+            #
+            # The cross-section is stated as `sigma_y` and the markup derived
+            # from it, rather than left implicit in a rect height plus a blur.
+            # Getting that wrong is not a small error in either direction.  A
+            # rect tall enough to "cover +-4 sigma" blurred by 2.2 px is a 70 px
+            # slab with soft edges, not a Gaussian, and that slab is what once
+            # replaced the flare's on-axis spike with a broad wash.  But a rect
+            # much *thinner* than the blur caps the on-axis coverage at
+            # h/(sigma_b*sqrt(2*pi)) -- 0.29 for a 2 px rect blurred by 2.7 --
+            # so the layer saturates its colour at white and still renders the
+            # streak three times too faint.  See STREAK_H_OVER_SB.
             fl = self.p["flare"]
             cx = L.get("cx", fl["cx"])
             cy = L.get("cy", fl["cy"])
-            half, h = L["half_len"], L["height"]
+            half = L["half_len"]
+            sigma_y = float(L.get("sigma_y", 2.2))
+            h = STREAK_H_OVER_SB * sigma_y / STREAK_SIGMA_NORM
+            sb = sigma_y / STREAK_SIGMA_NORM
+            bx = float(L.get("blur_x", 0.0))
             prof = profile_stops(L["profile"])
             body = []
-            for o, a in reversed(prof):
+            for o, av in reversed(prof):
                 body.append('<stop offset="%s" stop-color="%s" stop-opacity="%s"/>'
-                            % (f(0.5 - 0.5 * o, 5), col, f(a, 5)))
-            for o, a in prof[1:]:
+                            % (f(0.5 - 0.5 * o, 5), col, f(av, 5)))
+            for o, av in prof[1:]:
                 body.append('<stop offset="%s" stop-color="%s" stop-opacity="%s"/>'
-                            % (f(0.5 + 0.5 * o, 5), col, f(a, 5)))
+                            % (f(0.5 + 0.5 * o, 5), col, f(av, 5)))
             self.add_def('<linearGradient id="%s" gradientUnits="userSpaceOnUse" x1="%s" y1="0" '
                          'x2="%s" y2="0">%s</linearGradient>'
                          % (gid, f(cx - half), f(cx + half), "".join(body)), gid)
+            filt = ' filter="url(#%s)"' % self.blur([bx, sb])
             return ('<rect x="%s" y="%s" width="%s" height="%s" fill="url(#%s)"%s%s%s%s/>'
-                    % (f(cx - half), f(cy - h / 2.0), f(2 * half), f(h), gid, filt, clip, opa, blend))
+                    % (f(cx - half), f(cy - h / 2.0), f(2 * half), f(h), gid,
+                       filt, clip, opa, blend))
 
         if kind == "ray":
             # One-sided diagonal spike.  The three measured rays are one-sided
@@ -682,11 +707,18 @@ class Builder:
             cx = L.get("cx", fl["cx"])
             cy = L.get("cy", fl["cy"])
             ln, h, pk = L["len"], L["height"], L.get("peak_at", 0.3)
+            # `spread` is the far end's width as a multiple of the near end's.
+            # The measured westward fan is not a constant-width streak: its
+            # half width grows from ~10 px at 30 px out to ~28 px at 92 px out,
+            # so a parallel-sided quad can match either the near or the far
+            # part of it, never both.
+            sp = float(L.get("spread", 1.0))
             th = math.radians(L["rot"])
             ux, uy = math.cos(th), math.sin(th)
             nx, ny = -uy * h / 2.0, ux * h / 2.0
-            pts = [(cx + nx, cy + ny), (cx + ln * ux + nx, cy + ln * uy + ny),
-                   (cx + ln * ux - nx, cy + ln * uy - ny), (cx - nx, cy - ny)]
+            fx, fy = nx * sp, ny * sp
+            pts = [(cx + nx, cy + ny), (cx + ln * ux + fx, cy + ln * uy + fy),
+                   (cx + ln * ux - fx, cy + ln * uy - fy), (cx - nx, cy - ny)]
             d = "M%s,%s L%s,%s L%s,%s L%s,%s Z" % tuple(
                 f(v, 2) for q in pts for v in q)
             body = "".join('<stop offset="%s" stop-color="%s" stop-opacity="%s"/>' % (f(o, 4), col, f(av, 4))
@@ -740,11 +772,18 @@ class Builder:
                     % (gid, f(L.get("width", fr["stroke_width"])), filt, opa, blend))
 
         if kind == "frame_corner_glow":
-            # Brightness along the frame varies; a radial gradient stroke adds
-            # the extra light near the middle of each edge.
-            self.radial_paint(gid, col, L["cx"], L["cy"], L["r"], L["profile"], L.get("squash", 1.0))
-            return ('<use href="#frame" fill="none" stroke="url(#%s)" stroke-width="%s"%s%s%s/>'
-                    % (gid, f(L["width"]), filt, opa, blend))
+            # A stroked copy of the frame path whose paint is a radial gradient
+            # centred in the icon: the frame path is 651 px from the centre at
+            # the corners against 442-478 at the edge midpoints, so a gradient
+            # rising over that range puts light in the corners and not along
+            # the edges.  Used for the frame's own brightness variation and,
+            # clipped to the interior, for the light in the four inside
+            # corners, which is measurably 30% brighter in the reference than
+            # anything else in the model produced.
+            self.radial_paint(gid, col, L["cx"], L["cy"], L["r"], L["profile"],
+                              L.get("squash", 1.0), L.get("rot", 0.0))
+            return ('<use href="#frame" fill="none" stroke="url(#%s)" stroke-width="%s"%s%s%s%s/>'
+                    % (gid, f(L["width"]), filt, clip, opa, blend))
 
         raise ValueError("unknown layer kind %r" % kind)
 
@@ -774,6 +813,27 @@ class Builder:
             "\n".join(list(self._filters.values()) + self.defs),
             "\n".join(body),
         )
+
+
+# --------------------------------------------------------------------------- #
+# parameter dependencies
+# --------------------------------------------------------------------------- #
+#: Layer kinds whose position falls back to params["flare"] when the layer does
+#: not carry its own cx/cy.  Keep this in step with Builder.layer.
+FLARE_ANCHORED_KINDS = ("radial", "arc_lens", "streak", "ray")
+
+
+def flare_dependent_layers(params):
+    """Ids of layers whose rendered position depends on params["flare"].
+
+    The optimiser needs this to know what a change to the global flare centre
+    actually moves.  Deriving it from the same rule the builder uses (rather
+    than listing kinds by hand at the call site) is what stops the two from
+    drifting apart -- which is exactly how the streak layers came to be scored
+    at a stale position while the blooms moved.
+    """
+    return [L["id"] for L in params["layers"]
+            if L["kind"] in FLARE_ANCHORED_KINDS and "cx" not in L and "cy" not in L]
 
 
 def build(params, basis=None):

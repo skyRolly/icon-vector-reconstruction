@@ -105,19 +105,41 @@ offsets are what produce the measured 2.8-3.5x concave/convex asymmetry.
   second version, and it works (it was the single biggest fidelity jump of the
   whole job, MAE 9.19 -> 6.80). The measured three-Gaussian decomposition
   replaced it because it needs no clip, no extra `clipPath` defs, and reaches a
-  lower peak error (max channel error 147 -> 100).
+  lower peak error (max channel error 147 -> 100). **Partly reinstated in
+  D13**: three inward-offset strokes get the sign of the asymmetry right and
+  its extent wrong, and the clip is the only thing that stops the broad
+  concave tail from also filling the space between the curves.
 
-## D5. Colour: a white + cyan(0, 0.94, 1) two-component basis
+## D5. Colour: a three-component non-negative cone
 
-**Decision.** Every layer carries two numbers: white amount and cyan amount.
+**Decision.** Every layer carries three non-negative numbers: how much
+white(1, 1, 1), cyan(0, 0.94, 1) and blue(0, 0, 1).
 
-**Evidence.** PCA of 300 000 interior colour directions: eigenvalues 0.981 /
-0.012 / 0.007. Two-basis fit error 0.63/255, against 9.6/255 for white alone.
+**Evidence.** PCA of the interior colour *directions* gives eigenvalues 0.981 /
+0.012 / 0.007, so the light is nearly two-dimensional — but "nearly" is not
+"is", and the third dimension is where the whole background lives. Over the
+946 964 reference pixels above luminance 3, the non-negative fit in this basis
+is off by **0.010/255**; dropping blue and keeping white+cyan alone is off by
+**1.84/255**, and white alone by 9.96/255. The same ordering holds at every
+brightness threshold (1.5-1.8/255 for white+cyan at thresholds 10, 25 and 60).
+The reason is the dark field: across its 620 317 pixels between luminance 3 and
+14 the mean colour is (1.8, 7.1, 13.4), G/B = **0.53**, against cyan's 0.94.
 
-**Rejected.** Free RGB per layer. It fits marginally better in the raw metric
-but produced physically absurd layers (a magenta core, a green bloom) as the
-optimiser used hue to compensate for shape error, and it made the SVG much
-harder to reason about.
+The point of the basis is not compression, it is a modelling safeguard: the
+non-negative cone spanned by these three vectors is exactly `R <= G <= B`, the
+family the reference uses everywhere, so a shape error can no longer be hidden
+by inventing a colour.
+
+**Rejected.**
+
+* *White + cyan only.* This was the previous decision, and it was wrong by a
+  factor of 180 in the colour residual. An earlier version of this record and
+  of the README said each layer "carries just two numbers"; the code had three
+  components all along. Corrected here and in `README.md`.
+* *Free RGB per layer.* Fits marginally better in the raw metric but produced
+  physically absurd layers (a magenta core, a green bloom) as the optimiser
+  used hue to compensate for shape error, and made the SVG much harder to
+  reason about.
 
 ## D6. Compositing: `mix-blend-mode: screen`
 
@@ -176,6 +198,15 @@ core stroke into the halo — numerically free, but it destroys the layer stack'
 meaning.
 
 ## D11. The central light: no bright disc, plus a separate glint
+
+> **Superseded by D14.** Kept because its evidence still stands and because one
+> of its conclusions was wrong in a way worth recording. "No bright disc" was
+> read off the *composite*, where the flare centre reads luminance 224; the
+> exact isolation in D14 shows the flare's own contribution peaking exactly
+> there, at additive luminance 4.9, and 198 pixels above luminance 248 in a
+> plateau ~20 px across. What the reference does not have is a bright disc with
+> a *peak*; it has one with a flat, clipped top. The reconstruction now carries
+> a plateau-topped core, and the "glint" of this entry is that core.
 
 **Decision.** The centre is built from a two-part horizontal streak, two
 horizontally stretched blooms, three individually placed one-sided rays, and a
@@ -240,6 +271,250 @@ What that settled:
   the SVG side.
 * resvg also quantises stroke-outline edges to multiples of 0.25 px, so there
   is no point tuning frame geometry below ~0.13 px.
+* **Chromium renders each *dim* screen layer slightly brighter, and it
+  accumulates.** Measured on this artwork by rendering subsets: one dim layer
+  alone is +0.26 to +0.33 code values brighter in Chromium than in resvg, four
+  of the field layers together +1.32, two corner layers +0.50 -- roughly
+  additive, and roughly absent on bright layers (three arc glows: +0.22 in
+  total). Across the whole 29-layer stack it is a **+2.77** mean offset.
+  That offset is nearly all of the cross-engine difference: the MAE between the
+  two engines is 2.907, and 1.355 once the mean is removed, so the two engines
+  agree on the artwork's *structure* and disagree on a near-uniform lift of the
+  dark background. It is a compositing-precision artefact, not something the
+  SVG can express its way out of: the layers cannot be merged, because a
+  gradient modulates alpha only and each of these layers carries a different
+  colour. It is the cost of the extra elements iteration 2 added -- the same
+  figure was about +2.0 with 22 layers -- and it is the one number that got
+  worse while every fidelity measure improved.
+
+## D13. The broad glow is clipped to the lobe, and one stroke leans the other way
+
+**Decision.** Two components were added to each curve. `arc_haze` is a wide,
+low-amplitude stroke deep in the lobe, `clip-path`-ed to that curve's own
+ellipse so it puts *nothing* on the convex side. `arc_glow2b` is the one
+component offset **outward**, towards the space between the curves.
+
+**Evidence.** Signed-distance profiles pooled over both curves, with everything
+within 200 px of the central light excluded (section 4a of `METHOD.md`). Above
+the far-field floor the concave excess is 1.7x the convex one 11 px out and
+5.9x 100 px out; the convex side is indistinguishable from the background by
+100-130 px while the concave side still carries 6 code values at 170 px. On the
+inter-curve midline at y=200, 140 px from *both* curves, the reference sits at
+3.9 code values against 13.5 at a lobe point 140 px from one curve.
+
+Against that measurement the previous stack was 13-19% too dark in the band
+28-70 px between the curves and 6-11% too bright in the lobe 14-38 px out —
+because every one of its strokes was inset into the lobe, so the convex side
+only ever saw their tails. `arc_glow2b` cut the profile's rms relative error
+from 8.6% to 7.0% with no change in global MAE (2.2753 -> 2.2745).
+
+**Rejected.**
+
+* *Retuning the three existing strokes.* A scan of `arc_haze` over
+  width x inset x blur = 4 x 3 x 3 found nothing better than the starting
+  point: the concave side was already within 11% everywhere, so no amount of
+  broad-concave shape fixed a convex-side deficit. That is what identified the
+  missing component rather than a missing parameter value.
+* *Removing `field_mid`, the broad central wash, instead.* Tried: the profile
+  error got worse (7.0% -> 8.0%) and the global MAE much worse (2.275 ->
+  2.478). It earns its place; what it needed was a searchable vertical squash,
+  since a round blob of its size over-fills the top and bottom of the lens.
+* *Reusing `glow3`'s measured fade for both new components.* Splitting the
+  profile error by along-curve angle showed why that is wrong: near the waist
+  the two sides balanced, but towards the tips (\|t\| 40-62 degrees) the
+  reconstruction was +27% on the concave side and -15% on the convex one, i.e.
+  far too one-sided exactly where `glow3`'s fade has died. The three original
+  fades are measured station by station and stay tables; the two new components
+  carry their own tunable ramps (`tapers.haze`, `tapers.glow2b`), which is
+  honest about the fact that no station-by-station measurement exists for them.
+* *A softer, unclipped version of `arc_haze`.* The hard edge a clip leaves at
+  the curve is a real artefact, but it falls under a core stroke two orders of
+  magnitude brighter and is invisible at every resolution tested; an unclipped
+  stroke wide enough to reach 270 px into the lobe puts 20-40% of that light
+  between the curves, where the reference is at its darkest.
+
+## D14. The central light's extent is bounded by measurement, not by the metric
+
+**Decision.** The flare is rebuilt from an exact isolation of its own
+contribution (`tools/isolate.py`, method in section 5a of `METHOD.md`): a
+plateau-topped compact core, two halo terms whose widest is bounded at 210 px,
+a thin spike, a 59-px-west-centred thin streak, a broad fan, and five cones.
+
+**Evidence.** In additive luminance the isolated flare falls from 2.30 at r=6
+to 0.02 at r=92 and **0.005 at r=115**, i.e. nothing measurable past
+~130-160 px. The previous widest bloom had r=378 px and its surplus filled the
+space between the curves — the darkest part of the interior. Three further
+measurements each forced a specific change:
+
+* 198 reference pixels sit above luminance 248 in a plateau ~20 px across; the
+  previous reconstruction rendered 67 of them and was 20 code values too dark
+  at the centre. This one renders 184, and 170 against the reference's 170
+  within 60 px of the centre.
+* the streak's additive excess peaks at 0.76 across two pixel rows, and the old
+  markup (a 2 px rect blurred by 2.7 px) caps on-axis coverage at 0.29 — so the
+  layer's colour was pinned at white and the streak still rendered three times
+  too faint. The rect height and the blur are now both derived from `sigma_y`
+  at `h / sigma_b = 3.92`, giving 0.95 on-axis with `sigma_eff = sigma_y`.
+* the westward fan's half width grows from ~10 px at r=30 to ~28 px at r=92, so
+  a parallel-sided quad can match its near part or its far part but not both.
+  Rays now carry a `spread`.
+
+**Effect.** Flare radial profile agreement went from -20/-13/-11 code values at
+r<45 to within +-4.3 at every radius; MAE within 110 px of the core 10.01 ->
+7.9; peak channel error over the whole image 112 -> 96.
+
+**Rejected.**
+
+* *Raising the bloom's amplitude to close the r<12 deficit.* That deficit was a
+  plateau-versus-peak error, and the amplitudes were already clipped against
+  white — three separate layers were sitting exactly at the colour bound, which
+  is the signature of a shape that cannot deliver what the fit wants.
+* *A dedicated flat-topped disc at the centre.* This was tried and it worked: a
+  `plateau` fraction on the falloff law, holding it at its peak over the first
+  part of the radius, took the centre from 20 code values too dark to within 3.
+  It is not in the final reconstruction, because it was the right fix for a
+  model that was wrong elsewhere. Once the halo's radius came down to its
+  measured 92 px and the streak markup stopped capping its own on-axis
+  coverage, the sum of halo and streaks saturates over the measured plateau by
+  itself: re-fitting left the flat-topped disc at 0.006 of full amplitude, and
+  removing it changed the whole-image MAE by -0.0001 — it heads the
+  `tools/prune_layers.py` report. The parameter went with it rather than
+  staying as an unused knob; the SVG is byte-identical without it.
+* *A symmetric starburst primitive.* The angular maxima are at 45-60, 110-120,
+  175-195, 225-255, 300 and 330-345 degrees, with the westward one 3-5x the
+  eastward one. Neither 4- nor 6-fold symmetry, so the primitive would invent
+  rays that are not in the image.
+
+## D15. The fitting objective scores the glow's shape cell by cell
+
+**Decision.** The per-pixel fitting weight has a third emphasis term. The
+glow's cross-section is divided into 77 cells -- (signed distance from the
+curve) x (along-curve band), plus the four interior corners past the curve
+ends -- and each cell receives the same influence, shaped as `1 / (L + 0.012)^2`
+inside the cell, *replacing* the display-curve weight there rather than
+multiplying it. The cells are disjoint by construction.
+
+**Evidence, in three steps, each one a thing that went wrong first.**
+
+1. *Scale.* The objective is a weighted sum of squares, so what a cell costs
+   for a given *relative* error is `(total weight) x (r L)^2`. Equalising that
+   needs `1/L^2`, not `1/L`, and needs the base weight out of the way: with
+   the display-curve weight left in place the cost of a 1% error still varied
+   6x across cells. Un-emphasised it varies 183x, which is the mechanism by
+   which "a numerically strong global score" coexisted with an obvious local
+   error: a 19% deficit 45 px inside the curves cost the fit less than a 2%
+   error on the frame.
+2. *Where the floor sits.* `1/L^2` with no floor equalises relative error
+   exactly -- Weber's law -- and Weber's law fails near black: 15% of the
+   7.5-count outermost cell is one code value and invisible, 15% of the
+   42-count innermost cell is six and not. The floor is therefore a visibility
+   threshold, 0.012 (3 code values), which leaves a 2.3x spread.
+3. *Cells, not distance-only bins.* Pooling along the curve hid the tips
+   completely. Every pooled bin read within 5%, while the lobe within 80 px of
+   a curve end was 20-30% too dark -- and because the objective could not see
+   it, the taper search had drained it further (iteration 1 was 15-20% too dark
+   there, not 30%). Splitting by along-curve band is what surfaced it.
+
+`tools/test_pipeline.py` checks all three: the cost of a 1% relative error
+across all 77 cells, that the outermost along-curve band is covered, and that
+the interior corners are covered.
+
+**Rejected.**
+
+* *A fully relative weight, `1/(L + f)` over the whole image.* It did improve
+  global MAE (2.2955 -> 2.2501) but degraded the flare (bias -4.0 -> -5.6 code
+  values inside r=40) and still left every structural error in place, because
+  those are shape errors and no reweighting fixes a shape.
+* *Overlapping cells.* Cells that share pixels are each weighted as if they
+  owned them, and the shared pixels take whichever value was written last; the
+  cost spread went from 2.3x to 6.2x. They are made disjoint in
+  `regions.weight_cells`.
+* *Cells past the curve ends.* Tempting, since that is where the worst deficit
+  was, but there is no curve there -- it would have been asking the glow layers
+  to light a region with no source. The deficit belongs to a separate element;
+  see D18.
+
+## D16. Optimiser correctness, and the checks that keep it
+
+**Decision.** Five defects that could invalidate an optimisation result were
+fixed and are now covered by `tools/test_pipeline.py`, which
+`tools/optimize_all.sh` runs first.
+
+* **Stale layer caching.** The basis cache was keyed on layer id with a
+  hand-maintained list of which parameters invalidate which layers; the list
+  and the builder had drifted, so trials were scored against streak artwork
+  that the parameters no longer described. The cache key is now a SHA-1 of the
+  SVG the layer would actually render, which makes a stale entry impossible by
+  construction, and the builder itself answers which layers read the global
+  flare centre (`build_svg.flare_dependent_layers`).
+* **Search intervals that excluded the current value.** `field_grad.cx` sat at
+  890.33 while the generated interval ended at 820, which silently froze it:
+  every proposal landed outside and was rejected unevaluated. Field intervals
+  are now generated around the current value, and any interval that still fails
+  to contain it is widened with a log line. A check asserts that every
+  generated interval contains its parameter's value.
+* **Parameters nested under `paint/`.** `exterior_corner`'s gradient centre is
+  `paint.cx` / `paint.cy`, which the field spec builder never looked at, so
+  that layer was skipped entirely. Both spellings are discovered now.
+* **List-valued parameters.** An anisotropic `[x, y]` blur produced no specs at
+  all. Each component is now searched separately, with per-component intervals;
+  the check exercises this against a probe layer so it cannot pass vacuously if
+  the shipped artwork happens to use only scalars.
+* **A degenerate parameter under search.** `corner_r_blend` was searched with a
+  +-300 px span although the corner fit only measures the blend's lateral
+  offset `r (1 - cos a)`; it had drifted 639.06 -> 619.06 for a 0.08 px change
+  in that offset, leaving the documented value wrong. It is now held at its
+  fitted value and only the turn angle — which spans the identifiable
+  direction — is searched.
+
+**Rejected.** *Clamping `field_grad.cx` into the old interval.* The value was
+not the error; the interval generator was. Clamping would have moved a measured
+gradient centre 70 px to satisfy a bound that had no evidence behind it.
+
+## D17. Headless Chromium is optional in fact as well as in the README
+
+**Decision.** `tools/validate.py` takes `--no-chromium`, checks that the binary
+exists before invoking it, catches a failed launch, and says plainly in its
+report that the cross-engine rows were not measured while the resvg rows are
+unaffected.
+
+**Evidence.** The README said Chromium was optional; `validate.py` invoked it
+unconditionally, so the documented validation command failed on a clean
+checkout with only the documented dependencies installed. Behaviour and
+documentation now agree; `python3 tools/validate.py --quick --no-chromium`
+completes with numpy, Pillow and resvg-py alone.
+
+## D18. The light in the four interior corners is its own element
+
+**Decision.** One layer, `corner_in`: a wide stroked copy of the frame path,
+clipped to the interior, blurred, painted with a radial gradient centred in the
+icon so that it lights the corners and not the edge midpoints.
+
+**Evidence.** Over interior pixels more than 40 px from either curve and more
+than 250 px from the central light, within 100 px of the frame, the corner
+quadrants read 9.5-11.0 code values in the reference against 7.0-8.3 rendered
+(30% too dark over 67 000 px) while the edge midpoints agreed to 0.1-0.7. The
+deficit does not decay with distance from the *curve*, it decays with distance
+from the *frame*, and only near the corners. Nothing else in the model is
+corner-weighted on the inside: `exterior_corner` is clipped to the outside, and
+the interior field gradient is a single monotone ramp, which cannot be bright
+at all four corners at once.
+
+The primitive works because of the frame's own geometry: its path is 651 px
+from the icon centre at the corners against 442-478 px at the edge midpoints,
+so a radial gradient rising across that range separates the two.
+
+**Rejected.**
+
+* *Extending the curve glow past the curve ends.* The Bezier endpoints are at
+  \|t\| = 66-69 degrees; the deficit runs from there to 90. Filling it with
+  curve glow would put light where the reference has no curve, and would need
+  the glow layers to stop obeying their own measured cross-section.
+* *Making the interior field gradient corner-weighted.* It is one radial ramp
+  centred well outside the canvas -- measured, and it beats flat by 33% in G
+  MAE on a glow-free mask. A single ramp cannot be bright at four corners, and
+  replacing it with something that can would discard a measured element to fix
+  an unrelated one.
 
 ## D10. Asymmetries are preserved, not tidied
 

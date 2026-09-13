@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import hashlib
 import os
 import sys
 import time
@@ -71,7 +72,8 @@ def layer_index(params, lid):
 
 
 def layer_specs(params, keys=("width", "blur", "inset", "r", "squash", "rot",
-                              "half_len", "height", "len", "peak_at", "cx", "cy")):
+                              "half_len", "height", "len", "peak_at", "cx", "cy",
+                              "sigma_y", "blur_x", "spread")):
     """One spec per tunable shape number on each layer.
 
     Per-layer `bounds` in params.json win over the global defaults.  They are
@@ -84,15 +86,34 @@ def layer_specs(params, keys=("width", "blur", "inset", "r", "squash", "rot",
     for i, L in enumerate(params["layers"]):
         b = L.get("bounds", {})
         for k in keys:
-            if k in L and isinstance(L[k], (int, float)):
+            if k not in L:
+                continue
+            # A parameter may be a scalar or, for anisotropic blur, a two-element
+            # [x, y] list.  Each component is searched separately: the streak's
+            # cross-section is set by its y blur alone, and collapsing the pair
+            # to one scalar would make that unreachable.
+            if isinstance(L[k], (int, float)):
+                components = [("layers/%d/%s" % (i, k), float(L[k]))]
+            elif isinstance(L[k], list) and all(isinstance(q, (int, float)) for q in L[k]):
+                components = [("layers/%d/%s/%d" % (i, k, j), float(q)) for j, q in enumerate(L[k])]
+            else:
+                continue
+            for j, (path, v) in enumerate(components):
                 lo, hi, step = SHAPE_BOUNDS.get(k, (0.0, 2000.0, None))
-                v = float(L[k])
                 if k in ("cx", "cy"):
                     lo, hi, step = v - 40.0, v + 40.0, 1.5
                 if k in b:
-                    lo, hi = b[k]
+                    # `bounds` may give one [lo, hi] pair for the whole
+                    # parameter, or one pair per component -- the streak's x
+                    # and y blur need different ranges, since the x blur is
+                    # deliberately zero.
+                    bk = b[k]
+                    if len(components) > 1 and isinstance(bk[0], (list, tuple)):
+                        lo, hi = bk[min(j, len(bk) - 1)]
+                    else:
+                        lo, hi = bk
                 st = step if step is not None else max(0.02, abs(v) * 0.12)
-                out.append({"path": "layers/%d/%s" % (i, k), "lo": lo, "hi": hi,
+                out.append({"path": path, "lo": lo, "hi": hi,
                             "step": st, "affects": [L["id"]]})
         if isinstance(L.get("profile"), dict):
             pk = "sigma" if "sigma" in L["profile"] else ("scale" if "scale" in L["profile"] else "n")
@@ -123,6 +144,9 @@ def layer_specs(params, keys=("width", "blur", "inset", "r", "squash", "rot",
 
 
 SHAPE_BOUNDS = {
+    "spread": (1.0, 8.0, 0.2),
+    "sigma_y": (0.8, 24.0, 0.15),
+    "blur_x": (0.0, 6.0, 0.2),
     "half_len": (30.0, 500.0, None),
     "height": (2.0, 200.0, None),
     "len": (30.0, 400.0, None),
@@ -167,16 +191,24 @@ def geometry_specs(params):
     out = []
     for k, st in (("cx", 1.0), ("cy", 1.0)):
         v = float(params["flare"][k])
+        # Ask the builder which layers actually read the global flare centre
+        # instead of restating the rule here; the two had drifted apart, and
+        # the streak layers were being scored at a stale position.
         out.append({"path": "flare/%s" % k, "lo": v - 30, "hi": v + 30, "step": st,
-                    "affects": [L["id"] for L in params["layers"]
-                                if L["kind"] in ("radial", "arc_lens")]})
+                    "affects": build_svg.flare_dependent_layers(params)})
     # The frame's four centre-lines are NOT searched either: they are fitted to
     # 371-461 cross-sections per edge with a standard deviation of 0.02-0.04 px,
     # which is far better than this objective can resolve -- and a raster
     # objective will happily trade 0.3 px of a measured edge position against a
     # photometric error somewhere else.  Only the corner shape is searched.
-    for k, st, span in (("corner_r_main", 1.0, 8.0), ("corner_r_blend", 20.0, 300.0),
-                        ("corner_blend_deg", 0.15, 2.5)):
+    # `corner_r_blend` is NOT searched.  The corner fit measures the blend's
+    # lateral offset r_blend * (1 - cos(blend_deg)) ~ 3.0 px, and the radius and
+    # the turn angle are strongly correlated inside that product: searching both
+    # lets the radius wander hundreds of px for no change in the rendered
+    # outline (it drifted 639.06 -> 619.06 for a 0.08 px change in the offset,
+    # and then the documented value was simply wrong).  The angle alone spans
+    # the identifiable direction.
+    for k, st, span in (("corner_r_main", 1.0, 8.0), ("corner_blend_deg", 0.15, 2.5)):
         v = float(params["frame"][k])
         out.append({"path": "frame/%s" % k, "lo": v - span, "hi": v + span,
                     "step": st, "affects": "all"})
@@ -193,12 +225,37 @@ def geometry_specs(params):
 
 
 def field_specs(params):
+    """Centres of the background gradient fields.
+
+    Two things this must get right, both of which it previously did not:
+
+    * the bounds are built around the *current* value, not a fixed window.  The
+      interior field gradient is centred at (890, 741) -- deliberately outside
+      the canvas, because the field is brightest at the inner top-left corner
+      and darkest at the bottom-right -- and a hard [200, 820] window put it
+      out of bounds, so every trial was rejected and the parameter was frozen.
+    * a radial gradient's centre may live in the layer itself (`cx`) or inside
+      its paint (`paint/cx`), which is how a `canvas` layer stores it.  Only
+      the first was looked for, so the exterior field's centre never moved.
+    """
     out = []
+    span, step = 260.0, 6.0
     for i, L in enumerate(params["layers"]):
-        if L["kind"] in ("field_radial", "canvas") and "cx" in L:
-            for k, st in (("cx", 6.0), ("cy", 6.0)):
-                out.append({"path": "layers/%d/%s" % (i, k), "lo": 200, "hi": 820,
-                            "step": st, "affects": [L["id"]]})
+        if L["kind"] not in ("field_radial", "canvas", "radial", "frame_corner_glow"):
+            continue
+        holders = []
+        if "cx" in L and isinstance(L["cx"], (int, float)):
+            holders.append("")
+        pt = L.get("paint")
+        if isinstance(pt, dict) and pt.get("kind") == "radial" and "cx" in pt:
+            holders.append("paint/")
+        for h in holders:
+            for k in ("cx", "cy"):
+                path = "layers/%d/%s%s" % (i, h, k)
+                v = float(get_path(params, path))
+                lo, hi = L.get("bounds", {}).get(h.replace("/", "_") + k, (v - span, v + span))
+                out.append({"path": path, "lo": lo, "hi": hi, "step": step,
+                            "affects": [L["id"]]})
     return out
 
 
@@ -217,17 +274,43 @@ class Objective:
         self.n_render = 0
 
     def basis(self, params, lid):
-        if lid not in self.cache:
-            self.cache[lid] = FP.render_array(build_svg.build(params, basis=lid), self.size)[..., 0]
+        """Layer `lid`'s coverage field, cached on the CONTENT of its markup.
+
+        The cache key is a hash of the SVG this layer would actually render
+        from the current parameters, so a stale entry is impossible by
+        construction: if a parameter change alters the markup at all -- whether
+        it is the layer's own field, a global one it falls back to, or a shared
+        def it references -- the key changes and the layer is re-rendered.
+
+        Keying on the layer id alone (with a hand-maintained list of which
+        parameters invalidate which layers) is what let the optimiser score
+        stale streak artwork while the blooms moved: the list and the builder
+        had drifted apart.  Building the markup costs well under a millisecond
+        against ~300 ms to rasterise it, so this is nearly free.
+
+        Two entries per layer are kept, which is what an accept/reject cycle
+        needs: a rejected trial restores the previous markup and finds it still
+        cached.
+        """
+        svg = build_svg.build(params, basis=lid)
+        key = hashlib.sha1(svg.encode("utf-8")).hexdigest()
+        slots = self.cache.setdefault(lid, {})
+        if key not in slots:
+            if len(slots) >= 2:
+                slots.pop(next(iter(slots)))
+            slots[key] = FP.render_array(svg, self.size)[..., 0]
             self.n_render += 1
-        return self.cache[lid]
+        return slots[key]
 
     def invalidate(self, affects):
+        """Kept for the caller's benefit only -- correctness no longer needs it.
+
+        Content-addressed caching (see `basis`) makes invalidation a memory
+        hint rather than a correctness requirement, so this only drops slots
+        that are certainly dead.
+        """
         if affects == "all":
             self.cache.clear()
-        else:
-            for lid in affects:
-                self.cache.pop(lid, None)
 
     def families(self, params, affects):
         """Layer indices worth re-fitting when `affects` changed.
@@ -267,6 +350,14 @@ def sweep(obj, params, specs, log=print, accept_tol=2e-7):
     improved = 0
     for sp in specs:
         v0 = float(get_path(params, sp["path"]))
+        # A search interval that does not contain the starting value silently
+        # freezes the parameter: every proposal lands outside and is rejected
+        # without ever being evaluated.  Widen instead, and say so.
+        if not (sp["lo"] <= v0 <= sp["hi"]):
+            log("  note: %s = %.4g lies outside [%.4g, %.4g]; widening to include it"
+                % (sp["path"], v0, sp["lo"], sp["hi"]))
+            pad = max(abs(v0) * 0.15, sp["step"] * 8, 1e-6)
+            sp = dict(sp, lo=min(sp["lo"], v0 - pad), hi=max(sp["hi"], v0 + pad))
         step = sp["step"]
         moved = True
         tries = 0

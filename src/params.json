@@ -9,9 +9,9 @@
   "stroke_width": 6.135,
   "corner_model": "three_arc",
   "corner_r_main": 163.5607,
-  "corner_r_blend": 619.0638,
-  "corner_blend_deg": 5.2416,
-  "corner_note": "continuous-curvature corner: blend arc, main arc, blend arc; fits the measured corner outline to 0.13-0.27 px vs 0.66-0.84 px for a circular rounded rect",
+  "corner_r_blend": 639.0638,
+  "corner_blend_deg": 5.0916,
+  "corner_note": "continuous-curvature corner: blend arc, main arc, blend arc; fits the measured corner outline to 0.13-0.27 px vs 0.66-0.84 px for a circular rounded rect. r_blend and corner_blend_deg are degenerate: what the corner fit measures is the lateral blend offset r_blend*(1-cos(blend_deg)) = 2.67 px, so r_blend is held at its fitted value and only the angle is searched",
   "radius": 171.8,
   "corner_n": 2.45,
   "corner_segments": 3,
@@ -130,7 +130,7 @@
     "ry": 463.35
    }
   },
-  "lens_grow": 4.694304,
+  "lens_grow": 4.094304,
   "mirror_axis_x": 505.03,
   "measured_ellipse_fits_pixelindex": {
    "left": {
@@ -153,8 +153,8 @@
   "core": {
    "kind": "table",
    "gamma": 1.0,
-   "scale": 0.96,
-   "y_offset": -1.1,
+   "scale": 1.0,
+   "y_offset": 0.8999999999999999,
    "left": [
     [
      87.3,
@@ -518,9 +518,9 @@
   },
   "glow1": {
    "kind": "table",
-   "gamma": 1.4056000000000002,
+   "gamma": 1.6216000000000004,
    "scale": 0.96,
-   "y_offset": 2.5,
+   "y_offset": -13.309600000000003,
    "left": [
     [
      87.3,
@@ -884,9 +884,9 @@
   },
   "glow2": {
    "kind": "table",
-   "gamma": 1.0,
-   "scale": 0.96,
-   "y_offset": 0.5000000000000013,
+   "gamma": 1.12,
+   "scale": 0.9199999999999999,
+   "y_offset": -0.563999999999997,
    "left": [
     [
      87.3,
@@ -1250,9 +1250,9 @@
   },
   "glow3": {
    "kind": "table",
-   "gamma": 1.6816000000000004,
+   "gamma": 1.0,
    "scale": 1.0,
-   "y_offset": -5.156000000000001,
+   "y_offset": -12.956,
    "left": [
     [
      87.3,
@@ -1617,46 +1617,64 @@
   "core_wide": {
    "kind": "ramp",
    "y0": 204.29760000000002,
-   "y1": 322.4,
+   "y1": 332.4,
    "p0": 3.4716288000000004,
    "y2": 609.04,
    "y3": 810.1424,
    "p1": 0.6755200000000002
   },
-  "note": "core/glow1..3 are the measured station-by-station fades of the core coverage and of the three glow gaussians' G amplitudes (out/analysis/arc_photometry.json). core_wide is the extra width the core gains towards mid-height."
+  "note": "core/glow1..3 are the measured station-by-station fades of the core coverage and of the three glow gaussians' G amplitudes (out/analysis/arc_photometry.json). core_wide is the extra width the core gains towards mid-height. | haze and glow2b are ramps, not measured tables: both layers postdate the station-by-station cross-section fit, so reusing glow3's table for them would be an assumption dressed as a measurement. Resolving the profile error by |t| band showed exactly why it matters: at |t| 40-62 deg the concave side was +13 to +27% too bright and the convex side 9-15% too dark, i.e. the glow is less one-sided towards the tips than glow3's fade allows.",
+  "haze": {
+   "kind": "ramp",
+   "y0": 110.0,
+   "y1": 448.09600000000006,
+   "y2": 545.9039999999999,
+   "y3": 940.0,
+   "p0": 3.2180480000000005,
+   "p1": 1.6204800000000001
+  },
+  "glow2b": {
+   "kind": "ramp",
+   "y0": 38.464,
+   "y1": 382.56000000000006,
+   "y2": 862.5600000000001,
+   "y3": 962.0,
+   "p0": 0.5920000000000001,
+   "p1": 0.8
+  }
  },
  "flare": {
-  "cx": 511.8,
-  "cy": 515.3000000000001,
-  "note": "SVG user space; the streak's symmetry centre and the per-column peak of the streak put it at (508.7,512.2) in pixel-index, which coincides with the frame centre to 0.2/0.3 px"
+  "cx": 529.95,
+  "cy": 514.33,
+  "note": "the compact source: the centroid of every off-arc pixel above lum 245 (531.3,512.8) and the peak of the isolated flare (532,513) agree here. The long horizontal streak has its own, different measured centre (~511.5) and carries it explicitly."
  },
  "layers": [
   {
    "id": "field_base",
    "kind": "field",
    "color": [
-    0.36,
-    3.26,
-    9.16
+    0.29,
+    1.78,
+    7.58
    ],
-   "white": 0.0014,
-   "cyan": 0.0121,
-   "blue": 0.0224
+   "white": 0.00115,
+   "cyan": 0.0062,
+   "blue": 0.02239
   },
   {
    "id": "field_mid",
    "kind": "field_radial",
-   "cx": 514.24,
-   "cy": 537.2144000000001,
+   "cx": 507.256,
+   "cy": 531.2144000000001,
    "r": 290.4,
    "profile": {
     "kind": "gauss",
-    "sigma": 1.1278432000000003
+    "sigma": 0.9925020160000002
    },
    "color": [
-    0.5,
-    18.14,
-    19.26
+    0.0,
+    16.55,
+    17.61
    ],
    "bounds": {
     "r": [
@@ -1666,18 +1684,24 @@
     "profile": [
      0.2,
      1.2
+    ],
+    "squash": [
+     0.35,
+     1.9
     ]
    },
-   "white": 0.00197,
-   "cyan": 0.07357,
-   "blue": 0.0
+   "white": 0.0,
+   "cyan": 0.06904,
+   "blue": 0.0,
+   "squash": 0.88,
+   "note": "the broad central wash. Its vertical extent is searched separately from its radius: the inter-curve region 90-150 px from either curve sits at 6.3 code values in the reference, so a round blob of this size over-fills the top and bottom of the lens"
   },
   {
    "id": "field_grad",
    "kind": "field_radial",
-   "cx": 890.3304,
-   "cy": 741.2830400000001,
-   "r": 969.7,
+   "cx": 827.1729599999999,
+   "cy": 758.6230400000002,
+   "r": 853.336,
    "profile": [
     [
      0,
@@ -1705,9 +1729,9 @@
     ]
    ],
    "color": [
-    2.81,
-    8.44,
-    8.8
+    2.29,
+    5.21,
+    5.63
    ],
    "bounds": {
     "r": [
@@ -1716,9 +1740,9 @@
     ]
    },
    "note": "measured on a glow-free mask (20% of the interior): a single isotropic radial gradient centred well outside the canvas at (882,678.5) beats flat by 33% in G MAE; distance-to-frame explains only 4% of the variance (no vignette) and distance-to-the-arcs explains nothing, so the field is its own element",
-   "white": 0.01102,
-   "cyan": 0.02349,
-   "blue": 0.0
+   "white": 0.00896,
+   "cyan": 0.01219,
+   "blue": 0.00093
   },
   {
    "id": "field_vert",
@@ -1754,27 +1778,27 @@
     ]
    },
    "color": [
-    1.7,
-    3.57,
-    4.76
+    0.47,
+    1.25,
+    2.34
    ],
    "note": "the reference's interior is brighter at the top than at the bottom by ~2.7 code values (row-band means), consistent with the rim being top-lit; this is that tilt",
-   "white": 0.00667,
-   "cyan": 0.00781,
-   "blue": 0.00418
+   "white": 0.00185,
+   "cyan": 0.00326,
+   "blue": 0.00408
   },
   {
    "id": "exterior",
    "kind": "canvas",
    "region": "outside",
    "color": [
-    0.08,
-    0.8,
-    2.23
+    0.06,
+    0.77,
+    2.12
    ],
-   "white": 0.00031,
-   "cyan": 0.003,
-   "blue": 0.00545
+   "white": 0.00022,
+   "cyan": 0.00299,
+   "blue": 0.00511
   },
   {
    "id": "exterior_top",
@@ -1814,13 +1838,13 @@
     ]
    },
    "color": [
-    0.77,
-    0.77,
-    2.88
+    0.8,
+    0.8,
+    3.05
    ],
-   "white": 0.003,
+   "white": 0.00314,
    "cyan": 0.0,
-   "blue": 0.0083
+   "blue": 0.00884
   },
   {
    "id": "exterior_corner",
@@ -1855,9 +1879,9 @@
     ]
    },
    "color": [
-    0.45,
-    1.85,
-    4.84
+    0.48,
+    1.82,
+    4.71
    ],
    "bounds": {
     "paint_r": [
@@ -1865,21 +1889,167 @@
      900
     ]
    },
-   "white": 0.00178,
-   "cyan": 0.00584,
-   "blue": 0.01138
+   "white": 0.00186,
+   "cyan": 0.0056,
+   "blue": 0.01102
+  },
+  {
+   "id": "corner_in",
+   "kind": "frame_corner_glow",
+   "cx": 515.0,
+   "cy": 538.4544000000001,
+   "r": 607.2,
+   "width": 135.0976,
+   "blur": 19.984384000000006,
+   "profile": [
+    [
+     0,
+     0.0
+    ],
+    [
+     0.66,
+     0.0
+    ],
+    [
+     0.78,
+     0.32
+    ],
+    [
+     0.9,
+     0.78
+    ],
+    [
+     1.0,
+     1.0
+    ]
+   ],
+   "clip": true,
+   "white": 0.0057,
+   "cyan": 0.02103,
+   "blue": 0.0,
+   "color": [
+    1.45,
+    6.5,
+    6.82
+   ],
+   "bounds": {
+    "width": [
+     80,
+     320
+    ],
+    "blur": [
+     10,
+     95
+    ],
+    "r": [
+     540,
+     860
+    ]
+   },
+   "note": "the light in the four interior corners. Measured in the lobes more than 40 px from a curve: within 100 px of the frame the corner quadrants read 9.5-11.0 code values in the reference against 7.0-8.3 rendered (30% too dark, 67k px), while the edge midpoints agree to 0.1-0.7. Nothing else in the model is corner-weighted on the inside"
+  },
+  {
+   "id": "corner_in_top",
+   "kind": "frame_corner_glow",
+   "cx": 478.03999999999996,
+   "cy": 720.0,
+   "r": 830.0,
+   "width": 288.6912,
+   "blur": 36.0,
+   "profile": [
+    [
+     0,
+     0.0
+    ],
+    [
+     0.62,
+     0.0
+    ],
+    [
+     0.78,
+     0.28
+    ],
+    [
+     0.9,
+     0.72
+    ],
+    [
+     1.0,
+     1.0
+    ]
+   ],
+   "clip": true,
+   "white": 0.01554,
+   "cyan": 0.01893,
+   "blue": 0.0,
+   "color": [
+    3.96,
+    8.5,
+    8.79
+   ],
+   "bounds": {
+    "width": [
+     70,
+     320
+    ],
+    "blur": [
+     10,
+     95
+    ],
+    "r": [
+     600,
+     1000
+    ],
+    "cy": [
+     560,
+     900
+    ]
+   },
+   "note": "the interior corner light is not symmetric top to bottom: 12-45 px inside the frame the top corners read 13.7 code values against 8.3 at the bottom. One radial gradient cannot be both corner-weighted and top-weighted, so this second copy has its centre pushed *below* the icon, which makes the top corners the farthest and brightest points of its gradient"
+  },
+  {
+   "id": "arc_haze",
+   "kind": "arc",
+   "width": 147.22592638658148,
+   "inset": 153.512,
+   "blur": 76.158337024,
+   "taper": "haze",
+   "clip": "lens",
+   "bounds": {
+    "width": [
+     120,
+     380
+    ],
+    "blur": [
+     30,
+     130
+    ],
+    "inset": [
+     50,
+     230
+    ]
+   },
+   "note": "measured at |t|<62 with the flare excluded, the glow is 1.7x brighter on the concave side 11 px out and 5.9x brighter 100 px out, and the inter-curve midline 140 px from both curves sits at 3.9 code values against 13.5 in the lobes: the broad component lives inside the lens and is clipped to it",
+   "white": 0.01309,
+   "cyan": 0.05453,
+   "blue": 0.00097,
+   "color": [
+    3.34,
+    16.41,
+    17.49
+   ]
   },
   {
    "id": "arc_glow3",
    "kind": "arc",
-   "width": 64.29759999999999,
-   "inset": 62.07,
-   "blur": 40.656000000000006,
+   "width": 89.29650687999998,
+   "inset": 26.229999999999993,
+   "blur": 40.070553600000004,
    "taper": "glow3",
    "color": [
-    0.72,
-    52.88,
-    56.21
+    0.0,
+    64.48,
+    68.59
    ],
    "bounds": {
     "width": [
@@ -1895,21 +2065,22 @@
      110
     ]
    },
-   "white": 0.00284,
-   "cyan": 0.2176,
-   "blue": 0.0
+   "white": 0.0,
+   "cyan": 0.26899,
+   "blue": 0.0,
+   "clip": "lens"
   },
   {
    "id": "arc_glow2",
    "kind": "arc",
    "width": 26.891391999999996,
-   "inset": 14.2,
-   "blur": 21.98,
+   "inset": 6.999999999999999,
+   "blur": 19.06386944,
    "taper": "glow2",
    "color": [
     0.0,
-    149.2,
-    158.73
+    101.59,
+    108.07
    ],
    "bounds": {
     "width": [
@@ -1926,20 +2097,51 @@
     ]
    },
    "white": 0.0,
-   "cyan": 0.62246,
+   "cyan": 0.42381,
    "blue": 0.0
+  },
+  {
+   "id": "arc_glow2b",
+   "kind": "arc",
+   "width": 56.81176281087999,
+   "inset": -15.2,
+   "blur": 29.6239104,
+   "taper": "glow2b",
+   "white": 0.01045,
+   "cyan": 0.07048,
+   "blue": 0.0005,
+   "color": [
+    2.66,
+    19.56,
+    20.76
+   ],
+   "bounds": {
+    "width": [
+     14,
+     90
+    ],
+    "blur": [
+     6,
+     50
+    ],
+    "inset": [
+     -45,
+     20
+    ]
+   },
+   "note": "the only component offset towards the convex side. Every other glow stroke is inset into the lobe, which left the region 28-70 px between the curves 13-19% too dark while the lobe 14-38 px out was 6-11% too bright; one convex-biased stroke cuts the profile rms relative error from 8.6% to 7.0% at no cost to the global metric"
   },
   {
    "id": "arc_glow1",
    "kind": "arc",
-   "width": 12.672,
-   "inset": 3.28,
-   "blur": 5.805183999999999,
+   "width": 9.8131968,
+   "inset": 5.279999999999999,
+   "blur": 5.108561919999999,
    "taper": "glow1",
    "color": [
-    80.77,
-    211.35,
-    224.39
+    128.12,
+    166.95,
+    172.63
    ],
    "bounds": {
     "width": [
@@ -1955,275 +2157,441 @@
      10
     ]
    },
-   "white": 0.31674,
-   "cyan": 0.54476,
-   "blue": 0.01844
+   "white": 0.50245,
+   "cyan": 0.16198,
+   "blue": 0.01255
   },
   {
-   "id": "flare_bloom_cyan",
-   "kind": "radial",
-   "r": 186.16,
-   "squash": 0.75264,
-   "profile": {
-    "kind": "gauss",
-    "sigma": 0.31
-   },
-   "color": [
-    0.0,
-    88.27,
-    106.11
-   ],
-   "bounds": {
-    "r": [
-     70,
-     260
-    ],
-    "squash": [
-     0.25,
-     1.4
-    ],
-    "profile": [
-     0.18,
-     0.7
-    ]
-   },
+   "id": "arc_glow1b",
+   "kind": "arc",
+   "width": 7.92,
+   "inset": -6.0,
+   "blur": 2.408,
+   "taper": "glow1",
    "white": 0.0,
-   "cyan": 0.36824,
-   "blue": 0.04787
-  },
-  {
-   "id": "flare_bloom_pale",
-   "kind": "radial",
-   "r": 119.19999999999999,
-   "squash": 0.13440000000000002,
-   "profile": {
-    "kind": "gauss",
-    "sigma": 0.32735999999999993
-   },
+   "cyan": 0.23592,
+   "blue": 0.04328,
    "color": [
-    113.95,
-    172.14,
-    185.88
-   ],
-   "bounds": {
-    "r": [
-     45,
-     190
-    ],
-    "squash": [
-     0.12,
-     0.8
-    ],
-    "profile": [
-     0.16,
-     0.7
-    ]
-   },
-   "white": 0.44687,
-   "cyan": 0.24274,
-   "blue": 0.03934
-  },
-  {
-   "id": "flare_streak_cyan",
-   "kind": "streak",
-   "half_len": 157.11999999999995,
-   "height": 69.7408,
-   "profile": {
-    "kind": "exp",
-    "scale": 0.0505968
-   },
-   "blur": [
     0.0,
-    2.2
-   ],
-   "color": [
-    5.2,
-    76.99,
-    81.57
+    56.55,
+    71.2
    ],
    "bounds": {
-    "half_len": [
-     140,
-     420
-    ],
-    "height": [
-     16,
-     70
-    ],
-    "profile": [
-     0.05,
-     0.35
+    "width": [
+     4,
+     24
     ],
     "blur": [
-     0.4,
-     7
+     1.5,
+     14
+    ],
+    "inset": [
+     -22,
+     2
     ]
    },
-   "white": 0.02039,
-   "cyan": 0.29948,
-   "blue": 0.0
+   "note": "the 9-14 px band on the convex side ran 12-17% too dark with nothing narrow enough to fill it: arc_glow1 is inset into the lobe and reaches only 0.10 of its peak there, and arc_glow2b is four times too wide"
   },
   {
-   "id": "flare_streak_white",
-   "kind": "streak",
-   "half_len": 116.36072447999999,
-   "height": 34.431488,
+   "id": "flare_halo_far",
+   "kind": "radial",
+   "r": 140.44800000000004,
+   "squash": 0.777728,
    "profile": {
     "kind": "exp",
-    "scale": 0.48723459155689486
+    "scale": 0.2464
    },
-   "blur": [
-    0.0,
-    2.2
-   ],
    "color": [
-    43.31,
-    43.31,
-    43.31
+    0.0,
+    236.21,
+    254.89
    ],
    "bounds": {
-    "half_len": [
-     40,
-     170
+    "r": [
+     140,
+     340
     ],
-    "height": [
-     12,
-     60
+    "squash": [
+     0.35,
+     1.1
     ],
     "profile": [
      0.1,
-     0.8
-    ],
-    "blur": [
-     0.4,
-     7
+     0.45
     ]
    },
-   "white": 0.16985,
+   "white": 0.0,
+   "cyan": 0.98544,
+   "blue": 0.01414,
+   "note": "the isolated flare is below 0.01 in additive luminance beyond r ~ 130 px and indistinguishable from zero beyond ~160, so this widest bloom ends there; the broad light between the curves is the central field, not the flare"
+  },
+  {
+   "id": "flare_halo",
+   "kind": "radial",
+   "r": 92.41600000000001,
+   "squash": 0.645292032,
+   "profile": {
+    "kind": "exp",
+    "scale": 0.15904
+   },
+   "color": [
+    254.94,
+    254.94,
+    254.94
+   ],
+   "bounds": {
+    "r": [
+     90,
+     260
+    ],
+    "squash": [
+     0.45,
+     1.05
+    ],
+    "profile": [
+     0.07,
+     0.32
+    ]
+   },
+   "note": "u = 2.757*exp(-sqrt((dx/22.7)^2+(dy/16.9)^2)) fitted over 63k px of the isolated flare",
+   "white": 0.99978,
    "cyan": 0.0,
    "blue": 0.0
   },
   {
-   "id": "flare_ray_dr",
-   "kind": "ray",
-   "cx": 578.64304,
-   "cy": 551.1430400000002,
-   "rot": 28.220000000000002,
-   "len": 267.96000000000004,
-   "height": 36.788889600000005,
-   "blur": 5.0,
-   "peak_at": 0.7373951999999999,
+   "id": "flare_streak",
+   "kind": "streak",
+   "cx": 472.05696000000006,
+   "cy": 513.5,
+   "half_len": 215.7568,
+   "sigma_y": 3.5639999999999996,
+   "blur_x": 0.0,
+   "profile": {
+    "kind": "exp",
+    "scale": 0.172412416
+   },
    "color": [
-    0.44,
-    2.66,
-    2.8
+    73.23,
+    155.61,
+    160.87
    ],
    "bounds": {
-    "len": [
-     80,
+    "half_len": [
+     140,
+     400
+    ],
+    "sigma_y": [
+     1.2,
+     6.0
+    ],
+    "profile": [
+     0.05,
+     0.3
+    ]
+   },
+   "white": 0.28716,
+   "cyan": 0.3437,
+   "blue": 0.0
+  },
+  {
+   "id": "flare_spike",
+   "kind": "streak",
+   "half_len": 109.68320000000001,
+   "sigma_y": 2.45,
+   "blur_x": 0.0,
+   "profile": {
+    "kind": "exp",
+    "scale": 0.3224
+   },
+   "color": [
+    49.93,
+    97.09,
+    132.52
+   ],
+   "bounds": {
+    "half_len": [
+     45,
+     190
+    ],
+    "sigma_y": [
+     1.2,
+     6.0
+    ],
+    "profile": [
+     0.08,
+     0.6
+    ]
+   },
+   "white": 0.19581,
+   "cyan": 0.19672,
+   "blue": 0.12716
+  },
+  {
+   "id": "flare_fan",
+   "kind": "streak",
+   "half_len": 123.2,
+   "sigma_y": 10.85,
+   "blur_x": 0.0,
+   "profile": {
+    "kind": "exp",
+    "scale": 0.22
+   },
+   "bounds": {
+    "half_len": [
+     60,
      280
     ],
-    "height": [
-     8,
-     40
+    "sigma_y": [
+     5.0,
+     24.0
     ],
-    "blur": [
-     2.0,
-     14.0
-    ],
-    "rot": [
-     26,
-     40
+    "profile": [
+     0.08,
+     0.5
     ]
    },
-   "white": 0.00173,
-   "cyan": 0.00926,
-   "blue": 0.0
+   "note": "the horizontal streak has two widths: a sigma ~2.8 px spike and this broader wash (half width ~8 px at r=30, ~25 px at r=92)",
+   "white": 0.66214,
+   "cyan": 0.0,
+   "blue": 0.0,
+   "color": [
+    168.85,
+    168.85,
+    168.85
+   ]
   },
   {
-   "id": "flare_ray_ur",
+   "id": "flare_ray_a",
    "kind": "ray",
-   "cx": 538.4,
-   "cy": 512.7,
-   "rot": -47.7,
-   "len": 150.0,
-   "height": 18.0,
-   "blur": 5.0,
-   "peak_at": 0.3,
+   "rot": -110.0,
+   "len": 132.0,
+   "height": 19.885465600000003,
+   "blur": 4.0,
+   "peak_at": 0.22,
    "color": [
-    7.18,
-    14.27,
-    14.72
+    0.0,
+    53.02,
+    60.98
    ],
    "bounds": {
+    "rot": [
+     -124,
+     -96
+    ],
     "len": [
-     80,
-     260
+     70,
+     250
     ],
     "height": [
-     8,
+     6,
      40
     ],
     "blur": [
-     2.0,
-     14.0
+     2,
+     10
     ],
-    "rot": [
-     -56,
-     -40
+    "peak_at": [
+     0.1,
+     0.6
+    ],
+    "spread": [
+     1.0,
+     5.0
     ]
    },
-   "white": 0.02815,
-   "cyan": 0.02958,
-   "blue": 0.0
+   "white": 0.0,
+   "cyan": 0.2212,
+   "blue": 0.01795,
+   "spread": 1.2000000000000002
   },
   {
-   "id": "flare_ray_ul",
+   "id": "flare_ray_b",
    "kind": "ray",
-   "cx": 495.0,
-   "cy": 513.2,
-   "rot": 222.2,
+   "rot": -248.2,
+   "len": 116.16,
+   "height": 29.941829632,
+   "blur": 4.0,
+   "peak_at": 0.26200000000000007,
+   "color": [
+    0.0,
+    46.79,
+    69.17
+   ],
+   "bounds": {
+    "rot": [
+     -259,
+     -231
+    ],
+    "len": [
+     70,
+     250
+    ],
+    "height": [
+     6,
+     40
+    ],
+    "blur": [
+     2,
+     10
+    ],
+    "peak_at": [
+     0.1,
+     0.6
+    ],
+    "spread": [
+     1.0,
+     5.0
+    ]
+   },
+   "white": 0.0,
+   "cyan": 0.19522,
+   "blue": 0.07605,
+   "spread": 1.6
+  },
+  {
+   "id": "flare_ray_c",
+   "kind": "ray",
+   "rot": -329.0,
    "len": 160.0,
-   "height": 18.0,
-   "blur": 5.0,
-   "peak_at": 0.3,
+   "height": 8.943999999999999,
+   "blur": 3.2320000000000007,
+   "peak_at": 0.1252,
    "color": [
-    12.11,
-    18.0,
-    20.57
+    12.73,
+    20.58,
+    34.37
    ],
    "bounds": {
+    "rot": [
+     -339,
+     -311
+    ],
     "len": [
-     80,
-     260
+     70,
+     250
     ],
     "height": [
-     8,
+     6,
      40
     ],
     "blur": [
-     2.0,
-     14.0
+     2,
+     10
     ],
-    "rot": [
-     214,
-     230
+    "peak_at": [
+     0.1,
+     0.6
+    ],
+    "spread": [
+     1.0,
+     5.0
     ]
    },
-   "white": 0.04748,
-   "cyan": 0.02456,
-   "blue": 0.00864
+   "white": 0.0499,
+   "cyan": 0.03279,
+   "blue": 0.05208,
+   "spread": 1.6
+  },
+  {
+   "id": "flare_ray_d",
+   "kind": "ray",
+   "rot": -182.2,
+   "len": 172.722176,
+   "height": 42.03576832,
+   "blur": 4.0,
+   "peak_at": 0.4168000000000001,
+   "color": [
+    2.71,
+    22.99,
+    33.06
+   ],
+   "bounds": {
+    "rot": [
+     -189,
+     -161
+    ],
+    "len": [
+     70,
+     300
+    ],
+    "height": [
+     6,
+     45
+    ],
+    "blur": [
+     2,
+     10
+    ],
+    "peak_at": [
+     0.1,
+     0.6
+    ],
+    "spread": [
+     1.0,
+     6.0
+    ]
+   },
+   "white": 0.01061,
+   "cyan": 0.08462,
+   "blue": 0.03442,
+   "spread": 5.371200000000002,
+   "note": "the westward fan: at 40 px out the isolated flare reaches 1.29 additive luminance due west against 0.32 off-axis, and it is still 0.065 at 145 px -- by far the largest single feature of the flare"
+  },
+  {
+   "id": "flare_ray_e",
+   "kind": "ray",
+   "rot": -50.0,
+   "len": 105.6,
+   "height": 16.0,
+   "blur": 5.0,
+   "peak_at": 0.30800000000000005,
+   "spread": 2.0,
+   "bounds": {
+    "rot": [
+     -72,
+     -32
+    ],
+    "len": [
+     60,
+     220
+    ],
+    "height": [
+     6,
+     40
+    ],
+    "blur": [
+     2,
+     12
+    ],
+    "peak_at": [
+     0.1,
+     0.6
+    ],
+    "spread": [
+     1.0,
+     5.0
+    ]
+   },
+   "note": "a fifth ray: the isolated flare peaks again at 45-60 deg (0.45 at r=40, 0.09 at r=72) between the horizontal streak and the arc",
+   "white": 0.08671,
+   "cyan": 0.07622,
+   "blue": 0.08049,
+   "color": [
+    22.11,
+    40.38,
+    62.07
+   ]
   },
   {
    "id": "arc_core",
    "kind": "arc",
    "width": 6.832,
    "inset": 0.0,
-   "blur": 0.3469542912819199,
+   "blur": 0.6137416122421083,
    "taper": "core",
    "color": [
-    220.06,
-    253.35,
+    221.48,
+    253.7,
     255.0
    ],
    "bounds": {
@@ -2240,21 +2608,21 @@
      0.8
     ]
    },
-   "white": 0.86299,
-   "cyan": 0.13886,
-   "blue": 0.00018
+   "white": 0.86856,
+   "cyan": 0.1344,
+   "blue": 0.00082
   },
   {
    "id": "arc_core_wide",
    "kind": "arc",
-   "width": 4.5760000000000005,
+   "width": 4.02688,
    "inset": 2.0,
-   "blur": 0.33729710649277156,
+   "blur": 0.20421316015498364,
    "taper": "core_wide",
    "color": [
-    99.93,
-    116.81,
-    125.75
+    93.91,
+    184.25,
+    207.5
    ],
    "bounds": {
     "width": [
@@ -2270,44 +2638,10 @@
      5.0
     ]
    },
-   "white": 0.39188,
-   "cyan": 0.07044,
-   "blue": 0.0308,
+   "white": 0.36828,
+   "cyan": 0.37689,
+   "blue": 0.06854,
    "note": "the reference core is asymmetric about its centre-line: its 50% edges reach 4.8 px on the concave side but only 3.3 px on the convex side, and it widens from 6.1 px at the tips to 8.4 px at mid-height. This second, inset, mid-tapered stroke supplies exactly that extra concave-side width."
-  },
-  {
-   "id": "flare_glint",
-   "kind": "radial",
-   "cx": 538.06,
-   "cy": 514.8,
-   "r": 33.4608,
-   "profile": {
-    "kind": "gauss",
-    "sigma": 0.6200000000000001
-   },
-   "blur": 11.399168000000001,
-   "color": [
-    229.63,
-    253.5,
-    255.0
-   ],
-   "bounds": {
-    "r": [
-     7,
-     40
-    ],
-    "profile": [
-     0.25,
-     0.9
-    ],
-    "blur": [
-     3,
-     18
-    ]
-   },
-   "white": 0.9005,
-   "cyan": 0.0996,
-   "blue": 1e-05
   },
   {
    "id": "frame_base",
@@ -2318,9 +2652,9 @@
     "kind": "uniform"
    },
    "color": [
-    11.53,
-    22.0,
-    26.21
+    14.36,
+    25.11,
+    29.76
    ],
    "bounds": {
     "width": [
@@ -2328,9 +2662,9 @@
      7.0
     ]
    },
-   "white": 0.04523,
-   "cyan": 0.04366,
-   "blue": 0.01391
+   "white": 0.0563,
+   "cyan": 0.04486,
+   "blue": 0.01555
   },
   {
    "id": "frame_rim",
@@ -2383,9 +2717,9 @@
     ]
    },
    "color": [
-    113.8,
-    121.5,
-    128.46
+    112.73,
+    119.74,
+    126.31
    ],
    "bounds": {
     "width": [
@@ -2397,9 +2731,9 @@
      700
     ]
    },
-   "white": 0.44628,
-   "cyan": 0.0321,
-   "blue": 0.02538
+   "white": 0.44209,
+   "cyan": 0.02922,
+   "blue": 0.02404
   }
  ]
 }

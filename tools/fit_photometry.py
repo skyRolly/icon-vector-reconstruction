@@ -44,7 +44,9 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import build_svg  # noqa: E402
+import regions  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -240,11 +242,130 @@ def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=No
     return WC.astype(np.float32)
 
 
-def make_weight(target, mode="gamma", floor=0.02):
-    if mode == "flat":
-        return np.ones(target.shape[:2], np.float32)
+#: Regions a whole-image objective cannot police, and how much to lift them.
+#: The gamma weight below is ~5x smaller on a bright centre pixel than on the
+#: dark background, and the centre is only 5% of the canvas, so without this
+#: the fit will trade a visibly wrong flare for a fraction of a code value
+#: spread over the background -- which is exactly what it did.
+EMPHASIS = {
+    "flare": {"centre": regions.FLARE_CORE, "radius": 130.0, "weight": 5.0},
+    #: The two lobes, full interior height.  The old boxes stopped at y=200 and
+    #: y=850, which left the four interior corners -- where the reconstruction
+    #: was 30% too dark over 67 000 px -- with no emphasis at all.
+    "lobes": {"boxes": [(100, 55, 460, 985), (568, 55, 930, 985)], "weight": 1.6},
+    #: The glow's cross-section, cell by cell: every (signed distance x
+    #: along-curve band) cell gets the same influence, shaped by its own mean
+    #: brightness.  Without it the fit sees the glow's shape only through
+    #: absolute code values, so a 19% deficit 45 px inside the curves (2.2
+    #: counts) is worth less than a 2% error on the frame -- and the asymmetry
+    #: between the two sides of each curve, which is what the eye reads as the
+    #: shape of the light, goes unfitted.  Cells rather than distance-only
+    #: bins: pooling along the curve hid the tips completely, and the fit then
+    #: drained them to 20-30% below the reference.  The set also carries the
+    #: four interior corners, which lie past the curve ends and so have no
+    #: profile cell of their own.
+    #: `floor` sets where the shaping sits between equal *relative* error in
+    #: every bin (floor 0, Weber's law) and equal *absolute* error (large
+    #: floor).  Weber's law fails near black -- a 15% error on the 7.5-count
+    #: outermost bin is about one code value, and invisible, while 15% on the
+    #: 42-count innermost bin is six -- so the floor is a visibility threshold,
+    #: 0.012 (3 code values).  The bins then differ by 2.6x in what a 1%
+    #: relative error costs, against 14x with no shaping at all.
+    "profile": {"weight": 2.2, "floor": 0.012},
+}
+
+#: Caches keyed by image shape (and, for the profile term, by a cheap
+#: fingerprint of the target).  `Objective.evaluate` rebuilds the weight on
+#: every trial evaluation, and the distance fields and per-bin means behind it
+#: cost more than the fit step they feed.
+_PROFILE_BINS = {}
+_PROFILE_CACHE = {}
+_MASK_CACHE = {}
+
+
+def region_masks(shape):
+    key = tuple(shape[:2])
+    if key not in _MASK_CACHE:
+        _MASK_CACHE[key] = _region_masks(shape)
+    return _MASK_CACHE[key]
+
+
+def _region_masks(shape):
+    h, w = shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w]
+    sx, sy = w / 1024.0, h / 1024.0
+    fl = EMPHASIS["flare"]
+    out = {"flare": np.hypot(xx - fl["centre"][0] * sx, yy - fl["centre"][1] * sy)
+           < fl["radius"] * sx}
+    lob = np.zeros((h, w), bool)
+    for x0, y0, x1, y1 in EMPHASIS["lobes"]["boxes"]:
+        lob[int(y0 * sy):int(y1 * sy), int(x0 * sx):int(x1 * sx)] = True
+    out["lobes"] = lob & ~out["flare"]
+    return out
+
+
+def profile_multiplier(target):
+    """Per-pixel multiplier that equalises the signed-distance bins.
+
+    The objective is a weighted sum of squares, so to make the same *relative*
+    error cost the same in every bin the bin's total weight must go as
+    1/luminance^2, not 1/luminance: a bin at brightness L with relative error r
+    contributes (total weight) * (r*L)^2.  Per pixel that is
+    1 / (n * (L + floor)^2).  Normalised to mean 1 over the covered pixels, so
+    the region's overall share is unchanged by the shaping and is then lifted
+    by `EMPHASIS["profile"]["weight"]`.
+    """
+    shape = tuple(target.shape[:2])
     lum = target.mean(2)
-    w = (lum + floor) ** (1.0 / 2.2 - 1.0)
+    key = (shape, float(lum.sum()))
+    if key in _PROFILE_CACHE:
+        return _PROFILE_CACHE[key]
+    if shape not in _PROFILE_BINS:
+        _PROFILE_BINS[shape] = regions.weight_cells(shape)
+    bins = _PROFILE_BINS[shape]
+    fl = EMPHASIS["profile"]["floor"]
+    m = np.zeros(shape, np.float32)
+    cov = np.zeros(shape, bool)
+    for cell in bins:
+        mask = cell[-1]
+        n = int(mask.sum())
+        if not n:
+            continue
+        m[mask] = 1.0 / (n * (float(lum[mask].mean()) + fl) ** 2)
+        cov |= mask
+    if cov.any():
+        m[cov] /= m[cov].mean()
+    _PROFILE_CACHE[key] = (m, cov)
+    return m, cov
+
+
+def make_weight(target, mode="gamma", floor=0.02, emphasis=True):
+    """Per-pixel fitting weight.
+
+    `gamma` mirrors a 1/2.2 display curve, so an error in the near-black
+    background counts roughly as the eye counts it.  `emphasis` then lifts the
+    regions that are visually decisive but numerically tiny: the flare, the
+    lobes, and every bin of the curves' cross-sectional profile.
+    """
+    if mode == "flat":
+        w = np.ones(target.shape[:2], np.float32)
+    else:
+        lum = target.mean(2)
+        w = ((lum + floor) ** (1.0 / 2.2 - 1.0)).astype(np.float32)
+    if emphasis:
+        masks = region_masks(target.shape)
+        w = w.copy()
+        w[masks["flare"]] *= EMPHASIS["flare"]["weight"]
+        w[masks["lobes"]] *= EMPHASIS["lobes"]["weight"]
+        mult, cov = profile_multiplier(target)
+        if cov.any():
+            # Replace rather than multiply inside the covered region: the point
+            # is that every bin of the cross-curve profile carries the same
+            # weight mass, and multiplying by a brightness-dependent base
+            # weight puts that back out of balance (6x spread instead of 1x).
+            # The region's overall share is preserved and then lifted.
+            w[cov] = (EMPHASIS["profile"]["weight"] * float(w[cov].mean())
+                      * mult[cov]).astype(np.float32)
     return (w / w.mean()).astype(np.float32)
 
 
@@ -269,6 +390,8 @@ def main():
     ap.add_argument("--reference", default=os.path.join(ROOT, "reference.png"))
     ap.add_argument("--iters", type=int, default=12)
     ap.add_argument("--weight", default="gamma", choices=["gamma", "flat"])
+    ap.add_argument("--no-emphasis", action="store_true",
+                    help="fit without lifting the flare and lobe regions")
     ap.add_argument("--stride", type=int, default=2)
     ap.add_argument("--no-write", action="store_true")
     a = ap.parse_args()
@@ -279,7 +402,7 @@ def main():
     A, names = basis_stack(params)
     st = max(1, a.stride)
     tsub, Asub = target[::st, ::st], A[:, ::st, ::st]
-    W = make_weight(tsub, a.weight)
+    W = make_weight(tsub, a.weight, emphasis=not a.no_emphasis)
     print("fitting %d layers x %s  [stride %d]" % (len(names), str(COMPONENTS), st))
     nf = normal_flags(params)
     WC = fit(Asub, tsub, params_wc(params), W, iters=a.iters, normal=nf)

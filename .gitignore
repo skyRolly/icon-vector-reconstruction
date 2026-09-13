@@ -7,3 +7,6 @@ __pycache__/
 out/render_512.png
 out/render_2048.png
 out/render_4096.png
+# intermediate numeric dumps from tools/isolate.py: 12 MB each, and one
+# command regenerates them
+out/*.npy

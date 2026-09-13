@@ -223,6 +223,66 @@ of the arc path, offset inward by its measured delta and blurred. The core
 itself is a **hard-edged stroke**: the fitted edge sigma is 0.45-0.75 px, i.e.
 plain anti-aliasing and no blur at all.
 
+### 4a. How one-sided the glow is, measured directly
+
+Three inward-offset strokes get the *sign* of the asymmetry right and its
+*extent* wrong, and no whole-image metric says so. Pooling both curves over
+\|t\| < 62 degrees and excluding everything within 200 px of the central light
+(so the flare cannot be read as curve glow), mean luminance against signed
+distance `s` from the curve — negative into the lobe, positive between the
+curves — is:
+
+| \|s\| px | 11 | 17 | 24 | 33 | 45 | 61 | 80 | 100 | 130 | 170 | 215 | 270 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| concave | 41.6 | 33.9 | 30.1 | 26.3 | 23.2 | 19.8 | 16.5 | 14.0 | 12.4 | 10.9 | 9.3 | 7.5 |
+| convex | 26.4 | 19.4 | 16.4 | 13.4 | 11.7 | 9.5 | 7.6 | 6.3 | 6.4 | — | — | — |
+
+Above the far-field floor of ~6.3 the concave excess is 1.7x the convex one at
+11 px and **5.9x at 100 px**, and the convex side is indistinguishable from the
+background by 100-130 px while the concave side still carries 6 code values at
+170 px. The single most direct statement of it: on the inter-curve midline at
+y=200, where both curves are 140 px away, the reference sits at **3.9 code
+values**, while a lobe point 140 px from one curve sits at **13.5**.
+
+Two components follow from that, and the difference is visible rather than
+numerical:
+
+* **arc_haze**, a wide low stroke deep in the lobe, `clip-path`-ed to that
+  arc's own ellipse so it contributes nothing on the convex side. Clipping
+  (rather than relying on the offset) is what lets the concave tail run to
+  270 px without filling the space between the curves; the hard edge it leaves
+  at the curve is hidden under the core stroke, which is two orders of
+  magnitude brighter.
+* **arc_glow2b**, the one component offset *outward*, towards the convex side.
+  Every other stroke is inset into the lobe, which left the band 28-70 px
+  between the curves 13-19% too dark while the lobe 14-38 px out was 6-11% too
+  bright. Adding it cut the profile's rms relative error from 8.6% to 7.0% and
+  left the global MAE unchanged.
+
+### 4b. The asymmetry is not the same all along the curve
+
+Splitting the same profile by along-curve angle \|t\| separates two errors that
+the pooled table hides. Relative error of the reconstruction, before the fades
+of the two new components were fitted:
+
+| s px | \|t\| 0-20 | \|t\| 20-40 | \|t\| 40-62 |
+|---|---|---|---|
+| -11 (concave, near) | — | +8.5% | **+26.6%** |
+| -24 | — | +1.0% | +19.2% |
+| -61 | — | -11.3% | -12.6% |
+| -170 (concave, far) | -9.0% | -0.8% | **+22.5%** |
+| +11 (convex, near) | — | -5.3% | -11.9% |
+| +33 | — | +5.5% | **-15.2%** |
+| +80 | — | -0.6% | -9.3% |
+
+Near the waist the balance is close; towards the tips the reconstruction was
+far too one-sided — too much light in the lobe, too little between the curves.
+The three measured glow fades come from the station-by-station cross-section
+fit and are data; the two components added above postdate that fit, so reusing
+`glow3`'s table for them would have been an assumption dressed as a
+measurement. They carry their own fades (`tapers.haze`, `tapers.glow2b`) as
+tunable ramps instead.
+
 The core's width is not constant -- 5.8 px at both tips, 8.4 px at mid-height --
 and it is **not symmetric about its own centre-line**: its 50% edges reach
 4.8 px on the concave side but only 3.3 px on the convex side. A single stroke
@@ -235,45 +295,128 @@ amplitude were measured station by station on both arcs and are carried in
 `src/params.json` as explicit stop tables (`tapers.core`, `tapers.glow1..3`),
 with a tunable gamma and scale on top.
 
+### 4c. Light past the ends of the curves: the interior corners
+
+The drawn curves end at \|t\| = 66-69 degrees (the four Bezier endpoints are at
+66.1, 66.8, 67.6 and 68.9). Past those ends there is no curve, but the
+reference is not dark there. Measured over interior pixels more than 40 px from
+either curve and more than 250 px from the central light:
+
+| distance inside the frame | corner quadrants | edge midpoints |
+|---|---|---|
+| 12-45 px | ref 11.00, rec 8.29 (**-25%**) | ref 7.67, rec 7.00 |
+| 45-100 px | ref 9.46, rec 6.96 (**-26%**) | ref 6.96, rec 6.87 |
+| 100-200 px | ref 8.38, rec 8.18 | ref 8.46, rec 8.48 |
+
+So the light is corner-weighted and reaches about 100 px inside the frame:
+67 000 pixels roughly 30% too dark, in four patches, invisible to every other
+measurement here. The reconstruction adds one layer for it (`corner_in`): a
+wide stroked copy of the frame path, clipped to the interior, blurred, painted
+with a radial gradient centred in the icon. That gradient is what makes it a
+*corner* glow rather than a rim glow — the frame path is 651 px from the icon
+centre at the corners against 442-478 px at the edge midpoints, so a gradient
+rising over that range lights the corners and leaves the edges alone.
+
 ## 5. The central light
 
-**There is no bright disc at the centre.** At the flare centre the image reads
-lum 224, and nothing within 15 px of it reaches 245; along the waist the
-luminance rises monotonically from the left core (250) through the gap (178 at
-x=486, 213 at x=514, 245 at x=526) into the right core (254). The "star" is the
-two converging cores plus a bloom, a streak, and one separate compact glint.
+### 5a. How it was separated from everything else
 
-What is separable, and how each part is measured:
+Screen compositing is commutative and has a closed form, so the flare's own
+contribution can be recovered from the reference rather than guessed at.
+Drop every `flare_*` layer, composite the rest into a base `M`, and
 
-* **Centre (509.2, 512.7)**, from a symmetric-exponential fit of the streak's
-  y-integrated flux over \|x-xc\| in [45,140] (187 samples, both wings at once)
-  and the per-column peak of the vertical profile. That coincides with the
-  *frame* centre (509.05, 513.01) to 0.2/0.3 px -- and is 4.2 px right of the
-  curves' mirror axis and 2.6 px above their own symmetry axis.
-* **Horizontal streak**: e-folding length 30.3 px out to ~+-250 px, horizontal
-  to 0.1 degrees, with a vertical Gaussian of only sigma 2.2 px (FWHM 5.2).
-  A radial gradient cannot produce that (its transverse law would equal its
-  longitudinal one), so it is a rect with a gradient along x and an
-  anisotropic blur across y. A second, shorter, whiter streak (e-folding 24 px,
-  half-length 78) is what makes the core read as white.
-* **Bloom**: not radial. Vertical Gaussian sigma is 9.0-10.4 px in white and
-  21-26 px in cyan against a horizontal scale of ~30 px, an axis ratio of
-  3-4:1, so it is two horizontally stretched blurred ellipses.
-* **Glint**: a compact, nearly saturated element at **(535.0, 514.8)**, FWHM
-  28x35 px, peak 170/255 of R excess, colour ~#96E8EE. It carries *every*
-  off-arc pixel above lum 245, sits 9.7 px inside the right curve's apex, and
-  the two right-hand rays converge on it. Its vertical centre coincides with
-  the curves' own symmetry axis rather than with the streak's.
-* **Three one-sided diagonal rays**, at outward angles 33.1, 312.3 and 222.2
-  degrees, crossing the streak line at x = 534.8, 537.9 and 494.5. Peak
-  amplitudes are only 2.9-4.7 code values above the local background. They are
-  neither 4-fold nor 6-fold symmetric and there is no vertical pair, so a
-  symmetric starburst primitive would invent three rays that do not exist;
-  each is placed individually from its measured angle and crossing point.
-* The light the flare dumps on the two curves, which is why their cores peak
-  near the waist (R = 239 at y = 511 against 190-210 elsewhere).
+    ref = M + f (1 - M)    =>    f = (ref - M) / (1 - M)
 
-## 6. Colour: one light source, two emission components
+is exactly what the dropped group must supply, in the units its own layers use.
+Two cautions, both learned the hard way and both implemented in
+`tools/isolate.py`:
+
+* the surviving layers were fitted *with* the flare present, so they have
+  already absorbed some of its light. Isolating against that base attributes
+  the absorbed part to the wrong source — which is how a broad deficit left of
+  the flare first read as a bright leftward "ray". The base is therefore
+  re-fitted on a mask that excludes a 200 px disc around the centre first.
+* `f` is unstable wherever `M` approaches 1, i.e. on the arc cores, so those
+  pixels are masked out of every profile below.
+
+Working in additive luminance `u = -ln(1 - f)`, where screen layers simply add,
+then makes the structure readable.
+
+### 5b. What the isolated flare actually is
+
+**Centre (530.95, 513.33).** The peak of the isolated flare is at (531, 513)
+and the centroid of every off-arc pixel above luminance 245 is (531.3, 512.8);
+the two agree to within a pixel. (The brightest pixel *within* 45 px of it is
+at (543, 514) — that is the right curve's apex, 14 px away, not the flare.)
+
+**A clipped plateau, not a peak.** 198 reference pixels sit above luminance
+248, spread over a plateau roughly 20 px across; along y=513 the red channel
+holds 233-247 from x=528 to x=538. The previous reconstruction rendered 67 such
+pixels, and was 20 code values too dark at the very centre while being too
+bright 15 px out. This one renders 184 (170 against the reference's 170 within
+60 px of the centre) with no dedicated flat-topped element: the plateau comes
+out of the sum of the halo -- once its radius came down from 122 to its
+measured 92 px -- and the two thin streaks, all of which saturate together over
+those pixels. See `docs/DECISIONS.md` D14 for the flat-topped disc that was
+tried and is no longer needed.
+
+**The off-axis halo, and where it stops.** Mean `u` along rays clear of the
+horizontal streak and of the arcs:
+
+| r px | 6 | 10 | 15 | 22 | 30 | 40 | 55 | 72 | 92 | 115 | 145 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| u | 2.30 | 1.65 | 1.15 | 0.75 | 0.48 | 0.30 | 0.16 | 0.06 | 0.02 | 0.005 | ~0 |
+
+The local e-folding length grows from ~12 px at the core to ~24 px by r=45,
+which is why the halo is two exponential terms and not one. The important part
+is the end of the table: **the flare contributes nothing measurable beyond
+r ~ 130-160 px.** The previous reconstruction's widest bloom had a radius of
+378 px, and that surplus is exactly what filled the space between the curves —
+which is the darkest part of the reference's interior (3.9 code values on the
+midline at y=200). The widest bloom's radius is now bounded by the
+measurement.
+
+**Horizontal anisotropy, and its left/right asymmetry.** Along the same rays:
+
+| r px | 22 | 30 | 40 | 92 | 115 | 145 | 185 |
+|---|---|---|---|---|---|---|---|
+| due west (180 deg) | 1.77 | 1.60 | 1.29 | 0.41 | 0.145 | 0.065 | 0.028 |
+| due east (0 deg) | — | 0.87 | 0.51 | 0.083 | 0.042 | 0.028 | 0.021 |
+| off-axis | 0.75 | 0.48 | 0.30 | 0.02 | 0.005 | ~0 | ~0 |
+
+So the streak is 3-5x stronger westward than eastward and reaches past 185 px,
+while the halo it sits on has already died by 130. That is the largest single
+feature of the flare, and it is carried by three components with different
+widths: a thin spike (sigma_y ~2.6 px), a longer thin streak whose own centre
+is 59 px west of the core — which is where the far-wing symmetry centre of the
+reference's streak actually is — and a broader fan (sigma_y ~11 px), plus a
+westward cone.
+
+**The streak's cross-section is genuinely a few pixels.** Row by row, 26-61 px
+west of the core, the additive excess over the local baseline peaks at 0.76
+across two pixel rows and is down to a quarter of that 4 px away. Reproducing
+that needs the layer's on-axis coverage to be able to approach 1: a 2 px source
+rect blurred by 2.7 px caps it at `h / (sigma_b sqrt(2 pi))` = 0.29, which
+forced the layer's fitted colour against white and still rendered the streak
+three times too faint. The markup now derives both the rect height and the blur
+from the requested `sigma_y` at a fixed ratio `h / sigma_b = 3.92`, which puts
+on-axis coverage at 0.95 while keeping `sigma_eff = sigma_y` exactly.
+
+**Rays.** After dividing out the halo, the isolated flare has local angular
+maxima at roughly 45-60, 110-120, 175-195, 225-255, 300 and 330-345 degrees.
+They are faint — 0.45 in `u` at r=40 for the 45-degree ray against 0.32
+off-axis, 0.09 at r=72 — and they are not 4- or 6-fold symmetric, so a
+symmetric starburst primitive would invent rays that are not there; each is
+placed from its own measured angle. The westward fan is not a constant-width
+streak either: its half width grows from ~10 px at r=30 to ~28 px at r=92, so
+each ray carries a `spread` (its far end's width as a multiple of its near
+end's) and is built as a cone.
+
+**What is not separable.** The peak radiance of the core, the arc cores and the
+streak is unrecoverable: G and B clip at 255 over those pixels. Any model that
+clips in the same places matches them.
+
+## 6. Colour: a three-component non-negative cone
 
 A PCA of the colour *directions* of 300 000 interior pixels (after subtracting
 the exterior background) gives eigenvalues **0.981 / 0.012 / 0.007**: the light
