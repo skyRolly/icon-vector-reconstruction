@@ -964,3 +964,58 @@ they were searched against an objective that changed twice underneath them. It
 does not establish that the model additions are wrong, and it does not establish
 that they are right. They stay out until a search against the corrected
 objective and the corrected builder puts them ahead of this baseline.
+
+## D24. The central light's horizontal lines are three features, not one
+
+**Evidence.** The reference carries three distinct horizontal lines through and
+below the flare core. Their centres, from a shared-centre three-Gaussian fit and
+cross-checked model-free against `L(y) - 0.5*[L(y-k) + L(y+k)]`, with every
+window masked to more than 30 px from either curve ridge:
+
+| line | dy from the core row | reach | shape |
+|---|---|---|---|
+| A | **-0.283 +- 0.037** | 300 px W, 240 px E | FWHM 4.64 +- 0.10 px |
+| B | **+6.740 +- 0.055** | dies past abs(dx) 130 | short |
+| C | **+19.329 +- 0.065** | 300 px W, 240 px E | faint, and NOT decaying from the core |
+
+The masking is not a detail. The ridges cross the streak row 65.5 px west and
+14.5 px east of the core, so the windows at dx +15..+40 and -75..-40 lie
+entirely inside a curve's core: an unmasked measurement there reads the curve,
+which is how earlier work came to describe this family as a west-displaced
+symmetric streak (D21).
+
+**Line A passes THROUGH the core, not below it.** Its centre is 0.28 px above
+the stated core row, so the "prominent line below the bright point" of the
+report is this streak; only B and C are below.
+
+**Line C cannot be emitted from the core at all.** It rises from an inner
+cut-off near abs(dx) 80, peaks at 5.6 counts around abs(dx) 110-170, then falls
+-- reaching 240 px east and 300 px west. Neither an exponential (log-rms
+0.27-0.36) nor a power law (0.30-0.40) fits it. Any primitive whose amplitude
+decays monotonically outward is the wrong shape, whatever its parameters, so it
+gets an explicit non-monotone knot table, which `profile_stops` emits verbatim.
+
+**Refuted and therefore not built:** a line at dy +12 (an inverse-variance stack
+of ten far bins reads 0.000 at +11.2 and 0.105 at +12.2, below 1 sigma -- the
+earlier suggestion came from the 21-px median envelope overshooting in the
+trough between B and C); slab-shaped cross-sections (a generalised Gaussian of
+exponent 4 fits worse than Gaussian or Lorentzian in every bin); and the earlier
+satellite positions +6.5 and +18.5 (+19.329 is 12 sigma from +18.5, which
+matters for a 5-px feature).
+
+**What the baseline had.** Three streak layers all at dy ~ 0, stacked on the
+core row with sigma_y 3.56, 2.45 and 10.85 -- which is why the rendered line A
+measures 9.6 px FWHM against 4.64, and why B and C were absent outright: line C
+read -0.11 to +0.15 counts across 390 masked columns where the reference reads
+3.0-4.8.
+
+**A mapping error worth recording.** The measurement says the main streak's east
+side follows a power law of index 2.10 -- meaning amplitude proportional to
+abs(dx)^-2.1. The builder's `pow` profile emits `(1 - u)^k`, which is a
+different function entirely, and substituting one for the other put 2-3x too
+much light along the east side from abs(dx) 70 outward (12.4 counts at +70
+against a reference 6.97). Both sides are now explicit tables of the measured
+amplitudes, which is also the minimal assumption between measured points (D23).
+The innermost east knot is held flat rather than extrapolated to a spike,
+because the right curve's ridge masks abs(dx) < 40 there and a spike inward of
+it would be invented, not measured.
