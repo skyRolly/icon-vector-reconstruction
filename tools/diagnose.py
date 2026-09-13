@@ -47,6 +47,43 @@ def bilinear(a, x, y):
             + a[y1, x0] * (1 - fx) * fy + a[y1, x1] * fx * fy)
 
 
+
+def _median1d(a, size):
+    """1-D median filter with `nearest` edge handling, in numpy.
+
+    Replaces `scipy.ndimage.median_filter` on the two profiles that used it.
+    SciPy was the only third-party import outside numpy and Pillow and it was
+    not in the documented requirements, so `tools/diagnose.py` needed a package
+    the README never mentioned.  Two calls on a 90-sample profile do not justify
+    the dependency; this is verified equal to SciPy's output on the actual data.
+    """
+    a = np.asarray(a, np.float64)
+    r = int(size) // 2
+    idx = np.clip(np.arange(a.size)[:, None] + np.arange(-r, r + 1)[None, :],
+                  0, a.size - 1)
+    return np.median(a[idx], axis=1)
+
+def _median2d(a, size, block=48):
+    """2-D median filter with `nearest` edge handling, in numpy.
+
+    The other half of removing the SciPy dependency.  Verified identical to
+    `scipy.ndimage.median_filter(a, size, mode="nearest")` on the reference, at
+    2.3x the cost (4.4 s against 1.9 s over the full canvas) -- which is a fair
+    price for a diagnostic, and a poor reason to require a package the
+    reproduction instructions never listed.  Windowed in row blocks because the
+    full sliding-window view of a 1024x1024 image at size 15 would be 1.9 GB.
+    """
+    a = np.asarray(a, np.float64)
+    r = int(size) // 2
+    ap = np.pad(a, r, mode="edge")
+    out = np.empty_like(a)
+    for y0 in range(0, a.shape[0], block):
+        y1 = min(y0 + block, a.shape[0])
+        win = np.lib.stride_tricks.sliding_window_view(ap[y0:y1 + 2 * r], (size, size))
+        out[y0:y1] = np.median(win, axis=(-2, -1))
+    return out
+
+
 def arc_station(side, tdeg):
     cx, cy, rx, ry = ARCS[side]
     t = math.radians(tdeg)
@@ -479,7 +516,6 @@ def comb_report(ref, rec, out):
     x-window east and west.  A radial profile averages all of that together,
     which is how a reconstruction came to have one broad hump instead.
     """
-    from scipy.ndimage import median_filter
     cy = int(round(FLARE_CORE[1] - 0.5))
     cx = FLARE_CORE[0] - 0.5
     wins = ((-210, -110, "west far"), (-75, -25, "west near"),
@@ -493,7 +529,7 @@ def comb_report(ref, rec, out):
             x0 = int(round(cx + min(a, b)))
             x1 = int(round(cx + max(a, b)))
             prof = img.mean(2)[cy - 45:cy + 45, x0:x1].mean(1)
-            rows[(tag, name)] = prof - median_filter(prof, size=21, mode="nearest")
+            rows[(tag, name)] = prof - _median1d(prof, 21)
     table = []
     for i, dy in enumerate(range(-45, 45)):
         if dy < -12 or dy > 26:
@@ -519,9 +555,8 @@ def comb_report(ref, rec, out):
 
 def spoke_report(ref, rec, out):
     """The thin spokes, as an angular scan of the structure a 15-px median misses."""
-    from scipy.ndimage import median_filter
-    tr = ref.mean(2) - median_filter(ref.mean(2), size=15, mode="nearest")
-    tc = rec.mean(2) - median_filter(rec.mean(2), size=15, mode="nearest")
+    tr = ref.mean(2) - _median2d(ref.mean(2), 15)
+    tc = rec.mean(2) - _median2d(rec.mean(2), 15)
     h, w = tr.shape
     yy, xx = np.mgrid[0:h, 0:w]
     cx, cy = FLARE_CORE[0] - 0.5, FLARE_CORE[1] - 0.5

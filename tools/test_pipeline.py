@@ -431,6 +431,42 @@ def main():
           "%d evaluate() calls, %d distinct free-sets, both searched families "
           "re-baselined: %s" % (len(calls), len(set(calls)), ok_bases))
 
+    # ---- 6e. the shipped tools import only what the README documents ------ #
+
+    # `tools/diagnose.py` imported `scipy.ndimage` while the reproduction
+    # instructions listed numpy, Pillow and resvg-py, so the documented setup
+    # and the actual runtime disagreed and a documented command failed on a
+    # clean install.  The dependency is gone (both median filters are numpy
+    # now, verified identical to SciPy's); this keeps it gone.
+    import ast as _ast
+    # the third-party packages the README's `pip install` line actually names,
+    # plus whatever ships with Python -- anything else is undocumented
+    DOCUMENTED = {"numpy", "PIL", "resvg_py"} | set(
+        getattr(sys, "stdlib_module_names", ())) | {"__future__"}
+    LOCAL = {"build_svg", "regions", "render", "fit_photometry", "optimize",
+             "diagnose", "compare", "isolate", "make_previews", "prune_layers",
+             "update_readme", "validate", "probe_compare", "test_pipeline"}
+    stray = {}
+    for d in ("tools", "src"):
+        for fn in sorted(os.listdir(os.path.join(ROOT, d))):
+            if not fn.endswith(".py"):
+                continue
+            tree = _ast.parse(open(os.path.join(ROOT, d, fn)).read())
+            for node in _ast.walk(tree):
+                mods = []
+                if isinstance(node, _ast.Import):
+                    mods = [n.name for n in node.names]
+                elif isinstance(node, _ast.ImportFrom) and node.module and not node.level:
+                    mods = [node.module]
+                for m in mods:
+                    top = m.split(".")[0]
+                    if top not in DOCUMENTED and top not in LOCAL:
+                        stray.setdefault(top, set()).add("%s/%s" % (d, fn))
+    check("the shipped tools import only documented dependencies",
+          not stray,
+          "undocumented: %s" % ("; ".join("%s (%s)" % (k, ", ".join(sorted(v)))
+                                          for k, v in sorted(stray.items())) or "none"))
+
     # ---- 7. the lobe banding has not come back ---------------------------- #
 
     # The target is set by the reference, not by a taste for smoothness, and it

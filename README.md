@@ -88,8 +88,15 @@ out/                     renders, difference images, metrics, validation report
 ## Reproducing
 
 Needs Python 3 with `numpy`, `Pillow` and `resvg-py` (`pip install numpy pillow
-resvg-py`). Headless Chromium is optional and only used for the second opinion
-in `tools/validate.py`.
+resvg-py`) — and nothing else: `tools/test_pipeline.py` checks that every shipped
+module imports only those three plus the standard library, because
+`tools/diagnose.py` once needed SciPy that this line did not mention. Headless
+Chromium is optional and only used for the second opinion in `tools/validate.py`.
+
+**Renderer.** resvg is the acceptance renderer: every number quoted here, and
+every objective the optimiser minimises, is measured on its output at 1024 px.
+Chromium is a cross-check only. The two disagree by a known, measured amount
+(`docs/DECISIONS.md` D12) and the artwork is not adjusted to suit Chromium.
 
 ```sh
 python3 src/build_svg.py                                    # params -> reconstruction.svg
