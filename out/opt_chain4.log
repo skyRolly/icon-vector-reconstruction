@@ -1,0 +1,19 @@
+PASS flare-dependent layers are discovered from the builder  -- found ['flare_halo_far', 'flare_halo', 'flare_streak', 'flare_spike', 'flare_sat2', 'flare_fan', 'flare_ray_a', 'flare_ray_b', 'flare_ray_c', 'flare_ray_d', 'flare_ray_e', 'flare_ray_up', 'flare_ray_dn', 'flare_ray_dl']
+PASS flare/cx declares every dependent layer  -- declared ['flare_fan', 'flare_halo', 'flare_halo_far', 'flare_ray_a', 'flare_ray_b', 'flare_ray_c', 'flare_ray_d', 'flare_ray_dl', 'flare_ray_dn', 'flare_ray_e', 'flare_ray_up', 'flare_sat2', 'flare_spike', 'flare_streak']
+PASS moving flare/cx by 6 px moves every dependent layer  -- moved: flare_halo_far(dx=+6.00), flare_halo(dx=+6.00), flare_streak(dx=+6.00), flare_spike(dx=+6.00), flare_sat2(dx=+6.00), flare_fan(dx=+6.00), flare_ray_a(dx=+6.00), flare_ray_b(dx=+6.00), flare_ray_c(dx=+6.00), flare_ray_d(dx=+6.00), flare_ray_e(dx=+6.00), flare_ray_up(dx=+6.00), flare_ray_dn(dx=+6.00), flare_ray_dl(dx=+6.00)
+PASS content-addressed cache re-renders without an explicit invalidate  -- max delta 0.2078
+PASS every search interval contains the current value  -- out of range: []
+PASS radial gradient centres stored under paint/ are optimisable  -- missing: []
+PASS anisotropic blur components are optimisable  -- artwork missing [] (0 list-valued layers); probe missing []; per-component intervals kept
+PASS the regression check scores the same objective fit() minimises  -- check 363.32199 vs fit 363.32199
+PASS the fitting weight equalises the profile cells and lifts the flare  -- 196 cells {'comb': 51, 'sector': 73, 'profile': 66, 'corner': 6} (84163 px in the outermost along-curve band), cost of a 1% error spread 4.86x (was 73.87x un-emphasised), region lift 1.24x, interior corners 100% covered, flare 1.69x
+PASS the analytic gradient matches the objective, clipped colours included  -- worst relative error 0.0000 at arc_glow1/blue
+PASS every layer the docs name exists in params.json  -- 13 named, unknown: none
+PASS the deliverable's layer count and size are generated, not prose  -- markers present: True; states 34 layers, params.json has 34
+PASS objective composite matches the rebuilt SVG render  -- MAE 0.5635 code values
+PASS the lobe banding stays within the reference-calibrated target  -- coherent band-pass 1.85x of the reference (max 2.00, two-sided); profile error interior 4.10% (max 5.00), ridge 4.02% (max 5.00)
+
+all checks passed
+optimising 173 parameters (all), stride=3
+sweep 1/1
+  start sse=0.000217315 mae=1.8779

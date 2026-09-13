@@ -845,3 +845,58 @@ stay: they are in the reference's thin-component scan at 1.2-3.5 counts and are
 not an invention. Their amplitudes are over-driven (111 degrees reads 7.13
 against 1.71, 249 reads 4.32 against 1.60) and that is left to the fit, because
 the over-drive is a consequence of the two errors above and not a separate one.
+
+## D22. Iteration 3's model changes did not improve the reconstruction
+
+**The measurement.** Rendered at 1024 px against `reference.png`, every state
+iteration 3 produced is worse than the iteration-2 baseline:
+
+| state | layers | MAE | SSIM | flare r<110 | worst channel |
+|---|---|---|---|---|---|
+| iteration 2 (committed) | 29 | **1.9411** | **0.9731** | **7.602** | **105** |
+| iteration 3, flare rebuild | 33 | 1.9818 | 0.9723 | 8.600 | 108 |
+| + `arc_glow1c` | 34 | 1.9899 | 0.9728 | 8.498 | 110 |
+| + one shapes sweep | 34 | 1.9661 | 0.9726 | 8.239 | 112 |
+| + the streak primitive and a flare sweep | 34 | 1.9794 | 0.9724 | 8.310 | 112 |
+
+The regional and targeted numbers agree: the glow profile's rms relative error
+goes 4.08% -> 4.59%, the cell figure 5.19% -> 6.02%, both lobes' MAE up, and on
+the arc-masked streak measurement the thin-line error goes 4.98 -> 5.72 counts.
+Only the frame band, the bright pixels and the interior corners improved.
+
+This is recorded as a decision rather than left in a commit message because the
+conclusion has to survive the iteration: a change is not an improvement because
+it is newer or better argued, and the artwork that ships is the one that
+measures best.
+
+**The flare rebuild was already a regression before this iteration's work
+started.** At 33 layers it rendered 1.9818 against 1.9411, with the flare's own
+region 8.600 against 7.602 -- the region it was rebuilt to fix. Its individual
+measurements were sound (the streak comb's satellites, the six thin spokes at
+their measured angles); what went wrong was downstream of them.
+
+**One cause is identified and fixed.** `flare_cells` masked the curve ridges by
+13 px. The ridges cross the streak row 14.5 px east and 65.5 px west of the
+flare centre and the curve's glow reaches far past that, so a third of the comb
+cells were scoring curve glow and calling it the comb -- and the flare search
+optimised toward it. The signature is unambiguous: with the margin at 13 the
+search drove the streak's west side to 9.6/20.1/26.7 counts where the reference
+has 5.2/11.8/19.4, and its east side down to 6.2 where the reference has 15.9,
+which is the *opposite* of what the same lines measured with the ridges properly
+masked ask for. The margin is now 30 px, which is what the measurement needs to
+come out clean, and it drops 9 comb and 17 sector cells.
+
+**The other cause is search, not model.** The baseline's parameters accumulated
+many sweeps of every spec across iteration 2. Iteration 3 changed the objective
+twice over (the squared-weight correction, then the floor and exponent of D20)
+and the shapes have had one sweep against the result. A colour-only re-fit of
+the *baseline* under the corrected objective already costs it 0.03 of MAE, which
+is the size of the whole regression: the parameters are not converged for the
+objective they are now being scored against.
+
+**What is not claimed.** That the model changes are wrong. `arc_glow1c` raises
+the ridge strip's achievable accuracy 3.4x/2.6x (D19) and the streak's per-side
+falloff is measured with the ridges masked (D21); both are better-founded than
+what they replace. What is claimed is only that the reconstruction they produce
+has not yet been optimised well enough to beat the one they replace, and until
+it is, it does not ship.

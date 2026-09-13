@@ -160,13 +160,25 @@ COMB_DY = (-10, -6, -3, -1, 1, 3, 5, 8, 11, 14, 17, 21, 25)
 COMB_DX = ((18, 45), (45, 80), (80, 130), (130, 190), (190, 260))
 
 
-def flare_cells(shape, min_px=60, arc_margin=13.0):
+def flare_cells(shape, min_px=60, arc_margin=30.0):
     """Cells around the central light: radius x sector, plus the streak comb.
 
     The flare is 5% of the canvas and carries the image's sharpest structure -
     a comb of parallel horizontal lines and six thin spokes, 2-11 code values
     each on a 15-40 code value background.  A whole-image average cannot see
     them and neither can a radial profile, so they get cells of their own.
+
+    `arc_margin` has to be generous, and 13 px was not.  The curve ridges cross
+    the streak row only 14.5 px east and 65.5 px west of the flare centre, and
+    the curve's own glow reaches far past that -- `arc_glow2` alone has an
+    effective cross-curve width of 20.6 px.  Inside 30 px of a ridge the
+    vertical cross-section is the curve's, not the streak's, so a comb cell
+    there scores the curve and calls it the comb.  It did: with the margin at
+    13 the flare search drove the streak's west side to 9.6/20.1/26.7 counts
+    where the reference has 5.2/11.8/19.4, and its east side down to 6.2 where
+    the reference has 15.9 -- the opposite of what an arc-masked measurement of
+    the same lines asks for.  30 px is what the same measurement needs to come
+    out clean (docs/DECISIONS.md D21).
     """
     h, w = shape[:2]
     yy, xx = np.mgrid[0:h, 0:w]

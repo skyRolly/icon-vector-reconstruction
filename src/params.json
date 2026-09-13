@@ -1654,12 +1654,12 @@
    "kind": "field",
    "color": [
     0.45,
-    1.8,
-    7.6
+    1.77,
+    7.57
    ],
-   "white": 0.00177,
-   "cyan": 0.00564,
-   "blue": 0.0224
+   "white": 0.00176,
+   "cyan": 0.0055,
+   "blue": 0.02241
   },
   {
    "id": "field_mid",
@@ -1673,8 +1673,8 @@
    },
    "color": [
     0.0,
-    16.55,
-    17.6
+    16.41,
+    17.46
    ],
    "bounds": {
     "r": [
@@ -1691,7 +1691,7 @@
     ]
    },
    "white": 0.0,
-   "cyan": 0.06903,
+   "cyan": 0.06847,
    "blue": 0.0,
    "squash": 0.88,
    "note": "the broad central wash. Its vertical extent is searched separately from its radius: the inter-curve region 90-150 px from either curve sits at 6.3 code values in the reference, so a round blob of this size over-fills the top and bottom of the lens"
@@ -1730,8 +1730,8 @@
    ],
    "color": [
     1.95,
-    4.62,
-    5.12
+    4.63,
+    5.11
    ],
    "bounds": {
     "r": [
@@ -1740,9 +1740,9 @@
     ]
    },
    "note": "measured on a glow-free mask (20% of the interior): a single isotropic radial gradient centred well outside the canvas at (882,678.5) beats flat by 33% in G MAE; distance-to-frame explains only 4% of the variance (no vignette) and distance-to-the-arcs explains nothing, so the field is its own element",
-   "white": 0.00764,
-   "cyan": 0.01115,
-   "blue": 0.00131
+   "white": 0.00763,
+   "cyan": 0.01119,
+   "blue": 0.0012
   },
   {
    "id": "field_vert",
@@ -1778,27 +1778,27 @@
     ]
    },
    "color": [
-    0.88,
-    2.12,
-    3.13
+    0.86,
+    2.15,
+    3.19
    ],
    "note": "the reference's interior is brighter at the top than at the bottom by ~2.7 code values (row-band means), consistent with the rim being top-lit; this is that tilt",
-   "white": 0.00345,
-   "cyan": 0.00518,
-   "blue": 0.00366
+   "white": 0.00339,
+   "cyan": 0.00536,
+   "blue": 0.00376
   },
   {
    "id": "exterior",
    "kind": "canvas",
    "region": "outside",
    "color": [
-    0.01,
-    0.8,
-    2.3
+    0.08,
+    0.87,
+    2.34
    ],
-   "white": 3e-05,
-   "cyan": 0.00333,
-   "blue": 0.00565
+   "white": 0.00033,
+   "cyan": 0.00329,
+   "blue": 0.00556
   },
   {
    "id": "exterior_top",
@@ -1838,13 +1838,13 @@
     ]
    },
    "color": [
-    0.86,
-    0.86,
-    3.03
+    0.79,
+    0.79,
+    2.99
    ],
-   "white": 0.00338,
+   "white": 0.00309,
    "cyan": 0.0,
-   "blue": 0.0085
+   "blue": 0.00863
   },
   {
    "id": "exterior_corner",
@@ -1879,7 +1879,7 @@
     ]
    },
    "color": [
-    0.45,
+    0.42,
     1.72,
     4.49
    ],
@@ -1889,9 +1889,9 @@
      900
     ]
    },
-   "white": 0.00178,
-   "cyan": 0.0053,
-   "blue": 0.01055
+   "white": 0.00165,
+   "cyan": 0.00541,
+   "blue": 0.01057
   },
   {
    "id": "corner_in",
@@ -1924,13 +1924,13 @@
     ]
    ],
    "clip": true,
-   "white": 0.00466,
-   "cyan": 0.02097,
+   "white": 0.00473,
+   "cyan": 0.02108,
    "blue": 0.0,
    "color": [
-    1.19,
-    6.21,
-    6.54
+    1.21,
+    6.26,
+    6.58
    ],
    "bounds": {
     "width": [
@@ -1979,13 +1979,13 @@
     ]
    ],
    "clip": true,
-   "white": 0.01118,
-   "cyan": 0.01245,
+   "white": 0.01139,
+   "cyan": 0.01206,
    "blue": 0.0,
    "color": [
-    2.85,
-    5.84,
-    6.03
+    2.91,
+    5.8,
+    5.98
    ],
    "bounds": {
     "width": [
@@ -2030,13 +2030,13 @@
     ]
    },
    "note": "measured at |t|<62 with the flare excluded, the glow is 1.7x brighter on the concave side 11 px out and 5.9x brighter 100 px out, and the inter-curve midline 140 px from both curves sits at 3.9 code values against 13.5 in the lobes: the broad component lives inside the lens and is clipped to it",
-   "white": 0.00893,
-   "cyan": 0.07319,
+   "white": 0.00864,
+   "cyan": 0.07504,
    "blue": 0.0,
    "color": [
-    2.28,
-    19.82,
-    20.94
+    2.2,
+    20.19,
+    21.34
    ]
   },
   {
@@ -2048,8 +2048,8 @@
    "taper": "glow3",
    "color": [
     0.0,
-    62.51,
-    66.5
+    61.59,
+    65.52
    ],
    "bounds": {
     "width": [
@@ -2066,7 +2066,7 @@
     ]
    },
    "white": 0.0,
-   "cyan": 0.26079,
+   "cyan": 0.25695,
    "blue": 0.0,
    "clip": "lens"
   },
@@ -2079,8 +2079,8 @@
    "taper": "glow2",
    "color": [
     0.0,
-    87.81,
-    94.74
+    87.07,
+    93.0
    ],
    "bounds": {
     "width": [
@@ -2097,8 +2097,8 @@
     ]
    },
    "white": 0.0,
-   "cyan": 0.36633,
-   "blue": 0.0052
+   "cyan": 0.36326,
+   "blue": 0.00144
   },
   {
    "id": "arc_glow2b",
@@ -2107,13 +2107,13 @@
    "inset": -13.2,
    "blur": 29.6239104,
    "taper": "glow2b",
-   "white": 0.00752,
-   "cyan": 0.0802,
-   "blue": 0.00019,
+   "white": 0.00671,
+   "cyan": 0.08076,
+   "blue": 0.00122,
    "color": [
-    1.92,
-    21.14,
-    22.42
+    1.71,
+    21.07,
+    22.61
    ],
    "bounds": {
     "width": [
@@ -2139,9 +2139,9 @@
    "blur": 5.108561919999999,
    "taper": "glow1",
    "color": [
-    118.66,
-    162.16,
-    174.5
+    119.96,
+    163.58,
+    175.71
    ],
    "bounds": {
     "width": [
@@ -2157,9 +2157,9 @@
      10
     ]
    },
-   "white": 0.46535,
-   "cyan": 0.18146,
-   "blue": 0.03748
+   "white": 0.47044,
+   "cyan": 0.18198,
+   "blue": 0.03662
   },
   {
    "id": "arc_glow1b",
@@ -2169,12 +2169,12 @@
    "blur": 2.408,
    "taper": "glow1",
    "white": 0.0,
-   "cyan": 0.2785,
-   "blue": 0.03429,
+   "cyan": 0.27575,
+   "blue": 0.03302,
    "color": [
     0.0,
-    66.76,
-    79.76
+    66.1,
+    78.74
    ],
    "bounds": {
     "width": [
@@ -2213,14 +2213,14 @@
      22.0
     ]
    },
-   "white": 0.0,
-   "cyan": 0.06109,
+   "white": 0.01009,
+   "cyan": 0.06456,
    "blue": 0.0,
    "note": "closes the arc-glow basis gap between arc_glow1 (sigma_eff 5.8 px) and arc_glow2 (20.6 px); see docs/DECISIONS.md",
    "color": [
-    0.0,
-    14.64,
-    15.58
+    2.57,
+    18.05,
+    19.04
    ]
   },
   {
@@ -2234,8 +2234,8 @@
    },
    "color": [
     0.0,
-    216.26,
-    249.13
+    221.14,
+    251.08
    ],
    "bounds": {
     "r": [
@@ -2252,15 +2252,15 @@
     ]
    },
    "white": 0.0,
-   "cyan": 0.90223,
-   "blue": 0.07477,
+   "cyan": 0.92257,
+   "blue": 0.06204,
    "note": "the isolated flare is below 0.01 in additive luminance beyond r ~ 130 px and indistinguishable from zero beyond ~160, so this widest bloom ends there; the broad light between the curves is the central field, not the flare"
   },
   {
    "id": "flare_halo",
    "kind": "radial",
    "r": 92.41600000000001,
-   "squash": 0.72272707584,
+   "squash": 0.6359998267392,
    "profile": {
     "kind": "exp",
     "scale": 0.15904
@@ -2292,7 +2292,7 @@
   {
    "id": "flare_streak",
    "kind": "streak",
-   "half_len": 300.0,
+   "half_len": 264.0,
    "sigma_y": 2.1999999999999997,
    "blur_x": 0.0,
    "profile": {
@@ -2300,9 +2300,9 @@
     "scale": 0.3
    },
    "color": [
-    59.85,
-    150.47,
-    156.25
+    107.43,
+    223.15,
+    230.7
    ],
    "bounds": {
     "half_len": [
@@ -2326,13 +2326,13 @@
      2.0
     ]
    },
-   "white": 0.2347,
-   "cyan": 0.37805,
-   "blue": 0.0,
+   "white": 0.4213,
+   "cyan": 0.48278,
+   "blue": 0.00063,
    "note": "centred on the flare core; the east/west asymmetry is a brightness ratio (east_gain), not a displacement -- see src/build_svg.py",
    "profile_e": {
     "kind": "exp",
-    "scale": 0.15
+    "scale": 0.10320000000000001
    },
    "east_gain": 1.0
   },
@@ -2347,9 +2347,9 @@
     "scale": 0.3224
    },
    "color": [
-    94.33,
-    177.68,
-    222.43
+    88.24,
+    169.11,
+    210.73
    ],
    "bounds": {
     "half_len": [
@@ -2369,9 +2369,9 @@
      11.0
     ]
    },
-   "white": 0.36992,
-   "cyan": 0.34774,
-   "blue": 0.1546,
+   "white": 0.34602,
+   "cyan": 0.3374,
+   "blue": 0.14298,
    "dy": 5.5,
    "note": "the first satellite of the comb, 6.5 px BELOW the main line.  Strong near the core (8-11 counts above the local envelope 30-110 px east) and gone by |dx| ~ 110 px, with a real dark gap between it and the main line"
   },
@@ -2386,13 +2386,13 @@
     "kind": "exp",
     "scale": 0.34
    },
-   "white": 0.0142,
-   "cyan": 0.05518,
-   "blue": 0.00117,
+   "white": 0.0235,
+   "cyan": 0.02744,
+   "blue": 0.0,
    "color": [
-    3.62,
-    16.85,
-    17.99
+    5.99,
+    12.57,
+    12.99
    ],
    "bounds": {
     "half_len": [
@@ -2439,13 +2439,13 @@
     ]
    },
    "note": "the horizontal streak has two widths: a sigma ~2.8 px spike and this broader wash (half width ~8 px at r=30, ~25 px at r=92)",
-   "white": 0.64674,
+   "white": 0.68565,
    "cyan": 0.0,
    "blue": 0.0,
    "color": [
-    164.92,
-    164.92,
-    164.92
+    174.84,
+    174.84,
+    174.84
    ]
   },
   {
@@ -2457,9 +2457,9 @@
    "blur": 3.377152,
    "peak_at": 0.16,
    "color": [
-    0.0,
-    112.09,
-    127.41
+    0.99,
+    114.92,
+    128.32
    ],
    "bounds": {
     "rot": [
@@ -2487,9 +2487,9 @@
      2.6
     ]
    },
-   "white": 0.0,
-   "cyan": 0.46763,
-   "blue": 0.03201,
+   "white": 0.0039,
+   "cyan": 0.4753,
+   "blue": 0.02401,
    "spread": 1.3,
    "note": "a thin spoke, not a cone.  Perpendicular cross-sections of the reference above a 15-px median show FWHM 4-6 px at every radius out to 115-150 px; the previous cones were 20-42 px wide and rendered the starburst as soft wedges"
   },
@@ -2502,9 +2502,9 @@
    "blur": 3.78241024,
    "peak_at": 0.16,
    "color": [
-    0.0,
-    157.61,
-    238.49
+    0.34,
+    163.14,
+    245.8
    ],
    "bounds": {
     "rot": [
@@ -2532,9 +2532,9 @@
      2.6
     ]
    },
-   "white": 0.0,
-   "cyan": 0.65751,
-   "blue": 0.27775,
+   "white": 0.00132,
+   "cyan": 0.67922,
+   "blue": 0.28338,
    "spread": 1.3,
    "note": "a thin spoke, not a cone.  Perpendicular cross-sections of the reference above a 15-px median show FWHM 4-6 px at every radius out to 115-150 px; the previous cones were 20-42 px wide and rendered the starburst as soft wedges"
   },
@@ -2547,9 +2547,9 @@
    "blur": 1.6,
    "peak_at": 0.16,
    "color": [
-    12.29,
-    13.24,
-    23.82
+    14.81,
+    14.93,
+    24.79
    ],
    "bounds": {
     "rot": [
@@ -2577,9 +2577,9 @@
      2.6
     ]
    },
-   "white": 0.04821,
-   "cyan": 0.00393,
-   "blue": 0.04126,
+   "white": 0.05806,
+   "cyan": 0.00054,
+   "blue": 0.03862,
    "spread": 1.3,
    "note": "a thin spoke, not a cone.  Perpendicular cross-sections of the reference above a 15-px median show FWHM 4-6 px at every radius out to 115-150 px; the previous cones were 20-42 px wide and rendered the starburst as soft wedges"
   },
@@ -2592,9 +2592,9 @@
    "blur": 4.0,
    "peak_at": 0.4168000000000001,
    "color": [
-    5.1,
-    20.19,
-    26.83
+    5.18,
+    22.02,
+    28.3
    ],
    "bounds": {
     "rot": [
@@ -2622,9 +2622,9 @@
      6.0
     ]
    },
-   "white": 0.02001,
-   "cyan": 0.06294,
-   "blue": 0.02227,
+   "white": 0.02031,
+   "cyan": 0.07025,
+   "blue": 0.02042,
    "spread": 5.371200000000002,
    "note": "the BROAD west wedge, kept as a cone: it is the diffuse part of the westward fan that the thin spokes sit on.  Measured half width 10 px at r=30 growing to 28 px at r=92"
   },
@@ -2664,13 +2664,13 @@
     ]
    },
    "note": "a broad wedge, not a thin spoke: the reference has no thin angular maximum at this angle, only a broad one (docs/DECISIONS.md D21)",
-   "white": 0.06093,
-   "cyan": 0.0,
-   "blue": 0.0743,
+   "white": 0.05946,
+   "cyan": 0.00066,
+   "blue": 0.01798,
    "color": [
-    15.54,
-    15.54,
-    34.48
+    15.16,
+    15.32,
+    19.92
    ]
   },
   {
@@ -2682,13 +2682,13 @@
    "blur": 1.6,
    "peak_at": 0.16,
    "spread": 1.3,
-   "white": 0.0,
-   "cyan": 0.12237,
-   "blue": 0.00573,
+   "white": 0.00281,
+   "cyan": 0.12482,
+   "blue": 0.00791,
    "color": [
-    0.0,
-    29.33,
-    32.67
+    0.72,
+    30.64,
+    34.56
    ],
    "bounds": {
     "rot": [
@@ -2727,13 +2727,13 @@
    "blur": 1.6,
    "peak_at": 0.16,
    "spread": 1.3,
-   "white": 0.0,
-   "cyan": 0.22769,
-   "blue": 0.01253,
+   "white": 0.01261,
+   "cyan": 0.22029,
+   "blue": 0.0146,
    "color": [
-    0.0,
-    54.58,
-    61.26
+    3.22,
+    56.02,
+    63.11
    ],
    "bounds": {
     "rot": [
@@ -2766,19 +2766,19 @@
   {
    "id": "flare_ray_dl",
    "kind": "ray",
-   "rot": -225.0,
+   "rot": -230.2,
    "len": 95.0,
    "height": 3.4,
    "blur": 1.6,
    "peak_at": 0.16,
    "spread": 1.3,
-   "white": 0.0,
-   "cyan": 0.26462,
-   "blue": 0.02499,
+   "white": 0.03215,
+   "cyan": 0.33479,
+   "blue": 0.06716,
    "color": [
-    0.0,
-    63.43,
-    73.85
+    8.2,
+    88.45,
+    110.7
    ],
    "bounds": {
     "rot": [
@@ -2816,8 +2816,8 @@
    "blur": 0.5400926187730554,
    "taper": "core",
    "color": [
-    210.98,
-    255.0,
+    211.26,
+    254.5,
     255.0
    ],
    "bounds": {
@@ -2834,8 +2834,8 @@
      0.8
     ]
    },
-   "white": 0.82739,
-   "cyan": 0.18363,
+   "white": 0.82848,
+   "cyan": 0.18038,
    "blue": 0.0
   },
   {
@@ -2846,9 +2846,9 @@
    "blur": 0.20421316015498364,
    "taper": "core_wide",
    "color": [
-    101.65,
-    200.67,
-    218.97
+    101.76,
+    200.84,
+    219.15
    ],
    "bounds": {
     "width": [
@@ -2864,9 +2864,9 @@
      5.0
     ]
    },
-   "white": 0.39863,
-   "cyan": 0.41308,
-   "blue": 0.04699,
+   "white": 0.39905,
+   "cyan": 0.41338,
+   "blue": 0.04697,
    "note": "the reference core is asymmetric about its centre-line: its 50% edges reach 4.8 px on the concave side but only 3.3 px on the convex side, and it widens from 6.1 px at the tips to 8.4 px at mid-height. This second, inset, mid-tapered stroke supplies exactly that extra concave-side width."
   },
   {
@@ -2878,9 +2878,9 @@
     "kind": "uniform"
    },
    "color": [
-    14.18,
-    24.76,
-    29.39
+    14.68,
+    25.24,
+    29.88
    ],
    "bounds": {
     "width": [
@@ -2888,9 +2888,9 @@
      7.0
     ]
    },
-   "white": 0.0556,
-   "cyan": 0.04413,
-   "blue": 0.01552
+   "white": 0.05756,
+   "cyan": 0.04404,
+   "blue": 0.01557
   },
   {
    "id": "frame_rim",
@@ -2943,9 +2943,9 @@
     ]
    },
    "color": [
-    110.33,
-    117.76,
-    124.26
+    110.2,
+    117.48,
+    123.91
    ],
    "bounds": {
     "width": [
@@ -2957,9 +2957,9 @@
      700
     ]
    },
-   "white": 0.43265,
-   "cyan": 0.03102,
-   "blue": 0.02364
+   "white": 0.43216,
+   "cyan": 0.03038,
+   "blue": 0.0234
   }
  ]
 }

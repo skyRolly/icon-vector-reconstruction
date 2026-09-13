@@ -10,7 +10,7 @@ rounded-square frame — as a hand-built, parametric SVG.
 
 <!-- DELIVERABLE:START -->
 **Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 34 named
-layers, 82 KB, no embedded bitmap and no traced outlines. Every mark is a
+layers, 92 KB, no embedded bitmap and no traced outlines. Every mark is a
 primitive driven by a named parameter in
 [`src/params.json`](src/params.json): one path for the frame, two cubic-Bézier
 paths for the luminous curves (reused, offset and clipped, by every glow
@@ -25,15 +25,15 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 
 | metric | value | for scale |
 |---|---|---|
-| mean absolute error | **2.034** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 4.185 | |
-| MAE on a 1/2.2 display curve | 6.185 | weights the dark background as the eye does; black scores 59.7 |
-| SSIM (luminance) | **0.9722** | black scores 0.142 |
-| worst single-channel error | 109 | |
-| pixels off by more than 2 / 8 / 24 | 38.1% / 5.8% / 0.8% | |
-| mean bias | -0.256 | |
+| mean absolute error | **1.979** / 255 | a flat black canvas scores 17.89 |
+| RMSE | 4.092 | |
+| MAE on a 1/2.2 display curve | 6.210 | weights the dark background as the eye does; black scores 59.7 |
+| SSIM (luminance) | **0.9724** | black scores 0.142 |
+| worst single-channel error | 112 | |
+| pixels off by more than 2 / 8 / 24 | 37.2% / 5.4% / 0.7% | |
+| mean bias | -0.219 | |
 
-Per region (MAE): frame band 2.48, centre 90 px 8.97, bright pixels 9.78, dark background 1.54, everything else 1.80.
+Per region (MAE): frame band 2.48, centre 90 px 8.31, bright pixels 9.75, dark background 1.49, everything else 1.76.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -44,16 +44,16 @@ The two regions a whole-image average cannot police, from
 
 | targeted measurement | value |
 |---|---|
-| MAE within 110 px of the central light | 7.45 |
-| worst ring of the flare's radial profile | +6.0 code values at r = 6-12 |
-| curve glow, rms relative error over 21 signed-distance bins | 4.1% |
-| the same, resolved along the curve (71 cells) | 5.6% |
-| light in the four interior corners, rms relative error | 7.0% |
-| worst single bin of that profile | -11.4% at s = 9..14 px |
-| left lobe, MAE more than 25 px from the ridge | 1.57 (bias -0.07) |
-| right lobe, MAE more than 25 px from the ridge | 1.46 (bias -0.04) |
+| MAE within 110 px of the central light | 7.03 |
+| worst ring of the flare's radial profile | +7.3 code values at r = 6-12 |
+| curve glow, rms relative error over 21 signed-distance bins | 4.6% |
+| the same, resolved along the curve (71 cells) | 6.0% |
+| light in the four interior corners, rms relative error | 3.6% |
+| worst single bin of that profile | -11.5% at s = 9..14 px |
+| left lobe, MAE more than 25 px from the ridge | 1.52 (bias -0.12) |
+| right lobe, MAE more than 25 px from the ridge | 1.47 (bias -0.04) |
 
-Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.909 (SSIM 0.9499); see `out/validation.md` for the resolution sweep.
+Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.629 (SSIM 0.9555); see `out/validation.md` for the resolution sweep.
 <!-- METRICS:END -->
 
 ## What is in here
