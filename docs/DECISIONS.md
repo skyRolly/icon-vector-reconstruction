@@ -602,35 +602,46 @@ was what made the earlier readings contradictory.
 *Inside 40 px of the ridge* the glow basis cannot reach the reference's shape.
 The effective cross-curve widths of the glow strokes step 5.8 px (`arc_glow1`)
 to 20.6 px (`arc_glow2`), a factor of 3.5, and the best achievable residual
-peaks inside that step, changing sign across it (+0.38 counts at s -40..-20 and
--0.46 at -20..0 on the right curve). Adding one stroke in the gap raises the
-best achievable accuracy there from 1.11%/1.78% to 0.40%/0.34% (left/right) and
-its oscillatory part from 0.82%/0.87% to 0.31%/0.42%. Position matters as much
-as width: the same effective width at inset 14 instead of 6-10 is markedly
-worse. That is the evidence for `arc_glow1c`, and it is the whole of it -- one
-blurred stroke on the existing Bezier path, six numbers, no new geometry.
+peaks inside that step and changes sign across it. Adding one stroke in the gap
+raises the best achievable accuracy there -- the profile-only non-negative fit,
+scored on the same grid as everything else -- from 1.08%/0.49% to 0.32%/0.19%
+(left/right), and its oscillatory part from 0.711%/0.253% to 0.196%/0.165%.
+Three candidate widths between sigma_eff 10 and 12.5 px all do it; the shipped
+one is width 20, blur 8, inset 10. Position matters as much as width: the same
+effective width at inset 14 instead of 6-10 is markedly worse. That is the
+evidence for `arc_glow1c`, and it is the whole of it -- one blurred stroke on the
+existing Bezier path, six numbers, no new geometry.
 
-*Beyond 40 px* the basis can reach the reference's profile, but not while the
-rest of the image is fitted. The profile-only optimum -- non-negative amplitudes
-fitted to the lobe profile and nothing else -- reaches 0.99%/1.15%, against
-2.97%/3.92% achieved. It gets there by using 13 of 29 layers and wrecking
-everything else: global MAE 1.90 -> 8.20, frame 1.30 -> 7.48, centre 90 px
-7.53 -> 35.16, between the curves 4.34 -> 24.86. So that bound is not a target.
-The lobe's pedestal comes from field, exterior and flare layers that are pinned
-by their duties elsewhere, and what remains in the interior is the price of a
-shared basis, not a fitting failure. It is stated here rather than hidden
-because it is the honest limit of this model: the interior's residual coherent
-error is about 1% oscillatory on levels of 8-35 counts, which is under the
-reference's own grain, and driving it lower would take a different
-decomposition, not a better fit.
+*Beyond 40 px* the basis can reach the reference's profile to 0.89%/0.97%, but
+not while the rest of the image is fitted. The profile-only optimum gets there
+by using 13 of 29 layers and wrecking everything else: global MAE 1.90 -> 8.20,
+frame 1.30 -> 7.48, centre 90 px 7.53 -> 35.16, between the curves 4.34 ->
+24.86. So that bound is not a target. The lobe's pedestal comes from field,
+exterior and flare layers that are pinned by their duties elsewhere, and what
+remains in the interior is the price of a shared basis, not a fitting failure.
+It is stated here rather than hidden because it is the honest limit of this
+model: driving the interior to its bound would take a different decomposition,
+not a better fit.
 
 **Rejected on measurement: a lobe-localised field component.** The obvious way
 to give the interior its own freedom is a soft radial gradient centred in each
 lobe. It improves the global metrics -- MAE 1.9849 -> 1.9619, SSIM 0.9720 ->
 0.9730 -- and makes the region it was added for *worse*: the right lobe's
-coherent error goes 4.32% -> 4.86% and its ridge 4.16% -> 5.06%. It is not in
-the model. This is the clearest case in the project of a change that a global
-metric endorses and the measurement of the actual defect rejects.
+coherent profile error goes 4.32% -> 4.86% and its ridge 4.16% -> 5.06%
+(measured on the grid in use at the time; the ordering is what matters and it is
+unambiguous). It is not in the model. This is the clearest case in the project of
+a change that a global metric endorses and the measurement of the actual defect
+rejects.
+
+**Also rejected on measurement: replacing `field_grad`'s profile table.** Its
+table has a pronounced non-monotonic dip, and the lobes sit at u = 0.47-0.82 of
+its radius -- right across it -- so it was a plausible source of contour
+structure. Replacing it with a monotone power law or a monotone table leaves the
+coherent structure identical (0.763/0.531 counts against 0.763/0.533 shipped)
+and costs real accuracy: MAE 2.0280 and 2.0552 against 1.9908. The dip had
+already survived an evidence test on fit quality alone (residual 1.246 against
+1.297 for the best power law and 1.780 for flat); it now survives one on
+structure too.
 
 **Rejected on measurement: the glow as gradients instead of blurred strokes.**
 A filter's Gaussian is a three-pass box blur in both engines, departing from a
@@ -671,18 +682,47 @@ Between 1 and 2 the rms barely moves and the *worst* ring doubles, 1.7 counts to
 grows much faster than the artifact shrinks.
 
 **And the rings are mostly not the stops.** The same measurement bounds how much
-of the visible contour structure stop density can account for: 0.14 counts rms,
-against 0.76 counts of coherent cross-curve structure in the render overall. The
-rest is the genuine curvature of the overlapping smooth gradients. Rendered in
-arc-aligned coordinates and stretched to +-1.5 counts, the render shows several
-overlapping families of smooth contours -- one per radial gradient centre -- and
-the reference at the same stretch shows incoherent JPEG blocking. The reference's
-own coherent structure there measures 0.51 counts, so the render's excess is real
-but modest: 1.5x, not a different kind of thing. What differs as much as the
-amplitude is that the reference's structure is buried in 0.88 counts of
-incoherent grain and the render's is naked. That is an observation about why a
-1.5x excess reads as strongly as it does -- not a reason to accept it, and not a
-reason to add grain.
+of the visible contour structure stop density can account for at all: 0.14
+counts rms. The rest is the genuine curvature of the overlapping smooth
+gradients. Rendered in arc-aligned coordinates and stretched to +-1.5 counts,
+the render shows several overlapping families of smooth contours -- one per
+radial gradient centre -- where the reference at the same stretch shows
+incoherent JPEG blocking. That is a real difference in *kind*, and it is why a
+modest excess reads as strongly as it does: structure of the same amplitude is
+buried under 0.7-0.9 counts of grain in the reference and is naked in the
+render. It is not a reason to accept the excess, and not a reason to add grain.
+
+**Where the excess actually is, and three ways of mismeasuring it.** Localised
+in cross-curve distance on a grid where every along-curve average is taken over
+the same 481 stations, the render's excess coherent structure sits entirely in
+the 26 px strip beside the ridge: at sigma 3 it is 1.81x the reference's on the
+left curve and 1.23x on the right, falling to 0.96x and 0.93x by sigma 12. From
+40 px outwards -- the whole open lobe, which is what the complaint describes --
+the render runs 0.68x to 1.04x, at or below the reference, and its *total*
+cross-curve amplitude there is a third of the reference's. Cell by cell in
+(distance x along-curve angle) the same thing: 0.9-2.7x in the ridge strip, and
+0.03-0.7x everywhere beyond it, on both curves in every band.
+
+Getting that localisation wrong is easy, and it was got wrong three times before
+it was got right, each time in a way that inverted a conclusion:
+
+* *Partial along-curve averages.* Accepting any sampling row with 60 of 481
+  stations inside the region let rows averaged over short unrepresentative arc
+  segments dominate: they put the reference's coherent amplitude at 0.508 counts
+  and the render's at 0.764, an apparent 1.5x excess over the whole lobe, where
+  on fully populated rows the same statistic gives 0.116 and 0.082 -- the render
+  *below* the reference. Six rows out of 287 were carrying the conclusion. The
+  region is now the frame interior split at the mirror axis, where all 481
+  stations are fully inside.
+* *Edge-biased smoothing.* A `mode="same"` convolution pads with zeros, so the
+  nine rows nearest each end of the cross-curve run are meaningless. Trimming
+  them removes the ridge strip, which is exactly where the excess is; that is
+  how a per-band measurement came to read 0.32-0.87x and suggest the defect was
+  one of *persistence* along the curve rather than amplitude. It is not: with
+  edge-normalised smoothing the per-band and whole-arc figures agree to 6%.
+* *Pooling the two regions.* One number for the lobe is dominated by the ridge
+  strip, because that is where the amplitudes are, and reads as though the whole
+  lobe were over-structured. `band_report` reports them separately.
 
 ## D20. The profile weighting's strength is now a parameter, chosen by measurement
 

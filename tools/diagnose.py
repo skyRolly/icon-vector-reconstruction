@@ -240,7 +240,17 @@ def profile_report(ref, rec, out):
 # can have and still read as a stripe: narrower than ~3 px it is indistinguishable
 # from the 8-bit grain, wider than ~12 px it reads as shading, not as an edge.
 BAND_SIGMAS = (3.0, 6.0, 12.0)
-BAND_BOXES = {"left": (110, 200, 430, 840), "right": (600, 200, 920, 840)}
+#: The region each lobe's statistic is taken over: the frame interior, split at
+#: the curves' mirror axis.  It has to be this wide.  With the narrower boxes
+#: used before, only 217 of 481 along-curve stations had every cross-curve
+#: sample inside the region, and a row averaged over a short unrepresentative
+#: arc segment carries far more apparent coherent structure than a full one:
+#: including such rows put the reference's coherent amplitude at 0.508 counts
+#: and the render's at 0.764, an apparent 1.5x excess, where on fully populated
+#: rows the same measurement gives 0.116 and 0.082 -- the render *below* the
+#: reference.  Six rows out of 287 were carrying that conclusion.  With these
+#: boxes all 481 stations are fully inside and no average is partial.
+BAND_BOXES = {"left": (96, 96, 512, 930), "right": (512, 96, 928, 930)}
 BAND_S_BANDS = ((-40, -14), (-70, -40), (-110, -70), (-160, -110), (-220, -160), (-300, -220))
 #: The two halves have different causes and different remedies, so they are
 #: never pooled.  Inside 40 px the glow basis is the limit -- its effective
@@ -279,7 +289,13 @@ def _smooth_nan(a, sigma):
 
 
 def _band_grid(side):
-    """Sampling stations on an arc-aligned (s, t) grid over one lobe."""
+    """Sampling stations on an arc-aligned (s, t) grid over one lobe.
+
+    Only along-curve stations whose *whole* cross-curve run lies inside the
+    region are kept, so every average along the curve is taken over the same
+    number of samples.  Mixing full and partial rows is not a detail: see the
+    note above BAND_BOXES for the conclusion it reversed.
+    """
     x0, y0, x1, y1 = BAND_BOXES[side]
     tdeg = np.arange(-58.0, 38.01, 0.20)
     ss = np.arange(-300.0, -13.99, 1.0)
@@ -288,7 +304,8 @@ def _band_grid(side):
         px, py, nx, ny = arc_station(side, float(t))
         xs[:, j] = px + ss * nx
         ys[:, j] = py + ss * ny
-    return ss, xs, ys, (xs >= x0) & (xs <= x1) & (ys >= y0) & (ys <= y1)
+    keep = ((xs >= x0) & (xs <= x1) & (ys >= y0) & (ys <= y1)).all(axis=0)
+    return ss, xs[:, keep], ys[:, keep], np.ones((ss.size, int(keep.sum())), bool)
 
 
 def band_report(ref, rec, out):
@@ -388,16 +405,37 @@ def band_report(ref, rec, out):
             print("     %5d..%-5d %9.2f %+8.3f %+7.1f%% %8.3f"
                   % (lo, hi, Pa[m].mean(), d[m].mean(),
                      100 * d[m].mean() / max(Pa[m].mean(), 1e-6), o))
+        # Split by region, because pooling hides where it is.  Localised in
+        # cross-curve distance, the render's excess coherent structure sits
+        # entirely in the 26 px strip beside the ridge -- 0.9 to 2.7x the
+        # reference's there, on both curves and in every along-curve band --
+        # while from 40 px outwards, across the whole open lobe, the render runs
+        # 0.03 to 0.7x: smoother than the reference, coherently and in total.
+        # A single pooled number for the lobe is dominated by the ridge strip,
+        # because that is where the amplitudes are, and reads as though the
+        # whole lobe were over-structured.  It is not.
         print("    coherent band-pass amplitude, reference against render:")
         for sg in BAND_SIGMAS:
             row = {}
             for name, L in (("ref", La), ("rec", Lb)):
                 hp = L - _smooth_nan(L, sg)
                 c = np.nanmean(np.where(np.isfinite(hp), hp, np.nan), axis=1)[use]
+                reg = {}
+                for nm, lo, hi in BAND_REGIONS:
+                    rm = use & (ss >= lo) & (ss < hi)
+                    if rm.sum() < 8:
+                        continue
+                    cr = np.nanmean(hp[rm], axis=1)
+                    reg[nm] = float(np.sqrt(np.nanmean(np.square(cr))))
                 row[name] = {"coh_rms": float(np.sqrt(np.nanmean(np.square(c)))),
                              "coh_p2p": float(np.nanmax(c) - np.nanmin(c)),
-                             "tot_rms": float(np.sqrt(np.nanmean(np.square(hp[use]))))}
-            ex = row["rec"]["coh_rms"] / max(row["ref"]["coh_rms"], 1e-9)
+                             "tot_rms": float(np.sqrt(np.nanmean(np.square(hp[use])))),
+                             **{"coh_" + k: v for k, v in reg.items()}}
+            for nm, _, _ in BAND_REGIONS:
+                k = "coh_" + nm
+                if k in row["ref"] and k in row["rec"]:
+                    row[nm + "_excess"] = row["rec"][k] / max(row["ref"][k], 1e-9)
+            ex = row["rec"].get("coh_ridge", 0.0) / max(row["ref"].get("coh_ridge", 1e-9), 1e-9)
             # Two-sided on purpose.  Above 1 the render has coherent structure the
             # reference does not; below 1 it has lost structure the reference does
             # have, which is what blurring until the stripes stop showing gives.
@@ -406,9 +444,13 @@ def band_report(ref, rec, out):
                 worst_dev, worst_at = dev, "%s/sigma%g" % (side, sg)
             row["excess"] = ex
             side_res["sigma%g" % sg] = row
-            print("      sigma %4.1f   ref coh %6.4f tot %6.4f | rec coh %6.4f tot %6.4f"
-                  "   excess %5.2fx" % (sg, row["ref"]["coh_rms"], row["ref"]["tot_rms"],
-                                        row["rec"]["coh_rms"], row["rec"]["tot_rms"], ex))
+            print("      sigma %4.1f  ridge: ref %6.4f rec %6.4f = %5.2fx | "
+                  "interior: ref %6.4f rec %6.4f = %5.2fx"
+                  % (sg, row["ref"].get("coh_ridge", float("nan")),
+                     row["rec"].get("coh_ridge", float("nan")), ex,
+                     row["ref"].get("coh_interior", float("nan")),
+                     row["rec"].get("coh_interior", float("nan")),
+                     row.get("interior_excess", float("nan"))))
         res[side] = side_res
     out["banding"] = res
     out["banding_err_rms"] = err_rms
@@ -423,8 +465,9 @@ def band_report(ref, rec, out):
     print("  worst coherent profile error   %.3f counts rms  (target: the 0.03 count floor)"
           % err_rms)
     print("  worst oscillatory part         %.3f counts rms  (this is the stripe)" % osc_rms)
-    print("  worst band-pass deviation      %.2fx at %s  (target 1.00x, two-sided)"
+    print("  worst ridge-strip band-pass    %.2fx at %s  (target 1.00x, two-sided)"
           % (worst_dev, worst_at))
+    print("     the open lobe beyond 40 px runs 0.03-0.7x: smoother than the reference")
 
 def comb_report(ref, rec, out):
     """The horizontal streak family, line by line.
