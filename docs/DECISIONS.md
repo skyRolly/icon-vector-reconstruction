@@ -1167,3 +1167,58 @@ difference is generated entirely outside this region and says nothing about it.
 These changes are a redistribution at nearly constant integrated light, which is
 close to invisible to a mean absolute error over any region large enough to
 contain the ray. `tools/ray_report.py` is the acceptance instrument for them.
+
+## D27. Which earlier conclusions the isolation bug could have touched
+
+**The bug.** `tools/isolate.py` recovered a dropped group's contribution as
+`f = (ref - M) / (1 - M)`. That is exact only when every layer composited
+*after* the dropped group is screen-blended. This stack ends with two
+normal-blended frame layers, so wherever they have coverage both `ref` and `M`
+have already been through an affine map and dividing them as if they had not
+distorts the result. The fix composes the trailing layers into one affine map
+in `u = 1 - out` and inverts it, and rejects the two orderings the algebra
+cannot express rather than approximating them.
+
+**The question the review asked** is which earlier conclusions were reached
+through the broken formula and therefore need re-deriving. The answer is
+bounded exactly, because the corrected formula reduces to the old one
+identically wherever the trailing normal layers have zero coverage: the error's
+support is precisely the set of pixels the frame covers, and nothing else.
+
+**Measured support.** Rendering `frame_base` and `frame_rim` as basis layers and
+compositing their coverage:
+
+* 23,781 of 1,048,576 pixels, 2.27% of the canvas, have any frame coverage;
+* every one of them lies within 106 px of a canvas edge;
+* coverage within 340 px of the flare core is **exactly zero** -- not small,
+  zero -- at every radius tested (110, 160, 200, 260, 340 px).
+
+**The classification.**
+
+*Unaffected, no re-derivation needed.* Everything derived from isolating the
+flare: D11's correction, D14's bound on the flare's extent, D21's streak comb
+and spokes, D24's three-line decomposition, D26's rays, and sections 5a and 5b
+of `METHOD.md`. The flare and every measurement made from it sit in a region
+with zero frame coverage, where the two formulas agree to the last bit. This is
+not a judgement that the error was small there; it is that there was no error
+there.
+
+*Affected in principle.* Isolations of the `arc_glow` and `field` groups, whose
+footprints run out to the rim. Within the two banding boxes
+`(96,96)-(512,930)` and `(512,96)-(928,930)` the frame covers 232 and 391
+pixels, 0.09% of their combined area, and at those pixels it is fully opaque --
+so where it bites, it bites hard.
+
+*What that changes in practice.* Nothing that was concluded. The banding
+analysis of D19 compares rendered images against the reference directly and
+never goes through the isolation at all, and the arc-glow amplitudes come from
+the photometric fit, which composites forwards and has no such inverse. No
+shipped parameter traces back to an isolation in the affected 2.27%.
+
+**Why it was still worth fixing.** The next measurement that wants the
+arc-glow's own contribution near the rim -- the paleness in the 16 px annulus
+flanking each curve is exactly that kind of question -- would have been wrong,
+and wrong in a way that looks plausible. A tool that silently returns a
+distorted answer outside its domain is worse than one that refuses, which is
+why the two inexpressible orderings now raise `UnsupportedIsolation` instead of
+returning a number.
