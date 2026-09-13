@@ -9,8 +9,8 @@ rounded-square frame — as a hand-built, parametric SVG.
 | ![reference](out/side_reference.png) | ![reconstruction](out/side_reconstruction.png) | ![difference](out/side_diff.png) |
 
 <!-- DELIVERABLE:START -->
-**Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 34 named
-layers, 92 KB, no embedded bitmap and no traced outlines. Every mark is a
+**Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 29 named
+layers, 72 KB, no embedded bitmap and no traced outlines. Every mark is a
 primitive driven by a named parameter in
 [`src/params.json`](src/params.json): one path for the frame, two cubic-Bézier
 paths for the luminous curves (reused, offset and clipped, by every glow
@@ -25,15 +25,15 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 
 | metric | value | for scale |
 |---|---|---|
-| mean absolute error | **1.979** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 4.092 | |
-| MAE on a 1/2.2 display curve | 6.210 | weights the dark background as the eye does; black scores 59.7 |
-| SSIM (luminance) | **0.9724** | black scores 0.142 |
-| worst single-channel error | 112 | |
-| pixels off by more than 2 / 8 / 24 | 37.2% / 5.4% / 0.7% | |
-| mean bias | -0.219 | |
+| mean absolute error | **1.935** / 255 | a flat black canvas scores 17.89 |
+| RMSE | 4.071 | |
+| MAE on a 1/2.2 display curve | 5.728 | weights the dark background as the eye does; black scores 59.7 |
+| SSIM (luminance) | **0.9734** | black scores 0.142 |
+| worst single-channel error | 105 | |
+| pixels off by more than 2 / 8 / 24 | 35.8% / 5.5% / 0.7% | |
+| mean bias | -0.203 | |
 
-Per region (MAE): frame band 2.48, centre 90 px 8.31, bright pixels 9.75, dark background 1.49, everything else 1.76.
+Per region (MAE): frame band 2.51, centre 90 px 7.60, bright pixels 10.02, dark background 1.45, everything else 1.72.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -44,14 +44,14 @@ The two regions a whole-image average cannot police, from
 
 | targeted measurement | value |
 |---|---|
-| MAE within 110 px of the central light | 7.03 |
-| worst ring of the flare's radial profile | +7.3 code values at r = 6-12 |
-| curve glow, rms relative error over 21 signed-distance bins | 4.6% |
+| MAE within 110 px of the central light | 7.06 |
+| worst ring of the flare's radial profile | +6.6 code values at r = 6-12 |
+| curve glow, rms relative error over 21 signed-distance bins | 4.9% |
 | the same, resolved along the curve (71 cells) | 6.0% |
-| light in the four interior corners, rms relative error | 3.6% |
-| worst single bin of that profile | -11.5% at s = 9..14 px |
-| left lobe, MAE more than 25 px from the ridge | 1.52 (bias -0.12) |
-| right lobe, MAE more than 25 px from the ridge | 1.47 (bias -0.04) |
+| light in the four interior corners, rms relative error | 5.2% |
+| worst single bin of that profile | -12.3% at s = 9..14 px |
+| left lobe, MAE more than 25 px from the ridge | 1.48 (bias -0.29) |
+| right lobe, MAE more than 25 px from the ridge | 1.48 (bias -0.15) |
 
 Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.629 (SSIM 0.9555); see `out/validation.md` for the resolution sweep.
 <!-- METRICS:END -->
@@ -119,19 +119,19 @@ restated those numbers drifted out of date twice, so it no longer does.
 1. **Background** — a flat exterior in three pieces (body, top edge, corners),
    then the frame shape filled with a base colour, two broad radial gradients
    and a vertical ramp.
-2. **Glow** — seven blurred copies of each curve's path at effective
-   cross-curve widths from 3.3 to 87 px, five offset inward and two outward.
-   The measured facts they reproduce: the glow is 2.8-3.5x brighter on the
-   concave side, and its cross-section needs components at roughly every
-   doubling of width — the one gap left in that series, between 5.8 and 20.6 px,
-   was what made the lobe banding unreachable by any choice of amplitudes
-   (`arc_glow1c`; docs/DECISIONS.md D19). Each carries its own measured fade
-   along the curve.
-3. **Central light** — fourteen layers: two stretched radial blooms, four
-   horizontal streak components reproducing the measured comb (a main streak
-   plus satellites 6.5 and 18.5 px off-axis), and eight one-sided rays, six of
-   them thin spokes at the measured angles. There is no separate glint layer;
-   the brightest pixels come from the streak and bloom stack.
+2. **Glow** — six blurred copies of each curve's path at effective cross-curve
+   widths from 3.3 to 87 px, four offset inward and two outward. The measured
+   facts they reproduce: the glow is 2.8-3.5x brighter on the concave side, and
+   each component carries its own measured fade along the curve, emitted as the
+   measured stations themselves. A seventh component closing the gap between
+   5.8 and 20.6 px was built and measured; it raises what the basis can achieve
+   beside the ridge but did not improve the render, and is not shipped
+   (docs/DECISIONS.md D19, D22).
+3. **Central light** — ten layers: two stretched radial blooms, three
+   horizontal streak components, and five one-sided rays. There is no separate
+   glint layer; the brightest pixels come from the streak and bloom stack. A
+   rebuild of this group into fourteen layers is recorded in D14/D21 and is not
+   shipped — it measured worse (D22).
 4. **Curve cores** — a hard-edged bright stroke on each path plus a narrower
    inset one, because the measured core is 5.8 px at the tips, 8.4 px at
    mid-height, and asymmetric about its own centre-line.

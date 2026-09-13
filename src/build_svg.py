@@ -325,44 +325,39 @@ def taper_stops(t, side="left", n=24):
     Two forms:
 
     `kind: "table"` -- explicit measured (y, alpha) points, per side.  The core
-    and the three glow terms were each measured station by station along both
-    arcs (45 stations each), so these fades are data, not a guessed curve.
-    `gamma` and `scale` stay tunable so the search can adjust them without
-    discarding the measurement.
+    and the glow terms were each measured station by station along both arcs
+    (45 stations each), so these fades are data, not a guessed curve.  `gamma`
+    and `scale` stay tunable so the search can adjust them without discarding
+    the measurement.
 
     `kind: "ramp"` (the default) -- alpha rises from 0 at `y0` to 1 at `y1` as a
     power `p0`, holds, then falls to 0 between `y2` and `y3` as `p1`.
+
+    The table is emitted verbatim.  It was briefly smoothed with a 7-point
+    window and reinterpolated through a monotone cubic; that discards measured
+    detail and asserts curvature between stations that nothing measured, and it
+    is most of the 0.0242 MAE the stop rewrite cost (docs/DECISIONS.md D23).
     """
     if t.get("kind") == "table":
         pts = t[side]
         gamma = float(t.get("gamma", 1.0))
         scale = float(t.get("scale", 1.0))
         off = float(t.get("y_offset", 0.5))
-        win = int(t.get("smooth_window", 7))
-        ys_m = [float(y) + off for y, a in pts]
-        av = smooth_series([float(a) for y, a in pts], window=win)
-        av = [min(1.0, scale * max(0.0, a) ** gamma) for a in av]
-        # zero anchors just outside the measured range, so a fade that was
-        # measured to reach zero still reaches zero and nothing is padded
-        eps = 1e-3 * 1024.0
-        xs = [0.0] + [max(0.0, ys_m[0] - eps)] + ys_m + \
-             [min(1024.0, ys_m[-1] + eps)] + [1024.0]
-        vs = [0.0, 0.0] + av + [0.0, 0.0]
-        keep_x, keep_v = [], []
-        for x, v in zip(xs, vs):
-            if keep_x and x <= keep_x[-1]:
-                continue
-            keep_x.append(x); keep_v.append(v)
-        f = pchip(keep_x, keep_v)
-        st = adaptive_stops(lambda y: max(0.0, f(y)), lo=0.0, hi=1024.0,
-                            tol=STOP_TOL, must=tuple(keep_x))
-        return [(y / 1024.0, v) for y, v in st]
+        out = [(0.0, 0.0)]
+        for y, a in pts:
+            out.append(((y + off) / 1024.0, min(1.0, scale * max(0.0, a) ** gamma)))
+        out.append((1.0, 0.0))
+        return out
 
     y0, y1, y2, y3 = t["y0"], t["y1"], t["y2"], t["y3"]
     p0, p1 = t.get("p0", 0.5), t.get("p1", 0.7)
     lo, hi = t.get("floor", 0.0), t.get("peak", 1.0)
-
-    def ramp(y):
+    ys = sorted({y0, y1, y2, y3} |
+                {y0 + (y1 - y0) * i / 8.0 for i in range(9)} |
+                {y2 + (y3 - y2) * i / 8.0 for i in range(9)} |
+                {y1 + (y2 - y1) * i / (n / 4.0) for i in range(int(n / 4) + 1)})
+    out = []
+    for y in ys:
         if y <= y0 or y >= y3:
             a = 0.0
         elif y < y1:
@@ -371,11 +366,12 @@ def taper_stops(t, side="left", n=24):
             a = 1.0
         else:
             a = ((y3 - y) / (y3 - y2)) ** p1
-        return lo + (hi - lo) * a
-
-    st = adaptive_stops(ramp, lo=0.0, hi=1024.0, tol=STOP_TOL,
-                        must=(y0, y1, y2, y3))
-    return [(y / 1024.0, v) for y, v in st]
+        out.append((y / 1024.0, lo + (hi - lo) * a))
+    if out[0][0] > 0:
+        out.insert(0, (0.0, out[0][1]))
+    if out[-1][0] < 1:
+        out.append((1.0, out[-1][1]))
+    return out
 
 
 #: Streak cross-section: source rect height as a multiple of its blur sigma.
@@ -393,234 +389,66 @@ STREAK_SIGMA_NORM = math.sqrt(1.0 + STREAK_H_OVER_SB ** 2 / 12.0)
 # gradient stops
 #
 # SVG interpolates LINEARLY between gradient stops, so a stop is a slope
-# discontinuity in the rendered alpha.  The eye finds a slope discontinuity in
-# a smooth shallow gradient far more readily than it finds noise of the same
-# amplitude, because the artefact is *coherent*: one stop paints a contour
-# across the whole shape.  The previous build emitted every gradient as
-# piecewise-linear segments through its knots -- five stops across a 607 px
-# radius for the corner glow, one per 20 px station for the measured fades -
-# and the result was a dense family of contour bands filling the lobes:
-# 1.76 code values peak-to-peak of coherent structure where the signal itself
-# is 7-25, against a reference that is smooth apart from incoherent JPEG
-# texture.  16x supersampling did not change it, which is what ruled out
-# rasterisation as the cause.
+# discontinuity in the rendered alpha, and one stop paints a contour across the
+# whole shape.  That is a real artefact and it was worth testing: the emitted
+# gradients were replaced by a monotone cubic (PCHIP) through the knots,
+# resampled adaptively until the piecewise-linear error against that
+# interpolant fell below a code value.
 #
-# Two things are needed, and they are different things:
-#   * a SMOOTH interpolant through the knots (monotone cubic), so the emitted
-#     curve has no slope discontinuity at a knot;
-#   * enough stops that the piecewise-linear error against that interpolant is
-#     below what a pixel can show, given the layer's own amplitude.
+# It was tested twice and rejected twice, which is why the simple sampling is
+# back.  It did not reduce the lobe banding it was built for (far-lobe contour
+# residual 0.3271 -> 0.3284, i.e. unchanged), and measured on identical
+# parameters it costs 0.0242 of whole-image MAE, 0.0009 of SSIM and 7.4 KB.
+# The reason is in what the knots are: for the measured fades and the field
+# table they are DATA, sampled station by station, and linear interpolation
+# between them is the minimal assumption.  A cubic through them asserts
+# curvature that nothing measured -- and the smoothing pass that went with it
+# (a 7-point window over the measured alphas) discarded measured detail
+# outright.  The amplitudes were fitted against the linear reading, and they
+# are right for it.  See docs/DECISIONS.md D23.
 # --------------------------------------------------------------------------- #
 
-#: Largest piecewise-linear stop error tolerated, in premultiplied code values.
-#: Chosen by measuring the artifact this controls, which is NOT what MAE sees.
-#: A piecewise-linear stop leaves a contour ring, and a ring is coherent over
-#: hundreds of pixels: 0.15 counts of it is visible where 0.15 counts of grain
-#: is not.  Differencing each render against one at 0.15 counts -- which has
-#: none -- gives the ring field directly, and in the two lobes it measures
-#:
-#:   tol      0.35    0.70    1.00    2.00    4.00   counts
-#:   rms     0.077   0.098   0.141   0.150   0.230
-#:   max     1.333   1.333   1.667   3.000   4.333
-#:   file      130     104      94      83      77   KB
-#:
-#: This was first set to 2 on an MAE argument (MAE moves 0.002 between 1 and 2,
-#: and the file gives back 10 KB), and that was the wrong measure: between 1 and
-#: 2 the rms barely moves but the worst ring doubles, from 1.7 counts to 3.0,
-#: and a 3-count coherent contour in a lobe that sits at 8-35 counts is exactly
-#: the defect this iteration exists to remove.  1 it is; the 10 KB is the price
-#: of the stated priority.  Below 1 the file grows far faster than the artifact
-#: shrinks.
-STOP_TOL_COUNTS = 1.0
-#: Hard cap so a pathological curve cannot inflate the file without bound.
-STOP_MAX = 96
-
-
-def pchip_slopes(xs, ys):
-    """Fritsch-Carlson monotone cubic slopes: smooth, and no new extrema.
-
-    Pure Python on purpose - src/build_svg.py builds the deliverable and has
-    no third-party dependency.
-    """
-    n = len(xs)
-    if n < 3:
-        if n == 2:
-            d = (ys[1] - ys[0]) / (xs[1] - xs[0])
-            return [d, d]
-        return [0.0] * n
-    h = [xs[i + 1] - xs[i] for i in range(n - 1)]
-    d = [(ys[i + 1] - ys[i]) / h[i] for i in range(n - 1)]
-    m = [0.0] * n
-    m[0] = d[0]
-    m[-1] = d[-1]
-    for i in range(1, n - 1):
-        if d[i - 1] * d[i] <= 0.0:
-            m[i] = 0.0
-        else:
-            w1 = 2.0 * h[i] + h[i - 1]
-            w2 = h[i] + 2.0 * h[i - 1]
-            m[i] = (w1 + w2) / (w1 / d[i - 1] + w2 / d[i])
-    return m
-
-
-def pchip(xs, ys):
-    """A callable monotone-cubic interpolant through (xs, ys)."""
-    m = pchip_slopes(xs, ys)
-    n = len(xs)
-
-    def f(x):
-        if x <= xs[0]:
-            return ys[0]
-        if x >= xs[-1]:
-            return ys[-1]
-        lo, hi = 0, n - 1
-        while hi - lo > 1:
-            mid = (lo + hi) // 2
-            if xs[mid] <= x:
-                lo = mid
-            else:
-                hi = mid
-        h = xs[hi] - xs[lo]
-        t = (x - xs[lo]) / h
-        t2, t3 = t * t, t * t * t
-        h00 = 2 * t3 - 3 * t2 + 1
-        h10 = t3 - 2 * t2 + t
-        h01 = -2 * t3 + 3 * t2
-        h11 = t3 - t2
-        return (h00 * ys[lo] + h10 * h * m[lo] + h01 * ys[hi] + h11 * h * m[hi])
-    return f
-
-
-def smooth_series(ys, window=7, order=2):
-    """Local least-squares smoothing of a measured series.
-
-    The measured fades along each curve carry the reference's own noise: at
-    6 px sampling the reference's along-curve residual about a smooth trend is
-    3.3-4.7% of the local level with a lag-1 autocorrelation of only +0.1..+0.25,
-    i.e. white.  The tables' station-to-station scatter is 1.2-2.9%, the same
-    thing.  Left in the stops that incoherent noise becomes a coherent band
-    across the whole width of the stroke, so it is smoothed to its trend; the
-    trend is what was measured, the scatter is not.  Endpoints are preserved so
-    a fade that reaches zero still reaches zero.
-    """
-    n = len(ys)
-    if n < window or window < 3:
-        return list(ys)
-    half = window // 2
-    out = list(ys)
-    for i in range(n):
-        a = max(0, i - half)
-        b = min(n, i + half + 1)
-        k = b - a
-        if k < order + 1:
-            continue
-        xs = [j - i for j in range(a, b)]
-        # normal equations for a polynomial of `order` in xs, evaluated at 0
-        # -> the fitted constant term
-        A = [[sum(x ** (p + q) for x in xs) for q in range(order + 1)]
-             for p in range(order + 1)]
-        rhs = [sum((x ** p) * ys[j] for x, j in zip(xs, range(a, b)))
-               for p in range(order + 1)]
-        c = _solve(A, rhs)
-        out[i] = c[0] if c is not None else ys[i]
-    out[0], out[-1] = ys[0], ys[-1]
-    return out
-
-
-def _solve(A, b):
-    n = len(A)
-    M = [row[:] + [b[i]] for i, row in enumerate(A)]
-    for i in range(n):
-        piv = max(range(i, n), key=lambda r: abs(M[r][i]))
-        if abs(M[piv][i]) < 1e-12:
-            return None
-        M[i], M[piv] = M[piv], M[i]
-        for r in range(i + 1, n):
-            f = M[r][i] / M[i][i]
-            for c in range(i, n + 1):
-                M[r][c] -= f * M[i][c]
-    x = [0.0] * n
-    for i in range(n - 1, -1, -1):
-        x[i] = (M[i][n] - sum(M[i][c] * x[c] for c in range(i + 1, n))) / M[i][i]
-    return x
-
-
-def adaptive_stops(f, lo=0.0, hi=1.0, tol=1e-3, cap=STOP_MAX, must=()):
-    """Sample `f` so the piecewise-linear error between stops is below `tol`.
-
-    Bisects whichever interval currently has the largest midpoint error, so
-    stops land where the curvature is instead of being spread evenly: a flat
-    tail costs two stops and a knee costs as many as it needs.
-    """
-    xs = sorted({lo, hi} | {x for x in must if lo < x < hi})
-    vals = {x: f(x) for x in xs}
-
-    def err(a, b):
-        mid = 0.5 * (a + b)
-        if mid not in vals:
-            vals[mid] = f(mid)
-        return abs(vals[mid] - 0.5 * (vals[a] + vals[b])), mid
-
-    while len(xs) < cap:
-        worst, wmid, wi = -1.0, None, None
-        for i in range(len(xs) - 1):
-            e, mid = err(xs[i], xs[i + 1])
-            if e > worst:
-                worst, wmid = e, mid
-        if worst <= tol or wmid is None:
-            break
-        xs.append(wmid)
-        xs.sort()
-    return [(x, vals[x]) for x in xs]
-
-
-#: Fixed alpha tolerance for every emitted gradient, so a layer's shape does
-#: not depend on its own brightness -- the photometric fit renders each layer
-#: at full amplitude and must see the same shape the final artwork uses.
-STOP_TOL = STOP_TOL_COUNTS / 255.0
 
 
 def profile_stops(profile, n=18):
     """Radial falloff -> gradient stops.
 
-    Accepts either an explicit [[offset, alpha], ...] knot table or a named law:
+    Accepts either an explicit [[offset, alpha], ...] table or a named law:
       {"kind": "gauss", "sigma": s}   exp(-u^2 / 2 s^2)
       {"kind": "exp",   "scale": s}   exp(-u / s)
       {"kind": "pow",   "n": k}       (1 - u)^k
-      {"kind": "rise",  "n": k}       u^k, for a field that brightens outwards
-    Falling laws are renormalised so alpha(1) == 0; otherwise `spreadMethod=pad`
+    Named laws are renormalised so alpha(1) == 0; otherwise `spreadMethod=pad`
     would flood the rest of the shape with the last stop's colour.
 
-    Either way the result is sampled adaptively from a SMOOTH function - the
-    law itself, or a monotone cubic through the knots - rather than emitted as
-    straight segments between knots.  See the note above `pchip_slopes`.
+    A measured table is emitted VERBATIM, and a named law is sampled uniformly.
+    Both were briefly replaced by a monotone cubic (PCHIP) through the knots,
+    resampled adaptively to a 1-code-value tolerance, on the argument that SVG
+    interpolates gradients linearly so a smooth interpolant represents the
+    intended profile more faithfully.  Measured against the reference on
+    identical parameters, that cost 0.0242 of whole-image MAE (1.9352 ->
+    1.9594), 0.0009 of SSIM and 7.4 KB -- see docs/DECISIONS.md D23.  The
+    reason is that a table's knots are a MEASUREMENT: linear interpolation
+    between them is the minimal assumption, while a cubic through them asserts
+    curvature in between that nothing measured, and the amplitudes were fitted
+    against the linear reading.
     """
     if isinstance(profile, dict):
         kind = profile.get("kind", "gauss")
         if kind == "gauss":
-            s = float(profile.get("sigma", 0.4))
-            law = lambda u: math.exp(-(u * u) / (2 * s * s))
+            s_ = float(profile.get("sigma", 0.4))
+            g = lambda u: math.exp(-(u * u) / (2 * s_ * s_))
         elif kind == "exp":
-            s = float(profile.get("scale", 0.3))
-            law = lambda u: math.exp(-u / s)
+            s_ = float(profile.get("scale", 0.3))
+            g = lambda u: math.exp(-u / s_)
         elif kind == "pow":
             k = float(profile.get("n", 2.0))
-            law = lambda u: max(0.0, 1.0 - u) ** k
-        elif kind == "rise":
-            k = float(profile.get("n", 1.5))
-            return adaptive_stops(lambda u: max(0.0, min(1.0, u)) ** k,
-                                  tol=STOP_TOL)
+            g = lambda u: max(0.0, 1.0 - u) ** k
         else:
             raise ValueError("unknown profile kind %r" % kind)
-        g1 = law(1.0)
-        g = lambda u: max(0.0, (law(u) - g1) / (1.0 - g1))
-        return adaptive_stops(g, tol=STOP_TOL)
-    xs = [float(o) for o, a in profile]
-    ys = [float(a) for o, a in profile]
-    if len(xs) < 3:
-        return [(o, a) for o, a in profile]
-    return adaptive_stops(pchip(xs, ys), lo=xs[0], hi=xs[-1], tol=STOP_TOL,
-                          must=tuple(xs))
+        g1 = g(1.0)
+        us = [i / float(n) for i in range(n + 1)]
+        return [(u, max(0.0, (g(u) - g1) / (1.0 - g1))) for u in us]
+    return [(o, a) for o, a in profile]
 
 
 # --------------------------------------------------------------------------- #

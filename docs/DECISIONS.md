@@ -900,3 +900,59 @@ falloff is measured with the ridges masked (D21); both are better-founded than
 what they replace. What is claimed is only that the reconstruction they produce
 has not yet been optimised well enough to beat the one they replace, and until
 it is, it does not ship.
+
+## D23. The stop rewrite was the regression; the filter region was the fix
+
+**How the iteration-3 regression decomposed.** D22 recorded that every
+iteration-3 state rendered worse than the iteration-2 baseline and named two
+suspected causes, both in the parameters. Both were wrong about where most of it
+was. Rendering the *same* iteration-2 parameters through each builder separates
+the code from the fit, and the answer is a 2x2:
+
+| gradient stops | filter region | MAE | SSIM | flare r<110 | file |
+|---|---|---|---|---|---|
+| measured stations, verbatim | frame bbox +-4 px | 1.9411 | 0.9731 | 7.602 | 72.3 KB |
+| **measured stations, verbatim** | **scaled to the blur** | **1.9352** | **0.9734** | **7.602** | **72.2 KB** |
+| PCHIP, adaptively resampled | frame bbox +-4 px | 1.9763 | 0.9721 | 7.693 | 79.7 KB |
+| PCHIP, adaptively resampled | scaled to the blur | 1.9594 | 0.9725 | 7.693 | 79.6 KB |
+
+So of the changes made to the builder during iteration 3, one was a genuine
+improvement and the other a genuine regression, and pooling them hid both:
+
+* **The filter region was wrong and its correction helps.** It had been clamped
+  to the frame's bounding box plus 4 px *regardless of the blur width*, with a
+  comment asserting that was lossless because filtering precedes clipping. A
+  filter region clips the filter's SOURCE, so a sigma-76 haze was being built
+  from a truncated source. Scaling the region to the blur's own padding is
+  worth -0.0059 of MAE and +0.0003 of SSIM on identical parameters.
+* **The adaptive PCHIP stops were a regression: +0.0242 of MAE, -0.0009 of
+  SSIM and 7.4 KB.** They were added while testing whether stop interpolation
+  caused the lobe banding, which it does not (D19), and then kept on the
+  argument that a smooth interpolant represents the intended profile more
+  faithfully than straight segments between knots.
+
+**Why the smooth interpolant is the wrong choice here, not merely a costly one.**
+The knots are not control points for a curve someone designed; for the tapers
+and the field table they are a MEASUREMENT, station by station along each arc.
+Linear interpolation between measured stations is the minimal assumption. A
+monotone cubic through them asserts curvature in between that nothing measured
+-- and the change shipped a smoothing pass with it, a 7-point window over the
+measured alphas, which discards measured detail outright. The amplitudes were
+then fitted against the linear reading and are correct for it. Both are
+reverted; the machinery is removed rather than left unexercised, and this entry
+is the record of what it cost.
+
+**The consequence for the baseline.** Iteration 2's parameters, built with the
+corrected filter region and the measured stations emitted verbatim, render at
+**MAE 1.9352, SSIM 0.9734, flare 7.602, worst channel 105, 72.2 KB** -- better
+than the iteration-2 commit on the global metrics, identical in the flare, and
+slightly smaller, with no parameter changed. That is the baseline this iteration
+proceeds from, and it is a *code* improvement: the previous numbers were held
+back by a truncated filter source.
+
+**What this says about the rest of the iteration-3 regression.** With 0.0183 of
+the 0.0438 attributable to the builder, the remainder is the parameters -- and
+they were searched against an objective that changed twice underneath them. It
+does not establish that the model additions are wrong, and it does not establish
+that they are right. They stay out until a search against the corrected
+objective and the corrected builder puts them ahead of this baseline.

@@ -270,7 +270,12 @@ def main():
                   "corner_blend_deg", "corner_note", "flare_dependent_layers",
                   "flare_cells", "field_grad_note", "arc_d", "arc_field",
                   "arc_lens", "arc_station", "flare_report", "field_specs",
-                  "corner_cells", "flare_cx"}
+                  "corner_cells", "flare_cx",
+                  # built, measured, and NOT shipped -- the docs name these to
+                  # record what was tested and rejected, which is not a claim
+                  # that they are in the model (docs/DECISIONS.md D22)
+                  "arc_glow1c", "flare_sat2", "flare_ray_up", "flare_ray_dn",
+                  "flare_ray_dl", "lobe_field_left", "lobe_field_right"}
     import re as _re
     named, missing = set(), {}
     for doc in ("README.md", os.path.join("docs", "METHOD.md"),
@@ -315,6 +320,116 @@ def main():
     real = np.asarray(Image.open(io.BytesIO(png)).convert("RGB")).astype(np.float32) / 255.0
     d = float(np.abs(an - real).mean() * 255)
     check("objective composite matches the rebuilt SVG render", d < 1.0, "MAE %.4f code values" % d)
+
+    # ---- 6b. isolation is valid where it is used -------------------------- #
+
+    # A screen contribution under a later NORMAL-blended layer is not
+    # recoverable by (ref - M)/(1 - M): the normal layer is an affine step, so
+    # both `ref` and `M` have been through a map that the division does not
+    # undo.  The shipped stack ends with two normal frame layers, so every
+    # isolated arc-glow measurement near the rim went through this.  Synthetic
+    # here, because then the answer is known exactly.
+    import isolate as ISO
+    Hs = Ws = 24
+    Asyn = np.stack([np.full((Hs, Ws), 0.35, np.float32),
+                     np.full((Hs, Ws), 0.55, np.float32),
+                     np.zeros((Hs, Ws), np.float32)])
+    Asyn[2][:, 10:] = 0.60
+    Ksyn = np.array([[0.20, 0.45, 0.60], [0.50, 0.70, 0.90], [0.30, 0.32, 0.35]], np.float32)
+    nfs = [False, False, True]
+    refs = FP.composite(Asyn, Ksyn, nfs)
+    f_true = Asyn[1][..., None] * Ksyn[1][None, None, :]
+    keep = [0, 2]
+    Ak, Kk, nfk = Asyn[keep], Ksyn[keep], [nfs[i] for i in keep]
+    Msyn = FP.composite(Ak, Kk, nfk)
+    f_old = np.clip((refs - Msyn) / np.maximum(1.0 - Msyn, 1e-4), 0.0, 1.0)
+    p_pre, q_pre = ISO._affine_u(Ak, Kk, nfk, [0])
+    p_post, q_post = ISO._affine_u(Ak, Kk, nfk, [1])
+    f_new = np.clip(1.0 - ((1.0 - refs) - q_post) / p_post
+                    / np.maximum(p_pre + q_pre, 1e-4), 0.0, 1.0)
+    under = slice(10, Ws)
+    e_new = float(np.abs(f_new[:, under] - f_true[:, under]).max())
+    e_old = float(np.abs(f_old[:, under] - f_true[:, under]).max())
+    e_free = float(np.abs(f_new[:, 0:10] - f_true[:, 0:10]).max())
+    check("isolation recovers a screen contribution under a normal layer",
+          e_new < 1e-5 and e_free < 1e-5 and e_old > 0.05,
+          "corrected %.2e under the normal layer, %.2e clear of it; the old "
+          "formula was off by %.3f" % (e_new, e_free, e_old))
+
+    bad = None
+    try:
+        ISO.isolate(params, np.zeros((8, 8, 3), np.float32), ["frame"])
+    except ISO.UnsupportedIsolation as exc:
+        bad = str(exc)
+    except Exception as exc:                                   # noqa: BLE001
+        bad = "WRONG EXCEPTION: %r" % exc
+    check("isolation refuses orderings its algebra cannot express",
+          bad is not None and "normal-blended" in bad,
+          (bad or "no exception raised")[:110])
+
+    # ---- 6c. the profile weight belongs to the target it was built for ---- #
+
+    # `_PROFILE_CACHE` keyed on the luminance SUM, and the weights come from
+    # per-cell MEAN luminance: move a bright patch from one cell to another and
+    # the sum is unchanged while the correct weights are not, so the second
+    # target silently received the first one's.
+    tgt_a = np.minimum(tgt, 254.4 / 255.0)[::4, ::4].copy()
+    tgt_b = tgt_a.copy()
+    src, dst = (slice(60, 80), slice(40, 60)), (slice(150, 170), slice(30, 50))
+    hold = tgt_b[src].copy()
+    tgt_b[src] = tgt_b[dst]
+    tgt_b[dst] = hold
+    Wa = FP.make_weight(tgt_a)
+    Wb = FP.make_weight(tgt_b)
+    Wa2 = FP.make_weight(tgt_a.copy())
+    same_sum = abs(float(tgt_a.mean(2).sum()) - float(tgt_b.mean(2).sum())) < 1e-3
+    check("the profile weight is keyed on the target, not on its luminance sum",
+          same_sum and not np.array_equal(Wa, Wb) and np.array_equal(Wa, Wa2),
+          "equal sums: %s; different layouts give different weights: %s; an "
+          "identical target still reuses the cache: %s"
+          % (same_sum, not np.array_equal(Wa, Wb), np.array_equal(Wa, Wa2)))
+
+    # ---- 6d. a geometry trial is scored against an equivalent baseline ---- #
+
+    # `evaluate(free=family)` re-fits that family inside the trial, while
+    # `best_sse` was left by the previous accepted move, which re-fitted a
+    # DIFFERENT family.  The trial then gets a colour refit the baseline never
+    # received, and the refit's gain is credited to the geometry.  sweep() must
+    # re-score the unchanged geometry under each new family's freedom first.
+    calls = []
+    real_eval = O.Objective.evaluate
+
+    def spy(self, prms, fit_iters=None, stride=None, full=False, free=None):
+        calls.append(tuple(free) if free is not None else "all")
+        return real_eval(self, prms, fit_iters=fit_iters, stride=stride,
+                         full=full, free=free)
+
+    probe = json.loads(json.dumps(params))
+    two = [sp for sp in O.layer_specs(probe)
+           if sp["affects"] != "all" and sp["affects"][0].startswith("arc_")][:1]
+    two += [sp for sp in O.layer_specs(probe)
+            if sp["affects"] != "all" and sp["affects"][0].startswith("flare_")][:1]
+    ok_bases = None
+    if len(two) == 2:
+        O.Objective.evaluate = spy
+        try:
+            obj = O.Objective(os.path.join(ROOT, "reference.png"), stride=8, fit_iters=1)
+            O.sweep(obj, probe, two, log=lambda *a, **k: None)
+        finally:
+            O.Objective.evaluate = real_eval
+        fams = [tuple(obj.families(probe, sp["affects"])) for sp in two]
+        # every family that was searched must appear as a baseline evaluate
+        # before any trial of that family
+        ok_bases = True
+        for fam in fams:
+            if fam not in calls:
+                ok_bases = False
+        # and the two families must genuinely differ, or the test proves nothing
+        ok_bases = ok_bases and fams[0] != fams[1]
+    check("a geometry trial is scored against a baseline with the same colour freedom",
+          bool(ok_bases),
+          "%d evaluate() calls, %d distinct free-sets, both searched families "
+          "re-baselined: %s" % (len(calls), len(set(calls)), ok_bases))
 
     # ---- 7. the lobe banding has not come back ---------------------------- #
 

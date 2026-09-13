@@ -358,11 +358,41 @@ class Objective:
 
 
 def sweep(obj, params, specs, log=print, accept_tol=2e-7):
+    """One pass over `specs`, accepting a move only when the geometry is better.
+
+    The baseline a trial is compared against must have been scored with the
+    *same* colour freedom the trial gets, or the comparison is not between two
+    geometries -- it is between two geometries plus an unmatched colour refit,
+    and the refit's improvement gets attributed to the geometry.
+
+    `evaluate(free=family)` re-fits that family's colours inside the trial.
+    `best_sse`, though, is whatever the last accepted move left behind, and that
+    move re-fitted a *different* family.  So an `arc_*` move would be accepted
+    with the arc colours refit, and the next `flare_*` trial would be scored
+    with a fresh flare refit against a baseline whose flare colours were still
+    those of the pre-move geometry: the trial is handed a colour advantage the
+    baseline never gets, and a flare geometry that is actually worse can win.
+
+    The fix is to re-score the current, unchanged geometry under exactly the
+    freedom the next family's trials will receive, whenever that freedom
+    changes.  It costs a colour fit and no renders -- the basis is cached and
+    the geometry has not moved -- and it makes every acceptance a comparison of
+    two geometries under equivalent inner optimisation.
+    """
     best_sse, best_mae, K = obj.evaluate(params)
     obj.K = K
     log("  start sse=%.6g mae=%.4f" % (best_sse, best_mae))
     improved = 0
+    rebased = 0
+    last_free = object()          # a sentinel no family signature can equal
     for sp in specs:
+        free = obj.families(params, sp["affects"])
+        sig = "all" if free is None else tuple(free)
+        if sig != last_free:
+            best_sse, best_mae, Kb = obj.evaluate(params, free=free)
+            obj.K = Kb
+            last_free = sig
+            rebased += 1
         v0 = float(get_path(params, sp["path"]))
         # A search interval that does not contain the starting value silently
         # freezes the parameter: every proposal lands outside and is rejected
@@ -384,7 +414,7 @@ def sweep(obj, params, specs, log=print, accept_tol=2e-7):
                     continue
                 set_path(params, sp["path"], v)
                 obj.invalidate(sp["affects"])
-                sse, mae, Kt = obj.evaluate(params, free=obj.families(params, sp["affects"]))
+                sse, mae, Kt = obj.evaluate(params, free=free)
                 if sse < best_sse - accept_tol:
                     best_sse, best_mae, v0, moved = sse, mae, v, True
                     obj.K = Kt
@@ -400,8 +430,8 @@ def sweep(obj, params, specs, log=print, accept_tol=2e-7):
                     break
         set_path(params, sp["path"], v0)
         obj.invalidate(sp["affects"])
-    log("  end   sse=%.6g mae=%.4f  (%d accepted moves, %d renders)"
-        % (best_sse, best_mae, improved, obj.n_render))
+    log("  end   sse=%.6g mae=%.4f  (%d accepted moves, %d renders, %d colour re-baselines)"
+        % (best_sse, best_mae, improved, obj.n_render, rebased))
     return best_sse
 
 

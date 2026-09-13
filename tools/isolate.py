@@ -1,12 +1,35 @@
 #!/usr/bin/env python3
 """Isolate one group of layers' required contribution from the reference.
 
-Screen compositing is commutative, so the render is
-`out = 1 - prod_i (1 - A_i k_i)` regardless of paint order.  Drop a group of
-layers, composite the rest into a base `M`, and the contribution the dropped
-group must supply is recoverable exactly:
+Work in `u = 1 - out`.  There, a screen layer is a MULTIPLICATION and a normal
+layer is an AFFINE map:
 
-    ref = M + f*(1 - M)   =>   f = (ref - M) / (1 - M)
+    screen:  out <- out*(1 - A*C) + A*C      =>   u <- (1 - A*C) * u
+    normal:  out <- out*(1 - A)   + A*C      =>   u <- (1 - A) * u + A*(1 - C)
+
+Screen layers therefore commute with each other and a dropped group of them is
+a single factor `(1 - f)`; normal layers do not commute with anything.  The
+stack here ends with two normal-blended frame layers, so the naive formula
+
+    f = (ref - M) / (1 - M)
+
+is only correct where those layers have zero coverage.  Wherever the frame
+stroke and its blur skirt reach, `ref` and `M` have both been put through the
+frame's affine map, and dividing them as if they had not distorts the isolated
+contribution -- which matters precisely for the arc-glow layers that run up to
+the rim.
+
+So the layers after the dropped group are composed into one affine map `(p, q)`
+in `u` and inverted before the screen formula is applied:
+
+    u_ref = p * (u_pre * (1 - f)) + q
+    =>  f = 1 - ((u_ref - q) / p) / u_pre
+
+where `u_pre` is the kept stack up to the dropped group's position.  With no
+normal layer after the group this reduces to `(ref - M)/(1 - M)` exactly, so
+the screen-only case is unchanged.  Orderings the algebra cannot express -- a
+dropped layer that is itself normal-blended, or a kept normal layer sitting
+between two dropped ones -- are REJECTED rather than approximated.
 
 `f` is the isolated group, expressed in the very units its layers use.  That
 makes it directly measurable: the flare's own profile, position and rays,
@@ -32,6 +55,34 @@ sys.path.insert(0, HERE)
 import fit_photometry as FP  # noqa: E402
 
 
+class UnsupportedIsolation(ValueError):
+    """The requested drop cannot be expressed as a single factor in `u`."""
+
+
+def _affine_u(A, K, normal, order):
+    """Compose the layers in `order` into one affine map on u = 1 - out.
+
+    Returns (p, q) with `u_out = p * u_in + q`.  A screen layer contributes
+    (1 - A*C) with no offset; a normal layer contributes (1 - A) with offset
+    A*(1 - C).  Both are affine, so the composition is affine and exact.
+    """
+    H, W = A.shape[1], A.shape[2]
+    p = np.ones((H, W, 3), np.float32)
+    q = np.zeros((H, W, 3), np.float32)
+    for i in order:
+        a = A[i][..., None]
+        c = K[i][None, None, :]
+        if normal[i]:
+            m = 1.0 - a
+            off = a * (1.0 - c)
+        else:
+            m = 1.0 - a * c
+            off = 0.0
+        p = m * p
+        q = m * q + off
+    return p, q
+
+
 def isolate(params, ref, drop_prefixes, refit_mask=None, iters=25):
     """Contribution the dropped layers must supply, and the base without them.
 
@@ -43,7 +94,27 @@ def isolate(params, ref, drop_prefixes, refit_mask=None, iters=25):
     the flare first read as a bright leftward "ray".  Re-fitting the base on a
     region the dropped group barely reaches breaks that circularity.
     """
-    keep = [q for q in params["layers"] if not any(q["id"].startswith(p) for p in drop_prefixes)]
+    layers = params["layers"]
+    dropped = [i for i, q in enumerate(layers)
+               if any(q["id"].startswith(pre) for pre in drop_prefixes)]
+    if not dropped:
+        raise UnsupportedIsolation("nothing matches %s" % (drop_prefixes,))
+    all_nf = FP.normal_flags(params)
+    bad = [layers[i]["id"] for i in dropped if all_nf[i]]
+    if bad:
+        raise UnsupportedIsolation(
+            "cannot isolate normal-blended layers %s: a normal layer is an affine "
+            "step, not a factor, so the dropped group is not a single (1 - f)" % bad)
+    lo, hi = min(dropped), max(dropped)
+    between = [layers[i]["id"] for i in range(lo + 1, hi)
+               if i not in dropped and all_nf[i]]
+    if between:
+        raise UnsupportedIsolation(
+            "kept normal-blended layer(s) %s sit between the dropped layers; the "
+            "dropped group cannot be gathered into one factor across them" % between)
+
+    keep_idx = [i for i in range(len(layers)) if i not in set(dropped)]
+    keep = [layers[i] for i in keep_idx]
     base = dict(params, layers=keep)
     A, _ = FP.basis_stack(base)
     nf = FP.normal_flags(base)
@@ -52,8 +123,20 @@ def isolate(params, ref, drop_prefixes, refit_mask=None, iters=25):
         WC = FP.fit(A, ref, FP.params_wc(base), w, iters=iters, verbose=False, normal=nf)
         base = json.loads(json.dumps(base))
         FP.store_wc(base, WC)
-    M = FP.composite(A, FP.colors(FP.params_wc(base)), nf)
-    f = (ref - M) / np.maximum(1.0 - M, 1e-4)
+    K = FP.colors(FP.params_wc(base))
+    M = FP.composite(A, K, nf)
+
+    # Split the kept stack at the dropped group's position and invert whatever
+    # the layers after it do.  With only screen layers after, (p, q) = (1, 0)
+    # and this is exactly the old formula.
+    pre = [j for j, i in enumerate(keep_idx) if i < lo]
+    post = [j for j, i in enumerate(keep_idx) if i > lo]
+    p_pre, q_pre = _affine_u(A, K, nf, pre)
+    u_pre = p_pre + q_pre                      # u starts at 1 over black
+    p_post, q_post = _affine_u(A, K, nf, post)
+    u_ref = 1.0 - ref
+    u_mid = (u_ref - q_post) / np.where(np.abs(p_post) < 1e-6, 1e-6, p_post)
+    f = 1.0 - u_mid / np.maximum(u_pre, 1e-4)
     return np.clip(f, 0.0, 1.0), M, base
 
 

@@ -40,6 +40,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import hashlib
 import math
 import os
 import sys
@@ -423,10 +424,22 @@ def profile_multiplier(target):
     fl = EMPHASIS["profile"]["floor"]
     pp = float(EMPHASIS["profile"].get("exponent", 1.0))
     fl_p = float(EMPHASIS["flare_cells"].get("exponent", 1.0))
-    # The shaping parameters belong in the cache key: without them, changing the
-    # floor or the exponent inside one process silently returns the multiplier
-    # built for the previous setting.
-    key = (shape, float(lum.sum()), fl, fl_floor, fl_w, pp, fl_p)
+    # The cache key has to identify the target's luminance *distribution*, not
+    # merely its total.  The weights come from each cell's MEAN luminance, so
+    # two targets with the same shape and the same `lum.sum()` -- a bright patch
+    # moved from one cell to another leaves the sum untouched -- need different
+    # weights, and a key built from the sum would hand the second target the
+    # first one's.  The cache is process-global, so that is silent.
+    #
+    # A digest of the luminance bytes identifies the distribution exactly, and
+    # costs one pass over an array already in memory (a few ms at 1024x1024)
+    # against the seconds the weight construction takes.  The shaping
+    # parameters belong in the key too: without them, changing the floor or the
+    # exponent inside one process returns the multiplier built for the previous
+    # setting.
+    lum_c = np.ascontiguousarray(lum)
+    key = (hashlib.blake2b(lum_c.view(np.uint8), digest_size=16).hexdigest(),
+           lum_c.shape, lum_c.dtype.str, fl, fl_floor, fl_w, pp, fl_p)
     if key in _PROFILE_CACHE:
         return _PROFILE_CACHE[key]
     if shape not in _PROFILE_BINS:
