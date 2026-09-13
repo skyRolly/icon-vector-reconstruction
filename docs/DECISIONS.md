@@ -1020,6 +1020,49 @@ The innermost east knot is held flat rather than extrapolated to a spike,
 because the right curve's ridge masks abs(dx) < 40 there and a spike inward of
 it would be invented, not measured.
 
+**Four representations were built and measured.** The line amplitudes below are
+the model-free row difference of `tools/line_report.py`, rms over the 14 masked
+`dx` bins, against the reference:
+
+| representation of line A | line A | line B | line C | total | MAE |
+|---|---|---|---|---|---|
+| baseline (no B, no C, one wide streak) | 6.38 | 10.53 | 3.08 | 20.00 | 1.9352 |
+| east `(1-u)^2.10` | 8.93 | 7.18 | 1.44 | 17.55 | 1.9496 |
+| both sides sparse measured tables | 4.84 | 7.40 | 1.40 | 13.64 | 1.9386 |
+| **west exponential, east measured table** | **3.30** | 8.05 | 1.42 | **12.77** | 1.9367 |
+| west dense log-interpolated table | 5.49 | 7.18 | 1.41 | 14.08 | 1.9401 |
+
+Two of those are my own errors, and both were caught by measurement rather than
+by argument:
+
+* The measurement says the east side follows a power law of index 2.10, meaning
+  amplitude proportional to `abs(dx)^-2.1`. The builder's `pow` profile emits
+  `(1 - u)^k`. Substituting one for the other put 2-3x too much light along the
+  east side from `abs(dx)` 70 outward -- 12.4 counts at +70 against a reference
+  6.97 -- and made line A *worse* than the baseline that lacked two of the three
+  lines entirely.
+* A dense table log-interpolated between the measured points flattens the
+  near-core profile, and then the fit cannot reach the peak: 18.11 counts at
+  `dx` -36 against a reference 34.95. The reason is that 34.95 is a BIN MEAN over
+  `abs(dx)` 17-36, a range across which the profile falls steeply, so it
+  under-represents the peak and a table anchored on it is too flat. The
+  exponential law's own curvature is the better reading of the same data.
+
+**Shipped:** line A's west as the exponential law (e-folding 64.7 px), its east
+as the measured table, line B as an exponential of e-folding 37.4 px at
+dy +6.740, and line C as the non-monotone table at dy +19.329.
+
+**What it costs and what it buys.** The line-structure error falls 36%, from
+20.00 to 12.77, and line C goes from absent -- `-0.11` to `+0.15` counts across
+390 masked columns where the reference reads 3.0-4.8 -- to within about a count
+on both sides. Against that: whole-image MAE rises 0.0015 (0.08%), SSIM is
+unchanged at 0.9734, the worst single-channel error *improves* from 105 to 104
+and the fraction of pixels off by more than 2 improves from 35.80% to 35.66%,
+while the flare region's own MAE rises 0.42 (7.6016 to 8.0178). That regional
+cost is the open item: the bloom, halos and rays underneath the lines have not
+been re-searched since the lines changed, and the flare geometry search is the
+next step, not a reason to reject the decomposition.
+
 ## D25. Fitting a new flare component without discarding the validated colours
 
 **The problem.** Introducing a layer needs a photometric fit, and a full re-fit
