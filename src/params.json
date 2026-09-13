@@ -11,7 +11,7 @@
   "corner_r_main": 163.5607,
   "corner_r_blend": 639.0638,
   "corner_blend_deg": 5.0916,
-  "corner_note": "continuous-curvature corner: blend arc, main arc, blend arc; fits the measured corner outline to 0.13-0.27 px vs 0.66-0.84 px for a circular rounded rect. r_blend and corner_blend_deg are degenerate: what the corner fit measures is the lateral blend offset r_blend*(1-cos(blend_deg)) = 2.67 px, so r_blend is held at its fitted value and only the angle is searched",
+  "corner_note": "continuous-curvature corner: blend arc, main arc, blend arc; fits the measured corner outline to 0.13-0.27 px vs 0.66-0.84 px for a circular rounded rect. r_blend and corner_blend_deg are degenerate: what the corner fit measures is the lateral blend offset r_blend*(1-cos(blend_deg)) = 2.52 px, so r_blend is held at its fitted value and only the angle is searched",
   "radius": 171.8,
   "corner_n": 2.45,
   "corner_segments": 3,
@@ -1653,13 +1653,13 @@
    "id": "field_base",
    "kind": "field",
    "color": [
-    0.29,
-    1.78,
-    7.58
+    0.42,
+    1.85,
+    7.64
    ],
-   "white": 0.00115,
-   "cyan": 0.0062,
-   "blue": 0.02239
+   "white": 0.00167,
+   "cyan": 0.00595,
+   "blue": 0.02234
   },
   {
    "id": "field_mid",
@@ -1673,8 +1673,8 @@
    },
    "color": [
     0.0,
-    16.55,
-    17.61
+    17.25,
+    18.36
    ],
    "bounds": {
     "r": [
@@ -1691,7 +1691,7 @@
     ]
    },
    "white": 0.0,
-   "cyan": 0.06904,
+   "cyan": 0.07198,
    "blue": 0.0,
    "squash": 0.88,
    "note": "the broad central wash. Its vertical extent is searched separately from its radius: the inter-curve region 90-150 px from either curve sits at 6.3 code values in the reference, so a round blob of this size over-fills the top and bottom of the lens"
@@ -1729,9 +1729,9 @@
     ]
    ],
    "color": [
-    2.29,
-    5.21,
-    5.63
+    2.02,
+    4.93,
+    5.44
    ],
    "bounds": {
     "r": [
@@ -1740,9 +1740,9 @@
     ]
    },
    "note": "measured on a glow-free mask (20% of the interior): a single isotropic radial gradient centred well outside the canvas at (882,678.5) beats flat by 33% in G MAE; distance-to-frame explains only 4% of the variance (no vignette) and distance-to-the-arcs explains nothing, so the field is its own element",
-   "white": 0.00896,
-   "cyan": 0.01219,
-   "blue": 0.00093
+   "white": 0.00792,
+   "cyan": 0.01214,
+   "blue": 0.00126
   },
   {
    "id": "field_vert",
@@ -1778,14 +1778,14 @@
     ]
    },
    "color": [
-    0.47,
-    1.25,
-    2.34
+    0.82,
+    1.77,
+    2.78
    ],
    "note": "the reference's interior is brighter at the top than at the bottom by ~2.7 code values (row-band means), consistent with the rim being top-lit; this is that tilt",
-   "white": 0.00185,
-   "cyan": 0.00326,
-   "blue": 0.00408
+   "white": 0.00322,
+   "cyan": 0.00397,
+   "blue": 0.0037
   },
   {
    "id": "exterior",
@@ -1793,12 +1793,12 @@
    "region": "outside",
    "color": [
     0.06,
-    0.77,
-    2.12
+    0.83,
+    2.33
    ],
    "white": 0.00022,
-   "cyan": 0.00299,
-   "blue": 0.00511
+   "cyan": 0.00322,
+   "blue": 0.0057
   },
   {
    "id": "exterior_top",
@@ -1838,13 +1838,13 @@
     ]
    },
    "color": [
-    0.8,
-    0.8,
-    3.05
+    0.81,
+    0.81,
+    2.96
    ],
-   "white": 0.00314,
+   "white": 0.00317,
    "cyan": 0.0,
-   "blue": 0.00884
+   "blue": 0.00844
   },
   {
    "id": "exterior_corner",
@@ -1879,9 +1879,9 @@
     ]
    },
    "color": [
-    0.48,
-    1.82,
-    4.71
+    0.45,
+    1.73,
+    4.51
    ],
    "bounds": {
     "paint_r": [
@@ -1889,9 +1889,9 @@
      900
     ]
    },
-   "white": 0.00186,
-   "cyan": 0.0056,
-   "blue": 0.01102
+   "white": 0.00177,
+   "cyan": 0.00533,
+   "blue": 0.0106
   },
   {
    "id": "corner_in",
@@ -1924,13 +1924,13 @@
     ]
    ],
    "clip": true,
-   "white": 0.0057,
-   "cyan": 0.02103,
+   "white": 0.00449,
+   "cyan": 0.02015,
    "blue": 0.0,
    "color": [
-    1.45,
-    6.5,
-    6.82
+    1.14,
+    5.97,
+    6.28
    ],
    "bounds": {
     "width": [
@@ -1979,13 +1979,13 @@
     ]
    ],
    "clip": true,
-   "white": 0.01554,
-   "cyan": 0.01893,
+   "white": 0.01252,
+   "cyan": 0.01757,
    "blue": 0.0,
    "color": [
-    3.96,
-    8.5,
-    8.79
+    3.19,
+    7.4,
+    7.67
    ],
    "bounds": {
     "width": [
@@ -2030,13 +2030,13 @@
     ]
    },
    "note": "measured at |t|<62 with the flare excluded, the glow is 1.7x brighter on the concave side 11 px out and 5.9x brighter 100 px out, and the inter-curve midline 140 px from both curves sits at 3.9 code values against 13.5 in the lobes: the broad component lives inside the lens and is clipped to it",
-   "white": 0.01309,
-   "cyan": 0.05453,
-   "blue": 0.00097,
+   "white": 0.00934,
+   "cyan": 0.06375,
+   "blue": 0.0,
    "color": [
-    3.34,
-    16.41,
-    17.49
+    2.38,
+    17.66,
+    18.64
    ]
   },
   {
@@ -2048,8 +2048,8 @@
    "taper": "glow3",
    "color": [
     0.0,
-    64.48,
-    68.59
+    63.2,
+    67.23
    ],
    "bounds": {
     "width": [
@@ -2066,7 +2066,7 @@
     ]
    },
    "white": 0.0,
-   "cyan": 0.26899,
+   "cyan": 0.26366,
    "blue": 0.0,
    "clip": "lens"
   },
@@ -2079,8 +2079,8 @@
    "taper": "glow2",
    "color": [
     0.0,
-    101.59,
-    108.07
+    88.69,
+    95.32
    ],
    "bounds": {
     "width": [
@@ -2097,8 +2097,8 @@
     ]
    },
    "white": 0.0,
-   "cyan": 0.42381,
-   "blue": 0.0
+   "cyan": 0.37001,
+   "blue": 0.0038
   },
   {
    "id": "arc_glow2b",
@@ -2107,13 +2107,13 @@
    "inset": -15.2,
    "blur": 29.6239104,
    "taper": "glow2b",
-   "white": 0.01045,
-   "cyan": 0.07048,
-   "blue": 0.0005,
+   "white": 0.00785,
+   "cyan": 0.07752,
+   "blue": 0.00091,
    "color": [
-    2.66,
-    19.56,
-    20.76
+    2.0,
+    20.58,
+    22.0
    ],
    "bounds": {
     "width": [
@@ -2139,9 +2139,9 @@
    "blur": 5.108561919999999,
    "taper": "glow1",
    "color": [
-    128.12,
-    166.95,
-    172.63
+    117.59,
+    162.36,
+    172.16
    ],
    "bounds": {
     "width": [
@@ -2157,9 +2157,9 @@
      10
     ]
    },
-   "white": 0.50245,
-   "cyan": 0.16198,
-   "blue": 0.01255
+   "white": 0.46113,
+   "cyan": 0.18678,
+   "blue": 0.02723
   },
   {
    "id": "arc_glow1b",
@@ -2169,12 +2169,12 @@
    "blur": 2.408,
    "taper": "glow1",
    "white": 0.0,
-   "cyan": 0.23592,
-   "blue": 0.04328,
+   "cyan": 0.27269,
+   "blue": 0.03403,
    "color": [
     0.0,
-    56.55,
-    71.2
+    65.36,
+    78.21
    ],
    "bounds": {
     "width": [
@@ -2193,9 +2193,40 @@
    "note": "the 9-14 px band on the convex side ran 12-17% too dark with nothing narrow enough to fill it: arc_glow1 is inset into the lobe and reaches only 0.10 of its peak there, and arc_glow2b is four times too wide"
   },
   {
+   "id": "arc_glow1c",
+   "kind": "arc",
+   "width": 20.0,
+   "blur": 8.0,
+   "inset": 10.0,
+   "taper": "glow2",
+   "bounds": {
+    "width": [
+     10.0,
+     44.0
+    ],
+    "blur": [
+     3.5,
+     19.0
+    ],
+    "inset": [
+     0.0,
+     22.0
+    ]
+   },
+   "white": 0.0,
+   "cyan": 0.06372,
+   "blue": 0.0,
+   "note": "closes the arc-glow basis gap between arc_glow1 (sigma_eff 5.8 px) and arc_glow2 (20.6 px); see docs/DECISIONS.md",
+   "color": [
+    0.0,
+    15.27,
+    16.25
+   ]
+  },
+  {
    "id": "flare_halo_far",
    "kind": "radial",
-   "r": 140.44800000000004,
+   "r": 157.30176000000003,
    "squash": 0.777728,
    "profile": {
     "kind": "exp",
@@ -2203,8 +2234,8 @@
    },
    "color": [
     0.0,
-    236.21,
-    254.89
+    220.34,
+    254.93
    ],
    "bounds": {
     "r": [
@@ -2221,23 +2252,23 @@
     ]
    },
    "white": 0.0,
-   "cyan": 0.98544,
-   "blue": 0.01414,
+   "cyan": 0.91924,
+   "blue": 0.08048,
    "note": "the isolated flare is below 0.01 in additive luminance beyond r ~ 130 px and indistinguishable from zero beyond ~160, so this widest bloom ends there; the broad light between the curves is the central field, not the flare"
   },
   {
    "id": "flare_halo",
    "kind": "radial",
    "r": 92.41600000000001,
-   "squash": 0.645292032,
+   "squash": 0.72272707584,
    "profile": {
     "kind": "exp",
     "scale": 0.15904
    },
    "color": [
-    254.94,
-    254.94,
-    254.94
+    255.0,
+    255.0,
+    255.0
    ],
    "bounds": {
     "r": [
@@ -2254,7 +2285,7 @@
     ]
    },
    "note": "u = 2.757*exp(-sqrt((dx/22.7)^2+(dy/16.9)^2)) fitted over 63k px of the isolated flare",
-   "white": 0.99978,
+   "white": 1.0,
    "cyan": 0.0,
    "blue": 0.0
   },
@@ -2264,16 +2295,16 @@
    "cx": 472.05696000000006,
    "cy": 513.5,
    "half_len": 215.7568,
-   "sigma_y": 3.5639999999999996,
+   "sigma_y": 2.1999999999999997,
    "blur_x": 0.0,
    "profile": {
     "kind": "exp",
     "scale": 0.172412416
    },
    "color": [
-    73.23,
-    155.61,
-    160.87
+    105.78,
+    225.7,
+    233.35
    ],
    "bounds": {
     "half_len": [
@@ -2281,55 +2312,101 @@
      400
     ],
     "sigma_y": [
-     1.2,
-     6.0
+     1.0,
+     3.4
     ],
     "profile": [
      0.05,
      0.3
     ]
    },
-   "white": 0.28716,
-   "cyan": 0.3437,
-   "blue": 0.0
+   "white": 0.41481,
+   "cyan": 0.50031,
+   "blue": 0.0,
+   "note": "the sharp member of the streak comb.  Its vertical FWHM in the reference is 3.5-5 px (measured above a 21-px median envelope at four x-windows on both sides); at sigma_y 3.56 the render put a FWHM-8.4 hump there and carried 0.05 counts of thin line 110-250 px east where the reference has 2.3"
   },
   {
    "id": "flare_spike",
    "kind": "streak",
-   "half_len": 109.68320000000001,
-   "sigma_y": 2.45,
+   "half_len": 110.0,
+   "sigma_y": 1.5,
    "blur_x": 0.0,
    "profile": {
     "kind": "exp",
     "scale": 0.3224
    },
    "color": [
-    49.93,
-    97.09,
-    132.52
+    89.83,
+    169.66,
+    215.92
    ],
    "bounds": {
     "half_len": [
-     45,
-     190
+     50,
+     200
     ],
     "sigma_y": [
-     1.2,
-     6.0
+     0.9,
+     3.0
     ],
     "profile": [
      0.08,
      0.6
+    ],
+    "dy": [
+     3.0,
+     11.0
     ]
    },
-   "white": 0.19581,
-   "cyan": 0.19672,
-   "blue": 0.12716
+   "white": 0.35227,
+   "cyan": 0.33303,
+   "blue": 0.16146,
+   "dy": 5.5,
+   "note": "the first satellite of the comb, 6.5 px BELOW the main line.  Strong near the core (8-11 counts above the local envelope 30-110 px east) and gone by |dx| ~ 110 px, with a real dark gap between it and the main line"
+  },
+  {
+   "id": "flare_sat2",
+   "kind": "streak",
+   "dy": 18.5,
+   "half_len": 230.0,
+   "sigma_y": 1.8,
+   "blur_x": 0.0,
+   "profile": {
+    "kind": "exp",
+    "scale": 0.34
+   },
+   "white": 0.00671,
+   "cyan": 0.05248,
+   "blue": 0.0,
+   "color": [
+    1.71,
+    14.29,
+    15.09
+   ],
+   "bounds": {
+    "half_len": [
+     90,
+     400
+    ],
+    "sigma_y": [
+     0.9,
+     3.4
+    ],
+    "dy": [
+     14.0,
+     24.0
+    ],
+    "profile": [
+     0.12,
+     0.7
+    ]
+   },
+   "note": "the second satellite, 18.5 px below the main line: ~2 counts above the local envelope and present at every x-window measured, east and west, out to 250 px"
   },
   {
    "id": "flare_fan",
    "kind": "streak",
-   "half_len": 123.2,
+   "half_len": 108.416,
    "sigma_y": 10.85,
    "blur_x": 0.0,
    "profile": {
@@ -2351,146 +2428,149 @@
     ]
    },
    "note": "the horizontal streak has two widths: a sigma ~2.8 px spike and this broader wash (half width ~8 px at r=30, ~25 px at r=92)",
-   "white": 0.66214,
+   "white": 0.66915,
    "cyan": 0.0,
    "blue": 0.0,
    "color": [
-    168.85,
-    168.85,
-    168.85
+    170.63,
+    170.63,
+    170.63
    ]
   },
   {
    "id": "flare_ray_a",
    "kind": "ray",
-   "rot": -110.0,
-   "len": 132.0,
-   "height": 19.885465600000003,
-   "blur": 4.0,
-   "peak_at": 0.22,
+   "rot": -111.0,
+   "len": 170.0,
+   "height": 3.4,
+   "blur": 1.6,
+   "peak_at": 0.16,
    "color": [
     0.0,
-    53.02,
-    60.98
+    61.8,
+    69.49
    ],
    "bounds": {
     "rot": [
-     -124,
-     -96
+     -120.0,
+     -102.0
     ],
     "len": [
-     70,
-     250
+     60,
+     240
     ],
     "height": [
-     6,
-     40
+     1.6,
+     9.0
     ],
     "blur": [
-     2,
-     10
+     0.8,
+     4.0
     ],
     "peak_at": [
-     0.1,
-     0.6
+     0.06,
+     0.45
     ],
     "spread": [
      1.0,
-     5.0
+     2.6
     ]
    },
    "white": 0.0,
-   "cyan": 0.2212,
-   "blue": 0.01795,
-   "spread": 1.2000000000000002
+   "cyan": 0.2578,
+   "blue": 0.01472,
+   "spread": 1.3,
+   "note": "a thin spoke, not a cone.  Perpendicular cross-sections of the reference above a 15-px median show FWHM 4-6 px at every radius out to 115-150 px; the previous cones were 20-42 px wide and rendered the starburst as soft wedges"
   },
   {
    "id": "flare_ray_b",
    "kind": "ray",
-   "rot": -248.2,
-   "len": 116.16,
-   "height": 29.941829632,
-   "blur": 4.0,
-   "peak_at": 0.26200000000000007,
+   "rot": -250.0,
+   "len": 140.0,
+   "height": 3.4,
+   "blur": 3.377152,
+   "peak_at": 0.16,
    "color": [
     0.0,
-    46.79,
-    69.17
+    144.52,
+    221.07
    ],
    "bounds": {
     "rot": [
-     -259,
-     -231
+     -257.0,
+     -239.0
     ],
     "len": [
-     70,
-     250
+     60,
+     240
     ],
     "height": [
-     6,
-     40
+     1.6,
+     9.0
     ],
     "blur": [
-     2,
-     10
+     0.8,
+     4.0
     ],
     "peak_at": [
-     0.1,
-     0.6
+     0.06,
+     0.45
     ],
     "spread": [
      1.0,
-     5.0
+     2.6
     ]
    },
    "white": 0.0,
-   "cyan": 0.19522,
-   "blue": 0.07605,
-   "spread": 1.6
+   "cyan": 0.60294,
+   "blue": 0.264,
+   "spread": 1.3,
+   "note": "a thin spoke, not a cone.  Perpendicular cross-sections of the reference above a 15-px median show FWHM 4-6 px at every radius out to 115-150 px; the previous cones were 20-42 px wide and rendered the starburst as soft wedges"
   },
   {
    "id": "flare_ray_c",
    "kind": "ray",
-   "rot": -329.0,
-   "len": 160.0,
-   "height": 8.943999999999999,
-   "blur": 3.2320000000000007,
-   "peak_at": 0.1252,
+   "rot": -328.0,
+   "len": 170.0,
+   "height": 3.4,
+   "blur": 1.6,
+   "peak_at": 0.16,
    "color": [
-    12.73,
-    20.58,
-    34.37
+    10.0,
+    10.0,
+    19.62
    ],
    "bounds": {
     "rot": [
-     -339,
-     -311
+     -337.0,
+     -319.0
     ],
     "len": [
-     70,
-     250
+     60,
+     240
     ],
     "height": [
-     6,
-     40
+     1.6,
+     9.0
     ],
     "blur": [
-     2,
-     10
+     0.8,
+     4.0
     ],
     "peak_at": [
-     0.1,
-     0.6
+     0.06,
+     0.45
     ],
     "spread": [
      1.0,
-     5.0
+     2.6
     ]
    },
-   "white": 0.0499,
-   "cyan": 0.03279,
-   "blue": 0.05208,
-   "spread": 1.6
+   "white": 0.03923,
+   "cyan": 0.0,
+   "blue": 0.03772,
+   "spread": 1.3,
+   "note": "a thin spoke, not a cone.  Perpendicular cross-sections of the reference above a 15-px median show FWHM 4-6 px at every radius out to 115-150 px; the previous cones were 20-42 px wide and rendered the starburst as soft wedges"
   },
   {
    "id": "flare_ray_d",
@@ -2501,9 +2581,9 @@
    "blur": 4.0,
    "peak_at": 0.4168000000000001,
    "color": [
-    2.71,
-    22.99,
-    33.06
+    4.3,
+    17.91,
+    23.98
    ],
    "bounds": {
     "rot": [
@@ -2531,56 +2611,191 @@
      6.0
     ]
    },
-   "white": 0.01061,
-   "cyan": 0.08462,
-   "blue": 0.03442,
+   "white": 0.01687,
+   "cyan": 0.05678,
+   "blue": 0.02039,
    "spread": 5.371200000000002,
-   "note": "the westward fan: at 40 px out the isolated flare reaches 1.29 additive luminance due west against 0.32 off-axis, and it is still 0.065 at 145 px -- by far the largest single feature of the flare"
+   "note": "the BROAD west wedge, kept as a cone: it is the diffuse part of the westward fan that the thin spokes sit on.  Measured half width 10 px at r=30 growing to 28 px at r=92"
   },
   {
    "id": "flare_ray_e",
    "kind": "ray",
-   "rot": -50.0,
-   "len": 105.6,
-   "height": 16.0,
-   "blur": 5.0,
-   "peak_at": 0.30800000000000005,
-   "spread": 2.0,
+   "rot": -48.0,
+   "len": 110.0,
+   "height": 3.0,
+   "blur": 1.5,
+   "peak_at": 0.16,
+   "spread": 1.2,
    "bounds": {
     "rot": [
-     -72,
-     -32
+     -57.0,
+     -39.0
     ],
     "len": [
      60,
-     220
+     240
     ],
     "height": [
-     6,
-     40
+     1.6,
+     9.0
     ],
     "blur": [
-     2,
-     12
+     0.8,
+     4.0
     ],
     "peak_at": [
-     0.1,
-     0.6
+     0.06,
+     0.45
     ],
     "spread": [
      1.0,
-     5.0
+     2.6
     ]
    },
-   "note": "a fifth ray: the isolated flare peaks again at 45-60 deg (0.45 at r=40, 0.09 at r=72) between the horizontal streak and the arc",
-   "white": 0.08671,
-   "cyan": 0.07622,
-   "blue": 0.08049,
+   "note": "a thin spoke, not a cone.  Perpendicular cross-sections of the reference above a 15-px median show FWHM 4-6 px at every radius out to 115-150 px; the previous cones were 20-42 px wide and rendered the starburst as soft wedges",
+   "white": 0.24276,
+   "cyan": 0.01077,
+   "blue": 0.11854,
    "color": [
-    22.11,
-    40.38,
-    62.07
+    61.9,
+    64.49,
+    94.88
    ]
+  },
+  {
+   "id": "flare_ray_up",
+   "kind": "ray",
+   "rot": -91.0,
+   "len": 150.0,
+   "height": 3.4,
+   "blur": 1.6,
+   "peak_at": 0.16,
+   "spread": 1.3,
+   "white": 0.0,
+   "cyan": 0.10038,
+   "blue": 0.00637,
+   "color": [
+    0.0,
+    24.06,
+    27.22
+   ],
+   "bounds": {
+    "rot": [
+     -100.0,
+     -82.0
+    ],
+    "len": [
+     60,
+     240
+    ],
+    "height": [
+     1.6,
+     9.0
+    ],
+    "blur": [
+     0.8,
+     4.0
+    ],
+    "peak_at": [
+     0.06,
+     0.45
+    ],
+    "spread": [
+     1.0,
+     2.6
+    ]
+   },
+   "note": "a spoke the previous reconstruction had no layer for.  Angular scan of the reference thin component (3-degree sectors, r 28-110, arcs masked) puts clean maxima at 91, 111, 225, 248, 265 and 328 degrees against a background of -0.3; the render had negative thin-component response at 91 and 265, i.e. it was smoother there than its own local median"
+  },
+  {
+   "id": "flare_ray_dn",
+   "kind": "ray",
+   "rot": -267.0,
+   "len": 150.0,
+   "height": 3.4,
+   "blur": 1.6,
+   "peak_at": 0.16,
+   "spread": 1.3,
+   "white": 0.0,
+   "cyan": 0.20446,
+   "blue": 0.0142,
+   "color": [
+    0.0,
+    49.01,
+    55.76
+   ],
+   "bounds": {
+    "rot": [
+     -274.0,
+     -256.0
+    ],
+    "len": [
+     60,
+     240
+    ],
+    "height": [
+     1.6,
+     9.0
+    ],
+    "blur": [
+     0.8,
+     4.0
+    ],
+    "peak_at": [
+     0.06,
+     0.45
+    ],
+    "spread": [
+     1.0,
+     2.6
+    ]
+   },
+   "note": "a spoke the previous reconstruction had no layer for.  Angular scan of the reference thin component (3-degree sectors, r 28-110, arcs masked) puts clean maxima at 91, 111, 225, 248, 265 and 328 degrees against a background of -0.3; the render had negative thin-component response at 91 and 265, i.e. it was smoother there than its own local median"
+  },
+  {
+   "id": "flare_ray_dl",
+   "kind": "ray",
+   "rot": -225.0,
+   "len": 95.0,
+   "height": 3.4,
+   "blur": 1.6,
+   "peak_at": 0.16,
+   "spread": 1.3,
+   "white": 0.0,
+   "cyan": 0.25515,
+   "blue": 0.0268,
+   "color": [
+    0.0,
+    61.16,
+    71.9
+   ],
+   "bounds": {
+    "rot": [
+     -234.0,
+     -216.0
+    ],
+    "len": [
+     60,
+     240
+    ],
+    "height": [
+     1.6,
+     9.0
+    ],
+    "blur": [
+     0.8,
+     4.0
+    ],
+    "peak_at": [
+     0.06,
+     0.45
+    ],
+    "spread": [
+     1.0,
+     2.6
+    ]
+   },
+   "note": "a spoke the previous reconstruction had no layer for.  Angular scan of the reference thin component (3-degree sectors, r 28-110, arcs masked) puts clean maxima at 91, 111, 225, 248, 265 and 328 degrees against a background of -0.3; the render had negative thin-component response at 91 and 265, i.e. it was smoother there than its own local median"
   },
   {
    "id": "arc_core",
@@ -2590,8 +2805,8 @@
    "blur": 0.6137416122421083,
    "taper": "core",
    "color": [
-    221.48,
-    253.7,
+    211.95,
+    253.75,
     255.0
    ],
    "bounds": {
@@ -2608,9 +2823,9 @@
      0.8
     ]
    },
-   "white": 0.86856,
-   "cyan": 0.1344,
-   "blue": 0.00082
+   "white": 0.83117,
+   "cyan": 0.1744,
+   "blue": 0.0
   },
   {
    "id": "arc_core_wide",
@@ -2620,9 +2835,9 @@
    "blur": 0.20421316015498364,
    "taper": "core_wide",
    "color": [
-    93.91,
-    184.25,
-    207.5
+    101.93,
+    200.14,
+    218.45
    ],
    "bounds": {
     "width": [
@@ -2638,9 +2853,9 @@
      5.0
     ]
    },
-   "white": 0.36828,
-   "cyan": 0.37689,
-   "blue": 0.06854,
+   "white": 0.39972,
+   "cyan": 0.40973,
+   "blue": 0.04722,
    "note": "the reference core is asymmetric about its centre-line: its 50% edges reach 4.8 px on the concave side but only 3.3 px on the convex side, and it widens from 6.1 px at the tips to 8.4 px at mid-height. This second, inset, mid-tapered stroke supplies exactly that extra concave-side width."
   },
   {
@@ -2652,9 +2867,9 @@
     "kind": "uniform"
    },
    "color": [
-    14.36,
-    25.11,
-    29.76
+    14.13,
+    24.68,
+    29.29
    ],
    "bounds": {
     "width": [
@@ -2662,9 +2877,9 @@
      7.0
     ]
    },
-   "white": 0.0563,
-   "cyan": 0.04486,
-   "blue": 0.01555
+   "white": 0.0554,
+   "cyan": 0.04402,
+   "blue": 0.01545
   },
   {
    "id": "frame_rim",
@@ -2717,9 +2932,9 @@
     ]
    },
    "color": [
-    112.73,
-    119.74,
-    126.31
+    110.32,
+    117.76,
+    124.27
    ],
    "bounds": {
     "width": [
@@ -2731,9 +2946,9 @@
      700
     ]
    },
-   "white": 0.44209,
-   "cyan": 0.02922,
-   "blue": 0.02404
+   "white": 0.43262,
+   "cyan": 0.03106,
+   "blue": 0.02364
   }
  ]
 }

@@ -42,8 +42,14 @@ distance-to-the-curves explains nothing at all, so the field is its own element
 and not a tail of the glow. The field is brightest at the inner top-left and
 darkest at the bottom-right; measured mirror differences are left-right +5.1 G
 at y 150-225 falling to +0.8 G at y 750-825, and top-bottom +1.0 to +3.6 G.
-The reconstruction uses that gradient plus a flat base, a centre-weighted
-radial and a vertical tilt.
+The reconstruction uses a gradient of that *form* plus a flat base, a
+centre-weighted radial and a vertical tilt -- initialised from this fit and then
+refined against the whole image, so the shipped centre, radius and profile are
+not the ones quoted above and are in `src/params.json` (`field_grad`). Its
+profile is a measured table rather than the isotropic law: the table fits the
+field better than any power law tried (residual 1.246 against 1.297 for the best
+power law and 1.780 for flat), including its one non-monotonic step, which was
+suspected of being unsupported and turned out on a 163 000-pixel fit not to be.
 
 **What is deliberately not reproduced.**
 
@@ -57,15 +63,24 @@ radial and a vertical tilt.
   different in the two side lobes. Reproducing it would win only ~0.05 of
   whole-image MAE.
 
-**A known limitation of additive-only compositing.** Between the diverging
-curves, above and below the flare, there are two dark axial wedges (5.1% of the
-interior) whose floor is below any single interior fill that is correct
-elsewhere. A screen/additive stack can only add light, so a fill chosen to be
-right over the measurable 20% over-predicts those wedges by 4.2-4.7 code
-values, and a fill chosen to match the wedges is 4.2 G too dark elsewhere. The
-reconstruction takes the first option; the residual cost is about 0.37 of G MAE
-whole-canvas and is visible as the faint dark-red vertical band in
-`out/diff_signed.png`.
+**A structural limitation of additive-only compositing, and what it now costs.**
+Between the diverging curves, above and below the flare, there are two dark
+axial wedges whose floor sits below any single interior fill that is also right
+elsewhere. A screen/additive stack can only add light, so the two cannot both
+be matched by one fill, and that much is structural and still true.
+
+The figures this paragraph used to carry are not. It claimed the wedges were
+over-predicted by 4.2-4.7 code values, that matching them instead would leave
+the rest 4.2 G too dark, that the cost was ~0.37 of G MAE whole-canvas, and that
+it showed as a dark-red vertical band in `out/diff_signed.png`. Re-measured on
+the current reconstruction, the axial region (beyond 150 px from the flare,
+between x 430 and 600) runs **+0.35 G bright** and the rest of the interior
+**-0.53 G dark** -- both under one code value, and with the *opposite* sign to
+the claim. The per-channel signed error there is R -0.24, G +0.35, B +0.34,
+which is not a red cast in either direction. The layers added since (the
+vertical ramp, the two interior-corner lights, and the glow components in
+between) absorbed most of what this paragraph was describing. The limitation is
+real; the numbers were from a model three iterations old.
 
 ## 2. The frame
 
@@ -112,12 +127,12 @@ method floor 0.06 px):
 | **3-arc corner: blend, main, blend** | **0.23 / 0.27 / 0.13 / 0.13 px** |
 
 So each corner is a **continuous-curvature ("corner-smoothed") corner**: a long
-shallow blend arc of r 639.06 turning 5.242 degrees, the main arc of
-r **163.561 +- 0.21** turning 79.517 degrees, then the mirror blend arc. All
+shallow blend arc of r 639.06 turning 5.0916 degrees, the main arc of
+r **163.561 +- 0.21** turning 79.8168 degrees, then the mirror blend arc. All
 four corners share that radius (diagonal depth 70.35-70.70 px) and the
 curvature starts 208.99 px from each box corner, so the genuinely straight runs
 are only x in [275.5, 742.6] and y in [243.3, 782.7]. What is actually
-constrained in the blend is its lateral offset, 3.0 px over a 58 px run: any
+constrained in the blend is its lateral offset, 2.52 px over a 56.72 px run: any
 (r2, turn) pair with r2*turn ~ 58 px and r2*turn^2/2 ~ 3.0 px is equivalent.
 
 **The rim's brightness is not one gradient, and its hue changes.** 418 stations
@@ -310,7 +325,9 @@ either curve and more than 250 px from the central light:
 
 So the light is corner-weighted and reaches about 100 px inside the frame:
 67 000 pixels roughly 30% too dark, in four patches, invisible to every other
-measurement here. The reconstruction adds one layer for it (`corner_in`): a
+measurement here. The reconstruction adds two layers for it (`corner_in` and
+`corner_in_top`, the second because the top corners are brighter and reach
+further than the bottom pair): each a
 wide stroked copy of the frame path, clipped to the interior, blurred, painted
 with a radial gradient centred in the icon. That gradient is what makes it a
 *corner* glow rather than a rim glow — the frame path is 651 px from the icon

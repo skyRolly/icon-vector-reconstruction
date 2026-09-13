@@ -7,19 +7,25 @@ decision, the evidence, and what was rejected.
 
 ## D1. Representation: hand-built parametric SVG, no raster component
 
-**Decision.** A single ~52 KB SVG of 22 named layers: one path for the frame
-(straight runs plus three arcs per corner), two cubic-Bezier paths for the
-luminous curves (reused, offset, by every glow layer), and blurred ellipses,
-rects and gradients for the central light and the background. Every mark is
-driven by a named number in `src/params.json`. No embedded bitmap, no traced
-outlines.
+**Decision.** A single parametric SVG: one path for the frame (straight runs
+plus three arcs per corner), two cubic-Bezier paths for the luminous curves
+(reused, offset, by every glow layer), and blurred ellipses, rects, cones and
+gradients for the central light and the background. Every mark is driven by a
+named number in `src/params.json`. No embedded bitmap, no traced outlines.
+(The layer count and the file size are not restated here: they are generated
+into the README from `src/params.json` and the built file, because this entry
+and the README both carried stale counts for a whole iteration -- 22 and 28
+named layers, ~52 and ~68 KB, against the real 29 and 74 KB.)
 
 **Evidence.** Everything visible decomposes into geometry plus smooth optical
 falloffs: the curves are sub-pixel-accurate Beziers (section 3 of
 `docs/METHOD.md`), the glow separates into a product of an inward profile and an
 along-curve modulation (i.e. a blurred stroke with a taper), the colour space is
-two-dimensional, and the background is two radial gradients. Nothing needed a
-per-pixel description.
+a narrow non-negative cone (D6: a PCA of the interior gives eigenvalues 0.981 /
+0.012 / 0.007, so the light is *nearly* two-dimensional, but the third dimension
+is where the whole dark background lives, and each layer carries three
+non-negative amounts, not two), and the background is two radial gradients plus
+a ramp. Nothing needed a per-pixel description.
 
 **Alternatives evaluated.**
 
@@ -56,8 +62,8 @@ glow clip still uses it, and it documents what the shape is close to.
 
 ## D3. Frame corners: a 3-arc continuous-curvature corner
 
-**Decision.** Each corner is blend arc (r 639.06, 5.242 deg), main arc
-(r 163.561, 79.517 deg), blend arc -- the corner design tools draw with "corner
+**Decision.** Each corner is blend arc (r 639.06, 5.0916 deg), main arc
+(r 163.561, 79.8168 deg), blend arc -- the corner design tools draw with "corner
 smoothing" on.
 
 **Evidence.** Residual to the measured corner outlines: 0.13-0.27 px, against
@@ -338,7 +344,9 @@ from 8.6% to 7.0% with no change in global MAE (2.2753 -> 2.2745).
 **Decision.** The flare is rebuilt from an exact isolation of its own
 contribution (`tools/isolate.py`, method in section 5a of `METHOD.md`): a
 plateau-topped compact core, two halo terms whose widest is bounded at 210 px,
-a thin spike, a 59-px-west-centred thin streak, a broad fan, and five cones.
+a thin 59-px-west-centred streak, a broad fan, and five cones. (D21 rebuilds
+it again, to the measured streak comb and the thin spokes; the shipped layer
+list is in `src/params.json` and is not restated here.)
 
 **Evidence.** In additive luminance the isolated flare falls from 2.30 at r=6
 to 0.02 at r=92 and **0.005 at r=115**, i.e. nothing measurable past
@@ -398,17 +406,22 @@ multiplying it. The cells are disjoint by construction.
 
 1. *Scale.* The objective is a weighted sum of squares, so what a cell costs
    for a given *relative* error is `(total weight) x (r L)^2`. Equalising that
-   needs `1/L^2`, not `1/L`, and needs the base weight out of the way: with
-   the display-curve weight left in place the cost of a 1% error still varied
-   6x across cells. Un-emphasised it varies 183x, which is the mechanism by
-   which "a numerically strong global score" coexisted with an obvious local
-   error: a 19% deficit 45 px inside the curves cost the fit less than a 2%
-   error on the frame.
+   needs `1/L^2`, not `1/L`, and needs the base weight out of the way. All the
+   figures here are now measured with the *production* formula, because the
+   earlier ones were not and two different numbers ended up standing for two
+   different things under the same name. With the shaping in place a uniform 1%
+   relative error costs 4.57x more in the worst cell than the best; with the
+   display curve alone and no cell shaping, 51.23x. And while the weight was
+   being applied in the wrong convention (see below) the production spread was
+   183.27x -- the mechanism by which "a numerically strong global score"
+   coexisted with an obvious local error: a 19% deficit 45 px inside the curves
+   cost the fit less than a 2% error on the frame.
 2. *Where the floor sits.* `1/L^2` with no floor equalises relative error
    exactly -- Weber's law -- and Weber's law fails near black: 15% of the
    7.5-count outermost cell is one code value and invisible, 15% of the
    42-count innermost cell is six and not. The floor is therefore a visibility
-   threshold, 0.012 (3 code values), which leaves a 2.3x spread.
+   threshold. It was 0.012 (3 code values) here; D20 re-measures it and ships
+   0.006, about the quantisation scale.
 3. *Cells, not distance-only bins.* Pooling along the curve hid the tips
    completely. Every pooled bin read within 5%, while the lobe within 80 px of
    a curve end was 20-30% too dark -- and because the objective could not see
@@ -486,9 +499,12 @@ completes with numpy, Pillow and resvg-py alone.
 
 ## D18. The light in the four interior corners is its own element
 
-**Decision.** One layer, `corner_in`: a wide stroked copy of the frame path,
-clipped to the interior, blurred, painted with a radial gradient centred in the
-icon so that it lights the corners and not the edge midpoints.
+**Decision.** Two layers, `corner_in` and `corner_in_top`: each a wide stroked
+copy of the frame path, clipped to the interior, blurred, painted with a radial
+gradient centred in the icon so that it lights the corners and not the edge
+midpoints. Two rather than one because the top pair of corners is brighter and
+reaches further into the interior than the bottom pair, and a single layer
+splits the difference and is wrong at both ends.
 
 **Evidence.** Over interior pixels more than 40 px from either curve and more
 than 250 px from the central light, within 100 px of the frame, the corner
@@ -524,3 +540,144 @@ frame centre; the curves' own vertical centre is y = 514.85 while their apexes
 are at y = 517-519; the pair departs from mirror symmetry by up to 1 px in the
 bottom third. All of these are measured, repeatable, and reproduced. The brief
 asks for the observable result, not for a tidier design.
+
+## D19. The banding inside the curves: what it is, and what it is not
+
+The reported defect was "vertical banding / layered stripes" in the lobes, and
+five hypotheses were tested before anything was changed. Four are refuted and
+recorded here so they are not tried again.
+
+**The metric had to be built first, because the obvious one is backwards.**
+A high-pass "smoothness" score says the render is *smoother* than the reference:
+in the lobes its total cross-curve band-pass amplitude is 0.34 counts rms at
+sigma 3 against the reference's 0.62. Blurring would score better still. What
+differs is coherence along the curve. The reference's band-pass content is grain
+and JPEG texture, uncorrelated from one height to the next, so averaging along
+the curve cancels it as 1/sqrt(N) -- to 0.029 counts at N ~ 450. A layered field
+produces the same cross-curve profile at every height and survives that average
+untouched, and what survives is exactly what the eye reads as a stripe. So the
+measurement is the along-curve-*averaged* cross-curve profile, the reference
+supplies its own value for every part of it, and the target is two-sided: less
+coherent structure than the reference fails as well, because that is what
+blurring the region until the stripes stop showing would produce.
+`band_report` in `tools/diagnose.py` is that measurement.
+
+**Refuted: gradient stop interpolation.** SVG gradients interpolate linearly, so
+every stop is a slope discontinuity. Replacing the sampling with a monotone
+cubic (PCHIP) through the measured knots plus error-driven adaptive sampling to
+1.0 code values changed the far-lobe contour residual from 0.3271 to 0.3284 --
+i.e. not at all. The smooth interpolation was kept anyway, because it is a more
+faithful rendering of the profile the parameters describe, but it is not a
+banding fix and must not be described as one.
+
+**Refuted: 8-bit output and dithering.** A float render averaged over 4096
+samples and a dithered render show identical patches.
+
+**Refuted: filter-region truncation.** The old comment's claim that clamping the
+region inside the frame bbox was lossless *was* wrong and is fixed, but the
+measured effect was at most 1.33 counts, mean -0.102.
+
+**Refuted: the renderer.** The analytic float composite (no 8-bit step
+anywhere), the shipped 1024 px resvg render, and a 4096 px render box-downsampled
+to 1024 score 0.3920, 0.3901 and 0.3863 -- all 1.67-1.69x the reference. The
+excess is in the model, not in any rasteriser.
+
+**Refuted: one bad layer.** Removing each of the 29 layers in turn moves the
+coherent amplitude by at most 1.6%, and removing the field layers makes it
+slightly *worse*: the fit has arranged partial cancellation between them.
+
+**What it actually is: two defects, in different places, with different causes.**
+Localising the error in cross-curve distance separates them, and pooling them
+was what made the earlier readings contradictory.
+
+*Inside 40 px of the ridge* the glow basis cannot reach the reference's shape.
+The effective cross-curve widths of the glow strokes step 5.8 px (`arc_glow1`)
+to 20.6 px (`arc_glow2`), a factor of 3.5, and the best achievable residual
+peaks inside that step, changing sign across it (+0.38 counts at s -40..-20 and
+-0.46 at -20..0 on the right curve). Adding one stroke in the gap raises the
+best achievable accuracy there from 1.11%/1.78% to 0.40%/0.34% (left/right) and
+its oscillatory part from 0.82%/0.87% to 0.31%/0.42%. Position matters as much
+as width: the same effective width at inset 14 instead of 6-10 is markedly
+worse. That is the evidence for `arc_glow1c`, and it is the whole of it -- one
+blurred stroke on the existing Bezier path, six numbers, no new geometry.
+
+*Beyond 40 px* the basis can reach the reference's profile, but not while the
+rest of the image is fitted. The profile-only optimum -- non-negative amplitudes
+fitted to the lobe profile and nothing else -- reaches 0.99%/1.15%, against
+2.97%/3.92% achieved. It gets there by using 13 of 29 layers and wrecking
+everything else: global MAE 1.90 -> 8.20, frame 1.30 -> 7.48, centre 90 px
+7.53 -> 35.16, between the curves 4.34 -> 24.86. So that bound is not a target.
+The lobe's pedestal comes from field, exterior and flare layers that are pinned
+by their duties elsewhere, and what remains in the interior is the price of a
+shared basis, not a fitting failure. It is stated here rather than hidden
+because it is the honest limit of this model: the interior's residual coherent
+error is about 1% oscillatory on levels of 8-35 counts, which is under the
+reference's own grain, and driving it lower would take a different
+decomposition, not a better fit.
+
+**Rejected on measurement: a lobe-localised field component.** The obvious way
+to give the interior its own freedom is a soft radial gradient centred in each
+lobe. It improves the global metrics -- MAE 1.9849 -> 1.9619, SSIM 0.9720 ->
+0.9730 -- and makes the region it was added for *worse*: the right lobe's
+coherent error goes 4.32% -> 4.86% and its ridge 4.16% -> 5.06%. It is not in
+the model. This is the clearest case in the project of a change that a global
+metric endorses and the measurement of the actual defect rejects.
+
+**Rejected on measurement: the glow as gradients instead of blurred strokes.**
+A filter's Gaussian is a three-pass box blur in both engines, departing from a
+true Gaussian by 1.5-2.1 code values in coherent bands that follow the blurred
+object -- which is exactly the shape a banding complaint would take. And the
+replacement is in principle *exact* rather than approximate: the curves are lens
+ellipses, so the iso-distance contours on the concave side are that ellipse
+scaled, which is precisely what a radial gradient with the ellipse's own aspect
+ratio paints, with the along-curve fade applied as a mask on the element (a mask
+on a wrapping group isolates it and kills `mix-blend-mode`, exactly like
+`clip-path`; verified in both engines). It was built and measured, and it
+reconstructs the lobes *worse* than the blurred strokes do: 0.352 against 0.326.
+The code has been removed rather than left in place unexercised, because this
+project has already had one builder kind rot that way -- `arc_lens` referenced a
+schema that no longer existed and would have crashed had anything used it. The
+measurements are kept here instead, which is the part worth keeping.
+
+**The gradient stops pay for their own bytes.** The adaptive stop sampling was
+added while testing the interpolation hypothesis above. With the hypothesis
+refuted, the tolerance was re-chosen by measuring it: at 1, 2, 3, 4 and 6 code
+values the file is 93.6, 83.5, 78.7, 77.2 and 75.4 KB, the render's MAE is
+1.9899, 1.9921, 1.9948, 2.0011 and 1.9981, and the error within 110 px of the
+flare is 8.50, 8.56, 8.60, 8.86 and 8.84. Two counts gives back 10.2 KB -- a
+ninth of the file -- for 0.002 code values, and past three the flare begins to
+pay. The shipped value is 2.
+
+## D20. The profile weighting's strength is now a parameter, chosen by measurement
+
+Fixing the squared-weight bug in D15 changed the objective's *strength*, not
+only its correctness, and that had to be re-decided rather than inherited.
+
+The bug made the profile term's objective coefficient `1/(n^2 (L+floor)^4)`
+where the comments described `1/(n (L+floor)^2)` -- a fourth-power law in
+brightness instead of a square, which leaned far harder on the dim far-lobe
+cells than the design said it did. Correcting it to the documented form, with
+the floor it had inherited, made the lobe interior measurably *worse*. So the
+strength of the shaping had been doing real work by accident.
+
+Two parameters were therefore separated and both settled by measurement, on a
+colour-only fit from a fixed set of shapes:
+
+* **The visibility floor**, 0.012 (3 code values) as inherited. Lowering it to
+  0.006 (1.53 counts, about the quantisation scale) improves the coherent
+  profile error from 0.781 to 0.665 counts and the cell error from 6.3% to
+  5.6%; 0.003, 0.0015 and 0.0 are all within noise of 0.006 (0.665-0.690). So
+  0.006, and the guard against chasing sub-quantisation error is kept.
+* **The brightness exponent** `p`, now explicit in
+  `EMPHASIS["profile"]["exponent"]`: the coefficient is
+  `1/(n (L+floor)^(2p))`, so p = 1 equalises relative error across cells and
+  larger p pushes past it. p = 1 is best on every measure -- MAE 1.967 against
+  1.998 (p 1.5) and 2.050 (p 2.0), ridge error 2.53%/3.70% against 3.23%/7.75%
+  and 4.81%/10.45%, interior 3.41%/4.26% against 3.95%/4.44% and
+  4.83%/5.20%. The correct objective is also the best one; the bug was not
+  compensating for anything, and the earlier reading that it was came from
+  comparing a re-fit against a baseline whose *shapes* had been tuned to the
+  old objective.
+
+It is a parameter rather than a constant because nothing in principle fixes it
+at 1 -- it is a claim about visibility, and this artwork answers it.

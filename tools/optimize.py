@@ -73,7 +73,8 @@ def layer_index(params, lid):
 
 def layer_specs(params, keys=("width", "blur", "inset", "r", "squash", "rot",
                               "half_len", "height", "len", "peak_at", "cx", "cy",
-                              "sigma_y", "blur_x", "spread")):
+                              "sigma_y", "blur_x", "spread", "dx", "dy",
+                              "scale", "inner")):
     """One spec per tunable shape number on each layer.
 
     Per-layer `bounds` in params.json win over the global defaults.  They are
@@ -144,6 +145,10 @@ def layer_specs(params, keys=("width", "blur", "inset", "r", "squash", "rot",
 
 
 SHAPE_BOUNDS = {
+    "dx": (-40.0, 40.0, 0.5),
+    "dy": (-40.0, 40.0, 0.5),
+    "scale": (10.0, 400.0, 4.0),
+    "inner": (0.0, 120.0, 2.0),
     "spread": (1.0, 8.0, 0.2),
     "sigma_y": (0.8, 24.0, 0.15),
     "blur_x": (0.0, 6.0, 0.2),
@@ -202,7 +207,7 @@ def geometry_specs(params):
     # objective will happily trade 0.3 px of a measured edge position against a
     # photometric error somewhere else.  Only the corner shape is searched.
     # `corner_r_blend` is NOT searched.  The corner fit measures the blend's
-    # lateral offset r_blend * (1 - cos(blend_deg)) ~ 3.0 px, and the radius and
+    # lateral offset r_blend * (1 - cos(blend_deg)) = 2.52 px, and the radius and
     # the turn angle are strongly correlated inside that product: searching both
     # lets the radius wander hundreds of px for no change in the rendered
     # outline (it drifted 639.06 -> 619.06 for a 0.08 px change in the offset,
@@ -338,7 +343,7 @@ class Objective:
         K = FP.fit(Asub, tgt, self.K, W, iters=fit_iters or self.fit_iters, verbose=False,
                    free=free, normal=nf)
         out = FP.composite(Asub, FP.colors(K), nf)
-        sse = float((((out - tgt) * W[..., None]) ** 2).sum()) / (Asub.shape[1] * Asub.shape[2])
+        sse = FP.weighted_sse(out - tgt, W) / (Asub.shape[1] * Asub.shape[2])
         mae = float(np.abs(out - tgt).mean() * 255)
         return sse, mae, K
 

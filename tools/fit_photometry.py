@@ -12,18 +12,21 @@ Two measured facts make this cheap and well-posed:
     -- which depends only on that layer's *shape*.  Render each layer once in
     white and every layer's colour can be fitted without re-rendering.
 
-2.  All of the light in the reference lies in a two-dimensional colour space.
-    A PCA of 300 000 interior pixels' colour directions gives eigenvalues
-    0.981 / 0.012 / 0.007, and the best two-basis decomposition is
-    white + cyan(0, 0.94, 1.00) with a mean absolute error of 0.63/255.
-    So each layer carries just two numbers: how much white and how much cyan.
-    That halves the free parameters, keeps every fitted colour physically
-    plausible (no green or magenta glow appearing to patch a shape error), and
-    matches the reference's own structure -- one white-hot core plus one cyan
-    emission.
+2.  All of the light in the reference lies in a narrow non-negative colour
+    cone.  A PCA of the interior pixels' colour directions gives eigenvalues
+    0.981 / 0.012 / 0.007, so it is nearly two-dimensional -- but "nearly" is
+    not "is", and the third dimension is where the whole dark background lives.
+    Each layer therefore carries three non-negative amounts, of
 
-    d out_ch / d w_i = A_i * WHITE_ch * (1 - out_ch) / (1 - A_i k_i,ch)
-    d out_ch / d c_i = A_i * CYAN_ch  * (1 - out_ch) / (1 - A_i k_i,ch)
+        WHITE(1, 1, 1)   CYAN(0, 0.94, 1)   BLUE(0, 0, 1)
+
+    (see the comment above BASIS for the measurements, and docs/METHOD.md
+    section 6).  The point of the cone rather than free RGB is that its
+    non-negative span is exactly R <= G <= B, the family the reference uses
+    everywhere, so a shape error cannot be hidden by inventing a green or
+    magenta glow -- which is what free-RGB fitting did.
+
+        d out_ch / d a_i,j = A_i * BASIS_j,ch * (1 - out_ch) / (1 - A_i k_i,ch)
 
 Geometry (positions, widths, blur radii, taper shape) changes `A_i` and is
 handled by tools/optimize.py.
@@ -37,6 +40,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import math
 import os
 import sys
 
@@ -149,6 +153,58 @@ def composite(A, K, normal=None):
     return out
 
 
+def weighted_sse(residual, weight):
+    """The objective, in one place: sum over pixels and channels of (r*w)^2.
+
+    `fit`, `optimize.Objective.evaluate` and the regression check all go
+    through this, so a weight convention can no longer mean one thing in the
+    optimiser and another in the test that is supposed to police it.
+    """
+    r = np.asarray(residual, np.float32)
+    w = np.asarray(weight, np.float32)
+    if r.ndim == w.ndim + 1:
+        w = w[..., None]
+    return float(((r * w) ** 2).sum())
+
+
+def analytic_grad(A, target, WC, weight, normal, layer, comp):
+    """d(weighted_sse)/d(WC[layer, comp]) the way `fit` computes it.
+
+    Exported so the regression check differentiates the production Jacobian
+    rather than a re-derivation of it.
+    """
+    n = A.shape[0]
+    Af = A.reshape(n, -1).astype(np.float32)
+    Tf = target.reshape(-1, 3).astype(np.float32)
+    Wf = np.asarray(weight, np.float32).reshape(-1)
+    B = BASIS.astype(np.float32)
+    isnorm = [bool(normal[i]) if normal is not None else False for i in range(n)]
+    Kraw = np.asarray(WC, np.float64) @ B
+    K = np.clip(Kraw, 0.0, 1.0).astype(np.float32)
+    live = ((Kraw > 0.0) & (Kraw < 1.0)).astype(np.float32)
+    P = Af.shape[1]
+    out = np.zeros((P, 3), np.float32)
+    before = np.empty((n, P, 3), np.float32)
+    ms = np.empty((n, P, 3), np.float32)
+    for i in range(n):
+        before[i] = out
+        a = Af[i][:, None]
+        b = a * K[i][None, :]
+        ms[i] = (1.0 - a) if isnorm[i] else (1.0 - b)
+        out = out * ms[i] + b
+    suf = np.empty((n, P, 3), np.float32)
+    acc = np.ones((P, 3), np.float32)
+    for i in range(n - 1, -1, -1):
+        suf[i] = acc
+        acc = acc * ms[i]
+    g = Af[layer][:, None] * suf[layer]
+    if not isnorm[layer]:
+        g = g * (1.0 - before[layer])
+    col = g * (B[comp] * live[layer])[None, :] * Wf[:, None]
+    r = (out - Tf) * Wf[:, None]
+    return float(2.0 * (col * r).sum())
+
+
 def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=None,
         normal=None):
     """Levenberg-Marquardt on the per-layer basis amounts.
@@ -176,7 +232,14 @@ def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=No
     B = BASIS.astype(np.float32)
 
     def forward(WC):
-        K = np.clip(WC @ B, 0.0, 1.0).astype(np.float32)
+        Kraw = WC @ B
+        K = np.clip(Kraw, 0.0, 1.0).astype(np.float32)
+        # Where a channel's colour is clipped, that channel contributes no
+        # derivative: d K_ch / d a_j is zero there, not BASIS[j, ch].  Ignoring
+        # the clip made the analytic gradient of a saturated layer 1.6x too
+        # large (measured on arc_core, whose unclipped blue channel is 1.0014),
+        # which LM's line search absorbs but which is still a wrong Jacobian.
+        live = ((Kraw > 0.0) & (Kraw < 1.0)).astype(np.float32)
         P = Af.shape[1]
         before = np.empty((n, P, 3), np.float32)
         out = np.zeros((P, 3), np.float32)
@@ -193,15 +256,15 @@ def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=No
         for i in range(n - 1, -1, -1):
             suf[i] = acc
             acc = acc * ms[i]
-        return out, before, suf
+        return out, before, suf, live
 
     def sse(WC):
-        out, _, _ = forward(WC)
-        return float((((out - Tf) * Wf[:, None]) ** 2).sum())
+        out, _, _, _ = forward(WC)
+        return weighted_sse(out - Tf, Wf)
 
     cur = sse(WC)
     for it in range(iters):
-        out, before, suf = forward(WC)
+        out, before, suf, live = forward(WC)
         r = ((out - Tf) * Wf[:, None]).reshape(-1)
         cols = []
         for i in idx:
@@ -209,7 +272,7 @@ def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=No
             if not isnorm[i]:
                 g = g * (1.0 - before[i])
             for bi in range(NB):
-                cols.append((g * B[bi][None, :] * Wf[:, None]).reshape(-1))
+                cols.append((g * (B[bi] * live[i])[None, :] * Wf[:, None]).reshape(-1))
         J = np.stack(cols, 1)
         G = J.T @ J
         g2 = J.T @ r
@@ -234,7 +297,7 @@ def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=No
                 break
             lam *= 6.0
         if verbose:
-            out, _, _ = forward(WC)
+            out, _, _, _ = forward(WC)
             print("  iter %d  mae=%.4f  weighted_sse=%.6g  lam=%.3g"
                   % (it, float(np.abs(out - Tf).mean() * 255), cur, lam))
         if not accepted:
@@ -248,6 +311,8 @@ def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=No
 #: the fit will trade a visibly wrong flare for a fraction of a code value
 #: spread over the background -- which is exactly what it did.
 EMPHASIS = {
+    #: All three `weight`s are **objective** weights -- multipliers on squared
+    #: error -- and `make_weight` applies their square roots to residuals.
     "flare": {"centre": regions.FLARE_CORE, "radius": 130.0, "weight": 5.0},
     #: The two lobes, full interior height.  The old boxes stopped at y=200 and
     #: y=850, which left the four interior corners -- where the reconstruction
@@ -269,9 +334,20 @@ EMPHASIS = {
     #: floor).  Weber's law fails near black -- a 15% error on the 7.5-count
     #: outermost bin is about one code value, and invisible, while 15% on the
     #: 42-count innermost bin is six -- so the floor is a visibility threshold,
-    #: 0.012 (3 code values).  The bins then differ by 2.6x in what a 1%
-    #: relative error costs, against 14x with no shaping at all.
-    "profile": {"weight": 2.2, "floor": 0.012},
+    #: 1.53 code values (0.006, about the quantisation scale -- chosen by
+    #: measurement, see docs/DECISIONS.md D20).  Measured with the production
+    #: formula over the 222 cells, a uniform 1% relative error then costs
+    #: 4.57x more in the worst cell than the best, against 51.23x with the
+    #: display curve alone and no cell shaping.
+    #: `exponent` is how hard the shaping leans on the dim cells; see
+    #: `profile_multiplier`.  1.0 is equal relative error per cell.
+    "profile": {"weight": 2.2, "floor": 0.006, "exponent": 1.0},
+    #: The flare's own cells - radius x sector, plus the streak comb.  A bigger
+    #: floor than the profile's: the flare spans 15 to 255 code values, and
+    #: pure relative equalisation there would make the clipped core worth a
+    #: two-hundredth of a 15-count cell, when the core is a stated priority.
+    #: 0.08 (20 counts) equalises the dim structure and still weighs the core.
+    "flare_cells": {"weight": 3.0, "floor": 0.08},
 }
 
 #: Caches keyed by image shape (and, for the profile term, by a cheap
@@ -305,25 +381,57 @@ def _region_masks(shape):
 
 
 def profile_multiplier(target):
-    """Per-pixel multiplier that equalises the signed-distance bins.
+    """Per-pixel *residual* multiplier that equalises the weight cells.
 
-    The objective is a weighted sum of squares, so to make the same *relative*
-    error cost the same in every bin the bin's total weight must go as
-    1/luminance^2, not 1/luminance: a bin at brightness L with relative error r
-    contributes (total weight) * (r*L)^2.  Per pixel that is
-    1 / (n * (L + floor)^2).  Normalised to mean 1 over the covered pixels, so
-    the region's overall share is unchanged by the shaping and is then lifted
-    by `EMPHASIS["profile"]["weight"]`.
+    Two steps, and conflating them is a bug this code has already had.
+
+    The objective coefficient wanted for a cell of `n` pixels at mean
+    luminance `L` is `1 / (n * (L + floor)^2)`: the objective is a weighted sum
+    of squares, so a cell with relative error `r` contributes
+    `(coefficient) * n * (r*L)^2`, and equalising that across cells needs
+    `1/L^2`, not `1/L`.
+
+    But `fit()` multiplies *residuals* by what `make_weight` returns and
+    squares the product, so what must be returned is the square root of that
+    coefficient, `1 / (sqrt(n) * (L + floor))`.  Returning the coefficient
+    itself squares it again: the cost of a 1% relative error then goes as
+    `1/(n^2 (L+floor)^4)` and varied 183x across the cells instead of 2.3x,
+    which is not a tuning detail -- it silently made the darkest cells worth
+    two orders of magnitude more than the brightest.
+
+    How hard the shaping leans on the dim cells is the `exponent` p: the
+    coefficient is `1 / (n * (L + floor)^(2p))`, so p = 1 equalises relative
+    error across cells (Weber) and larger p pushes past it, buying accuracy in
+    the dim far lobe at the cost of the bright cells and of the rest of the
+    image.  It is a parameter and not a constant because measurement, not
+    principle, picks it: p = 1 is the defensible default, and the value shipped
+    is whichever one measurably reconstructs the reference best (see
+    docs/DECISIONS.md).  The exponent exists at all because the squared-weight
+    bug above was silently applying p = 2 together with 1/n^2, and when it was
+    corrected to p = 1 the lobe interior got *worse* -- so the strength of the
+    shaping had been doing real work by accident and now has to be chosen on
+    purpose.
+
+    Normalised to mean 1 over the covered pixels, so the region's overall share
+    is unchanged by the shaping and is then lifted by
+    `EMPHASIS["profile"]["weight"]` (an objective weight; see `make_weight`).
     """
     shape = tuple(target.shape[:2])
     lum = target.mean(2)
-    key = (shape, float(lum.sum()))
+    fl_floor = EMPHASIS["flare_cells"]["floor"]
+    fl_w = math.sqrt(EMPHASIS["flare_cells"]["weight"] / EMPHASIS["profile"]["weight"])
+    fl = EMPHASIS["profile"]["floor"]
+    pp = float(EMPHASIS["profile"].get("exponent", 1.0))
+    fl_p = float(EMPHASIS["flare_cells"].get("exponent", 1.0))
+    # The shaping parameters belong in the cache key: without them, changing the
+    # floor or the exponent inside one process silently returns the multiplier
+    # built for the previous setting.
+    key = (shape, float(lum.sum()), fl, fl_floor, fl_w, pp, fl_p)
     if key in _PROFILE_CACHE:
         return _PROFILE_CACHE[key]
     if shape not in _PROFILE_BINS:
         _PROFILE_BINS[shape] = regions.weight_cells(shape)
     bins = _PROFILE_BINS[shape]
-    fl = EMPHASIS["profile"]["floor"]
     m = np.zeros(shape, np.float32)
     cov = np.zeros(shape, bool)
     for cell in bins:
@@ -331,7 +439,12 @@ def profile_multiplier(target):
         n = int(mask.sum())
         if not n:
             continue
-        m[mask] = 1.0 / (n * (float(lum[mask].mean()) + fl) ** 2)
+        isflare = isinstance(cell[0], str)
+        f0 = fl_floor if isflare else fl
+        k = fl_w if isflare else 1.0
+        # sqrt of the objective coefficient 1/(n*(L+floor)^(2p)); see the docstring
+        pw = fl_p if isflare else pp
+        m[mask] = k / (math.sqrt(n) * (float(lum[mask].mean()) + f0) ** pw)
         cov |= mask
     if cov.any():
         m[cov] /= m[cov].mean()
@@ -340,12 +453,24 @@ def profile_multiplier(target):
 
 
 def make_weight(target, mode="gamma", floor=0.02, emphasis=True):
-    """Per-pixel fitting weight.
+    """Per-pixel **residual multiplier** for the fit.
 
-    `gamma` mirrors a 1/2.2 display curve, so an error in the near-black
-    background counts roughly as the eye counts it.  `emphasis` then lifts the
-    regions that are visually decisive but numerically tiny: the flare, the
-    lobes, and every bin of the curves' cross-sectional profile.
+    This returns the factor that multiplies a residual, not an objective
+    coefficient: `fit()` forms `(out - target) * w` and squares it, so the
+    objective coefficient is `w**2`.  Everything below is expressed in that
+    convention, and `EMPHASIS`'s numbers are objective weights, applied here as
+    their square roots.
+
+    Why a residual multiplier is the right convention: the `gamma` term is the
+    derivative of the display curve, `d(L^(1/2.2))/dL = L^(1/2.2-1)/2.2`, so
+    `residual * L^(1/2.2-1)` *is* the error in perceptual units and squaring it
+    is what a least-squares objective should do.  Treating that term as an
+    objective coefficient instead would make it `L^(1/2.2-1)` per unit squared
+    error, i.e. the wrong power, so the convention is fixed by this term.
+
+    `emphasis` then lifts the regions that are visually decisive but
+    numerically tiny: the flare, the lobes, and every cell of the curves'
+    cross-section (see `profile_multiplier`).
     """
     if mode == "flat":
         w = np.ones(target.shape[:2], np.float32)
@@ -355,16 +480,16 @@ def make_weight(target, mode="gamma", floor=0.02, emphasis=True):
     if emphasis:
         masks = region_masks(target.shape)
         w = w.copy()
-        w[masks["flare"]] *= EMPHASIS["flare"]["weight"]
-        w[masks["lobes"]] *= EMPHASIS["lobes"]["weight"]
+        w[masks["flare"]] *= math.sqrt(EMPHASIS["flare"]["weight"])
+        w[masks["lobes"]] *= math.sqrt(EMPHASIS["lobes"]["weight"])
         mult, cov = profile_multiplier(target)
         if cov.any():
             # Replace rather than multiply inside the covered region: the point
-            # is that every bin of the cross-curve profile carries the same
-            # weight mass, and multiplying by a brightness-dependent base
-            # weight puts that back out of balance (6x spread instead of 1x).
-            # The region's overall share is preserved and then lifted.
-            w[cov] = (EMPHASIS["profile"]["weight"] * float(w[cov].mean())
+            # is that every cell of the cross-section costs the same for the
+            # same relative error, and multiplying by a brightness-dependent
+            # base weight puts that back out of balance.  The region's overall
+            # share is preserved and then lifted.
+            w[cov] = (math.sqrt(EMPHASIS["profile"]["weight"]) * float(w[cov].mean())
                       * mult[cov]).astype(np.float32)
     return (w / w.mean()).astype(np.float32)
 

@@ -12,8 +12,13 @@
 > the waist gap, and the general structure.
 
 All coordinates are in reference pixels (canvas 1024x1024, sRGB, 8-bit, no alpha).
-Every number below came from pixel measurement, not assumption. Methods are in
-`tools/analyze_reference.py`; the raw probes are reproducible from that script.
+Every number below came from pixel measurement, not assumption. The probes were
+run as throwaway scripts during stage 1 and were not kept; the measurements that
+the reconstruction still depends on are re-derived on every run by the tools that
+did survive -- `tools/regions.py` for the curve frame and the region geometry,
+`tools/diagnose.py` for the profiles, comb, spokes and banding, and
+`tools/test_pipeline.py` for the invariants -- so the numbers below are checkable
+against the reference without that script.
 
 ## Canvas / provenance
 

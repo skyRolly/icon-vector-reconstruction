@@ -147,6 +147,67 @@ def corner_cells(shape, min_px=300, corner_span=230.0):
     return out
 
 
+#: Radius bands and angular sectors for the flare cells.
+FLARE_R_BANDS = ((6, 12), (12, 20), (20, 30), (30, 45), (45, 65), (65, 90),
+                 (90, 125), (125, 170), (170, 220))
+FLARE_SECTORS = 16
+
+#: Rows of the horizontal streak comb, as offsets from the flare centre, and
+#: the |dx| bands along it.  The comb is the reference's sharpest flare
+#: feature and the one a radial cell grid averages away: a 4-px-wide line at
+#: dy=+6.5 and another at +18.5 both sit inside a single 12-30 px radius band.
+COMB_DY = (-10, -6, -3, -1, 1, 3, 5, 8, 11, 14, 17, 21, 25)
+COMB_DX = ((18, 45), (45, 80), (80, 130), (130, 190), (190, 260))
+
+
+def flare_cells(shape, min_px=60, arc_margin=13.0):
+    """Cells around the central light: radius x sector, plus the streak comb.
+
+    The flare is 5% of the canvas and carries the image's sharpest structure -
+    a comb of parallel horizontal lines and six thin spokes, 2-11 code values
+    each on a 15-40 code value background.  A whole-image average cannot see
+    them and neither can a radial profile, so they get cells of their own.
+    """
+    h, w = shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w]
+    sx, sy = w / 1024.0, h / 1024.0
+    X = (xx + 0.5) / sx
+    Y = (yy + 0.5) / sy
+    dx = X - FLARE_CORE[0]
+    dy = Y - FLARE_CORE[1]
+    r = np.hypot(dx, dy)
+    th = (np.degrees(np.arctan2(-dy, dx)) + 360.0) % 360.0
+    dmin = np.full((h, w), 1e9, np.float32)
+    for side, (cx, cy, rx, ry) in ARCS.items():
+        u = (X - cx) / rx
+        v = (Y - cy) / ry
+        rr = np.sqrt(u * u + v * v)
+        d = np.abs(rr - 1.0) * np.sqrt((u * rx) ** 2 + (v * ry) ** 2) / np.maximum(rr, 1e-6)
+        dmin = np.minimum(dmin, d.astype(np.float32))
+    off_arc = dmin > arc_margin
+    out = []
+    # the comb first, so it owns its pixels
+    step = 360.0 / FLARE_SECTORS
+    for i in range(len(COMB_DY) - 1):
+        lo, hi = COMB_DY[i], COMB_DY[i + 1]
+        band = off_arc & (dy >= lo) & (dy < hi)
+        for a, b in COMB_DX:
+            m = band & (np.abs(dx) >= a) & (np.abs(dx) < b)
+            if m.sum() >= min_px:
+                out.append(("comb", lo, hi, a, b, m))
+    taken = np.zeros((h, w), bool)
+    for cell in out:
+        taken |= cell[-1]
+    for r0, r1 in FLARE_R_BANDS:
+        band = off_arc & (r >= r0) & (r < r1) & ~taken
+        for k in range(FLARE_SECTORS):
+            a0, a1 = k * step, (k + 1) * step
+            m = band & (th >= a0) & (th < a1)
+            if m.sum() >= min_px:
+                out.append(("sector", r0, r1, a0, a1, m))
+    return out
+
+
 def weight_cells(shape, min_px=300):
     """Every cell the fitting weight equalises: curve profile plus corners.
 
@@ -156,15 +217,20 @@ def weight_cells(shape, min_px=300):
     silently unbalances both (the cost of a 1% error went from 2.3x to 6.2x
     across cells when they were allowed to overlap).
     """
-    prof = profile_cells(shape)
+    out = list(flare_cells(shape))
     taken = np.zeros(shape[:2], bool)
-    for cell in prof:
+    for cell in out:
         taken |= cell[-1]
-    out = list(prof)
+    for cell in profile_cells(shape):
+        m = cell[-1] & ~taken
+        if m.sum() >= min_px:
+            out.append(cell[:-1] + (m,))
+            taken |= m
     for lo, hi, half, m in corner_cells(shape):
         m = m & ~taken
         if m.sum() >= min_px:
             out.append((lo, hi, half, m))
+            taken |= m
     return out
 
 

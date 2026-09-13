@@ -338,21 +338,31 @@ def taper_stops(t, side="left", n=24):
         gamma = float(t.get("gamma", 1.0))
         scale = float(t.get("scale", 1.0))
         off = float(t.get("y_offset", 0.5))
-        out = [(0.0, 0.0)]
-        for y, a in pts:
-            out.append(((y + off) / 1024.0, min(1.0, scale * max(0.0, a) ** gamma)))
-        out.append((1.0, 0.0))
-        return out
+        win = int(t.get("smooth_window", 7))
+        ys_m = [float(y) + off for y, a in pts]
+        av = smooth_series([float(a) for y, a in pts], window=win)
+        av = [min(1.0, scale * max(0.0, a) ** gamma) for a in av]
+        # zero anchors just outside the measured range, so a fade that was
+        # measured to reach zero still reaches zero and nothing is padded
+        eps = 1e-3 * 1024.0
+        xs = [0.0] + [max(0.0, ys_m[0] - eps)] + ys_m + \
+             [min(1024.0, ys_m[-1] + eps)] + [1024.0]
+        vs = [0.0, 0.0] + av + [0.0, 0.0]
+        keep_x, keep_v = [], []
+        for x, v in zip(xs, vs):
+            if keep_x and x <= keep_x[-1]:
+                continue
+            keep_x.append(x); keep_v.append(v)
+        f = pchip(keep_x, keep_v)
+        st = adaptive_stops(lambda y: max(0.0, f(y)), lo=0.0, hi=1024.0,
+                            tol=STOP_TOL, must=tuple(keep_x))
+        return [(y / 1024.0, v) for y, v in st]
 
     y0, y1, y2, y3 = t["y0"], t["y1"], t["y2"], t["y3"]
     p0, p1 = t.get("p0", 0.5), t.get("p1", 0.7)
     lo, hi = t.get("floor", 0.0), t.get("peak", 1.0)
-    ys = sorted({y0, y1, y2, y3} |
-                {y0 + (y1 - y0) * i / 8.0 for i in range(9)} |
-                {y2 + (y3 - y2) * i / 8.0 for i in range(9)} |
-                {y1 + (y2 - y1) * i / (n / 4.0) for i in range(int(n / 4) + 1)})
-    out = []
-    for y in ys:
+
+    def ramp(y):
         if y <= y0 or y >= y3:
             a = 0.0
         elif y < y1:
@@ -361,12 +371,11 @@ def taper_stops(t, side="left", n=24):
             a = 1.0
         else:
             a = ((y3 - y) / (y3 - y2)) ** p1
-        out.append((y / 1024.0, lo + (hi - lo) * a))
-    if out[0][0] > 0:
-        out.insert(0, (0.0, out[0][1]))
-    if out[-1][0] < 1:
-        out.append((1.0, out[-1][1]))
-    return out
+        return lo + (hi - lo) * a
+
+    st = adaptive_stops(ramp, lo=0.0, hi=1024.0, tol=STOP_TOL,
+                        must=(y0, y1, y2, y3))
+    return [(y / 1024.0, v) for y, v in st]
 
 
 #: Streak cross-section: source rect height as a multiple of its blur sigma.
@@ -380,33 +389,228 @@ STREAK_H_OVER_SB = 3.92
 STREAK_SIGMA_NORM = math.sqrt(1.0 + STREAK_H_OVER_SB ** 2 / 12.0)
 
 
+# --------------------------------------------------------------------------- #
+# gradient stops
+#
+# SVG interpolates LINEARLY between gradient stops, so a stop is a slope
+# discontinuity in the rendered alpha.  The eye finds a slope discontinuity in
+# a smooth shallow gradient far more readily than it finds noise of the same
+# amplitude, because the artefact is *coherent*: one stop paints a contour
+# across the whole shape.  The previous build emitted every gradient as
+# piecewise-linear segments through its knots -- five stops across a 607 px
+# radius for the corner glow, one per 20 px station for the measured fades -
+# and the result was a dense family of contour bands filling the lobes:
+# 1.76 code values peak-to-peak of coherent structure where the signal itself
+# is 7-25, against a reference that is smooth apart from incoherent JPEG
+# texture.  16x supersampling did not change it, which is what ruled out
+# rasterisation as the cause.
+#
+# Two things are needed, and they are different things:
+#   * a SMOOTH interpolant through the knots (monotone cubic), so the emitted
+#     curve has no slope discontinuity at a knot;
+#   * enough stops that the piecewise-linear error against that interpolant is
+#     below what a pixel can show, given the layer's own amplitude.
+# --------------------------------------------------------------------------- #
+
+#: Largest piecewise-linear stop error tolerated, in premultiplied code values.
+#: Chosen by measuring what the stops buy, because the adaptive sampling was
+#: added while testing whether stop interpolation caused the lobe banding and it
+#: does not (docs/DECISIONS.md D19), so it has to pay for its own bytes.  Over
+#: tolerances 1, 2, 3, 4 and 6 counts the file runs 93.6, 83.5, 78.7, 77.2 and
+#: 75.4 KB while the render's MAE runs 1.9899, 1.9921, 1.9948, 2.0011, 1.9981
+#: and the error within 110 px of the flare runs 8.50, 8.56, 8.60, 8.86, 8.84.
+#: The knee is at 2: it gives back 10.2 KB, a ninth of the file, for 0.002 code
+#: values, and past 3 the flare starts paying for it.
+STOP_TOL_COUNTS = 2.0
+#: Hard cap so a pathological curve cannot inflate the file without bound.
+STOP_MAX = 96
+
+
+def pchip_slopes(xs, ys):
+    """Fritsch-Carlson monotone cubic slopes: smooth, and no new extrema.
+
+    Pure Python on purpose - src/build_svg.py builds the deliverable and has
+    no third-party dependency.
+    """
+    n = len(xs)
+    if n < 3:
+        if n == 2:
+            d = (ys[1] - ys[0]) / (xs[1] - xs[0])
+            return [d, d]
+        return [0.0] * n
+    h = [xs[i + 1] - xs[i] for i in range(n - 1)]
+    d = [(ys[i + 1] - ys[i]) / h[i] for i in range(n - 1)]
+    m = [0.0] * n
+    m[0] = d[0]
+    m[-1] = d[-1]
+    for i in range(1, n - 1):
+        if d[i - 1] * d[i] <= 0.0:
+            m[i] = 0.0
+        else:
+            w1 = 2.0 * h[i] + h[i - 1]
+            w2 = h[i] + 2.0 * h[i - 1]
+            m[i] = (w1 + w2) / (w1 / d[i - 1] + w2 / d[i])
+    return m
+
+
+def pchip(xs, ys):
+    """A callable monotone-cubic interpolant through (xs, ys)."""
+    m = pchip_slopes(xs, ys)
+    n = len(xs)
+
+    def f(x):
+        if x <= xs[0]:
+            return ys[0]
+        if x >= xs[-1]:
+            return ys[-1]
+        lo, hi = 0, n - 1
+        while hi - lo > 1:
+            mid = (lo + hi) // 2
+            if xs[mid] <= x:
+                lo = mid
+            else:
+                hi = mid
+        h = xs[hi] - xs[lo]
+        t = (x - xs[lo]) / h
+        t2, t3 = t * t, t * t * t
+        h00 = 2 * t3 - 3 * t2 + 1
+        h10 = t3 - 2 * t2 + t
+        h01 = -2 * t3 + 3 * t2
+        h11 = t3 - t2
+        return (h00 * ys[lo] + h10 * h * m[lo] + h01 * ys[hi] + h11 * h * m[hi])
+    return f
+
+
+def smooth_series(ys, window=7, order=2):
+    """Local least-squares smoothing of a measured series.
+
+    The measured fades along each curve carry the reference's own noise: at
+    6 px sampling the reference's along-curve residual about a smooth trend is
+    3.3-4.7% of the local level with a lag-1 autocorrelation of only +0.1..+0.25,
+    i.e. white.  The tables' station-to-station scatter is 1.2-2.9%, the same
+    thing.  Left in the stops that incoherent noise becomes a coherent band
+    across the whole width of the stroke, so it is smoothed to its trend; the
+    trend is what was measured, the scatter is not.  Endpoints are preserved so
+    a fade that reaches zero still reaches zero.
+    """
+    n = len(ys)
+    if n < window or window < 3:
+        return list(ys)
+    half = window // 2
+    out = list(ys)
+    for i in range(n):
+        a = max(0, i - half)
+        b = min(n, i + half + 1)
+        k = b - a
+        if k < order + 1:
+            continue
+        xs = [j - i for j in range(a, b)]
+        # normal equations for a polynomial of `order` in xs, evaluated at 0
+        # -> the fitted constant term
+        A = [[sum(x ** (p + q) for x in xs) for q in range(order + 1)]
+             for p in range(order + 1)]
+        rhs = [sum((x ** p) * ys[j] for x, j in zip(xs, range(a, b)))
+               for p in range(order + 1)]
+        c = _solve(A, rhs)
+        out[i] = c[0] if c is not None else ys[i]
+    out[0], out[-1] = ys[0], ys[-1]
+    return out
+
+
+def _solve(A, b):
+    n = len(A)
+    M = [row[:] + [b[i]] for i, row in enumerate(A)]
+    for i in range(n):
+        piv = max(range(i, n), key=lambda r: abs(M[r][i]))
+        if abs(M[piv][i]) < 1e-12:
+            return None
+        M[i], M[piv] = M[piv], M[i]
+        for r in range(i + 1, n):
+            f = M[r][i] / M[i][i]
+            for c in range(i, n + 1):
+                M[r][c] -= f * M[i][c]
+    x = [0.0] * n
+    for i in range(n - 1, -1, -1):
+        x[i] = (M[i][n] - sum(M[i][c] * x[c] for c in range(i + 1, n))) / M[i][i]
+    return x
+
+
+def adaptive_stops(f, lo=0.0, hi=1.0, tol=1e-3, cap=STOP_MAX, must=()):
+    """Sample `f` so the piecewise-linear error between stops is below `tol`.
+
+    Bisects whichever interval currently has the largest midpoint error, so
+    stops land where the curvature is instead of being spread evenly: a flat
+    tail costs two stops and a knee costs as many as it needs.
+    """
+    xs = sorted({lo, hi} | {x for x in must if lo < x < hi})
+    vals = {x: f(x) for x in xs}
+
+    def err(a, b):
+        mid = 0.5 * (a + b)
+        if mid not in vals:
+            vals[mid] = f(mid)
+        return abs(vals[mid] - 0.5 * (vals[a] + vals[b])), mid
+
+    while len(xs) < cap:
+        worst, wmid, wi = -1.0, None, None
+        for i in range(len(xs) - 1):
+            e, mid = err(xs[i], xs[i + 1])
+            if e > worst:
+                worst, wmid = e, mid
+        if worst <= tol or wmid is None:
+            break
+        xs.append(wmid)
+        xs.sort()
+    return [(x, vals[x]) for x in xs]
+
+
+#: Fixed alpha tolerance for every emitted gradient, so a layer's shape does
+#: not depend on its own brightness -- the photometric fit renders each layer
+#: at full amplitude and must see the same shape the final artwork uses.
+STOP_TOL = STOP_TOL_COUNTS / 255.0
+
+
 def profile_stops(profile, n=18):
     """Radial falloff -> gradient stops.
 
-    Accepts either an explicit [[offset, alpha], ...] table or a named law:
+    Accepts either an explicit [[offset, alpha], ...] knot table or a named law:
       {"kind": "gauss", "sigma": s}   exp(-u^2 / 2 s^2)
       {"kind": "exp",   "scale": s}   exp(-u / s)
       {"kind": "pow",   "n": k}       (1 - u)^k
-    Named laws are renormalised so alpha(1) == 0; otherwise `spreadMethod=pad`
+      {"kind": "rise",  "n": k}       u^k, for a field that brightens outwards
+    Falling laws are renormalised so alpha(1) == 0; otherwise `spreadMethod=pad`
     would flood the rest of the shape with the last stop's colour.
+
+    Either way the result is sampled adaptively from a SMOOTH function - the
+    law itself, or a monotone cubic through the knots - rather than emitted as
+    straight segments between knots.  See the note above `pchip_slopes`.
     """
     if isinstance(profile, dict):
         kind = profile.get("kind", "gauss")
         if kind == "gauss":
             s = float(profile.get("sigma", 0.4))
-            g = lambda u: math.exp(-(u * u) / (2 * s * s))
+            law = lambda u: math.exp(-(u * u) / (2 * s * s))
         elif kind == "exp":
             s = float(profile.get("scale", 0.3))
-            g = lambda u: math.exp(-u / s)
+            law = lambda u: math.exp(-u / s)
         elif kind == "pow":
             k = float(profile.get("n", 2.0))
-            g = lambda u: max(0.0, 1.0 - u) ** k
+            law = lambda u: max(0.0, 1.0 - u) ** k
+        elif kind == "rise":
+            k = float(profile.get("n", 1.5))
+            return adaptive_stops(lambda u: max(0.0, min(1.0, u)) ** k,
+                                  tol=STOP_TOL)
         else:
             raise ValueError("unknown profile kind %r" % kind)
-        g1 = g(1.0)
-        us = [i / float(n) for i in range(n + 1)]
-        return [(u, max(0.0, (g(u) - g1) / (1.0 - g1))) for u in us]
-    return [(o, a) for o, a in profile]
+        g1 = law(1.0)
+        g = lambda u: max(0.0, (law(u) - g1) / (1.0 - g1))
+        return adaptive_stops(g, tol=STOP_TOL)
+    xs = [float(o) for o, a in profile]
+    ys = [float(a) for o, a in profile]
+    if len(xs) < 3:
+        return [(o, a) for o, a in profile]
+    return adaptive_stops(pchip(xs, ys), lo=xs[0], hi=xs[-1], tol=STOP_TOL,
+                          must=tuple(xs))
 
 
 # --------------------------------------------------------------------------- #
@@ -465,11 +669,23 @@ class Builder:
         space rather than left at the default -10%/120% of the object bounding
         box, which clips wide blurs of a thin path badly.
 
-        The region is clamped to the frame's bounding box plus a small margin.
-        Filtering happens before clipping in the SVG rendering model, so output
-        outside the frame clip would be thrown away anyway; clamping turns a
-        2400x2400 px filter area for the widest blur into 900x970 and makes the
-        whole render several times faster without changing a pixel.
+        The region is the frame's bounding box EXPANDED by the blur's support,
+        not clamped to it.  Clamping it to the frame box was a real bug, and an
+        expensive one: a filter region is a hard clip on the filter's *source*
+        as well as on its output, so a stroke that reaches past the frame box
+        had its source truncated there, and the blur of a truncated source is
+        short of light for 3 sigma inward.  For `arc_haze` -- inset 153 px into
+        the lobe, blurred by 76 -- that put a straight-edged deficit of several
+        code values along the whole left and right sides of the interior and
+        wedges into the top and bottom corners: the "vertical banding" in the
+        lobes.  It survived 16x supersampling, float compositing and dithering,
+        which is what ruled out rasterisation, gradient stops and 8-bit output.
+
+        The comment that used to sit here claimed the clamp was lossless
+        because "filtering happens before clipping, so output outside the frame
+        clip would be thrown away anyway".  The premise is right and the
+        conclusion does not follow - what is thrown away is input that the
+        visible output still depends on.
         """
         if isinstance(sigma, (list, tuple)):
             sd, key = "%s %s" % (f(sigma[0]), f(sigma[1])), "b%s_%s" % (f(sigma[0]), f(sigma[1]))
@@ -488,11 +704,17 @@ class Builder:
                 x0, y0 = region[0] - pad, region[1] - pad
                 x1, y1 = region[0] + region[2] + pad, region[1] + region[3] + pad
             else:
+                # Everything visible is clipped to the frame, so the region
+                # has to cover the frame box plus the blur's reach - and no
+                # more than the canvas, since no source geometry lies outside
+                # it, so a region that covers the canvas cannot truncate any
+                # source.  Both bounds matter: the first for correctness, the
+                # second to keep a sigma-76 filter from allocating 1537x1610.
                 fr = self.p["frame"]
-                x0 = max(-pad, fr["left"] - 4.0)
-                y0 = max(-pad, fr["top"] - 4.0)
-                x1 = min(1024 + pad, fr["right"] + 4.0)
-                y1 = min(1024 + pad, fr["bottom"] + 4.0)
+                x0 = max(fr["left"] - pad, -8.0)
+                y0 = max(fr["top"] - pad, -8.0)
+                x1 = min(fr["right"] + pad, 1032.0)
+                y1 = min(fr["bottom"] + pad, 1032.0)
             self._filters[key] = (
                 '<filter id="%s" filterUnits="userSpaceOnUse" x="%s" y="%s" width="%s" height="%s" '
                 'color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="%s"/></filter>'
@@ -620,29 +842,6 @@ class Builder:
                 )
             return "".join(out)
 
-        if kind == "arc_lens":
-            # The broad glow is confined to the inside of each arc's own
-            # ellipse and decays with distance from the central light, so it is
-            # painted as that ellipse filled with a light-centred gradient.
-            # This is what makes the glow strongly brighter on the concave side
-            # -- a symmetric blurred stroke cannot do it.
-            fl = self.p["flare"]
-            out = []
-            for side in ("left", "right"):
-                if L.get("side") and L["side"] != side:
-                    continue
-                g = self.p["geometry"]["arc_" + side]
-                ins = L.get("inset", 0.0)
-                gid2 = gid + side[0]
-                self.radial_paint(gid2, col, L.get("cx", fl["cx"]), L.get("cy", fl["cy"]),
-                                  L["r"], L["profile"], L.get("squash", 1.0))
-                out.append(
-                    '<ellipse cx="%s" cy="%s" rx="%s" ry="%s" fill="url(#%s)"%s%s%s%s/>'
-                    % (f(g["cx"]), f(g["cy"]), f(g["rx"] - ins), f(g["ry"] - ins),
-                       gid2, filt, clip, opa, blend)
-                )
-            return "".join(out)
-
         if kind == "radial":
             fl = self.p["flare"]
             cx = L.get("cx", fl["cx"]); cy = L.get("cy", fl["cy"])
@@ -654,9 +853,24 @@ class Builder:
                     % (f(cx), f(cy), f(rx), f(ry), gid, tr, filt, clip, opa, blend))
 
         if kind == "streak":
-            # The central light's horizontal streak.  Measured: horizontal to
-            # 0.1 degrees, an exponential falloff along x, and a vertical
-            # Gaussian cross-section of only sigma ~2.2 px (FWHM 5.2).
+            # One member of the central light's horizontal streak family.
+            #
+            # Measured: horizontal to 0.1 degrees, an exponential falloff along
+            # x, and - the part the previous version missed entirely - not one
+            # streak but a comb.  Decomposing the reference's vertical
+            # cross-section above a 21-px median envelope, in four separate
+            # x-windows east and west, gives a sharp main line of FWHM 3.5-5 px
+            # plus parallel satellites at dy = +6.5, +12 and +18.5 px, the same
+            # y in every window, each 3-6 px wide.  The +6.5 one is strong
+            # (8-11 counts) but dies by |dx| ~ 110 px; the +18.5 one is weaker
+            # (~2 counts) and runs the full width.  `dy` places a satellite
+            # relative to the flare centre, so the whole comb still moves when
+            # the centre is searched.
+            #
+            # The old single streak had sigma_y 3.56 (FWHM 8.4) and produced a
+            # broad hump where the reference has a spike and three lines: at
+            # 110-250 px east the reference carries a 2.3-count thin line and
+            # the render carried 0.05.
             #
             # The cross-section is stated as `sigma_y` and the markup derived
             # from it, rather than left implicit in a rect height plus a blur.
@@ -669,8 +883,8 @@ class Builder:
             # so the layer saturates its colour at white and still renders the
             # streak three times too faint.  See STREAK_H_OVER_SB.
             fl = self.p["flare"]
-            cx = L.get("cx", fl["cx"])
-            cy = L.get("cy", fl["cy"])
+            cx = L.get("cx", fl["cx"]) + float(L.get("dx", 0.0))
+            cy = L.get("cy", fl["cy"]) + float(L.get("dy", 0.0))
             half = L["half_len"]
             sigma_y = float(L.get("sigma_y", 2.2))
             h = STREAK_H_OVER_SB * sigma_y / STREAK_SIGMA_NORM

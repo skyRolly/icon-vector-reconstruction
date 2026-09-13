@@ -130,25 +130,39 @@ def main():
     import fit_photometry as FP
     import regions as RG
     from PIL import Image as _Image
+    A = np.stack([obj.basis(params, L["id"]) for L in params["layers"]])
     tgt = np.asarray(_Image.open(os.path.join(ROOT, "reference.png")).convert("RGB"))
     tgt = tgt.astype(np.float32) / 255.0
     W = FP.make_weight(tgt)
     W0 = FP.make_weight(tgt, emphasis=False)
     bins = RG.weight_cells(tgt.shape)
     # What matters is that no cell of the glow's cross-section is invisible to
-    # the fit.  The objective is a weighted sum of squares, so the test is what
-    # a 1% relative error in a cell actually costs: sum(w * (0.01*L)^2) over
-    # the cell.  Equal cost across cells is the property; equal per-pixel
-    # weight or equal weight mass would both be equalising the wrong thing,
-    # since the cells differ 250x in area and 6x in brightness.  Cells, not
-    # distance-only bins: pooling along the curve hid the tips, and the fit
-    # drained them to 20-30% below the reference while every pooled bin still
-    # looked fine.
+    # the fit.  The cost below is computed the way `fit()` ACTUALLY computes it
+    # -- residual times weight, then squared -- rather than the way the
+    # weighting was once described.  That distinction is the whole point of
+    # this check: while it charged `sum(w * r^2)` it passed at 2.3x spread
+    # while the production objective `sum((w*r)^2)` was running at 183x, i.e.
+    # the test validated a formula the code did not implement.
+    # Cells, not distance-only bins: pooling along the curve hid the tips, and
+    # the fit drained them to 20-30% below the reference while every pooled bin
+    # still looked fine.
     lum = tgt.mean(2)
 
     def bin_cost(weight):
-        c = np.array([float((weight[c_[-1]] * (0.01 * lum[c_[-1]]) ** 2).sum()) for c_ in bins])
+        """Cost the production objective charges for a uniform 1% relative error."""
+        c = np.array([float(((weight[c_[-1]] * 0.01 * lum[c_[-1]]) ** 2).sum())
+                      for c_ in bins])
         return c / c.mean()
+
+    # And prove it is the production formula: reproduce `fit`'s own sse for a
+    # known perturbation, from make_weight's output, to 1e-6 relative.
+    rng = np.random.default_rng(7)
+    pert = (rng.standard_normal(tgt.shape).astype(np.float32) * 0.01)
+    sse_here = float((((pert) * W[..., None]) ** 2).sum())
+    sse_fit = FP.weighted_sse(pert, W)
+    check("the regression check scores the same objective fit() minimises",
+          abs(sse_here - sse_fit) <= 1e-6 * max(sse_fit, 1e-12),
+          "check %.8g vs fit %.8g" % (sse_here, sse_fit))
 
     cost, cost0 = bin_cost(W), bin_cost(W0)
     spread = float(cost.max() / cost.min())
@@ -177,20 +191,118 @@ def main():
                & (np.minimum(np.abs(gy + 0.5 - FR["top"]), np.abs(gy + 0.5 - FR["bottom"])) < 230))
     corner_cov = float((cov & corners).sum() / max(corners.sum(), 1))
     flare_m = FP.region_masks(tgt.shape)["flare"]
+    fams = {}
+    for c_ in bins:
+        key = c_[0] if isinstance(c_[0], str) else ("profile" if len(c_) == 5 else "corner")
+        fams.setdefault(key, 0)
+        fams[key] += 1
+    # every family must be present, and the cost of a 1% relative error must be
+    # comparable across ALL of them - otherwise one region silently buys
+    # accuracy from another, which is how the flare's comb and spokes came to
+    # be missing while the global metric improved.
+    ok_fams = set(fams) >= {"comb", "sector", "profile", "corner"}
     check("the fitting weight equalises the profile cells and lifts the flare",
-          len(bins) >= 60 and spread < 3.0 and spread < spread0
+          len(bins) >= 150 and ok_fams and spread < 6.0 and spread < spread0
           and tips.sum() > 20000 and W[cov].mean() > W0[cov].mean()
           and corner_cov > 0.9
-          and W[flare_m].mean() > W0[flare_m].mean() * 1.5,
-          "%d cells (%d px in the outermost along-curve band), cost of a 1%% error "
+          and W[flare_m].mean() > W0[flare_m].mean() * 1.4,
+          "%d cells %s (%d px in the outermost along-curve band), cost of a 1%% error "
           "spread %.2fx (was %.2fx un-emphasised), region lift %.2fx, interior "
           "corners %.0f%% covered, flare %.2fx"
-          % (len(bins), int(tips.sum()), spread, spread0,
+          % (len(bins), fams, int(tips.sum()), spread, spread0,
              W[cov].mean() / W0[cov].mean(), 100 * corner_cov,
              W[flare_m].mean() / W0[flare_m].mean()))
 
+    # ---- 5b. the Jacobian must match the objective it differentiates ------ #
+    # A layer whose fitted colour saturates in a channel has zero derivative
+    # in that channel.  Ignoring the clip made arc_core's analytic gradient
+    # 1.6x too large; LM's line search hid it.
+    sub = slice(None, None, 8)
+    Asub = A[:, sub, sub]
+    tsub = np.minimum(tgt, 254.4 / 255.0)[sub, sub]
+    Wsub = FP.make_weight(tsub)
+    WC = FP.params_wc(params)
+    nfl = FP.normal_flags(params)
+    worst = (0.0, None)
+    for lid in ("arc_core", "arc_glow1", "frame_rim"):
+        li = [k for k, L in enumerate(params["layers"]) if L["id"] == lid]
+        if not li:
+            continue
+        li = li[0]
+        for j in range(FP.NB):
+            h = 1e-4
+            wp, wm = WC.astype(np.float64).copy(), WC.astype(np.float64).copy()
+            wp[li, j] += h
+            wm[li, j] -= h
+            def f(w):
+                # float64 throughout: the central difference of a float32 sum
+                # of 3e5 terms loses the signal to cancellation, which is what
+                # made this check report 2.5% error on an exact derivative.
+                M = FP.composite(Asub.astype(np.float64),
+                                 FP.colors(w).astype(np.float64), nfl)
+                e = (M - tsub.astype(np.float64)) * Wsub.astype(np.float64)[..., None]
+                return float((e * e).sum())
+            num = (f(wp) - f(wm)) / (2 * h)
+            ana = FP.analytic_grad(Asub, tsub, WC, Wsub, nfl, li, j)
+            den = max(abs(num), 1e-9)
+            rel = abs(ana - num) / den
+            if rel > worst[0]:
+                worst = (rel, "%s/%s" % (lid, FP.COMPONENTS[j]))
+    check("the analytic gradient matches the objective, clipped colours included",
+          worst[0] < 0.02, "worst relative error %.4f at %s" % worst)
+
+    # ---- 5b. the documentation names layers that actually exist ---------- #
+
+    # Every layer id the docs mention in backticks must be in params.json, and
+    # the deliverable's own metadata must be generated rather than remembered.
+    # Both drifted for a whole iteration: the README claimed 28 layers and
+    # ~68 KB against 29 and 74 KB, described "three blurred copies" of each
+    # curve where the model ships six glow strokes, and named `arc_glow2b` as
+    # "the one component offset outward" when `arc_glow1b` is offset outward
+    # too -- while `arc_glow1b` and `corner_in_top` went unmentioned entirely.
+    ids = {L["id"] for L in params["layers"]}
+    # Names that look like layer ids but are not: parameters, functions, region
+    # helpers, and builder kinds or layers the docs name *because* they were
+    # rejected or removed -- `arc_field` and `arc_lens` are both recorded in
+    # DECISIONS as things that are deliberately not in the model, and a record
+    # of a rejection is not a claim that the thing exists.
+    NOT_LAYERS = {"corner_model", "corner_r_blend", "corner_r_main",
+                  "corner_blend_deg", "corner_note", "flare_dependent_layers",
+                  "flare_cells", "field_grad_note", "arc_d", "arc_field",
+                  "arc_lens", "arc_station", "flare_report", "field_specs",
+                  "corner_cells", "flare_cx"}
+    import re as _re
+    named, missing = set(), {}
+    for doc in ("README.md", os.path.join("docs", "METHOD.md"),
+                os.path.join("docs", "DECISIONS.md")):
+        fp = os.path.join(ROOT, doc)
+        if not os.path.exists(fp):
+            continue
+        for tok in _re.findall(r"`([a-z][a-z0-9_]*)`", open(fp).read()):
+            if not tok.startswith(("arc_", "corner_", "field_", "flare_",
+                                   "frame_", "exterior", "lobe_")):
+                continue
+            if tok in NOT_LAYERS:
+                continue
+            named.add(tok)
+            if tok not in ids:
+                missing.setdefault(tok, []).append(doc)
+    check("every layer the docs name exists in params.json",
+          not missing,
+          "%d named, unknown: %s" % (len(named), ", ".join(
+              "%s (%s)" % (k, v[0]) for k, v in sorted(missing.items())) or "none"))
+
+    rd = os.path.join(ROOT, "README.md")
+    rt = open(rd).read() if os.path.exists(rd) else ""
+    gen = "<!-- DELIVERABLE:START -->" in rt
+    stale = _re.search(r"\*\*Primary deliverable.{0,80}?(\d+) named", rt, _re.S)
+    check("the deliverable's layer count and size are generated, not prose",
+          gen and (stale is None or int(stale.group(1)) == len(ids)),
+          "markers present: %s; states %s layers, params.json has %d"
+          % (gen, stale.group(1) if stale else "n/a", len(ids)))
+
     # ---- 6. the objective scores the same artwork the SVG rebuild emits --- #
-    A = np.stack([obj.basis(params, L["id"]) for L in params["layers"]])
+
     an = FP.composite(A, FP.colors(FP.params_wc(params)), FP.normal_flags(params))
     import render as R
     import io
@@ -203,6 +315,36 @@ def main():
     real = np.asarray(Image.open(io.BytesIO(png)).convert("RGB")).astype(np.float32) / 255.0
     d = float(np.abs(an - real).mean() * 255)
     check("objective composite matches the rebuilt SVG render", d < 1.0, "MAE %.4f code values" % d)
+
+    # ---- 7. the lobe banding has not come back ---------------------------- #
+
+    # The target is set by the reference, not by a taste for smoothness, and it
+    # is two-sided: `banding_worst_dev` compares the render's *coherent*
+    # cross-curve band-pass amplitude with the reference's own, and a render
+    # with less of it than the reference fails as well as one with more --
+    # which is what blurring the lobes until the stripes stop showing would
+    # produce.  The two percentages are the along-curve-averaged profile error
+    # in the two regions that have different causes (docs/DECISIONS.md D19).
+    # The ceilings sit just above the shipped values so a regression trips.
+    BAND_DEV_MAX = 2.00
+    BAND_INTERIOR_MAX = 5.00
+    BAND_RIDGE_MAX = 5.00
+    import io as _io
+    import contextlib as _cl
+    import diagnose as _D
+    bres = {}
+    with _cl.redirect_stdout(_io.StringIO()):
+        _D.band_report(_D.load(os.path.join(ROOT, "reference.png")),
+                       (real * 255.0).astype(np.float64), bres)
+    check("the lobe banding stays within the reference-calibrated target",
+          bres["banding_worst_dev"] <= BAND_DEV_MAX
+          and bres["banding_interior_pct"] <= BAND_INTERIOR_MAX
+          and bres["banding_ridge_pct"] <= BAND_RIDGE_MAX,
+          "coherent band-pass %.2fx of the reference (max %.2f, two-sided); "
+          "profile error interior %.2f%% (max %.2f), ridge %.2f%% (max %.2f)"
+          % (bres["banding_worst_dev"], BAND_DEV_MAX,
+             bres["banding_interior_pct"], BAND_INTERIOR_MAX,
+             bres["banding_ridge_pct"], BAND_RIDGE_MAX))
 
     print()
     if FAIL:

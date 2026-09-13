@@ -1,0 +1,22 @@
+PASS flare-dependent layers are discovered from the builder  -- found ['flare_halo_far', 'flare_halo', 'flare_spike', 'flare_sat2', 'flare_fan', 'flare_ray_a', 'flare_ray_b', 'flare_ray_c', 'flare_ray_d', 'flare_ray_e', 'flare_ray_up', 'flare_ray_dn', 'flare_ray_dl']
+PASS flare/cx declares every dependent layer  -- declared ['flare_fan', 'flare_halo', 'flare_halo_far', 'flare_ray_a', 'flare_ray_b', 'flare_ray_c', 'flare_ray_d', 'flare_ray_dl', 'flare_ray_dn', 'flare_ray_e', 'flare_ray_up', 'flare_sat2', 'flare_spike']
+PASS moving flare/cx by 6 px moves every dependent layer  -- moved: flare_halo_far(dx=+6.00), flare_halo(dx=+6.00), flare_spike(dx=+6.00), flare_sat2(dx=+6.00), flare_fan(dx=+6.00), flare_ray_a(dx=+6.00), flare_ray_b(dx=+6.00), flare_ray_c(dx=+6.00), flare_ray_d(dx=+6.00), flare_ray_e(dx=+6.00), flare_ray_up(dx=+6.00), flare_ray_dn(dx=+6.00), flare_ray_dl(dx=+6.00)
+PASS content-addressed cache re-renders without an explicit invalidate  -- max delta 0.2275
+PASS every search interval contains the current value  -- out of range: []
+PASS radial gradient centres stored under paint/ are optimisable  -- missing: []
+PASS anisotropic blur components are optimisable  -- artwork missing [] (0 list-valued layers); probe missing []; per-component intervals kept
+PASS the regression check scores the same objective fit() minimises  -- check 358.16873 vs fit 358.16873
+PASS the fitting weight equalises the profile cells and lifts the flare  -- 222 cells {'comb': 60, 'sector': 90, 'profile': 66, 'corner': 6} (84163 px in the outermost along-curve band), cost of a 1% error spread 4.57x (was 51.23x un-emphasised), region lift 1.24x, interior corners 100% covered, flare 1.83x
+PASS the analytic gradient matches the objective, clipped colours included  -- worst relative error 0.0000 at arc_glow1/blue
+PASS objective composite matches the rebuilt SVG render  -- MAE 0.5456 code values
+
+all checks passed
+optimising 74 parameters (shapes only flare), stride=3
+sweep 1/2
+  start sse=0.000238077 mae=1.9219
+  end   sse=0.000232559 mae=1.9152  (11 accepted moves, 201 renders)
+sweep 2/2
+  start sse=0.000230384 mae=1.9061
+  end   sse=0.000229963 mae=1.9034  (2 accepted moves, 360 renders)
+final: sse=0.000312713 mae=1.9099  (2931.0s, 361 renders)
+wrote /home/user/icon-vector-reconstruction/src/params.json

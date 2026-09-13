@@ -11,6 +11,32 @@ import os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 START = "<!-- METRICS:START -->"
 END = "<!-- METRICS:END -->"
+DSTART = "<!-- DELIVERABLE:START -->"
+DEND = "<!-- DELIVERABLE:END -->"
+
+
+def deliverable_block():
+    """The deliverable's own metadata, counted rather than remembered.
+
+    The layer count and the file size were both wrong in the README for a whole
+    iteration (it claimed 28 layers and ~68 KB against 29 and 74 KB), because
+    they were prose and prose does not get rebuilt.  They are generated now.
+    """
+    params = json.load(open(os.path.join(ROOT, "src", "params.json")))
+    svg = os.path.join(ROOT, "reconstruction.svg")
+    n = len(params["layers"])
+    kb = os.path.getsize(svg) / 1024.0 if os.path.exists(svg) else float("nan")
+    return [
+        DSTART,
+        "**Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** \u2014 %d named" % n,
+        "layers, %.0f KB, no embedded bitmap and no traced outlines. Every mark is a" % kb,
+        "primitive driven by a named parameter in",
+        "[`src/params.json`](src/params.json): one path for the frame, two cubic-B\u00e9zier",
+        "paths for the luminous curves (reused, offset and clipped, by every glow",
+        "layer), and blurred ellipses, rects, cones and gradients for the optical",
+        "effects.",
+        DEND,
+    ]
 
 
 def main():
@@ -102,6 +128,9 @@ def main():
         s = s[: s.index(START)] + block + s[s.index(END) + len(END):]
     else:
         s = s.replace("METRICS_TABLE_PLACEHOLDER", block)
+    dblock = "\n".join(deliverable_block())
+    if DSTART in s and DEND in s:
+        s = s[: s.index(DSTART)] + dblock + s[s.index(DEND) + len(DEND):]
     open(path, "w").write(s)
     print("README.md updated")
 

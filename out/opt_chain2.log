@@ -1,0 +1,81 @@
+PASS flare-dependent layers are discovered from the builder  -- found ['flare_halo_far', 'flare_halo', 'flare_spike', 'flare_sat2', 'flare_fan', 'flare_ray_a', 'flare_ray_b', 'flare_ray_c', 'flare_ray_d', 'flare_ray_e', 'flare_ray_up', 'flare_ray_dn', 'flare_ray_dl']
+PASS flare/cx declares every dependent layer  -- declared ['flare_fan', 'flare_halo', 'flare_halo_far', 'flare_ray_a', 'flare_ray_b', 'flare_ray_c', 'flare_ray_d', 'flare_ray_dl', 'flare_ray_dn', 'flare_ray_e', 'flare_ray_up', 'flare_sat2', 'flare_spike']
+PASS moving flare/cx by 6 px moves every dependent layer  -- moved: flare_halo_far(dx=+6.00), flare_halo(dx=+6.00), flare_spike(dx=+6.00), flare_sat2(dx=+6.00), flare_fan(dx=+6.00), flare_ray_a(dx=+6.00), flare_ray_b(dx=+6.00), flare_ray_c(dx=+6.00), flare_ray_d(dx=+6.00), flare_ray_e(dx=+6.00), flare_ray_up(dx=+6.00), flare_ray_dn(dx=+6.00), flare_ray_dl(dx=+6.00)
+PASS content-addressed cache re-renders without an explicit invalidate  -- max delta 0.2078
+PASS every search interval contains the current value  -- out of range: []
+PASS radial gradient centres stored under paint/ are optimisable  -- missing: []
+PASS anisotropic blur components are optimisable  -- artwork missing [] (0 list-valued layers); probe missing []; per-component intervals kept
+PASS the regression check scores the same objective fit() minimises  -- check 363.55243 vs fit 363.55243
+PASS the fitting weight equalises the profile cells and lifts the flare  -- 222 cells {'comb': 60, 'sector': 90, 'profile': 66, 'corner': 6} (84163 px in the outermost along-curve band), cost of a 1% error spread 4.57x (was 51.23x un-emphasised), region lift 1.24x, interior corners 100% covered, flare 1.66x
+PASS the analytic gradient matches the objective, clipped colours included  -- worst relative error 0.0000 at arc_core/white
+PASS every layer the docs name exists in params.json  -- 8 named, unknown: none
+PASS the deliverable's layer count and size are generated, not prose  -- markers present: True; states 34 layers, params.json has 34
+PASS objective composite matches the rebuilt SVG render  -- MAE 0.5395 code values
+
+all checks passed
+fitting 34 layers x ('white', 'cyan', 'blue')  [stride 2]
+  iter 0  mae=1.9077  weighted_sse=65.8811  lam=0.2
+  iter 1  mae=1.9075  weighted_sse=65.8764  lam=0.4
+  iter 2  mae=1.9074  weighted_sse=65.874  lam=0.8
+  iter 3  mae=1.9073  weighted_sse=65.8738  lam=0.267
+  iter 4  mae=1.9071  weighted_sse=65.8723  lam=0.533
+  iter 5  mae=1.9071  weighted_sse=65.871  lam=1.07
+  iter 6  mae=1.9068  weighted_sse=65.8709  lam=0.356
+  iter 7  mae=1.9068  weighted_sse=65.8695  lam=0.711
+  iter 8  mae=1.9068  weighted_sse=65.8688  lam=1.42
+  iter 9  mae=1.9066  weighted_sse=65.8687  lam=0.474
+  iter 10  mae=1.9066  weighted_sse=65.8679  lam=0.948
+  iter 11  mae=1.9066  weighted_sse=65.8674  lam=1.9
+  iter 12  mae=1.9065  weighted_sse=65.8673  lam=0.632
+  iter 13  mae=1.9065  weighted_sse=65.8668  lam=1.26
+  iter 14  mae=1.9065  weighted_sse=65.8666  lam=2.53
+  iter 15  mae=1.9064  weighted_sse=65.8664  lam=0.843
+  iter 16  mae=1.9064  weighted_sse=65.8661  lam=1.69
+  iter 17  mae=1.9064  weighted_sse=65.866  lam=3.37
+  iter 18  mae=1.9064  weighted_sse=65.8658  lam=1.12
+  iter 19  mae=1.9064  weighted_sse=65.8656  lam=2.25
+  iter 20  mae=1.9064  weighted_sse=65.8655  lam=4.49
+  iter 21  mae=1.9063  weighted_sse=65.8654  lam=1.5
+  iter 22  mae=1.9063  weighted_sse=65.8653  lam=3
+  iter 23  mae=1.9063  weighted_sse=65.8652  lam=5.99
+  iter 24  mae=1.9063  weighted_sse=65.8651  lam=2
+  iter 25  mae=1.9063  weighted_sse=65.8651  lam=4
+analytic composite mae=1.9058
+  field_base         white= 0.0017 cyan= 0.0060 blue= 0.0223 -> rgb[0.42, 1.85, 7.64]
+  field_mid          white= 0.0000 cyan= 0.0720 blue= 0.0000 -> rgb[0.0, 17.25, 18.36]
+  field_grad         white= 0.0079 cyan= 0.0121 blue= 0.0013 -> rgb[2.02, 4.93, 5.44]
+  field_vert         white= 0.0032 cyan= 0.0040 blue= 0.0037 -> rgb[0.82, 1.77, 2.78]
+  exterior           white= 0.0002 cyan= 0.0032 blue= 0.0057 -> rgb[0.06, 0.83, 2.33]
+  exterior_top       white= 0.0032 cyan= 0.0000 blue= 0.0084 -> rgb[0.81, 0.81, 2.96]
+  exterior_corner    white= 0.0018 cyan= 0.0053 blue= 0.0106 -> rgb[0.45, 1.73, 4.51]
+  corner_in          white= 0.0045 cyan= 0.0202 blue= 0.0000 -> rgb[1.14, 5.97, 6.28]
+  corner_in_top      white= 0.0125 cyan= 0.0176 blue= 0.0000 -> rgb[3.19, 7.4, 7.67]
+  arc_haze           white= 0.0093 cyan= 0.0638 blue= 0.0000 -> rgb[2.38, 17.66, 18.64]
+  arc_glow3          white= 0.0000 cyan= 0.2637 blue= 0.0000 -> rgb[0.0, 63.2, 67.23]
+  arc_glow2          white= 0.0000 cyan= 0.3700 blue= 0.0038 -> rgb[0.0, 88.69, 95.32]
+  arc_glow2b         white= 0.0078 cyan= 0.0775 blue= 0.0009 -> rgb[2.0, 20.58, 22.0]
+  arc_glow1          white= 0.4611 cyan= 0.1868 blue= 0.0272 -> rgb[117.59, 162.36, 172.16]
+  arc_glow1b         white= 0.0000 cyan= 0.2727 blue= 0.0340 -> rgb[0.0, 65.36, 78.21]
+  arc_glow1c         white= 0.0000 cyan= 0.0637 blue= 0.0000 -> rgb[0.0, 15.27, 16.25]
+  flare_halo_far     white= 0.0000 cyan= 0.9192 blue= 0.0805 -> rgb[0.0, 220.34, 254.93]
+  flare_halo         white= 1.0000 cyan= 0.0000 blue= 0.0000 -> rgb[255.0, 255.0, 255.0]
+  flare_streak       white= 0.4148 cyan= 0.5003 blue= 0.0000 -> rgb[105.78, 225.7, 233.35]
+  flare_spike        white= 0.3523 cyan= 0.3330 blue= 0.1615 -> rgb[89.83, 169.66, 215.92]
+  flare_sat2         white= 0.0067 cyan= 0.0525 blue= 0.0000 -> rgb[1.71, 14.29, 15.09]
+  flare_fan          white= 0.6692 cyan= 0.0000 blue= 0.0000 -> rgb[170.63, 170.63, 170.63]
+  flare_ray_a        white= 0.0000 cyan= 0.2578 blue= 0.0147 -> rgb[0.0, 61.8, 69.49]
+  flare_ray_b        white= 0.0000 cyan= 0.6029 blue= 0.2640 -> rgb[0.0, 144.52, 221.07]
+  flare_ray_c        white= 0.0392 cyan= 0.0000 blue= 0.0377 -> rgb[10.0, 10.0, 19.62]
+  flare_ray_d        white= 0.0169 cyan= 0.0568 blue= 0.0204 -> rgb[4.3, 17.91, 23.98]
+  flare_ray_e        white= 0.2428 cyan= 0.0108 blue= 0.1185 -> rgb[61.9, 64.49, 94.88]
+  flare_ray_up       white= 0.0000 cyan= 0.1004 blue= 0.0064 -> rgb[0.0, 24.06, 27.22]
+  flare_ray_dn       white= 0.0000 cyan= 0.2045 blue= 0.0142 -> rgb[0.0, 49.01, 55.76]
+  flare_ray_dl       white= 0.0000 cyan= 0.2551 blue= 0.0268 -> rgb[0.0, 61.16, 71.9]
+  arc_core           white= 0.8312 cyan= 0.1744 blue= 0.0000 -> rgb[211.95, 253.75, 255.0]
+  arc_core_wide      white= 0.3997 cyan= 0.4097 blue= 0.0472 -> rgb[101.93, 200.14, 218.45]
+  frame_base         white= 0.0554 cyan= 0.0440 blue= 0.0155 -> rgb[14.13, 24.68, 29.29]
+  frame_rim          white= 0.4326 cyan= 0.0311 blue= 0.0236 -> rgb[110.32, 117.76, 124.27]
+updated /home/user/icon-vector-reconstruction/src/params.json
+optimising 124 parameters (shapes), stride=3
+sweep 1/1
+  start sse=0.000221657 mae=1.8939

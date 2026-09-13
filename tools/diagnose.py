@@ -235,6 +235,286 @@ def profile_report(ref, rec, out):
               % (100 * out["corner_rms_rel"]))
 
 
+
+# The banding metric.  The band-pass scales are the cross-curve widths a stripe
+# can have and still read as a stripe: narrower than ~3 px it is indistinguishable
+# from the 8-bit grain, wider than ~12 px it reads as shading, not as an edge.
+BAND_SIGMAS = (3.0, 6.0, 12.0)
+BAND_BOXES = {"left": (110, 200, 430, 840), "right": (600, 200, 920, 840)}
+BAND_S_BANDS = ((-40, -14), (-70, -40), (-110, -70), (-160, -110), (-220, -160), (-300, -220))
+#: The two halves have different causes and different remedies, so they are
+#: never pooled.  Inside 40 px the glow basis is the limit -- its effective
+#: cross-curve widths step 5.8 -> 20.6 px and the reference's shape lives in
+#: that gap; outside 40 px the basis can reach the reference's profile but only
+#: by amplitudes that wreck the frame and the flare, so what remains there is a
+#: shared-basis trade-off.  Reported in percent because the interior runs at 8
+#: to 35 counts and a count there is not the same error as a count at the ridge.
+BAND_REGIONS = (("ridge", -40, -14), ("interior", -300, -40))
+
+
+def _split(q, level):
+    """rms of a coherent error and of its oscillatory part, in counts and percent."""
+    wl = min(49, 2 * (q.size // 4) + 1)
+    sm = np.convolve(q, np.ones(wl) / wl, mode="same")
+    k = max(4, q.size // 8)
+    osc, lo = (q - sm)[k:-k], level[k:-k]
+    return {"cnt": float(np.sqrt((q ** 2).mean())),
+            "pct": float(np.sqrt(((q / level) ** 2).mean()) * 100),
+            "osc_cnt": float(np.sqrt((osc ** 2).mean())),
+            "osc_pct": float(np.sqrt(((osc / lo) ** 2).mean()) * 100)}
+
+
+def _smooth_nan(a, sigma):
+    """Gaussian smoothing along axis 0 that ignores NaNs (normalised convolution)."""
+    r = int(math.ceil(3.0 * sigma))
+    k = np.exp(-0.5 * (np.arange(-r, r + 1) / sigma) ** 2)
+    k /= k.sum()
+    ok = np.isfinite(a)
+    v = np.where(ok, a, 0.0)
+    num = np.empty_like(v); den = np.empty_like(v)
+    for j in range(v.shape[1]):
+        num[:, j] = np.convolve(v[:, j], k, mode="same")
+        den[:, j] = np.convolve(ok[:, j].astype(float), k, mode="same")
+    return np.where(den > 0.35, num / np.maximum(den, 1e-9), np.nan)
+
+
+def _band_grid(side):
+    """Sampling stations on an arc-aligned (s, t) grid over one lobe."""
+    x0, y0, x1, y1 = BAND_BOXES[side]
+    tdeg = np.arange(-58.0, 38.01, 0.20)
+    ss = np.arange(-300.0, -13.99, 1.0)
+    xs = np.empty((ss.size, tdeg.size)); ys = np.empty_like(xs)
+    for j, t in enumerate(tdeg):
+        px, py, nx, ny = arc_station(side, float(t))
+        xs[:, j] = px + ss * nx
+        ys[:, j] = py + ss * ny
+    return ss, xs, ys, (xs >= x0) & (xs <= x1) & (ys >= y0) & (ys <= y1)
+
+
+def band_report(ref, rec, out):
+    """The layered banding inside the curves, measured the way the eye sees it.
+
+    The measurement that decides what this metric has to be: the render's total
+    cross-curve band-pass amplitude in the lobes is *below* the reference's
+    (0.34 rms against 0.62 at sigma 3), so a plain high-pass "smoothness" score
+    says the render is already smoother than the reference and would call the
+    visible stripes an improvement.  Blur would score better still.  What
+    actually differs is coherence along the curve: the reference's band-pass
+    content is grain and JPEG texture, uncorrelated from one height to the next,
+    so averaging along the curve cancels it as 1/sqrt(N); a layered field
+    produces the same cross-curve profile at every height, and what survives
+    that average is exactly what reads as a stripe.
+
+    So both numbers here are computed on the along-curve *average* of the
+    cross-curve profile, where the reference's own grain is suppressed to a few
+    hundredths of a count and anything left is structure the model really has:
+
+      profile error   the averaged profile, render minus reference, split into an
+                      overall drift and the oscillatory part.  Alternating-sign
+                      annular zones are the layered stripes; this is where they
+                      show, and no amount of blurring removes them.
+      coherent band-pass   the same average, high-passed.  This catches a narrow
+                      cross-curve step that the profile error would average over.
+
+    Both are calibrated by the reference and both are two-sided: having less
+    coherent structure than the reference fails as well, which is what blurring
+    the region until the stripes stop showing would produce.
+    """
+    print("\nbanding: coherent cross-curve structure inside the curves")
+    print("  measured on the along-curve average, where the reference's grain")
+    print("  falls to ~0.03 counts, so anything above that is real structure")
+    res = {}
+    worst_dev, worst_at = 0.0, None
+    osc_rms = 0.0
+    err_rms = 0.0
+    worst_pct = 0.0
+    worst_ridge = 0.0
+    for side in ("left", "right"):
+        ss, xs, ys, inside = _band_grid(side)
+        La = np.where(inside, bilinear(ref, xs, ys).mean(2), np.nan)
+        Lb = np.where(inside, bilinear(rec, xs, ys).mean(2), np.nan)
+        n = np.isfinite(La).sum(1)
+        use = n >= 60
+        if use.sum() < 50:
+            continue
+        Pa = np.nanmean(La, axis=1)[use]
+        Pb = np.nanmean(Lb, axis=1)[use]
+        s = ss[use]
+        grain = float(np.sqrt(np.nanmean(np.square((La - _smooth_nan(La, 3.0))[use]))))
+        floor = grain / math.sqrt(max(n[use].mean(), 1.0))
+        d = Pb - Pa
+        # An overall level or slope mismatch is a photometric error; the
+        # oscillation on top of it is the part that draws a visible contour.
+        drift = np.convolve(d, np.ones(49) / 49.0, mode="same")
+        k = 24
+        osc = (d - drift)[k:-k]
+        side_res = {
+            "floor": floor, "n": float(n[use].mean()),
+            "err_rms": float(np.sqrt((d ** 2).mean())),
+            "err_p2p": float(d.max() - d.min()),
+            "osc_rms": float(np.sqrt((osc ** 2).mean())),
+            "osc_p2p": float(osc.max() - osc.min()),
+            "bands": [],
+        }
+        err_rms = max(err_rms, side_res["err_rms"])
+        osc_rms = max(osc_rms, side_res["osc_rms"])
+        print("  %s curve  (%d s samples, %.0f along-curve samples each)"
+              % (side, use.sum(), n[use].mean()))
+        print("    reference grain floor on this average: %.4f counts" % floor)
+        print("    coherent profile error  rms %6.3f  p2p %6.3f counts" % (
+            side_res["err_rms"], side_res["err_p2p"]))
+        print("    oscillatory part        rms %6.3f  p2p %6.3f counts  = %.0fx the floor"
+              % (side_res["osc_rms"], side_res["osc_p2p"], side_res["osc_rms"] / max(floor, 1e-9)))
+        print("      region        n     err_cnt   err%     osc_cnt   osc%")
+        for nm, lo, hi in BAND_REGIONS:
+            mm = (s >= lo) & (s < hi)
+            if mm.sum() < 12:
+                continue
+            sp = _split(d[mm], Pa[mm])
+            side_res[nm] = sp
+            worst_pct = max(worst_pct, sp["pct"]) if nm == "interior" else worst_pct
+            worst_ridge = max(worst_ridge, sp["pct"]) if nm == "ridge" else worst_ridge
+            print("      %-9s %6d %9.3f %6.2f%% %9.3f %6.2f%%"
+                  % (nm, mm.sum(), sp["cnt"], sp["pct"], sp["osc_cnt"], sp["osc_pct"]))
+        print("         s       level_ref     err      err%      osc")
+        for lo, hi in BAND_S_BANDS:
+            m = (s >= lo) & (s < hi)
+            if m.sum() < 3:
+                continue
+            mo = (s[k:-k] >= lo) & (s[k:-k] < hi)
+            o = float(np.sqrt((osc[mo] ** 2).mean())) if mo.sum() > 2 else float("nan")
+            side_res["bands"].append({"s": [lo, hi], "ref": float(Pa[m].mean()),
+                                      "err": float(d[m].mean()), "osc": o})
+            print("     %5d..%-5d %9.2f %+8.3f %+7.1f%% %8.3f"
+                  % (lo, hi, Pa[m].mean(), d[m].mean(),
+                     100 * d[m].mean() / max(Pa[m].mean(), 1e-6), o))
+        print("    coherent band-pass amplitude, reference against render:")
+        for sg in BAND_SIGMAS:
+            row = {}
+            for name, L in (("ref", La), ("rec", Lb)):
+                hp = L - _smooth_nan(L, sg)
+                c = np.nanmean(np.where(np.isfinite(hp), hp, np.nan), axis=1)[use]
+                row[name] = {"coh_rms": float(np.sqrt(np.nanmean(np.square(c)))),
+                             "coh_p2p": float(np.nanmax(c) - np.nanmin(c)),
+                             "tot_rms": float(np.sqrt(np.nanmean(np.square(hp[use]))))}
+            ex = row["rec"]["coh_rms"] / max(row["ref"]["coh_rms"], 1e-9)
+            # Two-sided on purpose.  Above 1 the render has coherent structure the
+            # reference does not; below 1 it has lost structure the reference does
+            # have, which is what blurring until the stripes stop showing gives.
+            dev = max(ex, 1.0 / max(ex, 1e-9))
+            if dev > worst_dev:
+                worst_dev, worst_at = dev, "%s/sigma%g" % (side, sg)
+            row["excess"] = ex
+            side_res["sigma%g" % sg] = row
+            print("      sigma %4.1f   ref coh %6.4f tot %6.4f | rec coh %6.4f tot %6.4f"
+                  "   excess %5.2fx" % (sg, row["ref"]["coh_rms"], row["ref"]["tot_rms"],
+                                        row["rec"]["coh_rms"], row["rec"]["tot_rms"], ex))
+        res[side] = side_res
+    out["banding"] = res
+    out["banding_err_rms"] = err_rms
+    out["banding_osc_rms"] = osc_rms
+    out["banding_interior_pct"] = worst_pct
+    out["banding_ridge_pct"] = worst_ridge
+    out["banding_worst_dev"] = worst_dev
+    out["banding_worst_at"] = worst_at
+    print("  worst interior coherent error  %.2f%%   (shared-basis trade-off; see DECISIONS)"
+          % worst_pct)
+    print("  worst ridge coherent error     %.2f%%   (glow basis resolution)" % worst_ridge)
+    print("  worst coherent profile error   %.3f counts rms  (target: the 0.03 count floor)"
+          % err_rms)
+    print("  worst oscillatory part         %.3f counts rms  (this is the stripe)" % osc_rms)
+    print("  worst band-pass deviation      %.2fx at %s  (target 1.00x, two-sided)"
+          % (worst_dev, worst_at))
+
+def comb_report(ref, rec, out):
+    """The horizontal streak family, line by line.
+
+    Above a 21-px median envelope in y - which follows the broad bloom and
+    cannot follow a 4-px line - the reference shows a sharp main line plus
+    parallel satellites at dy = +6.5, +12 and +18.5 px, at the same y in every
+    x-window east and west.  A radial profile averages all of that together,
+    which is how a reconstruction came to have one broad hump instead.
+    """
+    from scipy.ndimage import median_filter
+    cy = int(round(FLARE_CORE[1] - 0.5))
+    cx = FLARE_CORE[0] - 0.5
+    wins = ((-210, -110, "west far"), (-75, -25, "west near"),
+            (25, 75, "east near"), (110, 210, "east far"))
+    print("\nflare streak comb: thin-line amplitude above a 21-px median envelope")
+    print("   dy  " + "".join("%19s" % t for _, _, t in wins))
+    print("       " + "".join("%19s" % "ref      rec" for _ in wins))
+    rows = {}
+    for tag, img in (("ref", ref), ("rec", rec)):
+        for a, b, name in wins:
+            x0 = int(round(cx + min(a, b)))
+            x1 = int(round(cx + max(a, b)))
+            prof = img.mean(2)[cy - 45:cy + 45, x0:x1].mean(1)
+            rows[(tag, name)] = prof - median_filter(prof, size=21, mode="nearest")
+    table = []
+    for i, dy in enumerate(range(-45, 45)):
+        if dy < -12 or dy > 26:
+            continue
+        vals = []
+        for _, _, name in wins:
+            vals += [float(rows[("ref", name)][i]), float(rows[("rec", name)][i])]
+        table.append({"dy": dy, "v": vals})
+        mark = " <" if dy in (0, 7, 19) else ""
+        print("  %+3d  " % dy + "".join("%9.2f%10.2f" % (vals[2 * k], vals[2 * k + 1])
+                                        for k in range(len(wins))) + mark)
+    out["comb"] = {"windows": [t for _, _, t in wins], "rows": table}
+    # one number: rms over the lines the reference actually has
+    err = []
+    for r in table:
+        if r["dy"] in (-1, 0, 1, 6, 7, 8, 18, 19, 20):
+            for k in range(len(wins)):
+                err.append(r["v"][2 * k + 1] - r["v"][2 * k])
+    out["comb_rms"] = float(np.sqrt(np.mean(np.square(err)))) if err else float("nan")
+    print("  rms error on the comb's own rows (dy 0, +7, +19): %.2f code values"
+          % out["comb_rms"])
+
+
+def spoke_report(ref, rec, out):
+    """The thin spokes, as an angular scan of the structure a 15-px median misses."""
+    from scipy.ndimage import median_filter
+    tr = ref.mean(2) - median_filter(ref.mean(2), size=15, mode="nearest")
+    tc = rec.mean(2) - median_filter(rec.mean(2), size=15, mode="nearest")
+    h, w = tr.shape
+    yy, xx = np.mgrid[0:h, 0:w]
+    cx, cy = FLARE_CORE[0] - 0.5, FLARE_CORE[1] - 0.5
+    r = np.hypot(xx - cx, yy - cy)
+    th = (np.degrees(np.arctan2(-(yy - cy), xx - cx)) + 360) % 360
+    dm = np.full((h, w), 1e9)
+    for side, (ax, ay, rx, ry) in ARCS.items():
+        u = (xx + 0.5 - ax) / rx
+        v = (yy + 0.5 - ay) / ry
+        rr = np.sqrt(u * u + v * v)
+        dm = np.minimum(dm, np.abs(rr - 1) * np.sqrt((u * rx) ** 2 + (v * ry) ** 2)
+                        / np.maximum(rr, 1e-6))
+    band = (r >= 28) & (r < 110) & (dm > 13)
+    rows = []
+    for a in range(0, 360, 3):
+        m = band & (th >= a) & (th < a + 3)
+        if m.sum() < 40:
+            continue
+        rows.append({"deg": a, "ref": float(tr[m].mean()), "rec": float(tc[m].mean())})
+    med = float(np.median([q["ref"] for q in rows]))
+    print("\nflare spokes: thin-component mean by 3-degree sector, r 28-110, arcs masked")
+    print("  the reference's clean maxima are the spokes; median background %+.2f" % med)
+    print("    deg     ref     rec   diff")
+    err = []
+    for q in rows:
+        if q["ref"] - med > 0.6:
+            print("   %4d  %6.2f  %6.2f %+6.2f  %s"
+                  % (q["deg"], q["ref"], q["rec"], q["rec"] - q["ref"],
+                     "#" * int(max(0, (q["ref"] - med)) * 6)))
+            err.append(q["rec"] - q["ref"])
+    out["spokes"] = rows
+    out["spoke_bg"] = med
+    out["spoke_rms"] = float(np.sqrt(np.mean(np.square(err)))) if err else float("nan")
+    print("  rms error over the reference's own spoke sectors: %.2f code values"
+          % out["spoke_rms"])
+
+
 def crops(ref, rec, outdir):
     os.makedirs(outdir, exist_ok=True)
     for name, box, scale in (("flare", (410, 400, 650, 630), 2),
@@ -268,6 +548,9 @@ def main():
     flare_report(ref, rec, out)
     lobe_report(ref, rec, out)
     profile_report(ref, rec, out)
+    band_report(ref, rec, out)
+    comb_report(ref, rec, out)
+    spoke_report(ref, rec, out)
     crops(ref, rec, a.crops)
     if a.json:
         json.dump(out, open(a.json, "w"), indent=1)
