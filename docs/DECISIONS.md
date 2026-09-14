@@ -2181,3 +2181,79 @@ side, remove white on the other -- and it is not a saturation knob. It is not
 made here for the same reason as D41: the layers that paint those 12 px are
 shared between the two sides, so it needs a split and a refit rather than a
 value.
+
+## D43. The rays re-measured: an offset that had been mistaken for an angle
+
+The sixth audit of this iteration re-measured all four rays with injection-
+calibrated nulls at 11-19 feature-free sites, across 15 analysis knobs, at two
+blur scales and at half resolution. Its most useful result explains a failure
+already recorded in D38.
+
+**The lower-right ray is DISPLACED, not rotated.** Last iteration the artwork was
+changed by rotating `flare_ray_c` from 327.8 to 328.85 degrees on a claimed axis
+of 328.35 +- 0.15; re-measurement gave 328.0 +- 0.8, the change had left the
+render further from the reference, and it was reverted. What this audit shows is
+why both of those passes were asking the wrong question. The reference's ray
+direction is 328.18 +- 0.21 and the render's is 328.40 -- the two lines are
+PARALLEL. The reference crosses r = 100 at 328.8 where the render crosses at
+327.30, and crosses r = 80 at a difference of +1.97 +- 0.03 degrees. A constant
+angular difference is rejected (chi2/dof 6.18 against 0.45 for a line); the
+per-radius offset fits ds(r) = +3.72 - 0.0126 r px over 24 radii from 57.5 to
+172.5. The ray misses the assumed core by about 2.6 px perpendicular.
+
+A rotation cannot express that. It over-corrects inside r = 70 and under-corrects
+beyond r = 150, which is exactly the pattern the reverted change produced. The
+fix, when it is made, is to give `flare_ray_c` its own `cx`/`cy` -- which the
+builder already supports -- and shift the origin along the normal.
+
+**What else the data supports**, all robust and all with matched nulls:
+
+  * the lower-right ray is 1.4-1.8x too narrow AND does not widen with radius
+    (reference FWHM 7.89 -> 9.66 -> 11.23 px over r 57-75/75-92/92-110 against
+    the render's flat 6.03 -> 6.25 -> 6.21), +7.2 sigma at r 90-125 against an
+    injected control of the render's own width;
+  * it carries a counter-clockwise shoulder, +1.01 px of extra half-width at
+    r 57-90 and +2.88 px at r 90-125, where the render is symmetric to 0.13 px.
+    A single symmetric quadrilateral cannot make this;
+  * the lower-left ray has the mirror-image defect, a CLOCKWISE shoulder of
+    -1.44 and -2.55 px, and a core sharper than the render's (sharpness index
+    2.13/2.19 against 1.68/1.73, +6.8 and +4.4 sigma).
+
+**What must not be changed**, which is the more valuable half:
+
+  * `flare_ray_e` (upper-right) is correct and is to be left alone: axis matches
+    to +0.08 (-0.37..+0.40) degrees, radial extent matches bin by bin within
+    1 sigma, integrated flux matches. It looks about twice broader in the
+    reference, but the FEATURE there is itself detected at only 2.0-2.3 sigma per
+    bin, its measured asymmetry flips sign between radius bands, and every shape
+    number for it is therefore conditional on something marginal.
+  * The upper-left ray's SOFTNESS claim, already refuted once in D38, is not
+    reproduced here either: the sharpness index reads -0.5 and +0.1 sigma from
+    its injected control. That question is now closed twice over.
+  * **No ray axis in this image supports a precision near 0.15 degrees.** The
+    best-determined of the four spreads 0.55 degrees across the six reasonable
+    definitions of a centre before any knob or noise enters; the upper-right
+    spreads 1.91. The +-0.15 that changed the artwork was four to thirteen times
+    tighter than the definitional spread alone.
+  * A narrow-plus-broad decomposition must not be fitted to any of these rays.
+    Its improvement over a single component (0.26-0.94) is inside what an
+    injected SINGLE Gaussian already yields on this image's noise
+    (0.33-0.77 +- 0.10-0.36), the largest excess is +2.5 sigma, and the fitted
+    widths are unstable between adjacent radius bands.
+
+**One finding is NOT acted on because two of my own instruments disagree about
+its sign.** The audit reports the upper-left ray carrying 1.88x and 2.47x the
+reference's integrated flux at r 70-82.5 and 82.5-95, measured at 16 px ridge
+clearance with a quadratic wing baseline and confirmed by a second, different
+baseline. `tools/ray_report.py`, at 30 px clearance and using a per-radius peak
+of the chord excess, reads the opposite at the outer end: reference 6.17, 5.09,
+2.61 against the render's 2.57, 1.97, 0.55 at r = 90, 95, 100.
+
+The two can be reconciled -- the audit's own note says the cleared channel
+between the curve ridges closes past r ~ 95 for this ray, so at 30 px clearance
+those columns are a sliver, and a PEAK statistic on a sliver of a noisy image is
+the exact estimator this whole iteration exists to distrust. That is an
+explanation, not a measurement. Until the two are made to agree at a common
+clearance with a common statistic, changing the upper-left ray's amplitude would
+be picking the instrument that gives the answer one wants, and the ray is left
+alone.

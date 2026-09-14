@@ -838,8 +838,16 @@ class Builder:
             # element's clip-path AND its filter region in the rotated space,
             # which silently dropped two of the three rays entirely.
             fl = self.p["flare"]
-            cx = L.get("cx", fl["cx"])
-            cy = L.get("cy", fl["cy"])
+            # `dx`/`dy` displace the ray's ORIGIN from the flare centre while
+            # leaving it anchored to it, which is what the lower-right ray needs:
+            # its line is parallel to the render's (reference direction
+            # 328.18 +- 0.21 against 328.40) but misses the assumed core by about
+            # 3 px perpendicular.  Rotating to correct that -- which an earlier
+            # pass did, and reverted -- over-corrects inside r 70 and
+            # under-corrects beyond r 150, because a rotation gives a CONSTANT
+            # angular offset and the measured one is constant in PIXELS.
+            cx = L.get("cx", fl["cx"]) + float(L.get("dx", 0.0))
+            cy = L.get("cy", fl["cy"]) + float(L.get("dy", 0.0))
             ln, h, pk = L["len"], L["height"], L.get("peak_at", 0.3)
             # `spread` is the far end's width as a multiple of the near end's.
             # The measured westward fan is not a constant-width streak: its

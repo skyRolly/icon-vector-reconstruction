@@ -80,7 +80,12 @@ RAY_GEOMETRY = {
     # of the amplitude inside r = 120.
     "flare_ray_e": (44.9,   4.35, 4.0, 1.30, 150.0, 0.28),   # upper-right
     # Lower-right: axis 328.0 +- 0.8. Shipped at 328.1, the centre of that range.
-    "flare_ray_c": (328.1,  4.9,  4.0, 1.60, 185.0, 0.32),   # lower-right
+    # The remaining discrepancy is NOT an angle: the reference's line is parallel
+    # to the render's (328.18 +- 0.21 against 328.40) and offset 3.0 px, carried by
+    # the layer's own dx/dy.  height and spread are 4.85/1.90, not 4.0/1.60, because
+    # the reference is 1.3-1.8x wider and widens with radius where the render was
+    # flat; transverse FWHM 5.87 in the reference against the old 4.40.
+    "flare_ray_c": (328.1,  4.9,  4.85, 1.90, 185.0, 0.32),  # lower-right
 }
 #: ray name in tools/ray_report.py -> the layer that carries it
 RAY_LAYER = {"upper-left": "flare_ray_a", "lower-left": "flare_ray_b",

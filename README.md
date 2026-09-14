@@ -25,15 +25,15 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 
 | metric | value | for scale |
 |---|---|---|
-| mean absolute error | **1.899** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 4.095 | |
-| MAE on a 1/2.2 display curve | 5.470 | weights the dark background as the eye does; black scores 59.7 |
+| mean absolute error | **1.898** / 255 | a flat black canvas scores 17.89 |
+| RMSE | 4.093 | |
+| MAE on a 1/2.2 display curve | 5.468 | weights the dark background as the eye does; black scores 59.7 |
 | SSIM (luminance) | **0.9739** | black scores 0.142 |
 | worst single-channel error | 110 | |
 | pixels off by more than 2 / 8 / 24 | 34.6% / 5.1% / 0.8% | |
-| mean bias | -0.267 | |
+| mean bias | -0.265 | |
 
-Per region (MAE): frame band 2.50, centre 90 px 8.38, bright pixels 9.51, dark background 1.40, everything else 1.66.
+Per region (MAE): frame band 2.50, centre 90 px 8.36, bright pixels 9.51, dark background 1.40, everything else 1.66.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -44,7 +44,7 @@ The two regions a whole-image average cannot police, from
 
 | targeted measurement | value |
 |---|---|
-| MAE within 110 px of the central light | 6.87 |
+| MAE within 110 px of the central light | 6.85 |
 | worst ring of the flare's radial profile | +5.0 code values at r = 12-20 |
 | curve glow, rms relative error over 21 signed-distance bins | 3.9% |
 | the same, resolved along the curve (71 cells) | 5.7% |
@@ -53,7 +53,7 @@ The two regions a whole-image average cannot police, from
 | left lobe, MAE more than 25 px from the ridge | 1.37 (bias -0.17) |
 | right lobe, MAE more than 25 px from the ridge | 1.33 (bias -0.16) |
 
-Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.666 (SSIM 0.9556); see `out/validation.md` for the resolution sweep.
+Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.667 (SSIM 0.9556); see `out/validation.md` for the resolution sweep.
 <!-- METRICS:END -->
 
 ## What is in here
