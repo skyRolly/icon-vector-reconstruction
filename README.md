@@ -9,8 +9,8 @@ rounded-square frame — as a hand-built, parametric SVG.
 | ![reference](out/side_reference.png) | ![reconstruction](out/side_reconstruction.png) | ![difference](out/side_diff.png) |
 
 <!-- DELIVERABLE:START -->
-**Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 32 named
-layers, 75 KB, no embedded bitmap and no traced outlines. Every mark is a
+**Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 33 named
+layers, 76 KB, no embedded bitmap and no traced outlines. Every mark is a
 primitive driven by a named parameter in
 [`src/params.json`](src/params.json): one path for the frame, two cubic-Bézier
 paths for the luminous curves (reused, offset and clipped, by every glow
@@ -25,15 +25,15 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 
 | metric | value | for scale |
 |---|---|---|
-| mean absolute error | **1.937** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 4.194 | |
-| MAE on a 1/2.2 display curve | 5.505 | weights the dark background as the eye does; black scores 59.7 |
-| SSIM (luminance) | **0.9736** | black scores 0.142 |
+| mean absolute error | **1.923** / 255 | a flat black canvas scores 17.89 |
+| RMSE | 4.120 | |
+| MAE on a 1/2.2 display curve | 5.495 | weights the dark background as the eye does; black scores 59.7 |
+| SSIM (luminance) | **0.9737** | black scores 0.142 |
 | worst single-channel error | 110 | |
 | pixels off by more than 2 / 8 / 24 | 35.1% / 5.4% / 0.8% | |
-| mean bias | -0.254 | |
+| mean bias | -0.231 | |
 
-Per region (MAE): frame band 2.50, centre 90 px 8.90, bright pixels 9.60, dark background 1.43, everything else 1.69.
+Per region (MAE): frame band 2.50, centre 90 px 8.30, bright pixels 9.61, dark background 1.43, everything else 1.69.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -44,8 +44,8 @@ The two regions a whole-image average cannot police, from
 
 | targeted measurement | value |
 |---|---|
-| MAE within 110 px of the central light | 7.21 |
-| worst ring of the flare's radial profile | -5.1 code values at r = 30-45 |
+| MAE within 110 px of the central light | 6.81 |
+| worst ring of the flare's radial profile | +4.2 code values at r = 12-20 |
 | curve glow, rms relative error over 21 signed-distance bins | 3.9% |
 | the same, resolved along the curve (71 cells) | 5.7% |
 | light in the four interior corners, rms relative error | 5.0% |

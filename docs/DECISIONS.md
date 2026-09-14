@@ -1937,3 +1937,79 @@ validated by rendering it and re-measuring the result, which is a test these
 reference-side errors cannot pass through. The single exception -- the lower-right
 rotation -- is the one change made from a reference-side claim alone, and it is the
 one that had to be undone.
+
+## D39. The west arm: what a matched null found that three passes of angular
+## statistics had missed
+
+The largest single error in the shipped flare was not in any of the structures
+three iterations of work had been arguing about. It was a horizontal band of
+light due west of the core, about 14 px tall, that the reconstruction did not
+have at all -- 8.6, 18.1, 23.4 and 23.8 code values too dim at |dx| 20-28,
+28-36, 36-44 and 44-52 in the band dy -5..+9.
+
+**Why it took so long to see.** Every tool that looks west had been built to
+mask the left curve ridge at 26-30 px, and the ridge crosses the core's row only
+65 px west. At 30 px clearance the entire band |dx| 30..100 is deleted before
+anything is measured. The arm was not being measured and found correct; it was
+not being measured at all. The angular reports at r 34..46 did see part of it --
+that is the `|dy| 0-8` row of `tools/wedge_report.py`, which read -17.45 -- but
+it reads as one number among nineteen angular bins and had been treated as a
+symptom of the wedge's shape rather than as a missing structure.
+
+**Why the obvious fix was wrong, and what replaced it.** Lowering the clearance
+to 20 px makes the band measurable, but then every cell sits 20-35 px from a
+bright curve and a deficit there is equally consistent with the CURVE's glow
+being modelled wrong -- which would be a fact about the curve-glow layers, not about the
+flare, and would have sent the next change to the wrong layer. The two are
+separated by a matched null: the identical cell, at the identical perpendicular
+distance from the same ridge, evaluated at seventeen positions ALONG that ridge,
+far above and below the flare. Those cells share the curve glow, the JPEG grain
+and the estimator; they do not share the flare. They read +1.6 with a spread of
+2.2 code values. The flare's own row read -15.7 over the same 20-row band. That
+is 8 sigma against a population, with no noise model, no autocorrelation
+correction and no assumption of Gaussianity -- and it says the deficit is
+anchored to the flare.
+
+The same device is what `tools/arm_report.py` now prints beside every west cell,
+and it is a better instrument than the error bars of the previous iteration
+precisely because it is not calculated. It is measured, from this image, at
+places where the answer is known.
+
+**The reference really is west-heavy.** At |dx| 36-44 the reference reads 154.8
+west against 132.5 east, and at 44-52, 144.6 against 109.3. The shipped render
+read 131.5 against 134.2 -- symmetric. So the change restores an asymmetry the
+reference has and the reconstruction had lost; it is not a generic anamorphic
+flare being imposed. `east_gain` is 0 because the east side was already 4-7 cv
+too BRIGHT, and the first version of the layer leaked about 3 cv east through a
+gradient stop that ramped to zero at the east end rather than at the core --
+caught by measuring east and west separately, which is the only reason the two
+corrections did not get conflated.
+
+**Measure in the domain the model is linear in.** In code values the correction
+looked like a rising ramp -- 8.6, 18.1, 23.4, 23.8, then 29.3 further out. In
+the screen domain, where a layer actually acts (`u = 1 - v/255` multiplies), it
+is nearly FLAT: A*k = 0.11, 0.18, 0.19, 0.18, 0.18, falling to 0.04 by |dx| 100.
+One layer with a simple profile, not a ramp needing four. The apparent growth
+was the background falling, not the arm rising.
+
+**What is not measurable, and is labelled as such.** Beyond |dx| 52 the left
+ridge is nearer than 20 px and nothing there can be separated from the curve.
+The outer profile stops are an extrapolation. They were checked afterwards
+rather than fitted, and the check passed: |dx| 74-90 improved from -29.3 to
+-10.1 and 90-110 from -7.2 to +0.2 without either being a target.
+
+**Result.** West arm RMS over the measurable bins 19.45 -> 0.82 cv. The
+`|dy|` split at |dx| 22-52 went -17.45 / -5.01 / +2.33 to -0.00 / +0.65 / +2.48.
+MAE 1.9373 -> 1.9228, SSIM 0.97363 -> 0.97373, flare MAE 7.21 -> 6.81, angular
+residual RMS 3.83 -> 3.81, and every protected metric -- profile, profile cells,
+corner, both lobes -- bit-identical. The ridge-profile banding figure FELL from
+4.98% to 4.44%, which matters beyond this change: that ceiling was the binding
+constraint on the previous release and it now has half a point of margin,
+because part of what it had been measuring was this deficit beside the ridge.
+
+**sigma 5.0, not 5.7.** The measured cross-section is FWHM ~13.5 px, sigma 5.7,
+centred dy +1.3 with an estimator spread near +-1.5. But at sigma 5.7 the
+angular modulation west of the core degrades (wedge RMS 4.01 against 3.83) and
+the |dy| 8-12 band over-fills to +2.66; at 5.0 the modulation is held at 3.81
+and that band lands at +0.65. Both values are inside the measurement's own
+interval, so the render decided between them, not the reference.

@@ -774,6 +774,58 @@ class Builder:
                     % (f(cx - half), f(cy - h / 2.0), f(2 * half), f(h), gid,
                        filt, clip, opa, blend))
 
+        if kind == "vstreak":
+            # The vertical diffraction line through the flare's brightest point.
+            # The transpose of `streak` above, and deliberately the same code
+            # shape: a rect carrying a linear gradient along its length, blurred
+            # across it, with the two halves given separate profiles.
+            #
+            # This is a real feature of the reference and it took a channel-aware
+            # measurement to see it.  Within about 12 px of the core G and B are
+            # CLIPPED (421 and 453 px at or above 253 in a 90x90 box, against 4
+            # for R), so the luminance mean there measures the clip; in R the
+            # column high-pass A_4 reads 12.3, 9.8, 4.4, 2.0, 1.5, 1.5 code
+            # values over |dy| 16-26/26-36/36-50/50-70/70-90/90-110 against a
+            # far-band baseline, while the render without this layer read 2.4,
+            # 0.5, 0.7, 0.4, -0.4, -0.2.  See tools/vstreak_report.py, which is
+            # how those numbers are reproduced.
+            #
+            # Three things are deliberately NOT modelled, because they were
+            # measured to be absent or are not measurable at all:
+            #   * no broad vertical halo -- the near flank at |dx| 3-8 is
+            #     consistent with zero against a narrow core of +1.8/+5.1/+5.9;
+            #   * nothing beyond |dy| 110 -- pooled 110-240 is -0.3/+0.4/+0.0
+            #     with 95% limits under 1.3 cv;
+            #   * the amplitude inside |dy| ~16 is unconstrained, because there
+            #     the bloom's own transverse curvature produces most of the
+            #     signal, so the near stops are continuity with the 16-26 band
+            #     rather than a measurement of their own.
+            fl = self.p["flare"]
+            cx = L.get("cx", fl["cx"]) + float(L.get("dx", 0.0))
+            cy = L.get("cy", fl["cy"]) + float(L.get("dy", 0.0))
+            half = L["half_len"]
+            sigma_x = float(L.get("sigma_x", 1.7))
+            wd = STREAK_H_OVER_SB * sigma_x / STREAK_SIGMA_NORM
+            sb = sigma_x / STREAK_SIGMA_NORM
+            by = float(L.get("blur_y", 0.0))
+            prof = profile_stops(L["profile"])
+            prof_s = profile_stops(L["profile_s"]) if L.get("profile_s") else prof
+            gs = float(L.get("south_gain", 1.0))
+            body = []
+            for o, av in reversed(prof):
+                body.append('<stop offset="%s" stop-color="%s" stop-opacity="%s"/>'
+                            % (f(0.5 - 0.5 * o, 5), col, f(av, 5)))
+            for o, av in prof_s[1:]:
+                body.append('<stop offset="%s" stop-color="%s" stop-opacity="%s"/>'
+                            % (f(0.5 + 0.5 * o, 5), col, f(av * gs, 5)))
+            self.add_def('<linearGradient id="%s" gradientUnits="userSpaceOnUse" x1="0" y1="%s" '
+                         'x2="0" y2="%s">%s</linearGradient>'
+                         % (gid, f(cy - half), f(cy + half), "".join(body)), gid)
+            filt = ' filter="url(#%s)"' % self.blur([sb, by])
+            return ('<rect x="%s" y="%s" width="%s" height="%s" fill="url(#%s)"%s%s%s%s/>'
+                    % (f(cx - wd / 2.0), f(cy - half), f(wd), f(2 * half), gid,
+                       filt, clip, opa, blend))
+
         if kind == "ray":
             # One-sided diagonal spike.  The three measured rays are one-sided
             # (peak 2.9-4.7 code values above the local background) and are not
@@ -916,7 +968,7 @@ class Builder:
 # --------------------------------------------------------------------------- #
 #: Layer kinds whose position falls back to params["flare"] when the layer does
 #: not carry its own cx/cy.  Keep this in step with Builder.layer.
-FLARE_ANCHORED_KINDS = ("radial", "arc_lens", "streak", "ray")
+FLARE_ANCHORED_KINDS = ("radial", "arc_lens", "streak", "vstreak", "ray")
 
 
 def flare_dependent_layers(params):

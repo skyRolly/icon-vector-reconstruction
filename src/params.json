@@ -1003,6 +1003,90 @@
    "white": 0.47359
   },
   {
+   "blue": 0.0616,
+   "blur_x": 0.0,
+   "bounds": {
+    "cy": [
+     510.0,
+     520.0
+    ],
+    "east_gain": [
+     0.0,
+     0.4
+    ],
+    "half_len": [
+     80.0,
+     160.0
+    ],
+    "sigma_y": [
+     3.5,
+     8.0
+    ]
+   },
+   "color": [
+    35.0625,
+    85.1598,
+    104.0655
+   ],
+   "cy": 514.8,
+   "cyan": 0.209,
+   "east_gain": 0.0,
+   "half_len": 118.0,
+   "id": "flare_arm_w",
+   "kind": "streak",
+   "note": "the west arm: a horizontal band of light due west of the core that the reconstruction did not have at all.  Measured against a MATCHED NULL -- the same cell moved up and down the left curve ridge at the same perpendicular distance, which shares the curve glow and the JPEG grain but not the flare -- the shipped render was 8.6/18.1/23.4/23.8 code values too dim at |dx| 20-28/28-36/36-44/44-52 in dy -5..+9, against a null of +1 to +2 with a spread of 2-3, i.e. 4.3 to 13.4 sigma.  The reference is 22-35 cv brighter west than east at the same radii where the render was symmetric, so this is a measured asymmetry and not a generic flare shape; east_gain is 0 because the east side needs no light and was already 4-7 cv too bright.  Cross section: centre dy +1.3 (the estimator's own spread is about +-1.5), FWHM ~13.5 px, sigma 5.0 chosen over 5.7 because it holds the angular modulation west of the core (wedge RMS 3.81 against 3.83) where 5.7 cost 0.2 and 6.5 cost 0.7.  The profile is tabulated, not a law: beyond |dx| 52 the left ridge is nearer than 20 px and NOTHING there is measurable, so the outer stops are an extrapolation checked after the fact (|dx| 74-90 improved from -29.3 to -10.1 and 90-110 from -7.2 to +0.2 without being fitted), not a measurement",
+   "profile": [
+    [
+     0.0,
+     0.15
+    ],
+    [
+     0.203,
+     0.56
+    ],
+    [
+     0.271,
+     0.98
+    ],
+    [
+     0.339,
+     1.0
+    ],
+    [
+     0.407,
+     0.88
+    ],
+    [
+     0.695,
+     0.8
+    ],
+    [
+     0.847,
+     0.12
+    ],
+    [
+     1.0,
+     0.0
+    ]
+   ],
+   "profile_e": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.085,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ]
+   ],
+   "sigma_y": 5.0,
+   "white": 0.1375
+  },
+  {
    "blue": 0.014377,
    "blur": 3.9088,
    "bounds": {
