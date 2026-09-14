@@ -3229,5 +3229,6 @@
   }
  ],
  "spoke_bg": -0.31991525423728817,
- "spoke_rms": 1.3888626796908128
+ "spoke_rms": 1.3888626796908128,
+ "source_svg_sha256": "ad125f76eabd52483ad26b7fa9a7d52bf5633fd4499de5bde143f2e6c37249f1"
 }

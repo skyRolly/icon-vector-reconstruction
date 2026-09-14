@@ -559,6 +559,59 @@ def main():
           "%d specs -> %d after merging (%d duplicate path(s) consolidated)"
           % (len(every), len(merged), dupes))
 
+    # ---- 6f. the geometry preset is the geometry of record ---------------- #
+
+    # `measure_flare.py --geometry` WRITES this table into the params, so a stale
+    # entry silently reverts shipped work.  It did: the table held 45.6/215 and
+    # 327.8/185 for the right-hand rays after both had been superseded, so running
+    # --geometry would have undone an axis correction and re-lengthened a ray that
+    # measurement had shortened.
+    import measure_flare as MFL
+    drift = []
+    for lid, (th, fwhm, h, sp, ln, pk) in MFL.RAY_GEOMETRY.items():
+        L = next((x for x in params["layers"] if x["id"] == lid), None)
+        if L is None:
+            drift.append("%s missing from params" % lid); continue
+        for name, want, got in (("rot", -th, L.get("rot")), ("height", h, L.get("height")),
+                                ("blur", round(MFL.blur_for(fwhm, h), 4), L.get("blur")),
+                                ("spread", sp, L.get("spread")), ("len", ln, L.get("len")),
+                                ("peak_at", pk, L.get("peak_at"))):
+            if got is None or abs(float(want) - float(got)) > 1e-6:
+                drift.append("%s/%s preset %.4g vs shipped %s" % (lid, name, want, got))
+    check("the ray geometry preset matches the shipped params",
+          not drift, "; ".join(drift) if drift else "all %d ray layers agree" % len(MFL.RAY_GEOMETRY))
+
+    # ---- 6g. calibration that does not converge reports failure ----------- #
+
+    # Any corrections computed on the way are saved, so a caller that only looked
+    # at the file could not tell a calibrated state from an uncalibrated one.
+    # Returning 0 regardless meant automation accepted parameters that had never
+    # met their tolerance.
+    import subprocess as _sp
+    import tempfile as _tf
+    with _tf.TemporaryDirectory() as _td:
+        bad = json.loads(json.dumps(params))
+        for L in bad["layers"]:
+            if L["id"] in MFL.RAY_LAYER.values():
+                L["color"] = [round(v * 0.05, 5) for v in L["color"]]
+                for ch in ("white", "cyan", "blue"):
+                    if ch in L:
+                        L[ch] = round(float(L[ch]) * 0.05, 6)
+        pf = os.path.join(_td, "uncalibrated.json")
+        json.dump(bad, open(pf, "w"), indent=1)
+        # One round cannot recover a 20x deficit: the per-round gain is clipped at 3x.
+        r = _sp.run([sys.executable, os.path.join(ROOT, "tools", "measure_flare.py"),
+                     "--params", pf, "--rays-only", "--rounds", "1"],
+                    capture_output=True, text=True)
+        saved = json.load(open(pf))
+        moved = any(x["color"] != y["color"] for x, y in zip(saved["layers"], bad["layers"]))
+        check("flare calibration that does not converge returns nonzero",
+              r.returncode != 0 and "NOT converged" in r.stdout,
+              "exit %d; %s; corrections were %ssaved"
+              % (r.returncode,
+                 "reported NOT converged" if "NOT converged" in r.stdout else "reported success",
+                 "" if moved else "NOT "))
+
     # ---- 7. the lobe banding has not come back ---------------------------- #
 
     # The target is set by the reference, not by a taste for smoothness, and it

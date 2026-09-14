@@ -14,6 +14,8 @@ Usage:
     python3 tools/render.py reconstruction.svg out/chrome_1024.png --renderer chromium
 """
 import argparse
+import hashlib
+import json
 import io
 import os
 import subprocess
@@ -87,6 +89,15 @@ def _chromium():
                   % (", ".join("$" + v for v in CHROME_ENV), "/".join(CHROME_NAMES[:3])))
 
 
+def sha256_file(path):
+    """Content digest of a file, for provenance."""
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def render_resvg_string(svg: str, size: int) -> bytes:
     """Rasterise SVG markup with resvg.  One implementation, shared.
 
@@ -154,6 +165,14 @@ def main() -> int:
     data = render(a.svg, a.size, a.renderer)
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     open(a.out, "wb").write(data)
+    # A provenance sidecar: which SVG this raster came from, by content.  The
+    # README's freshness check used to compare modification times, which a copy
+    # or a restore defeats -- a metrics file can be newer than the SVG and still
+    # describe a different one.  A digest cannot be wrong about that.
+    prov = {"svg_sha256": sha256_file(a.svg), "svg_path": os.path.abspath(a.svg),
+            "size": a.size, "renderer": a.renderer,
+            "png_sha256": hashlib.sha256(data).hexdigest()}
+    json.dump(prov, open(a.out + ".prov.json", "w"), indent=1, sort_keys=True)
     print("wrote %s (%d bytes, %dx%d, %s)" % (a.out, len(data), a.size, a.size, a.renderer))
     return 0
 

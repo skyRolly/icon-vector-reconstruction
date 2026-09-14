@@ -154,6 +154,19 @@ def compare(ref_path, rec_path, out_prefix=None, quiet=False):
     return m
 
 
+
+def _provenance(render_path):
+    """The SVG digest recorded beside a render, so a report names its own input."""
+    import json as _json
+    side = str(render_path) + ".prov.json"
+    if os.path.exists(side):
+        try:
+            return _json.load(open(side)).get("svg_sha256")
+        except Exception:                                  # noqa: BLE001
+            return None
+    return None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("reference")
@@ -163,6 +176,7 @@ def main():
     a = ap.parse_args()
     m = compare(a.reference, a.render, a.out_prefix)
     if a.json:
+        m = dict(m, source_svg_sha256=_provenance(a.render))
         open(a.json, "w").write(json.dumps(m, indent=2, sort_keys=True))
     return 0
 

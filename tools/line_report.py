@@ -22,13 +22,27 @@ L(y0+dy+k)] isolates a thin line at dy without any model of the bloom under it.
 """
 import json, os, sys
 import numpy as np
-ROOT = "/home/user/icon-vector-reconstruction"; SP = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(ROOT, "tools"))
+SP = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(SP)          # the repository, wherever it is checked out
+sys.path.insert(0, SP)
 import diagnose as D
 from regions import ARCS
 
 CORE_Y, CORE_X = 513.0, 530.5
-LINES = (("A", -0.283, 4), ("B", 6.740, 4), ("C", 19.329, 7))
+#: (name, dy from CORE_Y, half-window k).  The rows were re-measured without
+#: assuming the previous pass's values and sit at 512.3 +- 0.3, 519.8 +- 0.2 and
+#: 531.85 +- 0.45 in array coordinates -- the dy below.  The intervals are the
+#: spread over estimator and column region, NOT a fit error; a column bootstrap
+#: gives about a tenth of that and quoting it would be dishonest.
+#:
+#: None of the three sits at a single row.  Line A's row moves 0.82 px across the
+#: image (511.78 +- 0.08 at dx +80 against 512.60 +- 0.02 at dx -40) and line C's
+#: about 1.4 px, with bootstrap errors of 0.01-0.08 px -- a 10-40 sigma departure
+#: from any one value, present in the raw profile and so in the light rather than
+#: in the filter.  This report samples one row per line and is therefore an
+#: approximation; it is useful for comparing a render against the reference
+#: through the SAME approximation, not for locating a line.
+LINES = (("A", -0.7, 4), ("B", 6.8, 4), ("C", 18.85, 7))
 BINS = ((-300, -240), (-240, -190), (-190, -150), (-150, -120), (-120, -95),
         (-95, -70), (-70, -47), (-36, -17), (17, 36), (47, 70), (70, 95),
         (95, 120), (120, 150), (150, 190), (190, 240), (240, 300))

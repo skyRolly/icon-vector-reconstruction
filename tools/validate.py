@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import hashlib
 import json
 import os
 import sys
@@ -57,6 +58,15 @@ def metrics(ref, rec):
     }
 
 
+def _sha256(path):
+    """Digest of a file, so a report can name exactly which artefact it measured."""
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--svg", default=os.path.join(ROOT, "reconstruction.svg"))
@@ -91,6 +101,7 @@ def main():
     # when the binary is absent or --no-chromium is given, so a checkout with
     # only the documented requirements can run this.
     cross = None
+    chrome_failed = False
     chrome_path, chrome_how = R.chromium_source()
     want_chrome = not a.no_chromium and chrome_path is not None
     if want_chrome:
@@ -103,8 +114,15 @@ def main():
             rows.append(("chromium", 1024, "native", metrics(ref, chrome)))
             cross = metrics(to_array(R.render(a.svg, 1024, "resvg")), chrome)
         except Exception as exc:                      # noqa: BLE001
-            print("chromium render failed (%s); continuing without it" % exc)
+            # A CONFIGURED Chromium that fails is not the same thing as an absent
+            # one, and treating them alike let a broken cross-engine check pass
+            # for a successful validation. The three outcomes are now
+            # distinguishable in the exit status: 0 ran or was deliberately
+            # skipped, 2 was available and failed.
+            print("chromium render FAILED (%s) -- it was found at %s, so this is "
+                  "not a skip" % (exc, chrome_path))
             want_chrome = False
+            chrome_failed = True
     elif not a.no_chromium:
         print("cross-engine check SKIPPED -- %s" % chrome_how)
 
@@ -126,10 +144,21 @@ def main():
                   "The resvg rows above are unaffected.", ""]
     open(a.report, "w").write("\n".join(lines) + "\n")
     print("\n".join(lines))
+    status = ("failed" if chrome_failed
+              else "ran" if cross is not None
+              else "skipped (--no-chromium)" if a.no_chromium
+              else "skipped (unavailable)")
     json.dump({"rows": [{"engine": e, "size": s, "note": n, **m} for e, s, n, m in rows],
-               "cross_engine": cross},
+               "cross_engine": cross,
+               "chromium": {"status": status, "path": chrome_path, "found_via": chrome_how},
+               "svg_sha256": _sha256(a.svg),
+               "reference_sha256": _sha256(a.reference)},
               open(os.path.join(a.outdir, "validation.json"), "w"), indent=1)
+    if chrome_failed:
+        print("\nvalidation EXIT 2: chromium was available at %s and failed" % chrome_path)
+        return 2
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

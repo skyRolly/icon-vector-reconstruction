@@ -5,6 +5,7 @@ Keeps the headline numbers in the README honest: it regenerates the table
 between the two marker comments from out/metrics.json and out/validation.json,
 so the README cannot drift from the last measured run.
 """
+import hashlib
 import json
 import os
 
@@ -25,31 +26,65 @@ REGEN = """  python3 tools/render.py reconstruction.svg out/render_1024.png
   python3 tools/validate.py"""
 
 
+def _sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _recorded_digest(path):
+    """The SVG digest a generated file says it was measured from, or None."""
+    try:
+        d = json.load(open(path))
+    except Exception:                                       # noqa: BLE001
+        return None
+    for key in ("source_svg_sha256", "svg_sha256"):
+        if isinstance(d, dict) and d.get(key):
+            return d[key]
+    return None
+
+
 def _fresh(root, svg):
-    """Refuse to publish any block measured from an older SVG than the shipped one.
+    """Refuse to publish measurements that are not OF the shipped SVG, by content.
 
-    This is not hypothetical, twice over.  The finalise pass in one iteration
-    ran validate, previews, this script and the checks but NOT `compare.py`, so
-    the fidelity table was written from the previous candidate and claimed 1.958
-    where the shipped SVG measured 1.954.  And `out/diagnostics.json` went
-    unregenerated for an entire iteration, so the README reported a flare MAE of
-    6.37 against an actual 7.11 -- a number that was "generated", and wrong,
-    which is worse than prose because it looks like it cannot drift.
+    This is not hypothetical, three times over. One iteration ran validate,
+    previews, this script and the checks but NOT `compare.py`, so the fidelity
+    table was written from the previous candidate and claimed 1.958 where the
+    shipped SVG measured 1.954. `out/diagnostics.json` then went unregenerated
+    for an entire iteration and the README reported a flare MAE of 6.37 against
+    an actual 7.13 -- a number that was "generated", and wrong, which is worse
+    than prose because it looks like it cannot drift.
 
-    So the check covers every input, not just the one that was caught.
+    The first fix compared modification times, and that is not enough: a copied,
+    restored or touched artefact is newer than the SVG while describing a
+    different one, and mtime is exactly the property a file copy does not
+    preserve faithfully. So each generated input now records the SHA-256 of the
+    SVG it was measured from -- `tools/render.py` writes a sidecar naming the
+    SVG it rasterised, and compare/diagnose/validate carry that digest into
+    their JSON -- and this compares digests. Time is not consulted at all.
     """
     if not os.path.exists(svg):
         return
-    svg_t = os.path.getmtime(svg)
-    stale = [f for f in GENERATED_INPUTS
-             if os.path.exists(os.path.join(root, f))
-             and os.path.getmtime(os.path.join(root, f)) < svg_t - 1.0]
-    missing = [f for f in GENERATED_INPUTS if not os.path.exists(os.path.join(root, f))]
-    if stale or missing:
+    want = _sha256(svg)
+    missing, unstamped, wrong = [], [], []
+    for f in GENERATED_INPUTS:
+        full = os.path.join(root, f)
+        if not os.path.exists(full):
+            missing.append(f)
+            continue
+        got = _recorded_digest(full)
+        if got is None:
+            unstamped.append(f)
+        elif got != want:
+            wrong.append("%s (measured %s..., shipped %s...)" % (f, got[:12], want[:12]))
+    if missing or unstamped or wrong:
         raise SystemExit(
             "refusing to write README blocks from measurements that are not of the "
-            "shipped SVG.\n"
-            + ("  stale (older than reconstruction.svg): %s\n" % ", ".join(stale) if stale else "")
+            "shipped SVG (sha256 %s...).\n" % want[:12]
+            + ("  measured from a DIFFERENT svg: %s\n" % "; ".join(wrong) if wrong else "")
+            + ("  carry no provenance stamp: %s\n" % ", ".join(unstamped) if unstamped else "")
             + ("  missing: %s\n" % ", ".join(missing) if missing else "")
             + "regenerate them first:\n" + REGEN)
 

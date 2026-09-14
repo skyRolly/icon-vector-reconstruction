@@ -50,22 +50,37 @@ import ray_report as RR  # noqa: E402
 #: degrees, not the 32 and 310 an earlier pass reported, and is 4-5 px wide
 #: against the left pair's 8-11 -- they are not mirror images.
 #: The second number is the width the SLAB is built to, not the width the
-#: composite then measures.  They differ: the rendered chord-excess FWHM comes
-#: out about 14% narrow on the upper left and 5% wide on the lower left, because
-#: the excess is read against a background the other layers also shape.  So each
-#: is calibrated closed-loop against `tools/ray_report.py`, the same way the
-#: amplitudes are, and the measured targets are 10.6, 8.3, 3.9 and 4.6 px.
+#: composite then measures; each is calibrated closed-loop against
+#: `tools/ray_report.py`.
+#:
+#: THIS IS THE GEOMETRY OF RECORD, not a historical starting point. `--geometry`
+#: writes it into the params, so a stale entry here silently reverts shipped
+#: work -- and did: this table once held 45.6/215 and 327.8/185 for the right
+#: pair after both had been superseded, so running `--geometry` would have
+#: undone an axis correction and re-lengthened a ray that measurement had
+#: shortened. `tools/test_pipeline.py` now asserts that this table and
+#: `src/params.json` agree, so it cannot drift again without a check failing.
+#:
+#: The angles carry real uncertainty and are NOT known to the decimal place
+#: printed. Measured by matched filter with an injection-recovery null, the
+#: lower-right axis is 328.0 +- 0.8 degrees -- an interval that does not separate
+#: 327.8 from 328.35, and an earlier claim of +-0.15 was about five times too
+#: tight. The upper-right is 44.9 +- 0.4. The reference's rays are asymmetric
+#: (the lower-right has a counter-clockwise shoulder, FWHM 7.3-10.1 px against
+#: the render's symmetric 5.4-6.1), so six reasonable definitions of "centre"
+#: disagree by 1.2-1.7 px and no axis here is defined to better than about a
+#: degree. The values below are the centre of the supported range, not a claim
+#: of precision.
 RAY_GEOMETRY = {
     "flare_ray_a": (113.6, 12.3, 12.0, 1.00, 132.0, 0.49),   # upper-left
     "flare_ray_b": (249.7,  7.9,  8.0, 1.25, 110.0, 0.60),   # lower-left
-    # The right-hand pair runs much further out than the left.  An angular
-    # high-pass -- a moving average 24 px of arc wide subtracted from the
-    # annulus, which removes a smooth background of any curvature and leaves
-    # only narrow structure -- finds the reference still carrying 1-2.8 counts
-    # at theta 45.6 out to r = 230, and 2-3.6 counts at theta 327.8 out to
-    # r = 170, where a len of 105 and 112 had both died by r = 110.
-    "flare_ray_e": (45.6,   4.35, 4.0, 1.30, 215.0, 0.28),   # upper-right
-    "flare_ray_c": (327.8,  4.9,  4.0, 1.60, 185.0, 0.32),   # lower-right
+    # Upper-right: axis 44.9 +- 0.4, and it ends at r = 154 (1-sigma 143-166),
+    # so len 150. An earlier 215 came from a boxcar high-pass over-reading at the
+    # ridge-mask edge by up to 78x; a continuation past r = 150 is bounded at 11%
+    # of the amplitude inside r = 120.
+    "flare_ray_e": (44.9,   4.35, 4.0, 1.30, 150.0, 0.28),   # upper-right
+    # Lower-right: axis 328.0 +- 0.8. Shipped at 328.1, the centre of that range.
+    "flare_ray_c": (328.1,  4.9,  4.0, 1.60, 185.0, 0.32),   # lower-right
 }
 #: ray name in tools/ray_report.py -> the layer that carries it
 RAY_LAYER = {"upper-left": "flare_ray_a", "lower-left": "flare_ray_b",
@@ -215,6 +230,7 @@ def main():
 
     with tempfile.TemporaryDirectory() as work:
         converged = False
+        it = -1                      # so --rounds 0 reports honestly rather than raising
         for it in range(a.rounds):
             img = render(a.params, work)
             params = json.load(open(a.params))
@@ -243,6 +259,15 @@ def main():
         if not converged and final > 1.0:
             print("  note: the round budget ran out; re-run with a larger --rounds")
     print("wrote", a.params)
+    # The exit status is the whole point of the verification pass above: any
+    # corrections computed on the way are already saved, so a caller that only
+    # looked at the file could not tell a calibrated state from an uncalibrated
+    # one. Returning 0 here regardless meant automation accepted parameters that
+    # had never met their tolerance.
+    if final > 1.0:
+        print("  FAILED: calibration did not converge (worst deviation %.2f of "
+              "its tolerance); the saved parameters are NOT calibrated" % final)
+        return 1
     return 0
 
 

@@ -74,5 +74,12 @@
   "mae_gamma": 9.349652657121798,
   "ssim": 0.9555561468862892,
   "pct_gt8": 0.6853103637695312
- }
+ },
+ "chromium": {
+  "status": "ran",
+  "path": "/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell",
+  "found_via": "glob /opt/pw-browsers/*/chrome-linux/headless_shell"
+ },
+ "svg_sha256": "ad125f76eabd52483ad26b7fa9a7d52bf5633fd4499de5bde143f2e6c37249f1",
+ "reference_sha256": "cf35ca00fa38d263d734b44fb7a1ba21080b0e25487fcb8a1d2cf48389a9a4a7"
 }

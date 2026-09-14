@@ -615,6 +615,19 @@ def crops(ref, rec, outdir):
     print("\nwrote crops to %s (reference | render | signed difference x6)" % outdir)
 
 
+
+def _provenance(render_path):
+    """The SVG digest recorded beside a render, so a report names its own input."""
+    import json as _json
+    side = str(render_path) + ".prov.json"
+    if os.path.exists(side):
+        try:
+            return _json.load(open(side)).get("svg_sha256")
+        except Exception:                                  # noqa: BLE001
+            return None
+    return None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("render", nargs="?", default=os.path.join(ROOT, "out", "render_1024.png"))
@@ -632,6 +645,7 @@ def main():
     spoke_report(ref, rec, out)
     crops(ref, rec, a.crops)
     if a.json:
+        out = dict(out, source_svg_sha256=_provenance(a.render))
         json.dump(out, open(a.json, "w"), indent=1)
         print("wrote %s" % a.json)
 
