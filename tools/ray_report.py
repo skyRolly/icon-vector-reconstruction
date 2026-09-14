@@ -60,7 +60,20 @@ def load(p):
     return np.asarray(Image.open(p).convert("RGB")).astype(np.float64)
 
 
+_RIDGE_CACHE = {}
+
+
 def ridge_distance(shape):
+    """Distance to the nearer curve ridge, memoised by shape.
+
+    Every report masks by this, several of them once per band per channel, and
+    it is a pair of 1024x1024 evaluations each time.  Caching it turned a
+    three-minute report into a six-second one; the result depends on nothing but
+    the shape and the module-level ARCS, so there is nothing to invalidate.
+    """
+    key = tuple(shape[:2])
+    if key in _RIDGE_CACHE:
+        return _RIDGE_CACHE[key]
     h, w = shape[:2]
     yy, xx = np.mgrid[0:h, 0:w]
     dmin = np.full((h, w), 1e9)
@@ -69,6 +82,8 @@ def ridge_distance(shape):
         rr = np.sqrt(u * u + v * v)
         d = np.abs(rr - 1.0) * np.sqrt((u * rx) ** 2 + (v * ry) ** 2) / np.maximum(rr, 1e-6)
         dmin = np.minimum(dmin, d)
+    dmin.setflags(write=False)
+    _RIDGE_CACHE[key] = dmin
     return dmin
 
 

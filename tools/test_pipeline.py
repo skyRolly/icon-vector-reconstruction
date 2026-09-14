@@ -83,14 +83,31 @@ def main():
     before = {lid: obj.basis(params, lid).copy() for lid in deps}
     O.set_path(params, "flare/cx", float(O.get_path(params, "flare/cx")) + 6.0)
     obj.invalidate(spec["affects"])
-    moved, stuck = [], []
+    # A dependent layer must follow flare/cx UNLESS it pins its own cx, in which
+    # case it must NOT -- it depends on the centre only through cy.  Requiring
+    # every dependent layer to move was right until the first layer pinned one
+    # coordinate and not the other: `flare_vline`'s column is measured against
+    # the image (array x 528.9 +- 0.5), not against the flare's centroid, so it
+    # is pinned on purpose and moving with cx would be the bug.  Splitting the
+    # assertion tests both halves instead of excusing the second.
+    by_id = {L["id"]: L for L in params["layers"]}
+    moved, stuck, held, drifted = [], [], [], []
     for lid in deps:
         after = obj.basis(params, lid)
         c0, c1 = centroid(before[lid]), centroid(after)
         dx = (c1[0] - c0[0]) if (c0 and c1) else 0.0
-        (moved if dx > 1.0 else stuck).append("%s(dx=%+.2f)" % (lid, dx))
-    check("moving flare/cx by 6 px moves every dependent layer",
+        pinned = "cx" in by_id.get(lid, {})
+        label = "%s(dx=%+.2f)" % (lid, dx)
+        if pinned:
+            (held if abs(dx) <= 1.0 else drifted).append(label)
+        else:
+            (moved if dx > 1.0 else stuck).append(label)
+    check("moving flare/cx by 6 px moves every layer that does not pin cx",
           not stuck, "stuck: %s" % ", ".join(stuck) if stuck else "moved: %s" % ", ".join(moved))
+    check("a layer that pins its own cx stays put when flare/cx moves",
+          not drifted,
+          "drifted: %s" % ", ".join(drifted) if drifted else
+          ("held: %s" % ", ".join(held) if held else "no layer pins cx"))
     O.set_path(params, "flare/cx", float(O.get_path(params, "flare/cx")) - 6.0)
 
     # ---- 2. the cache cannot serve a stale field -------------------------- #
