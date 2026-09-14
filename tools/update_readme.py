@@ -15,25 +15,43 @@ DSTART = "<!-- DELIVERABLE:START -->"
 DEND = "<!-- DELIVERABLE:END -->"
 
 
-def _fresh(metrics, svg):
-    """Refuse to publish metrics measured from an older SVG than the shipped one.
+#: Every file the generated blocks read.  All of them are measurements OF the
+#: shipped SVG, so all of them go stale the moment it is rebuilt.
+GENERATED_INPUTS = ("out/metrics.json", "out/validation.json", "out/diagnostics.json")
 
-    This is not hypothetical: the finalise pass in this iteration ran validate,
-    previews, this script and the checks, but NOT `tools/compare.py`, so the
-    README table was written from the previous candidate's render and claimed
-    1.958 where the shipped SVG measures 1.954.  A generated block that silently
-    generates from a stale input is worse than prose, because prose at least
-    looks like something that has to be checked.
+REGEN = """  python3 tools/render.py reconstruction.svg out/render_1024.png
+  python3 tools/compare.py reference.png out/render_1024.png --json out/metrics.json
+  python3 tools/diagnose.py out/render_1024.png --json out/diagnostics.json
+  python3 tools/validate.py"""
+
+
+def _fresh(root, svg):
+    """Refuse to publish any block measured from an older SVG than the shipped one.
+
+    This is not hypothetical, twice over.  The finalise pass in one iteration
+    ran validate, previews, this script and the checks but NOT `compare.py`, so
+    the fidelity table was written from the previous candidate and claimed 1.958
+    where the shipped SVG measured 1.954.  And `out/diagnostics.json` went
+    unregenerated for an entire iteration, so the README reported a flare MAE of
+    6.37 against an actual 7.11 -- a number that was "generated", and wrong,
+    which is worse than prose because it looks like it cannot drift.
+
+    So the check covers every input, not just the one that was caught.
     """
-    if not (os.path.exists(metrics) and os.path.exists(svg)):
+    if not os.path.exists(svg):
         return
-    if os.path.getmtime(metrics) < os.path.getmtime(svg) - 1.0:
+    svg_t = os.path.getmtime(svg)
+    stale = [f for f in GENERATED_INPUTS
+             if os.path.exists(os.path.join(root, f))
+             and os.path.getmtime(os.path.join(root, f)) < svg_t - 1.0]
+    missing = [f for f in GENERATED_INPUTS if not os.path.exists(os.path.join(root, f))]
+    if stale or missing:
         raise SystemExit(
-            "out/metrics.json is older than reconstruction.svg -- re-run\n"
-            "  python3 tools/render.py reconstruction.svg out/render_1024.png\n"
-            "  python3 tools/compare.py reference.png out/render_1024.png "
-            "--json out/metrics.json\n"
-            "before writing these numbers into the README.")
+            "refusing to write README blocks from measurements that are not of the "
+            "shipped SVG.\n"
+            + ("  stale (older than reconstruction.svg): %s\n" % ", ".join(stale) if stale else "")
+            + ("  missing: %s\n" % ", ".join(missing) if missing else "")
+            + "regenerate them first:\n" + REGEN)
 
 
 def deliverable_block():
@@ -61,8 +79,7 @@ def deliverable_block():
 
 
 def main():
-    _fresh(os.path.join(ROOT, "out", "metrics.json"),
-           os.path.join(ROOT, "reconstruction.svg"))
+    _fresh(ROOT, os.path.join(ROOT, "reconstruction.svg"))
     m = json.load(open(os.path.join(ROOT, "out", "metrics.json")))
     v = None
     vp = os.path.join(ROOT, "out", "validation.json")

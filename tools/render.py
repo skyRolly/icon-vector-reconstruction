@@ -20,20 +20,95 @@ import subprocess
 import sys
 import tempfile
 
-CHROME = "/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell"
+#: Where a Chromium suitable for headless rendering might live.  A single
+#: hard-coded Playwright path was the whole of this before, which meant a
+#: perfectly good system Chromium counted as "unavailable" and cross-engine
+#: validation silently narrowed to one machine's layout.  Order is preference,
+#: not likelihood: the env var wins so a caller can always be explicit.
+CHROME_ENV = ("ICON_CHROMIUM", "CHROME_PATH", "CHROMIUM_PATH")
+CHROME_GLOBS = (
+    "/opt/pw-browsers/*/chrome-linux/headless_shell",
+    "/opt/pw-browsers/*/chrome-linux/chrome",
+    "/opt/pw-browsers/*/chrome-linux64/chrome",
+    "~/.cache/ms-playwright/*/chrome-linux/headless_shell",
+    "~/.cache/ms-playwright/*/chrome-linux/chrome",
+    "/root/.cache/ms-playwright/*/chrome-linux/headless_shell",
+)
+CHROME_NAMES = ("headless_shell", "chromium", "chromium-browser",
+                "google-chrome-stable", "google-chrome", "chrome")
+CHROME_FIXED = (
+    "/usr/lib/chromium/chromium",
+    "/usr/lib/chromium-browser/chromium-browser",
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
+)
 
 
-def render_resvg(svg_path: str, size: int) -> bytes:
+def find_chromium():
+    """The first usable Chromium, or None.  Never raises.
+
+    Returns the path; `chromium_source()` says how it was found, which is what
+    a validation report needs in order to be honest about its own coverage.
+    """
+    return _chromium()[0]
+
+
+def chromium_source():
+    """(path, how) for the Chromium that would be used -- (None, reason) if none."""
+    return _chromium()
+
+
+def _ok(p):
+    return bool(p) and os.path.isfile(p) and os.access(p, os.X_OK)
+
+
+def _chromium():
+    import glob as _glob
+    import shutil as _shutil
+    for var in CHROME_ENV:
+        p = os.environ.get(var)
+        if p:
+            if _ok(p):
+                return p, "$%s" % var
+            return None, "$%s is set to %r, which is not an executable file" % (var, p)
+    for pat in CHROME_GLOBS:
+        hits = sorted(_glob.glob(os.path.expanduser(pat)))
+        for p in hits:
+            if _ok(p):
+                return p, "glob %s" % pat
+    for name in CHROME_NAMES:
+        p = _shutil.which(name)
+        if _ok(p):
+            return p, "PATH (%s)" % name
+    for p in CHROME_FIXED:
+        if _ok(p):
+            return p, "well-known path"
+    return None, ("no Chromium found: set one of %s, or install one on PATH as %s"
+                  % (", ".join("$" + v for v in CHROME_ENV), "/".join(CHROME_NAMES[:3])))
+
+
+def render_resvg_string(svg: str, size: int) -> bytes:
+    """Rasterise SVG markup with resvg.  One implementation, shared.
+
+    The regression pipeline used to import `resvg_py` itself when this name was
+    absent, so the two could disagree about how the acceptance renderer is
+    invoked.  It is defined here so they cannot.
+    """
     import resvg_py
 
-    svg = open(svg_path, "r", encoding="utf-8").read()
     out = resvg_py.svg_to_bytes(svg_string=svg, width=size, height=size)
     return bytes(out) if not isinstance(out, (bytes, bytearray)) else out
 
 
+
+def render_resvg(svg_path: str, size: int) -> bytes:
+    return render_resvg_string(open(svg_path, "r", encoding="utf-8").read(), size)
+
+
 def render_chromium(svg_path: str, size: int) -> bytes:
-    if not os.path.exists(CHROME):
-        raise RuntimeError("headless chromium not found at %s" % CHROME)
+    CHROME, how = chromium_source()
+    if CHROME is None:
+        raise RuntimeError(how)
     with tempfile.TemporaryDirectory() as td:
         # Wrap in HTML so the SVG is scaled to the requested raster size.
         html = os.path.join(td, "wrap.html")

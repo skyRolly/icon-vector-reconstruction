@@ -177,36 +177,67 @@ def main():
     ring = (dmin > RR.RIDGE_CLEAR) & (rr >= FLANK_RADII[0]) & (rr < FLANK_RADII[1])
     sectors = {lid: ring & (th >= lo) & (th < hi) for lid, (lo, hi) in FLANK_SECTOR.items()}
 
+    def assess(img, by_id, apply=True):
+        """Measure the render against every target; optionally apply the scaling.
+
+        Returns (worst, report) where `worst` is the largest deviation expressed
+        in units of its own tolerance, so `worst <= 1.0` means every target is
+        met.  With apply=False nothing is written, which is what makes a final
+        verification pass possible.
+        """
+        bits, worst = [], 0.0
+        cur = ray_peaks(img, dmin)
+        for name, lid in RAY_LAYER.items():
+            if lid not in by_id:
+                continue
+            ratio = target[name] / max(cur[name], 1e-3)
+            worst = max(worst, abs(math.log(max(ratio, 1e-3))) / 0.06)
+            if apply:
+                scale(by_id[lid], float(np.clip(ratio ** 0.8, 0.33, 3.0)))
+            bits.append("%s %.2f/%.2f" % (name[0] + name.split("-")[1][0],
+                                          cur[name], target[name]))
+        for lid, m in sectors.items():
+            if lid not in by_id or not m.any():
+                continue
+            err = float((img - ref)[m].mean())
+            lvl = max(float(img[m].mean()), 1.0)
+            head = max(1.0 - lvl / 255.0, 0.05)
+            here = max(float(np.mean(by_id[lid]["color"])), 0.5)
+            worst = max(worst, abs(err) / 0.4)
+            if apply:
+                scale(by_id[lid], float(np.clip(1.0 + (-err) / (here * head), 0.5, 2.0)))
+            bits.append("%s %+.2f" % (lid[-2:], err))
+        return worst, "  ".join(bits)
+
     with tempfile.TemporaryDirectory() as work:
+        converged = False
         for it in range(a.rounds):
             img = render(a.params, work)
             params = json.load(open(a.params))
             by_id = {L["id"]: L for L in params["layers"]}
-            cur = ray_peaks(img, dmin)
-            bits, worst = [], 0.0
-            for name, lid in RAY_LAYER.items():
-                if lid not in by_id:
-                    continue
-                ratio = target[name] / max(cur[name], 1e-3)
-                worst = max(worst, abs(math.log(max(ratio, 1e-3))) / 0.06)
-                scale(by_id[lid], float(np.clip(ratio ** 0.8, 0.33, 3.0)))
-                bits.append("%s %.2f/%.2f" % (name[0] + name.split("-")[1][0],
-                                              cur[name], target[name]))
-            for lid, m in sectors.items():
-                if lid not in by_id or not m.any():
-                    continue
-                err = float((img - ref)[m].mean())
-                lvl = max(float(img[m].mean()), 1.0)
-                head = max(1.0 - lvl / 255.0, 0.05)
-                here = max(float(np.mean(by_id[lid]["color"])), 0.5)
-                worst = max(worst, abs(err) / 0.4)
-                scale(by_id[lid], float(np.clip(1.0 + (-err) / (here * head), 0.5, 2.0)))
-                bits.append("%s %+.2f" % (lid[-2:], err))
-            print("  round %d: %s" % (it, "  ".join(bits)))
+            worst, report = assess(img, by_id)
+            print("  round %d: %s" % (it, report))
             if worst <= 1.0:
-                print("  converged")
+                # The file already renders to this state, so it is left alone --
+                # writing the round's own scaling here would save something that
+                # has never been rendered.
+                converged = True
                 break
             json.dump(params, open(a.params, "w"), indent=1, sort_keys=True)
+
+        # Whatever happened above, the file on disk is what ships, so measure
+        # THAT.  Without this the non-converged path saved a state that was
+        # never rendered and reported nothing about it, and the converged path
+        # could not be told apart from a stale one.
+        img = render(a.params, work)
+        params = json.load(open(a.params))
+        final, report = assess(img, {L["id"]: L for L in params["layers"]}, apply=False)
+        status = "converged" if final <= 1.0 else "NOT converged"
+        print("  verified (rendered from %s): %s" % (os.path.basename(a.params), report))
+        print("  %s: worst deviation %.2f of its tolerance after %d round(s)"
+              % (status, final, it + 1))
+        if not converged and final > 1.0:
+            print("  note: the round budget ran out; re-run with a larger --rounds")
     print("wrote", a.params)
     return 0
 

@@ -91,7 +91,10 @@ def main():
     # when the binary is absent or --no-chromium is given, so a checkout with
     # only the documented requirements can run this.
     cross = None
-    want_chrome = not a.no_chromium and os.path.exists(R.CHROME)
+    chrome_path, chrome_how = R.chromium_source()
+    want_chrome = not a.no_chromium and chrome_path is not None
+    if want_chrome:
+        print("chromium: %s  (found via %s)" % (chrome_path, chrome_how))
     if want_chrome:
         try:
             png = R.render(a.svg, 1024, "chromium")
@@ -103,7 +106,7 @@ def main():
             print("chromium render failed (%s); continuing without it" % exc)
             want_chrome = False
     elif not a.no_chromium:
-        print("headless Chromium not found at %s; skipping the cross-engine check" % R.CHROME)
+        print("cross-engine check SKIPPED -- %s" % chrome_how)
 
     lines = ["# Validation report", "",
              "Fidelity of `reconstruction.svg` against `reference.png`, plus",

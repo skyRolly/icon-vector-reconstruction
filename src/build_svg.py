@@ -914,8 +914,13 @@ def flare_dependent_layers(params):
     drifting apart -- which is exactly how the streak layers came to be scored
     at a stale position while the blooms moved.
     """
+    # EITHER coordinate missing is enough.  A layer that pins its own `cx` and
+    # lets `cy` fall back to the global centre still moves when `flare.cy`
+    # moves, and requiring both to be absent silently excluded it -- so the
+    # optimiser scored it at a stale position, which is the same class of bug
+    # as the stale streak cache this function was written to prevent.
     return [L["id"] for L in params["layers"]
-            if L["kind"] in FLARE_ANCHORED_KINDS and "cx" not in L and "cy" not in L]
+            if L["kind"] in FLARE_ANCHORED_KINDS and ("cx" not in L or "cy" not in L)]
 
 
 def build(params, basis=None):

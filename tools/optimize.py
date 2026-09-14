@@ -357,6 +357,41 @@ class Objective:
         return sse, mae, K
 
 
+def merge_specs(specs):
+    """Collapse specs that search the SAME path, keeping the widest useful search.
+
+    `layer_specs` and `field_specs` both emit a radial layer's `cx`/`cy`: the
+    first with a +-40 px window at step 1.5, the second with +-260 at step 6.
+    In an `all` sweep that searched eight paths twice over -- `field_mid`,
+    `field_grad`, `corner_in` and `corner_in_top`, in both coordinates -- and
+    the two passes could undo each other, because the second re-entered with a
+    coarse step from wherever the first had left the value.
+
+    They are not redundant in intent: one relocates, the other refines. So they
+    are merged rather than one being dropped -- the union of the two windows
+    with the finer step. That is only sufficient because the sweep's step
+    schedule now actually refines downward (it did not before, see `sweep`), so
+    a single spec starting coarse reaches the fine step by itself.
+    """
+    by_path = {}
+    order = []
+    for sp in specs:
+        k = sp["path"]
+        if k not in by_path:
+            by_path[k] = dict(sp)
+            order.append(k)
+            continue
+        cur = by_path[k]
+        cur["lo"] = min(cur["lo"], sp["lo"])
+        cur["hi"] = max(cur["hi"], sp["hi"])
+        cur["step"] = min(cur["step"], sp["step"])
+        if cur["affects"] != sp["affects"] and "all" in (cur["affects"], sp["affects"]):
+            cur["affects"] = "all"
+        elif cur["affects"] != sp["affects"]:
+            cur["affects"] = sorted(set(cur["affects"]) | set(sp["affects"]))
+    return [by_path[k] for k in order]
+
+
 def sweep(obj, params, specs, log=print, accept_tol=2e-7):
     """One pass over `specs`, accepting a move only when the geometry is better.
 
@@ -403,9 +438,16 @@ def sweep(obj, params, specs, log=print, accept_tol=2e-7):
             pad = max(abs(v0) * 0.15, sp["step"] * 8, 1e-6)
             sp = dict(sp, lo=min(sp["lo"], v0 - pad), hi=max(sp["hi"], v0 + pad))
         step = sp["step"]
-        moved = True
         tries = 0
-        while moved and tries < 6:
+        # Terminate on attempts and on the minimum step, NOT on "the last pass
+        # moved".  The old `while moved` exited the moment a pass failed, so
+        # the `step /= 2.2` below was dead code and the search never retried at
+        # a smaller step: a parameter whose optimum sat between v0 and v0+step
+        # -- v0 +- 1.0 both worse, v0 + 0.45 better -- was left where it
+        # started, and 0.45 was never evaluated.  That is exactly the
+        # resolution fine flare geometry needs.
+        min_step = sp["step"] / 8.0
+        while tries < 12 and step >= min_step:
             moved = False
             tries += 1
             for sgn in (+1, -1):
@@ -426,8 +468,6 @@ def sweep(obj, params, specs, log=print, accept_tol=2e-7):
                 step *= 1.6
             else:
                 step /= 2.2
-                if step < sp["step"] / 8.0:
-                    break
         set_path(params, sp["path"], v0)
         obj.invalidate(sp["affects"])
     log("  end   sse=%.6g mae=%.4f  (%d accepted moves, %d renders, %d colour re-baselines)"
@@ -454,7 +494,8 @@ def main():
     builders = {"shapes": layer_specs, "tapers": taper_specs,
                 "geometry": geometry_specs, "field": field_specs}
     if a.spec == "all":
-        specs = sum((builders[k](params) for k in ("shapes", "tapers", "field", "geometry")), [])
+        specs = merge_specs(sum((builders[k](params)
+                                 for k in ("shapes", "tapers", "field", "geometry")), []))
     else:
         specs = builders[a.spec](params)
     if a.only:

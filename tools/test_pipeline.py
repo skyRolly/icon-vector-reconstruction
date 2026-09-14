@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 sys.path.insert(0, HERE)
 import build_svg  # noqa: E402
 import optimize as O  # noqa: E402
+import regions  # noqa: E402
 
 FAIL = []
 
@@ -51,6 +52,27 @@ def main():
                         if L["kind"] in build_svg.FLARE_ANCHORED_KINDS
                         and "cx" not in L and "cy" not in L},
           "found %s" % deps)
+
+    # A layer that pins ONE coordinate still reads the global centre for the
+    # other, so it still moves when that one moves.  The rule used to require
+    # both to be absent, which silently excluded the partial case -- and the
+    # check above cannot catch that, because it only asserts a superset.  All
+    # four combinations, against the builder's own rule:
+    probe = json.loads(json.dumps(params))
+    kind = build_svg.FLARE_ANCHORED_KINDS[0]
+    fl = probe["flare"]
+    cases = {"both-global": {}, "local-cx": {"cx": fl["cx"] + 3.0},
+             "local-cy": {"cy": fl["cy"] + 3.0},
+             "both-local": {"cx": fl["cx"] + 3.0, "cy": fl["cy"] + 3.0}}
+    probe["layers"] = [dict({"id": "probe_" + n, "kind": kind, "r": 40.0,
+                             "color": [0, 40, 60], "white": 0.0, "cyan": 0.1,
+                             "blue": 0.05, "profile": {"kind": "exp", "scale": 0.2}},
+                            **ov) for n, ov in cases.items()]
+    got = set(build_svg.flare_dependent_layers(probe))
+    want = {"probe_both-global", "probe_local-cx", "probe_local-cy"}
+    check("a layer that pins one coordinate still depends on the other",
+          got == want,
+          "dependent: %s; expected %s" % (sorted(got), sorted(want)))
 
     spec = [s for s in O.geometry_specs(params) if s["path"] == "flare/cx"][0]
     check("flare/cx declares every dependent layer",
@@ -312,11 +334,18 @@ def main():
     import render as R
     import io
     from PIL import Image
-    png = R.render_resvg_string(build_svg.build(params), 1024) if hasattr(R, "render_resvg_string") \
-        else None
-    if png is None:
-        import resvg_py
-        png = bytes(resvg_py.svg_to_bytes(svg_string=build_svg.build(params), width=1024, height=1024))
+    # One implementation of "rasterise with the acceptance renderer", shared with
+    # tools/render.py.  This used to fall back to importing resvg_py here, so the
+    # gate and the renderer could disagree about how resvg is invoked -- and an
+    # absent resvg_py aborted the whole gate with a bare ImportError rather than
+    # saying which documented dependency was missing.
+    try:
+        png = R.render_resvg_string(build_svg.build(params), 1024)
+    except ImportError as exc:
+        raise SystemExit(
+            "the regression gate needs the acceptance renderer: %s\n"
+            "README.md documents the dependencies; install them with\n"
+            "  pip install numpy pillow resvg-py" % exc)
     real = np.asarray(Image.open(io.BytesIO(png)).convert("RGB")).astype(np.float32) / 255.0
     d = float(np.abs(an - real).mean() * 255)
     check("objective composite matches the rebuilt SVG render", d < 1.0, "MAE %.4f code values" % d)
@@ -469,6 +498,66 @@ def main():
           not stray,
           "undocumented: %s" % ("; ".join("%s (%s)" % (k, ", ".join(sorted(v)))
                                           for k, v in sorted(stray.items())) or "none"))
+
+    # ---- 6c. the search actually refines below its first step ------------- #
+
+    # A parameter whose optimum lies BETWEEN the first-pass proposals: v0 +- 1.0
+    # are both worse, v0 + 0.45 is better.  The old loop exited the moment a
+    # pass failed to move, so the step never halved and 0.45 was never tried.
+    class _Toy:
+        """A one-parameter objective with its minimum at +0.45 of one step."""
+        def __init__(self):
+            self.K = None
+            self.n_render = 0
+            self.seen = []
+        def families(self, params, affects):
+            return None
+        def invalidate(self, affects):
+            pass
+        def evaluate(self, params, free=None):
+            v = float(O.get_path(params, "toy"))
+            self.seen.append(round(v, 4))
+            self.n_render += 1
+            return (v - 0.45) ** 2, 0.0, None
+
+    toy_params = {"toy": 0.0}
+    toy = _Toy()
+    O.sweep(toy, toy_params, [{"path": "toy", "lo": -5.0, "hi": 5.0, "step": 1.0,
+                               "affects": ["toy"]}], accept_tol=1e-9)
+    landed = float(O.get_path(toy_params, "toy"))
+    sub_step = [v for v in toy.seen if 0 < abs(v) < 0.9]
+    check("the search refines below its first step when a whole step fails",
+          abs(landed - 0.45) < 0.12 and bool(sub_step),
+          "landed at %.4f after %d evaluations; sub-step proposals tried: %s"
+          % (landed, toy.n_render, sorted(set(sub_step))[:6] or "NONE"))
+
+    # ---- 6d. the fitting cells survive subsampling ------------------------ #
+
+    # Cells are built on whatever grid the caller passes and the optimiser
+    # passes a subsampled one, so a FIXED minimum pixel count deletes the
+    # smallest cells exactly when the search is cheapest.  Measured before the
+    # fix: 51 comb cells at full resolution, 0 at stride 3 and 0 at stride 4 --
+    # which is every shape, taper, geometry and field stage of optimize_all.sh.
+    comb_at = {}
+    for st in (1, 2, 3, 4):
+        shp = (1024 // st, 1024 // st, 3)
+        comb_at[st] = sum(1 for c in regions.flare_cells(shp) if c[0] == "comb")
+    full = comb_at[1]
+    check("the flare comb cells survive stride 3 and stride 4",
+          full > 40 and comb_at[3] >= 0.75 * full and comb_at[4] >= 0.75 * full,
+          "comb cells by stride: " + ", ".join("%d:%d" % kv for kv in sorted(comb_at.items())))
+
+    # ---- 6e. an `all` sweep does not search one path twice ---------------- #
+
+    every = sum((b(params) for b in (O.layer_specs, O.taper_specs,
+                                     O.field_specs, O.geometry_specs)), [])
+    merged = O.merge_specs(every)
+    paths = [sp["path"] for sp in merged]
+    dupes = len(every) - len(merged)
+    check("an `all` sweep searches each path once",
+          len(paths) == len(set(paths)),
+          "%d specs -> %d after merging (%d duplicate path(s) consolidated)"
+          % (len(every), len(merged), dupes))
 
     # ---- 7. the lobe banding has not come back ---------------------------- #
 

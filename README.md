@@ -44,14 +44,14 @@ The two regions a whole-image average cannot police, from
 
 | targeted measurement | value |
 |---|---|
-| MAE within 110 px of the central light | 6.37 |
-| worst ring of the flare's radial profile | +5.5 code values at r = 6-12 |
+| MAE within 110 px of the central light | 7.13 |
+| worst ring of the flare's radial profile | +4.5 code values at r = 12-20 |
 | curve glow, rms relative error over 21 signed-distance bins | 4.0% |
 | the same, resolved along the curve (71 cells) | 5.6% |
 | light in the four interior corners, rms relative error | 5.3% |
 | worst single bin of that profile | -11.7% at s = 9..14 px |
-| left lobe, MAE more than 25 px from the ridge | 1.47 (bias -0.06) |
-| right lobe, MAE more than 25 px from the ridge | 1.37 (bias -0.20) |
+| left lobe, MAE more than 25 px from the ridge | 1.43 (bias -0.11) |
+| right lobe, MAE more than 25 px from the ridge | 1.36 (bias -0.15) |
 
 Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.816 (SSIM 0.9528); see `out/validation.md` for the resolution sweep.
 <!-- METRICS:END -->

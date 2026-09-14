@@ -81,6 +81,34 @@ def interior(shape, margin=18.0):
 PROFILE_T_BANDS = ((0, 22), (22, 40), (40, 54), (54, 66))
 
 
+#: Every cell threshold below is an area in REFERENCE pixels, converted to a
+#: count on whatever grid the caller actually passes.
+REF_AREA = 1024.0 * 1024.0
+
+
+def min_count(shape, min_px, floor=4):
+    """Convert a reference-space area threshold to a sample count for `shape`.
+
+    Cells are built on whatever grid the caller hands in, and the optimiser
+    hands in a subsampled one: at stride 3 a cell covers a ninth of the samples
+    it covers at full resolution.  A FIXED count therefore deletes the smallest
+    cells exactly when the search is cheapest -- and the smallest cells here are
+    the horizontal comb, which is the sharpest structure in the image and the
+    one this whole cell grid exists to expose.
+
+    Measured before the fix, with a fixed 60: 51 comb cells at full resolution,
+    29 at stride 2, and ZERO at strides 3 and 4 -- which is every shape, taper,
+    geometry and field stage of `tools/optimize_all.sh`.  Those searches were
+    not weighting the comb lightly, they could not see it at all.
+
+    The floor is the separate, statistical guard: a cell of three samples
+    estimates its own mean too poorly to score, however large it is in
+    reference space.
+    """
+    h, w = shape[:2]
+    return max(int(floor), int(round(min_px * (h * w) / REF_AREA)))
+
+
 def profile_cells(shape, flare_exclude=200.0, min_px=150, margin=18.0,
                   t_bands=PROFILE_T_BANDS):
     """Masks for signed-distance x along-curve cells, pooled over both curves.
@@ -91,6 +119,7 @@ def profile_cells(shape, flare_exclude=200.0, min_px=150, margin=18.0,
     cells instead of bins is what keeps the whole length of each curve in the
     objective.
     """
+    min_px = min_count(shape, min_px)
     dsig, tang, rfl = curve_frame(shape)
     keep = (rfl > flare_exclude) & interior(shape, margin)
     at = np.abs(tang)
@@ -129,6 +158,7 @@ def corner_cells(shape, min_px=300, corner_span=230.0):
     edge midpoints agreed to 0.1-0.7.  These cells put that region in the
     objective on the same footing as the curve profile.
     """
+    min_px = min_count(shape, min_px)
     h, w = shape[:2]
     yy, xx = np.mgrid[0:h, 0:w]
     X = (xx + 0.5) / (w / 1024.0)
@@ -180,6 +210,7 @@ def flare_cells(shape, min_px=60, arc_margin=30.0):
     the same lines asks for.  30 px is what the same measurement needs to come
     out clean (docs/DECISIONS.md D21).
     """
+    min_px = min_count(shape, min_px)
     h, w = shape[:2]
     yy, xx = np.mgrid[0:h, 0:w]
     sx, sy = w / 1024.0, h / 1024.0
@@ -229,6 +260,7 @@ def weight_cells(shape, min_px=300):
     silently unbalances both (the cost of a 1% error went from 2.3x to 6.2x
     across cells when they were allowed to overlap).
     """
+    min_px = min_count(shape, min_px)
     out = list(flare_cells(shape))
     taken = np.zeros(shape[:2], bool)
     for cell in out:
@@ -256,6 +288,7 @@ def profile_bins(shape, flare_exclude=200.0, t_limit=62.0, min_px=200, margin=18
     apart the inter-curve bins reach the top and bottom edges, and including
     the frame there tripled those bins' internal brightness spread.
     """
+    min_px = min_count(shape, min_px)
     dsig, tang, rfl = curve_frame(shape)
     keep = (rfl > flare_exclude) & (np.abs(tang) < t_limit) & interior(shape, margin)
     out = []
