@@ -49,11 +49,23 @@ import ray_report as RR  # noqa: E402
 #: The angles and widths are D26's; the right-hand pair is at 45.6 and 327.8
 #: degrees, not the 32 and 310 an earlier pass reported, and is 4-5 px wide
 #: against the left pair's 8-11 -- they are not mirror images.
+#: The second number is the width the SLAB is built to, not the width the
+#: composite then measures.  They differ: the rendered chord-excess FWHM comes
+#: out about 14% narrow on the upper left and 5% wide on the lower left, because
+#: the excess is read against a background the other layers also shape.  So each
+#: is calibrated closed-loop against `tools/ray_report.py`, the same way the
+#: amplitudes are, and the measured targets are 10.6, 8.3, 3.9 and 4.6 px.
 RAY_GEOMETRY = {
-    "flare_ray_a": (113.6, 10.6, 12.0, 1.00, 132.0, 0.49),   # upper-left
-    "flare_ray_b": (249.7,  8.3,  8.0, 1.25, 110.0, 0.60),   # lower-left
-    "flare_ray_e": (45.6,   3.9,  4.0, 1.30, 105.0, 0.60),   # upper-right
-    "flare_ray_c": (327.8,  4.6,  4.0, 1.60, 112.0, 0.55),   # lower-right
+    "flare_ray_a": (113.6, 12.3, 12.0, 1.00, 132.0, 0.49),   # upper-left
+    "flare_ray_b": (249.7,  7.9,  8.0, 1.25, 110.0, 0.60),   # lower-left
+    # The right-hand pair runs much further out than the left.  An angular
+    # high-pass -- a moving average 24 px of arc wide subtracted from the
+    # annulus, which removes a smooth background of any curvature and leaves
+    # only narrow structure -- finds the reference still carrying 1-2.8 counts
+    # at theta 45.6 out to r = 230, and 2-3.6 counts at theta 327.8 out to
+    # r = 170, where a len of 105 and 112 had both died by r = 110.
+    "flare_ray_e": (45.6,   4.35, 4.0, 1.30, 215.0, 0.28),   # upper-right
+    "flare_ray_c": (327.8,  4.9,  4.0, 1.60, 185.0, 0.32),   # lower-right
 }
 #: ray name in tools/ray_report.py -> the layer that carries it
 RAY_LAYER = {"upper-left": "flare_ray_a", "lower-left": "flare_ray_b",

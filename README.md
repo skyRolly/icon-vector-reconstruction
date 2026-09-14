@@ -25,15 +25,15 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 
 | metric | value | for scale |
 |---|---|---|
-| mean absolute error | **1.954** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 4.156 | |
-| MAE on a 1/2.2 display curve | 5.736 | weights the dark background as the eye does; black scores 59.7 |
-| SSIM (luminance) | **0.9734** | black scores 0.142 |
+| mean absolute error | **1.955** / 255 | a flat black canvas scores 17.89 |
+| RMSE | 4.158 | |
+| MAE on a 1/2.2 display curve | 5.737 | weights the dark background as the eye does; black scores 59.7 |
+| SSIM (luminance) | **0.9733** | black scores 0.142 |
 | worst single-channel error | 104 | |
-| pixels off by more than 2 / 8 / 24 | 35.6% / 5.5% / 0.8% | |
-| mean bias | -0.238 | |
+| pixels off by more than 2 / 8 / 24 | 35.7% / 5.5% / 0.8% | |
+| mean bias | -0.236 | |
 
-Per region (MAE): frame band 2.51, centre 90 px 8.74, bright pixels 10.02, dark background 1.44, everything else 1.71.
+Per region (MAE): frame band 2.51, centre 90 px 8.76, bright pixels 10.02, dark background 1.44, everything else 1.71.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -53,7 +53,7 @@ The two regions a whole-image average cannot police, from
 | left lobe, MAE more than 25 px from the ridge | 1.47 (bias -0.06) |
 | right lobe, MAE more than 25 px from the ridge | 1.37 (bias -0.20) |
 
-Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.815 (SSIM 0.9528); see `out/validation.md` for the resolution sweep.
+Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.816 (SSIM 0.9528); see `out/validation.md` for the resolution sweep.
 <!-- METRICS:END -->
 
 ## What is in here
@@ -145,7 +145,8 @@ restated those numbers drifted out of date twice, so it no longer does.
    and bloom stack. The four diagonal rays are each measured rather than
    assumed: the right-hand pair is at 45.6 and 327.8 degrees and is 4-5 px
    wide, against the left pair's 8-11 px, so they are not mirror images of each
-   other (D26). Two of them are a sharp spike on a broad fan, which is why the
+   other (D26), and it runs out to r = 170-230 px where the left pair fades by
+   140 (D32). Two of them are a sharp spike on a broad fan, which is why the
    flanks are their own layers (D29). A different rebuild of this group into
    fourteen layers is recorded in D14/D21 and is not shipped — it measured
    worse (D22).
@@ -187,8 +188,8 @@ enough to search the geometry.
 * **The flare's structure was chosen over the flare region's mean error.** The
   four diagonal rays and the three horizontal lines are now built from measured
   angles, widths and amplitudes, which takes the rays' `peak/FWHM` hardness from
-  0.58 away from the reference to 0.07 and the horizontal lines' error down 36%
-  — and costs 0.019 of whole-image MAE and 0.74 of mean absolute error inside
+  0.58 away from the reference to 0.037 and the horizontal lines' error down 36%
+  — and costs 0.020 of whole-image MAE and 0.77 of mean absolute error inside
   r = 110 px of the flare core. That cost is not evenly spread: about 70% of it
   is within 30 px of a curve ridge, where the colour-basis error of D28 already
   dominates at 8.3 code values, and the flare's own off-ridge area rose by 0.3.

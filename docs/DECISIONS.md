@@ -1491,3 +1491,75 @@ is a straight line, not an exponential, whose gradient would fall with the
 level. Expressing that needs a measured profile table for the bloom, derived
 from an isolation the way D24 derived the horizontal lines. That is the next
 step and this iteration does not take it.
+
+## D32. An independent measurement disagreed, and what settled it
+
+A parallel measurement pass, run against the reference alone, returned a flat
+contradiction of D26's upper-right ray: it reported "no radial spoke anywhere
+between theta +6 and +40", and that "earlier reports of broad maxima at 45-60
+deg are the right curve's glow truncated by the arc mask".
+
+**The objection is methodologically serious**, which is why it was tested rather
+than argued with. `tools/ray_report.py` reads a ray as the peak of the excess
+over a straight chord across the surviving angular island. A straight chord
+across an island whose background is *curved* leaves a residual that peaks in
+the middle -- a ray that is not there. That failure mode is worst exactly where
+the objection was raised: on the right, where the ridge mask leaves the island
+narrow and the curve's own glow steeply curved.
+
+**The test.** An angular high-pass: subtract from each annulus a moving average
+24 px of arc wide, much wider than a ray and much narrower than the island. That
+removes a smooth background of *any* curvature and keeps only narrow structure.
+A fitted quadratic baseline was tried first and rejected as the wrong
+instrument -- extrapolated across the core it is badly conditioned and inflated
+every excess, the upper-right by 6.9x.
+
+Under the high-pass, the reference carries, in counts, averaged over r = 50-100:
+
+| ray | reference | iteration 2 | shipped |
+| --- | --- | --- | --- |
+| upper-left 113.6 | 4.50 | 2.21 | 5.93 |
+| lower-left 249.7 | 4.73 | **0.59** | 5.08 |
+| upper-right 45.6 | **3.92** | 2.79 | 4.29 |
+| lower-right 327.8 | 5.52 | 2.54 | 5.50 |
+
+So the upper-right axis carries 3.92 counts of genuinely narrow structure, and
+the objection is refuted on its own terms. It is also not quite a
+contradiction: "no spoke between +6 and +40 degrees" and a ray at 45.6 are both
+true, and only the sentence extending that to 45-60 was wrong. The same table
+settles the lower-left independently -- 0.59 counts in iteration 2 against the
+reference's 4.73 is the missing ray, measured by an instrument with no chord in
+it at all.
+
+**What the objection was right about.** It reported the lower-right ray
+terminating at r ~ 155 where the reference reaches r ~ 205. Checked with the
+same filter out to r = 230, both right-hand rays were far too short: the
+reference holds 2-3.6 counts at theta 327.8 out to r = 170 and 1-2.8 counts at
+theta 45.6 out to r = 230, where the shipped model had died by r = 110. Their
+lengths are now 185 and 215 px with the longitudinal peak moved in to match.
+Measured, this is free -- MAE 1.9538 to 1.9537, flare region 7.114 to 7.115 --
+because it is structure in a region a mean absolute error barely weights, which
+is the whole reason the diagnostic exists.
+
+**Widths are now calibrated closed-loop too.** The slab formula sets the width
+the *layer* is built to; the width the *composite* then measures is different,
+because the excess is read against a background the other layers also shape.
+Measured, the rendered FWHM came out 14% narrow on the upper left and 5% wide on
+the lower left. Feeding that back -- building to 12.3 and 7.9 px to land on 10.6
+and 8.3 -- puts the lower-left and lower-right FWHM exactly on the reference and
+takes the mean hardness error from 0.049 to **0.037**, for 0.001 of MAE.
+
+**Still open.** The upper-left's high-pass amplitude is 5.93 against the
+reference's 4.50 -- 32% too much narrow light -- while its chord-excess peak
+matches to 0.4%. The two measures disagree because the ray and its flank trade
+against each other and only their sum is pinned. Balancing them needs the
+flank's own amplitude measured against the high-pass rather than against the
+sector's mean signed error, which is a change to the instrument, not to the
+artwork.
+
+**The general point.** The disagreement was resolved by building a third
+instrument whose failure modes do not overlap either of the first two, not by
+weighing the two reports against each other. Both original measurements survive
+in the record, including the one that was wrong, because which of them was wrong
+was not obvious in advance and the reasoning that settled it is more reusable
+than the answer.

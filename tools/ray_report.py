@@ -129,6 +129,47 @@ def ray_profile(lum, dmin, theta_deg, radii=RADII, half_window=26.0, step=0.5):
     return out
 
 
+#: Width of the moving average subtracted in the angular high-pass, in px of
+#: arc.  Much wider than a ray, much narrower than the island.
+THIN_WIN_PX = 24.0
+
+
+def thin_amplitude(lum, dmin, theta_deg, r, span_px=70.0, core_px=6.0):
+    """Peak of an angular HIGH-PASS at this radius, near the ray's axis.
+
+    The chord excess above is the right measure of a ray's shape, but it has a
+    known failure mode: a straight chord across an island whose background is
+    curved leaves a residual that peaks in the middle, which looks like a ray
+    that is not there.  That matters most on the right-hand side, where the
+    ridge mask makes the island narrow.
+
+    So this measures the same place a different way.  Subtracting a moving
+    average 24 px of arc wide removes a smooth background of ANY curvature and
+    keeps only structure narrower than the window.  A real ray survives it; a
+    curvature artefact does not.  Measured on the reference, all four ray axes
+    carry 3.9 to 5.5 counts under this filter, which is what settles that they
+    are real -- and the same filter reads 0.59 counts on the iteration-2
+    render's lower-left axis, which is what settles that it was missing.
+    """
+    dth = math.degrees(0.5 / r)
+    span = math.degrees(span_px / r)
+    ths = np.arange(theta_deg - span, theta_deg + span + 1e-9, dth)
+    rad = np.radians(ths)
+    xs, ys = CORE[0] + r * np.cos(rad), CORE[1] - r * np.sin(rad)
+    v = _bilinear(lum, xs, ys)
+    ok = _bilinear(dmin, xs, ys) > RIDGE_CLEAR
+    if ok.sum() < 40:
+        return None
+    v = np.where(ok, v, np.nan)
+    k = max(5, int(round(THIN_WIN_PX / 0.5)) | 1)
+    vv = np.pad(v, k // 2, mode="edge")
+    sm = np.array([np.nanmean(vv[i:i + k]) if np.isfinite(vv[i:i + k]).sum() > k // 3
+                   else np.nan for i in range(v.size)])
+    near = ok & (np.abs(ths - theta_deg) <= math.degrees(core_px / r))
+    seg = (v - sm)[near]
+    return float(np.nanmax(seg)) if seg.size and np.isfinite(seg).any() else None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("pairs", nargs="*")
@@ -162,6 +203,12 @@ def main():
             print("  %-11s" % (label[:8] + " FWHM") + "".join(
                 "     .  " if p is None or not np.isfinite(p[2]) else "%8.1f" % p[2]
                 for p in store[label]))
+        for label, img in runs:
+            amps = [thin_amplitude(img.mean(2), dmin, th, r) for r in RADII]
+            good = [a for a in amps if a is not None]
+            print("  %-11s" % (label[:8] + " thin") + "".join(
+                "     .  " if a is None else "%8.2f" % a for a in amps)
+                + ("   mean %.2f" % np.mean(good) if good else ""))
         for label, _ in runs:
             ps = [p for p in store[label] if p and np.isfinite(p[2]) and p[2] > 0]
             if ps:

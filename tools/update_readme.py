@@ -15,6 +15,27 @@ DSTART = "<!-- DELIVERABLE:START -->"
 DEND = "<!-- DELIVERABLE:END -->"
 
 
+def _fresh(metrics, svg):
+    """Refuse to publish metrics measured from an older SVG than the shipped one.
+
+    This is not hypothetical: the finalise pass in this iteration ran validate,
+    previews, this script and the checks, but NOT `tools/compare.py`, so the
+    README table was written from the previous candidate's render and claimed
+    1.958 where the shipped SVG measures 1.954.  A generated block that silently
+    generates from a stale input is worse than prose, because prose at least
+    looks like something that has to be checked.
+    """
+    if not (os.path.exists(metrics) and os.path.exists(svg)):
+        return
+    if os.path.getmtime(metrics) < os.path.getmtime(svg) - 1.0:
+        raise SystemExit(
+            "out/metrics.json is older than reconstruction.svg -- re-run\n"
+            "  python3 tools/render.py reconstruction.svg out/render_1024.png\n"
+            "  python3 tools/compare.py reference.png out/render_1024.png "
+            "--json out/metrics.json\n"
+            "before writing these numbers into the README.")
+
+
 def deliverable_block():
     """The deliverable's own metadata, counted rather than remembered.
 
@@ -40,6 +61,8 @@ def deliverable_block():
 
 
 def main():
+    _fresh(os.path.join(ROOT, "out", "metrics.json"),
+           os.path.join(ROOT, "reconstruction.svg"))
     m = json.load(open(os.path.join(ROOT, "out", "metrics.json")))
     v = None
     vp = os.path.join(ROOT, "out", "validation.json")
