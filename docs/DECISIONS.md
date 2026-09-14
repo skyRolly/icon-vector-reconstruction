@@ -1203,7 +1203,7 @@ with zero frame coverage, where the two formulas agree to the last bit. This is
 not a judgement that the error was small there; it is that there was no error
 there.
 
-*Affected in principle.* Isolations of the `arc_glow` and `field` groups, whose
+*Affected in principle.* Isolations of the arc-glow and field groups, whose
 footprints run out to the rim. Within the two banding boxes
 `(96,96)-(512,930)` and `(512,96)-(928,930)` the frame covers 232 and 391
 pixels, 0.09% of their combined area, and at those pixels it is fully opaque --
@@ -1283,3 +1283,83 @@ takes. Recording the measurement without acting on it is deliberate: the
 alternative on offer was a global saturation change that the first paragraph
 shows to be wrong, and a wrong fix that improves the average is worse than a
 located problem that is still open.
+
+## D29. Each strong ray is a sharp spike on a broad fan, and what that cost
+
+**The decision.** Ship the measured flare: the three horizontal lines of D24,
+the four diagonal rays at the measured angles, widths and amplitudes of D26, and
+two new broad flank layers. This is accepted knowing it raises whole-image MAE
+from 1.9352 to 1.9577 and the mean absolute error inside r = 110 px of the flare
+core from 6.372 to 7.191.
+
+**How the flanks were found, which is the substance of this entry.** Setting the
+rays to their measured widths cost 3.2 code values of error over r = 20..80 px.
+Mapping that error by angle showed it was not spread around the flare at all: it
+sat at theta 210..260, peaking at 13.5 cv at theta 225, exactly where the old
+lower-left ray -- 30 px tall with a 1.6x spread -- had been laying down broad
+light that the 8.3 px measured ray does not.
+
+So the reference carries two things in the lower left, not one: a narrow spike
+at theta 249.7 and a broad fan across theta 210..260. The obvious alternative,
+letting the bloom make up the difference, was tried and fails for a structural
+reason: the bloom layers are radially symmetric, so raising them adds light at
+every angle while the deficit is at four angles out of twenty-four. Measured --
+freeing the whole bloom with the rays frozen recovers r 0..20 (8.83 against the
+baseline's 9.21, better than before the change) and leaves r 20..45 at 11.61
+against 8.36.
+
+With the lower-left flank in place the same analysis found the same thing again
+on the upper left, at theta 105..135, and it was given the same treatment. That
+the pattern appeared twice, independently, from the same measurement, is what
+makes it a decomposition rather than a patch.
+
+**Amplitudes are measured, not fitted, for rays and flanks alike.** After
+fitting the corrected geometry the photometric fit left the lower-left and
+upper-right rays 2.3 and 2.4 times too bright and the lower-right 3.9 times too
+dim, which is not a defect in the fit: a ray is a few code values over a few
+hundred pixels and a weighted whole-image objective has almost no reason to
+place it. So each ray's amplitude is driven to its measured peak and each
+flank's to the mean signed error over its own sector, and both are then held
+fixed while the bloom is fitted around them.
+
+**What it bought, measured.**
+
+| | baseline | shipped |
+| --- | --- | --- |
+| ray hardness, mean err in `peak/FWHM` | 0.579 | **0.076** |
+| horizontal line error (D24) | 20.00 | **12.77** |
+| broad angular structure, r 45-80 | 3.02 cv | **2.48 cv** |
+| pixels off by more than 2 | 35.80% | **35.72%** |
+| worst single channel | 105 | **104** |
+| SSIM | 0.97340 | 0.97334 |
+| whole-image MAE | **1.9352** | 1.9577 |
+| flare r<110 MAE | **6.372** | 7.191 |
+
+**What it cost, located.** The flare-region cost is not evenly spread. Splitting
+r < 110 by distance from a curve ridge: within 30 px of a ridge the error rises
+by 1.167 (on 22,495 px, where the baseline already stands at 8.307 because of
+the colour-basis error of D28); further than 30 px from a ridge -- the flare's
+own territory -- it rises by 0.315. Broad angular structure at r 45..80 improves
+and at r 20..45 worsens.
+
+**Why this is the right trade, and the honest case against it.** The case for is
+that the reference's flare is a spoked starburst and the previous
+reconstruction's was a featureless blob: rendered crops at 3x, stretched and
+unstretched, show four diagonal rays present in the reference and in the new
+render and absent in the old one. The review asked for the reconstruction to be
+visibly closer to the reference in the central flare, and explicitly asked that
+success not be defined as a metric improving. The case against is that 0.022 of
+MAE and 0.82 of flare-region MAE are real error, not measurement artefacts, and
+that a reader who cares only about the aggregate is worse off. Both are true.
+The structure is what a reader looking at the image sees, so the structure wins;
+the cost is stated in `README.md` rather than left in the numbers for someone
+else to find.
+
+**What is still open.** The remaining deficit over r 20..45 is concentrated at
+theta 165 (-11.5 cv, against the baseline's -6.2) and at theta 105..135 (-3.5),
+and it is a radial-distribution error rather than an amplitude one: sweeping the
+flanks' `peak_at` and `len` improves it to a point and then stops, because the
+mean signed error over each flank's sector is already within 0.35 cv of zero.
+Inside r = 50 the reference's lower-left structure sits at theta 228, not at the
+ray's 249.7, which suggests the fan and the spike do not share an axis. That is
+the next measurement, not this iteration's.

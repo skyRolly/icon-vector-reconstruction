@@ -443,9 +443,12 @@ def main():
     # plus whatever ships with Python -- anything else is undocumented
     DOCUMENTED = {"numpy", "PIL", "resvg_py"} | set(
         getattr(sys, "stdlib_module_names", ())) | {"__future__"}
-    LOCAL = {"build_svg", "regions", "render", "fit_photometry", "optimize",
-             "diagnose", "compare", "isolate", "make_previews", "prune_layers",
-             "update_readme", "validate", "probe_compare", "test_pipeline"}
+    # The repository's own modules, derived from what is actually on disk
+    # rather than from a hand-kept list: a new diagnostic that imports a
+    # sibling tool is not a new dependency, and a list that has to be edited
+    # every time one is added will eventually be wrong in the other direction.
+    LOCAL = {fn[:-3] for d in ("tools", "src")
+             for fn in os.listdir(os.path.join(ROOT, d)) if fn.endswith(".py")}
     stray = {}
     for d in ("tools", "src"):
         for fn in sorted(os.listdir(os.path.join(ROOT, d))):

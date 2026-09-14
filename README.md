@@ -9,8 +9,8 @@ rounded-square frame — as a hand-built, parametric SVG.
 | ![reference](out/side_reference.png) | ![reconstruction](out/side_reconstruction.png) | ![difference](out/side_diff.png) |
 
 <!-- DELIVERABLE:START -->
-**Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 29 named
-layers, 72 KB, no embedded bitmap and no traced outlines. Every mark is a
+**Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 32 named
+layers, 75 KB, no embedded bitmap and no traced outlines. Every mark is a
 primitive driven by a named parameter in
 [`src/params.json`](src/params.json): one path for the frame, two cubic-Bézier
 paths for the luminous curves (reused, offset and clipped, by every glow
@@ -25,15 +25,15 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 
 | metric | value | for scale |
 |---|---|---|
-| mean absolute error | **1.935** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 4.071 | |
-| MAE on a 1/2.2 display curve | 5.728 | weights the dark background as the eye does; black scores 59.7 |
-| SSIM (luminance) | **0.9734** | black scores 0.142 |
-| worst single-channel error | 105 | |
-| pixels off by more than 2 / 8 / 24 | 35.8% / 5.5% / 0.7% | |
-| mean bias | -0.203 | |
+| mean absolute error | **1.958** / 255 | a flat black canvas scores 17.89 |
+| RMSE | 4.160 | |
+| MAE on a 1/2.2 display curve | 5.746 | weights the dark background as the eye does; black scores 59.7 |
+| SSIM (luminance) | **0.9733** | black scores 0.142 |
+| worst single-channel error | 104 | |
+| pixels off by more than 2 / 8 / 24 | 35.7% / 5.5% / 0.8% | |
+| mean bias | -0.235 | |
 
-Per region (MAE): frame band 2.51, centre 90 px 7.60, bright pixels 10.02, dark background 1.45, everything else 1.72.
+Per region (MAE): frame band 2.51, centre 90 px 8.77, bright pixels 10.07, dark background 1.44, everything else 1.71.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -44,16 +44,16 @@ The two regions a whole-image average cannot police, from
 
 | targeted measurement | value |
 |---|---|
-| MAE within 110 px of the central light | 7.06 |
-| worst ring of the flare's radial profile | +6.6 code values at r = 6-12 |
-| curve glow, rms relative error over 21 signed-distance bins | 4.9% |
-| the same, resolved along the curve (71 cells) | 6.0% |
-| light in the four interior corners, rms relative error | 5.2% |
-| worst single bin of that profile | -12.3% at s = 9..14 px |
-| left lobe, MAE more than 25 px from the ridge | 1.48 (bias -0.29) |
-| right lobe, MAE more than 25 px from the ridge | 1.48 (bias -0.15) |
+| MAE within 110 px of the central light | 6.37 |
+| worst ring of the flare's radial profile | +5.5 code values at r = 6-12 |
+| curve glow, rms relative error over 21 signed-distance bins | 4.0% |
+| the same, resolved along the curve (71 cells) | 5.6% |
+| light in the four interior corners, rms relative error | 5.3% |
+| worst single bin of that profile | -11.7% at s = 9..14 px |
+| left lobe, MAE more than 25 px from the ridge | 1.47 (bias -0.06) |
+| right lobe, MAE more than 25 px from the ridge | 1.37 (bias -0.20) |
 
-Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.629 (SSIM 0.9555); see `out/validation.md` for the resolution sweep.
+Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.803 (SSIM 0.9528); see `out/validation.md` for the resolution sweep.
 <!-- METRICS:END -->
 
 ## What is in here
@@ -134,11 +134,17 @@ restated those numbers drifted out of date twice, so it no longer does.
    5.8 and 20.6 px was built and measured; it raises what the basis can achieve
    beside the ridge but did not improve the render, and is not shipped
    (docs/DECISIONS.md D19, D22).
-3. **Central light** — ten layers: two stretched radial blooms, three
-   horizontal streak components, and five one-sided rays. There is no separate
-   glint layer; the brightest pixels come from the streak and bloom stack. A
-   rebuild of this group into fourteen layers is recorded in D14/D21 and is not
-   shipped — it measured worse (D22).
+3. **Central light** — thirteen layers: two stretched radial blooms, four
+   horizontal streak components at the three measured line heights, five
+   one-sided rays at their measured angles and widths, and two broad flanks.
+   There is no separate glint layer; the brightest pixels come from the streak
+   and bloom stack. The four diagonal rays are each measured rather than
+   assumed: the right-hand pair is at 45.6 and 327.8 degrees and is 4-5 px
+   wide, against the left pair's 8-11 px, so they are not mirror images of each
+   other (D26). Two of them are a sharp spike on a broad fan, which is why the
+   flanks are their own layers (D29). A different rebuild of this group into
+   fourteen layers is recorded in D14/D21 and is not shipped — it measured
+   worse (D22).
 4. **Curve cores** — a hard-edged bright stroke on each path plus a narrower
    inset one, because the measured core is 5.8 px at the tips, 8.4 px at
    mid-height, and asymmetric about its own centre-line.
@@ -174,6 +180,29 @@ enough to search the geometry.
 
 ## Known limitations
 
+* **The flare's structure was chosen over the flare region's mean error.** The
+  four diagonal rays and the three horizontal lines are now built from measured
+  angles, widths and amplitudes, which takes the rays' `peak/FWHM` hardness from
+  0.58 away from the reference to 0.076 and the horizontal lines' error down 36%
+  — and costs 0.022 of whole-image MAE and 0.82 of mean absolute error inside
+  r = 110 px of the flare core. That cost is not evenly spread: 71% of it is
+  within 30 px of a curve ridge, where the colour-basis error of D28 already
+  dominates at 8.3 code values, and the flare's own off-ridge area rose by 0.32.
+  The judgement is deliberate and is recorded in D29 with the evidence on both
+  sides, including the rendered crops: before the change the reconstruction's
+  flare had no diagonal rays at all.
+* **The paleness beside each curve is located but not fixed.** Within 16 px of a
+  ridge the render is up to 22% short of the reference's chroma, peaking 4-8 px
+  out, and it is 39% too red there — too much white in the mix. Beyond 16 px the
+  sign reverses, which is why the whole-canvas chroma is 1.2% *above* the
+  reference and a global saturation change would be wrong. No layer's footprint
+  is this band, so it is a basis limitation; `tools/chroma_report.py` measures it
+  and D28 records what it would take.
+* **The flare core's light sits in a ring rather than reaching outward.** The
+  render is 12.3 code values too bright at 9 px west of the core and 6.2 too dim
+  at 29 px, with the inner falloff 2.50 cv/px against the reference's 3.81 and
+  the outer 4.37 against 3.12. `tools/core_report.py` measures it. This predates
+  this iteration and is not addressed by it.
 * The reference's JPEG blocking and its low-frequency "smudge" texture are not
   reproduced, by choice: together they set an MAE floor of ~0.6 per channel.
 * The two dark axial wedges between the diverging curves used to be
