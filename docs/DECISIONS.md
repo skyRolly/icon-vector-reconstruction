@@ -1363,3 +1363,60 @@ mean signed error over each flank's sector is already within 0.35 cv of zero.
 Inside r = 50 the reference's lower-left structure sits at theta 228, not at the
 ray's 249.7, which suggests the fan and the spike do not share an axis. That is
 the next measurement, not this iteration's.
+
+## D30. Two correctness bugs that made earlier search results untrustworthy
+
+Both were found by review rather than by a failing test, and both had been
+silently corrupting comparisons for an iteration. They are recorded together
+because they share a shape: each made two things look comparable that were not.
+
+**The geometry trial inherited a colour fit it did not earn.**
+`tools/optimize.py`'s sweep evaluated a geometry trial against a baseline whose
+inner colour optimisation had been done for a *different* family of free
+parameters. So a trial could win because its baseline was handicapped, not
+because its geometry was better, and every accepted geometry move in the
+previous iteration is suspect for that reason. The fix re-bases whenever the
+free-parameter signature changes:
+
+    last_free = object()          # a sentinel no family signature can equal
+    for sp in specs:
+        free = obj.families(params, sp["affects"])
+        sig = "all" if free is None else tuple(free)
+        if sig != last_free:
+            best_sse, best_mae, Kb = obj.evaluate(params, free=free)
+            obj.K = Kb
+            last_free = sig
+
+and the trial itself is scored with the same `free`. The regression check
+spies on `Objective.evaluate` and asserts the baseline was re-established for
+each distinct free-set: with two searched families it sees 7 calls, 3 distinct
+free-sets, and both families re-baselined.
+
+**The profile weight cache collided on the luminance sum.**
+`tools/fit_photometry.py` keyed `_PROFILE_CACHE` on the target's luminance
+*sum*, so two entirely different targets with the same total light shared a
+cached weight map. The fix keys on the contents:
+
+    lum_c = np.ascontiguousarray(lum)
+    key = (hashlib.blake2b(lum_c.view(np.uint8), digest_size=16).hexdigest(),
+           lum_c.shape, lum_c.dtype.str, fl, fl_floor, fl_w, pp, fl_p)
+
+The check moves a bright patch between cells while holding `lum.sum()` fixed and
+asserts the weights change, and separately that an identical target still hits
+the cache -- a hash that never collides but also never hits would be its own bug.
+
+**What was re-run because of them.** The flare geometry search, against the
+corrected objective and with the corrected comb margin. Its result is itself
+worth recording: it improved the weighted objective it was minimising (1.8751 to
+1.8617) while making unweighted whole-image MAE *worse* (1.9401 to 1.9461) and
+leaving the flare region essentially unchanged (6.690 to 6.676). So the search
+is now correct and its output was still not shipped -- which is the same open
+question as D25's, and the reason the flare's structure in this iteration comes
+from measurement rather than from search.
+
+**Why no test caught either.** Both bugs produce plausible numbers. A cache
+collision returns a weight map, a mis-baselined trial returns an error, and
+neither is out of range. The checks that now exist assert a *relationship*
+between two runs rather than a property of one, which is the only kind of check
+that could have caught them, and is worth preferring wherever a result is a
+comparison.
