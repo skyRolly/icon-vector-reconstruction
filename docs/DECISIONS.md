@@ -2013,3 +2013,73 @@ angular modulation west of the core degrades (wedge RMS 4.01 against 3.83) and
 the |dy| 8-12 band over-fills to +2.66; at 5.0 the modulation is held at 3.81
 and that band lands at +0.65. Both values are inside the measurement's own
 interval, so the render decided between them, not the reference.
+
+## D40. Two structures found by changing the instrument, not the artwork
+
+The brief for this iteration said to audit the measurement methodology before
+making further visual changes, because the previous pass had made an artwork
+change from a measurement that did not survive re-examination. Doing that
+turned up two features of the reference that three iterations of work had never
+seen -- not because they are subtle, but because every instrument pointed at
+them was the wrong one.
+
+**The vertical line, and why luminance could not see it.** The reference has a
+narrow vertical line through the flare's brightest point. Within about 12 px of
+the core, G and B are CLIPPED -- 421 and 453 pixels at or above 253 in a 90x90
+box, against 4 for R. Every statistic that had ever been run near the core used
+`mean(RGB)`, and in that region mean(RGB) measures the clip, not the light. In
+R the column high-pass reads 12.3, 9.8, 4.4, 2.0, 1.5, 1.5 code values over
+|dy| 16-26 out to 90-110, against the render's 2.4, 0.5, 0.7, 0.4, -0.4, -0.2.
+Choosing the channel was the whole measurement.
+
+The line straddles x = 528, which is an 8x8 JPEG block boundary, so it had to be
+shown to be light rather than blocking before anything was drawn. Three
+independent arguments: its per-row values are flat across all eight `y mod 8`
+phases (spread 0.29 against a per-row sd of 4.4) where a block artefact is
+phase-locked by construction; the seven OTHER block-boundary columns in the same
+rows read 0.0-0.6 against its 4.1; and it survives 4x box downsampling at a
+larger fraction of its amplitude than an injected 1.5 px line does. Any one of
+these alone would be suggestive. Together they are decisive, and none of them is
+a claim about the size of the effect -- which is exactly the property the
+retracted claims of the previous iteration lacked.
+
+Three absences are modelled as deliberately as the presence: no broad halo, no
+extension past |dy| 110, and nothing east of the core -- where dx +6..+25 sits
+inside the right ridge and the only available limit, 11.6 cv, is looser than the
+streak itself. There the honest output is silence, not a feature and not an
+absence. The profile is tabulated rather than fitted because it steps by a
+factor of 3.1 at |dy| ~33, and both a power law and an exponential were tried
+and both misplace most of the light.
+
+**The fan's extent, measured by rendering rather than by reading.** `flare_ray_d`
+is the largest layer of the flare, and "too bright" and "too long" look alike in
+any regional average. They are separated by asking how the excess is distributed
+ALONG the left curve: every curve-glow layer is nearly flat in along-curve angle
+at fixed distance, while a flare-anchored fan falls away sharply. That statistic
+(`STEP` in `tools/fan_report.py`) plus the plain sector mean were evaluated on
+nine renders at len 130..190. Both move monotonically and cross zero at 154 and
+157 against a shipped 190, and the excess fraction GREW outward -- 0.24 of the
+layer at r 114-175 rising to 0.70 at r 136-191 -- which is what a ray that is
+too long looks like and not what a ray that is too bright looks like.
+
+This is the pattern the brief asked for and it is worth naming: the reference
+was never asked "how long is the fan". It was asked "which of these nine renders
+disagrees with you least", which is a question a JPEG artefact cannot answer
+wrongly in a systematic direction.
+
+**The coupling that nearly slipped through.** `onset` is stored as a FRACTION of
+`len`, so shortening the ray from 190 to 155 silently dragged its inner edge
+from r 45.6 to r 37.2 and put light where the reference has none. The first
+render of the change looked like a modest regression -- angular residual 3.81 ->
+3.88, a code value added to every band of the horizontal-arm strip -- and the
+cause was not the length at all. Raising `onset` to 0.310, i.e. back to an
+inner edge at r 48 where the reference shows 0.00 cv at r 20..45 and 0.79 at
+r 50, restored every one of those numbers exactly while leaving both extent
+statistics at zero. A parameter stored as a ratio is a parameter that changes
+when something else does, and only re-measuring after the render caught it.
+
+**Result of the two changes together.** Sector mean 3.52 -> 0.11, STEP 2.91 ->
+-0.21, vertical-line rms error 5.87 -> 0.37 cv; MAE 1.9228 -> 1.8990, SSIM
+0.97373 -> 0.97387, left lobe MAE 1.50 -> 1.37; banding, profile, profile cells
+and corners unchanged. The west arm's measurable bins now sit within 1.2 sigma
+of their matched nulls, against 4.3 to 13.4 sigma before this iteration.
