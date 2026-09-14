@@ -26,14 +26,14 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 | metric | value | for scale |
 |---|---|---|
 | mean absolute error | **1.958** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 4.160 | |
+| RMSE | 4.168 | |
 | MAE on a 1/2.2 display curve | 5.746 | weights the dark background as the eye does; black scores 59.7 |
 | SSIM (luminance) | **0.9733** | black scores 0.142 |
 | worst single-channel error | 104 | |
-| pixels off by more than 2 / 8 / 24 | 35.7% / 5.5% / 0.8% | |
-| mean bias | -0.235 | |
+| pixels off by more than 2 / 8 / 24 | 35.6% / 5.6% / 0.8% | |
+| mean bias | -0.239 | |
 
-Per region (MAE): frame band 2.51, centre 90 px 8.77, bright pixels 10.07, dark background 1.44, everything else 1.71.
+Per region (MAE): frame band 2.51, centre 90 px 8.91, bright pixels 10.02, dark background 1.44, everything else 1.71.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -53,7 +53,7 @@ The two regions a whole-image average cannot police, from
 | left lobe, MAE more than 25 px from the ridge | 1.47 (bias -0.06) |
 | right lobe, MAE more than 25 px from the ridge | 1.37 (bias -0.20) |
 
-Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.803 (SSIM 0.9528); see `out/validation.md` for the resolution sweep.
+Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.815 (SSIM 0.9528); see `out/validation.md` for the resolution sweep.
 <!-- METRICS:END -->
 
 ## What is in here
@@ -202,11 +202,17 @@ enough to search the geometry.
   reference and a global saturation change would be wrong. No layer's footprint
   is this band, so it is a basis limitation; `tools/chroma_report.py` measures it
   and D28 records what it would take.
-* **The flare core's light sits in a ring rather than reaching outward.** The
-  render is 12.3 code values too bright at 9 px west of the core and 6.2 too dim
-  at 29 px, with the inner falloff 2.50 cv/px against the reference's 3.81 and
-  the outer 4.37 against 3.12. `tools/core_report.py` measures it. This predates
-  this iteration and is not addressed by it.
+* **The flare core's falloff is closer but still not right.** The reference's
+  core is very nearly linear in radius -- its gradient is 3.81, 3.80 and 3.12
+  cv/px over r = 1-8, 8-16 and 16-28 px, which is a straight line, not the
+  exponential the bloom is built from. Lengthening that exponential's e-folding
+  from 14.7 to 18.5 px closes about a tenth of the gap and takes the innermost
+  20 px of the flare from 9.47 to 8.73 of mean absolute error. Going further is
+  blocked rather than unattempted: the profile error in the strip beside each
+  curve ridge climbs with the bloom's width and reaches its regression ceiling
+  at an e-folding of 21.3 px, so the core's sharpness and the ridge strip are
+  competing for the same light. Closing the rest needs a measured profile table,
+  the way the horizontal lines got one. D31 has the sweep and the ceiling.
 * The reference's JPEG blocking and its low-frequency "smudge" texture are not
   reproduced, by choice: together they set an MAE floor of ~0.6 per channel.
 * The two dark axial wedges between the diverging curves used to be

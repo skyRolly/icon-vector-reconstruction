@@ -1420,3 +1420,71 @@ neither is out of range. The checks that now exist assert a *relationship*
 between two runs rather than a property of one, which is the only kind of check
 that could have caught them, and is worth preferring wherever a result is a
 comparison.
+
+## D31. The core's falloff: a third of the gap, and where the rest of it goes
+
+**The finding.** `tools/core_report.py` reads the flare core two ways the curve
+ridges do not erase -- a vertical cut down the core's own column and an
+azimuthal mean over the west sector -- and reports the falloff in three radial
+bands rather than one number, because the core is wrong in two directions at
+once. Against the reference's 3.81 / 3.80 / 3.12 cv/px over r = 1-8, 8-16 and
+16-28, the reconstruction read 2.48 / 3.96 / 4.36: too flat where the reference
+is steep, and too steep where the reference is shallow. In signed terms it was
+12.7 cv too bright 9 px west of the core and 4.3 too dim at 29 px. The light was
+sitting in a ring instead of reaching outward, which is what "the flare centre
+is too blurry" turns out to mean here.
+
+**What it is not.** It is not a rasterisation or a filter effect, and sharpening
+the rendered image -- which the review explicitly warned against -- would not
+touch it. It is the inner bloom's radial profile: `flare_halo` had an
+exponential e-folding of 14.7 px where the reference wants a longer one.
+
+**The sweep.** `flare_halo`'s exponential scale, with the bloom refitted each
+time and the rays and flanks held at their measured values:
+
+| scale | e-folding | MAE | flare r<110 | flare r<20 | falloff r 1-8 / 8-16 / 16-28 |
+| --- | --- | --- | --- | --- | --- |
+| 0.159 (was) | 14.7 px | 1.9577 | 7.191 | 9.469 | 2.48 / 3.96 / 4.36 |
+| 0.20 | 18.5 px | **1.9538** | **7.114** | 8.732 | 2.61 / 3.91 / 4.20 |
+| **0.23 (shipped)** | **21.3 px** | 1.9576 | 7.225 | 8.037 | **2.90 / 3.93 / 4.12** |
+| 0.26 | 24.0 px | 1.9624 | 7.347 | **7.935** | 3.09 / 3.96 / 4.00 |
+| reference | | | | | 3.81 / 3.80 / 3.12 |
+
+**The choice was made by the banding regression check, not by the table
+above.** On the flare's own numbers 0.23 was the better answer: it closes a
+third of the falloff gap against 0.20's tenth, takes the innermost 20 px of the
+flare from 9.469 to 8.037 (the previous iteration's own figure there was 9.207),
+and costs nothing on whole-image MAE, 1.9576 against 1.9577. It was written up
+and about to ship. Then the check failed.
+
+The along-curve-averaged profile error in the 26 px strip beside each ridge
+climbs monotonically with the bloom's width, because a wider bloom puts light
+where the curve glow's own profile is being measured:
+
+| scale | ridge strip profile error | ceiling |
+| --- | --- | --- |
+| 0.159 (was) | 4.72% | 5.00% |
+| **0.20 (shipped)** | **4.87%** | 5.00% |
+| 0.23 | 5.00% | 5.00% -- fails |
+| 0.26 | 5.06% | 5.00% -- fails |
+
+That ceiling was set in this iteration, just above the then-shipped value, for
+exactly this purpose: the banding beside the curves is the regression the review
+named as sensitive, and a budget that can be spent by any change that happens to
+improve some other number is not a budget. So 0.20 is shipped -- it is also the
+Pareto point for the aggregates, beating the previous value on whole-image MAE,
+on flare-region MAE, on pixels off by more than 2 and on the core at once -- and
+0.23 is recorded here as measured, better on the flare, and blocked.
+
+The honest reading is that the core's sharpness and the ridge strip's profile
+are competing for the same light, and this iteration did not find a way to give
+the core more without taking it from there. Raising the ceiling to fit the
+result would have been the wrong way to resolve that.
+
+**What is still wrong.** Even at 0.26 the inner falloff is 3.09 against 3.81, so
+no single e-folding fixes this: the reference's core is very nearly *linear* in
+r out to 28 px -- its gradient is 3.81, 3.80, 3.12 across the three bands, which
+is a straight line, not an exponential, whose gradient would fall with the
+level. Expressing that needs a measured profile table for the bloom, derived
+from an isolation the way D24 derived the horizontal lines. That is the next
+step and this iteration does not take it.
