@@ -77,6 +77,12 @@ tools/core_report.py     the flare core's radial falloff, in bands, where a blur
 tools/chroma_report.py   colour by distance from a curve ridge, where the paleness is
 tools/measure_flare.py   sets the rays' and flanks' amplitudes from those measurements
 tools/wedge_report.py    angular modulation west of the flare, where a regional mean is blind
+tools/arm_report.py      the horizontal arms, scored against a matched null along the ridge
+tools/vstreak_report.py  the vertical line through the core, in R, where luminance is clipped
+tools/fan_report.py      whether the westward fan is too bright or too long -- different faults
+tools/line_shape.py      the long line's transverse spread and colour, rather than its height
+tools/line_report.py     the three horizontal lines' amplitudes, ridges masked
+tools/compare_sheet.py   reference | render | signed difference, by region and by scale
 tools/publish.sh         the one command that produces a reviewable release
 tools/regions.py         the measured anchors and region geometry both of those share
 tools/test_pipeline.py   regression checks that keep optimisation results meaningful

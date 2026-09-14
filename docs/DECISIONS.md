@@ -2083,3 +2083,101 @@ when something else does, and only re-measuring after the render caught it.
 0.97373 -> 0.97387, left lobe MAE 1.50 -> 1.37; banding, profile, profile cells
 and corners unchanged. The west arm's measurable bins now sit within 1.2 sigma
 of their matched nulls, against 4.3 to 13.4 sigma before this iteration.
+
+## D41. The long line really is too white, and `flare_fan` is not the lever
+
+Measured with two independent estimators, the render's long horizontal line
+carries three to four times too much red. The reference's line light runs
+R/G = 0.09 at |dx| 100-150 west and 0.12-0.23 east; the render runs 0.41 and
+0.44-0.79. The obvious culprit is visible in the parameters: `flare_fan`, the
+broad wash that stands in for the line's skirt, has colour (120.77, 120.77,
+120.77) -- literally achromatic, R/G = 1.000 -- where the reference's skirt is
+pure cyan (R/G = 0.00 +- 0.09).
+
+So the change looks like a one-liner, and it is wrong. Four variants were
+rendered, from a 10% red reduction to full cyan:
+
+  white   R/G east 50-100   R at r 12-25   R at r 45-70   MAE
+  0.474 (shipped)   0.789      +0.50          +5.85     1.8990
+  0.420             0.754      -2.61          +5.65     1.8993
+  0.380             0.714      -5.02          +5.47     1.8998
+  0.340             0.675      -7.32          +5.29     1.9005
+  0.000 (cyan)      0.329     -27.36          +3.79     1.9130
+
+Every step improves the colour of the line and makes the picture worse, and the
+reason is in the third column. `flare_fan` is the only substantial source of red
+over r 12-25, where the reference wants it: the render's red residual there is
++0.50 code values, i.e. correct. Removing the red to fix the line's colour at
+|dx| 50-210 opens a 27 cv red hole in the inner bloom. The layer is being asked
+to be two colours at once because it spans both regions with one.
+
+The real structure is a horizontal wash whose colour changes with distance --
+white-hot within ~25 px of the core, cyan in the wings -- and reproducing that
+means splitting the layer by distance and refitting the pair, not recolouring
+the existing one. That is a structural change with its own validation cycle and
+it is NOT made here.
+
+Recording it unmade is the point. The measurement is sound and the diagnosis is
+specific; what is missing is the rebuild. The alternative on offer was a
+parameter nudge that moves the colour statistic a little, moves MAE the wrong
+way, and leaves the line visibly white -- which is precisely the loop this
+iteration was asked to break.
+
+**Also measured, also not applied, for the same reason -- each needs a rebuild
+rather than a parameter:**
+
+  * The west angular MINIMA are still filled. Over 99 combinations of radius
+    band, clearance, angular smoothing and core offset, the reference shows an
+    interior local minimum at theta 140 +- 4 in 91% of them and at theta 217
+    +- 5 in 84%; the render shows one in 0% of 99, on either side. The unbiased
+    fill statistic is positive in 102 of 102 knob settings (median +7.2 and
+    +7.5 cv). The wedge RMS improved last iteration without this improving at
+    all, so the two are not the same defect: the lobes are the right height and
+    the gaps between them are filled in.
+  * The rendered CORE is about 2.4 px [1.9, 3.0] too far west and 0.7 px
+    [0.35, 1.0] too far south, and is rounder than the reference's flat-topped,
+    east-skewed plateau. Two separate cautions apply. The white core itself is
+    NOT too large -- at G = 255 the render has 14 px against the reference's
+    19-26, and at R >= 240 they are indistinguishable -- so the standing
+    complaint is half wrong; and moving the flare centre moves every anchored
+    layer, so it cannot be done without refitting them.
+  * The line is not too THIN. Its narrow-core FWHM is 4.04 +- 0.54 px in the
+    reference against 3.88 +- 0.26 in the render, a difference of 0.16 +- 0.60.
+    It is too CONCENTRATED: the total light agrees to within 10% at every band
+    inside |dx| 210, while the share lying beyond |dy| 3 px is 0.55-0.78 in the
+    reference and 0.17-0.49 in the render. A redistribution, not a brightness
+    error -- and the same layer split that fixes the colour is what would fix it.
+
+## D42. There is no global saturation defect, and the one real colour error is
+## two opposite errors 12 px apart
+
+The standing request to "adjust saturation" was re-measured under both chroma
+conventions and every mask knob. **Global chroma is +0.65% by max-min on code
+values and -0.59% by mean C*ab -- the sign flips with the convention**, so there
+is no global saturation defect to correct, and the 24-96 px glow is mildly
+OVER-saturated (dC*ab +0.24 +- 0.09 and +0.21 +- 0.10), so a global boost would
+move that region the wrong way. This supersedes nothing in the artwork, because
+iteration 4 had already declined a global control on narrower evidence; it
+closes the question.
+
+Exactly one region carries a colour difference that survives both conventions,
+and the reason it took this long to characterise is that it is **two opposite
+defects that a pooled band average cancels**. In the 3-12 px band flanking the
+curve ridges:
+
+  * on the CONVEX side, between the curves, the render is short 8.7 +- 1.6 code
+    values of G and 7.5 +- 1.3 of B with R correct (dC*ab -1.73 +- 0.29,
+    dL* -3.61 +- 0.68);
+  * on the CONCAVE side, the lobes, it is 5.9 +- 1.8 too RED with G and B
+    nearly right (dC*ab -1.57 +- 0.37, dL* -1.26 +- 0.38).
+
+Everything else is the right colour. The crest and the frame are
+right-coloured and wrong-brightness (dC*ab -0.76 +- 0.54 and +0.06 +- 0.13
+against dL* -2.34 and +0.61), and the flare core, the rays, the broad field and
+the dark background show no established chroma difference at all.
+
+That is a specific, sided correction to the curve layers -- add cyan on one
+side, remove white on the other -- and it is not a saturation knob. It is not
+made here for the same reason as D41: the layers that paint those 12 px are
+shared between the two sides, so it needs a split and a refit rather than a
+value.

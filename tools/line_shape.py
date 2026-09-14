@@ -26,6 +26,15 @@ Both are taken from a model-free transverse excess: at each column the row
 value minus the mean of two reference rows well outside the line, so no bloom
 model enters, and averaged over columns within a band.  The ridge mask is the
 usual one; bands that the curves swallow print a dot rather than a number.
+
+WHERE THIS TOOL IS NOT TRUSTWORTHY, stated because it is easier to misread a
+printed number than an absent one.  The outermost bands, |dx| beyond about 210,
+carry so little light that both quantities are ratios of small differences: the
+REFERENCE itself reads R/G = -0.371 and a skirt fraction of 0.124 there, against
+0.00 +- 0.09 and 0.55-0.78 from a more careful pass over the same region.  Those
+columns are measuring their own baseline.  Read the |dx| 50..210 bands, where
+the reference's own values agree with an independent method, and treat the ends
+as a consistency check on the estimator rather than as data.
 """
 from __future__ import annotations
 
