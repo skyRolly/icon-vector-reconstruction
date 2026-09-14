@@ -1219,9 +1219,9 @@
    "id": "flare_ray_c",
    "kind": "ray",
    "len": 185.0,
-   "note": "lower-right ray.  Its axis is 328.35 deg: the render sat 1.9-2.6 px of arc clockwise of the reference at every radius 82-154, which a 1.05 deg rotation removes (transverse rms 2.32 -> 0.68 px)",
+   "note": "lower-right ray.  Its axis measures 328.0 +- 0.8 deg by a matched filter over r = 82..154; the uncertainty comes from injecting straight rays of the same amplitude and width at 19 ray-free angles of the reference, and changing the filter's kernel or wing band alone moves the answer by 0.56 deg.  That does NOT separate 327.8 from 328.35 -- an earlier note claiming 328.35 +- 0.15 quoted an uncertainty about five times too tight.  The reference's ray is asymmetric (FWHM 7.3-10.1 px with a counter-clockwise shoulder) against the render's symmetric 5.4-6.1, so six reasonable definitions of its centre disagree by 1.2-1.7 px and the axis is not defined to better than about a degree",
    "peak_at": 0.32,
-   "rot": -328.85,
+   "rot": -328.1,
    "spread": 1.6,
    "white": 0.005143
   },
@@ -1310,9 +1310,9 @@
    "id": "flare_ray_e",
    "kind": "ray",
    "len": 150.0,
-   "note": "upper-right ray.  It ends at r = 145 +- 15, not 230: that reading came from a boxcar high-pass over-reading at the ridge-mask edge by up to a factor of 78, and an unbiased statistic with a matched JPEG-noise null ends it here",
+   "note": "upper-right ray.  Axis 44.90 +- 0.37 deg, not 45.6.  It ends at r = 154 (1-sigma 143-166) by a linear-taper fit against a matched null, and a continuation past r = 150 is bounded at 11% of the amplitude inside r = 120, so the len = 215 an earlier pass used is excluded at about 2.7 sigma",
    "peak_at": 0.28,
-   "rot": -45.6,
+   "rot": -44.9,
    "spread": 1.3,
    "white": 0.0
   },

@@ -1803,12 +1803,17 @@ within 3%, the lower-right still 16% hard.
 
 **Colour: one band, one layer, and an opposite sign elsewhere.** The paleness is
 ridge distance 0-16 px, peaking at 4-8, where raw chroma is 22.1% short and red
-39.5% high. `arc_glow1` supplies 55.7% of that ring's white depth and `arc_core`
+39.5% high. `arc_glow1` supplies 56.9% of that ring's white depth and `arc_core`
 the crest; in the basis the ring needs 6.75 cv of white out and 17.97 of cyan in.
 A global boost is refuted by simulation -- the factor that would close this band
 takes the broad field to +36% and the background to +40% -- and three families
-are ALREADY over-saturated: broad field +6.35%, background +9.39%, ridge 16-70 px
-+4.65%. So the change is a constant-luminance white-for-cyan trade in those two
+are ALREADY over-saturated: measuring chroma as max-min of each family's mean
+channels -- the convention of `tools/chroma_report.py` and of the 22.1% above --
+broad field +4.72%, background +3.41%, ridge 16-70 px +3.43%. (An earlier version
+of this entry gave +6.35%, +9.39% and +4.65%, which are 1.3 to 2.8 times too
+large under the stated convention, the background worst. The direction and the
+argument survive: all three are over, so a global boost still makes them worse.
+See D38.) So the change is a constant-luminance white-for-cyan trade in those two
 layers and a correction to `field_grad` in the OPPOSITE direction. That the two
 corrections have opposite signs is the finding: no single saturation control
 could have done both. Measured, the ridge 4-8 chroma deficit goes from -15.19 to
@@ -1843,3 +1848,92 @@ Against it: the worst single-channel error rises from 104 to 110, and the
 flare-region MAE from 7.138 to 7.202 -- the region improved on every structural
 measure while its mean absolute error did not, which is the pattern this whole
 iteration has been about.
+
+## D38. Six shipped claims, adversarially re-measured: five did not survive
+
+**Why this was done.** The measurements this iteration acted on were validated the
+strong way -- by applying them and measuring the rendered result. But several
+statements went into these records and into `README.md` as facts about
+`reference.png` that were never independently reproduced. Six of those were handed
+to independent verifiers, each required to reproduce the number with its own code
+and to default to REFUTED when it could not. Five did not survive. What follows is
+what changed; the corrections are already applied in place above and in the README.
+
+**1. The upper-right ray's extent -- SURVIVES, with a sharper number and a new
+finding.** "Ends at r = 145 +- 15, not 230" reproduces. Measured against a matched
+null built from 19 ray-free angles, with error bars inflated by the reference's own
+radial autocorrelation (tau = 7.6 px, the JPEG block), the mean excess is +1.46 +-
+0.35 cv over r 84-145 (z = +4.2) and -0.28 +- 0.24 over r 150-230. A taper ending
+at 230 is disfavoured by dchi2 = 7.2, and any continuation past r = 150 is bounded
+at 11% of the amplitude inside r = 120. The central value is L = 154 (1-sigma
+143-166) rather than 145; the shipped `len` of 150 sits inside that. The pipeline
+recovers the render's own known 150 and 185 px rays to about 2 px, and a positive
+control on the lower-right ray shows z = +11 where a ray is present, so the null
+result is not an insensitivity artefact. **New:** that ray's axis is 44.90 +- 0.37
+degrees, not 45.6 -- a real 1.9-sigma offset -- and `flare_ray_e` has been moved.
+
+**2. The lower-right ray's axis -- REFUTED, and it had changed the artwork.** The
+claim was 328.35 +- 0.15 degrees. Measured by a matched filter over r = 82..154 it
+is 328.0 +- 0.8. The quoted uncertainty is about five times too tight: merely
+changing the filter's kernel width or wing band moves the reference's answer by
+0.56 degrees while moving the renders' by under 0.10, which proves the swing is the
+reference's structure and not the code. The consequence matters: **this measurement
+cannot separate 327.8 from 328.35 at all** -- both sit within one sigma -- so the
+rotation to -328.85 was not supported by it, and measured against the axis I now
+get, the shipped render had ended up FURTHER from the reference (0.74 degrees
+counter-clockwise) than the value it replaced (0.30 clockwise). `flare_ray_c` is
+now at -328.1, the measured value. The underlying reason the claim over-reached:
+the reference's ray is asymmetric, FWHM 7.3-10.1 px with a counter-clockwise
+shoulder, against the render's symmetric 5.4-6.1, so six reasonable definitions of
+"the centre" disagree by 1.2-1.7 px -- more than a degree over the lever arm. There
+is no single number this axis "is" to 0.15 degrees. The offset is also not purely a
+rotation: it decomposes into a constant parallel displacement plus a small angle.
+
+**3. The comb's one-sidedness -- REFUTED as written.** Neither number reproduced,
+and the claim contradicted itself: a bound of "ratio >= 3.7 at 3 sigma" cannot
+refute "3-6x weaker above", since 3.7 < 6. The most sensitive search finds a
+marginal positive residual exactly where a mirror of line C would sit (3.6 sigma,
+the 94th percentile of null window maxima -- not a detection), so "no upper line at
+all" was an upper limit misreported as a null result.
+
+**4. The three line rows -- REFUTED on precision, not on position.** The row values
+bracket the quoted ones, but line B's +-0.15 is about twice too tight (40% of
+independent estimates fall outside it), and, more importantly, **no line sits at a
+single row**: line A's row moves 0.82 px across the image and line C's about 1.4,
+with bootstrap errors of 0.01-0.08 px. A "+- 0.3" on a feature whose row is a
+function of x is not honest whatever the number. The verifier also established that
+line B runs only from about dx -40 to +90 and is absent west of dx -95.
+
+**5. The colour attribution -- REFUTED on magnitude.** The over-saturation figures
+were 1.3 to 2.8 times too large under the convention the same paragraph uses, the
+background worst (+3.41% measured against +9.39% claimed). The 55.7% share was the
+lowest of four defensible definitions, quoted without saying which. Both arguments
+survive the corrections, which is why the shipped colour change stands: all three
+families are still over-saturated, so a global boost still makes them worse, and
+`arc_glow1` is still the dominant white source in that ring by a factor of two.
+
+**6. The rays' edge softness -- REFUTED, and reversed for one ray.** The reference's
+left pair measures 0.306 and 0.359 on the softness index, not 0.46-0.48, and the
+upper-left reference ray is FLATTER-TOPPED than the rendered one -- the opposite of
+what the README said. The 0.46-0.48 came from a per-radius peak statistic, which is
+biased upward on an image with this reference's blocking; the verifier manufactured
+the same numbers by adding matched noise to the render, whose true edges are
+unchanged. The companion claim that the upper-left carries "narrow 1.48x, broad
+1.29x" also fails, because the broad component it refers to barely exists:
+`flare_flank_ul` contributes about 4% of the narrow component's peak.
+
+**What this says about the method, which is the point of recording it.** Every one
+of the five failures is the same mistake in a different costume: a statistic that is
+unbiased on a clean image, applied to one with real 8x8 JPEG blocking, where a PEAK
+or a per-radius maximum picks up noise and reports it as signal. It produced a
+too-tight error bar (2), a false null (3), a false precision (4), and an inverted
+conclusion (6). The defence is the one the verifiers used throughout: an unbiased
+MEAN against a null built from the same image at places where the feature is not,
+with error bars inflated by the measured autocorrelation length -- and, where a
+number is definitional, saying which definition.
+
+It is also why the artwork mostly survived. Every change that was shipped had been
+validated by rendering it and re-measuring the result, which is a test these
+reference-side errors cannot pass through. The single exception -- the lower-right
+rotation -- is the one change made from a reference-side claim alone, and it is the
+one that had to be undone.

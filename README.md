@@ -25,15 +25,15 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 
 | metric | value | for scale |
 |---|---|---|
-| mean absolute error | **1.936** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 4.193 | |
-| MAE on a 1/2.2 display curve | 5.504 | weights the dark background as the eye does; black scores 59.7 |
+| mean absolute error | **1.937** / 255 | a flat black canvas scores 17.89 |
+| RMSE | 4.194 | |
+| MAE on a 1/2.2 display curve | 5.505 | weights the dark background as the eye does; black scores 59.7 |
 | SSIM (luminance) | **0.9736** | black scores 0.142 |
 | worst single-channel error | 110 | |
 | pixels off by more than 2 / 8 / 24 | 35.1% / 5.4% / 0.8% | |
 | mean bias | -0.254 | |
 
-Per region (MAE): frame band 2.50, centre 90 px 8.89, bright pixels 9.60, dark background 1.43, everything else 1.69.
+Per region (MAE): frame band 2.50, centre 90 px 8.90, bright pixels 9.60, dark background 1.43, everything else 1.69.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -44,7 +44,7 @@ The two regions a whole-image average cannot police, from
 
 | targeted measurement | value |
 |---|---|
-| MAE within 110 px of the central light | 7.19 |
+| MAE within 110 px of the central light | 7.21 |
 | worst ring of the flare's radial profile | -5.1 code values at r = 30-45 |
 | curve glow, rms relative error over 21 signed-distance bins | 3.9% |
 | the same, resolved along the curve (71 cells) | 5.7% |
@@ -209,13 +209,19 @@ enough to search the geometry.
   excess from 6.75 to 3.51, but the ring is also 7% too dark, and a further
   white-for-cyan trade drives red negative before the chroma closes. That
   residual is an amplitude problem, not a colour one.
-* **The upper-left ray carries too much of both its components.** Decomposed
-  against the reference, its narrow part is 1.48x and its broad part 1.29x too
-  bright, at a total 31% too high — it is not a redistribution. And all four
-  reference rays are softer-edged than the reconstruction's: their 25-75% edge
-  run over FWHM is 0.46-0.48 on the left pair against 0.30-0.35 for every
-  rendered ray. Matching that needs a two-scale transverse profile co-axial with
-  the ray, which the single blurred quad cannot express.
+* **Three of the four rays match the reference's edge hardness; the upper-left is
+  the exception, and it is too SOFT, not too hard.** Defining the softness index
+  as the 25-75% edge run over FWHM of the mean transverse profile (a Gaussian is
+  0.385, a blurred slab under 0.35), measured on the stacked, ridge-masked,
+  axis-aligned profile — a pipeline that recovers each rendered ray layer's own
+  exact value to ±0.03 — the reference reads 0.306 / 0.359 / 0.320 / 0.442 for the
+  upper-left, lower-left, upper-right and lower-right rays against the render's
+  0.340 / 0.339 / 0.326 / 0.343. Only the lower-right reference ray is materially
+  softer than its rendered counterpart. An earlier version of this list reported
+  0.46-0.48 for the reference's left pair and concluded that all four were softer;
+  that came from a per-radius peak statistic, which is biased upward on an image
+  with the reference's 8×8 blocking — the same numbers can be manufactured by
+  adding matched noise to the render, whose true edges are unchanged. See D38.
 * The reference's JPEG blocking and its low-frequency "smudge" texture are not
   reproduced, by choice: together they set an MAE floor of ~0.6 per channel.
 * The two dark axial wedges between the diverging curves used to be
