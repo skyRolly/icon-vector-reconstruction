@@ -72,7 +72,7 @@ def layer_index(params, lid):
 
 
 def layer_specs(params, keys=("width", "blur", "inset", "r", "squash", "rot",
-                              "half_len", "height", "len", "peak_at", "cx", "cy",
+                              "half_len", "height", "len", "peak_at", "onset", "cx", "cy",
                               "sigma_y", "blur_x", "spread", "dx", "dy",
                               "scale", "inner", "east_gain")):
     """One spec per tunable shape number on each layer.
@@ -154,6 +154,7 @@ SHAPE_BOUNDS = {
     #: The streak's east/west brightness ratio; see the `streak` kind in
     #: src/build_svg.py for the measurement that makes it a parameter.
     "east_gain": (0.05, 2.5, 0.04),
+    "onset": (0.0, 0.7, 0.02),
     "dx": (-40.0, 40.0, 0.5),
     "dy": (-40.0, 40.0, 0.5),
     "scale": (10.0, 400.0, 4.0),

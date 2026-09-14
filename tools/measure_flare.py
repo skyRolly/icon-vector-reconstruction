@@ -157,6 +157,10 @@ def main():
     ap.add_argument("--geometry", action="store_true",
                     help="also write the measured ray geometry and insert the flanks")
     ap.add_argument("--rounds", type=int, default=8)
+    ap.add_argument("--rays-only", action="store_true",
+                    help="pin the four narrow rays and leave the broad flanks alone "
+                         "(their amplitudes come from an angular measurement that a "
+                         "sector mean would overwrite)")
     a = ap.parse_args()
 
     params = json.load(open(a.params))
@@ -197,7 +201,7 @@ def main():
             bits.append("%s %.2f/%.2f" % (name[0] + name.split("-")[1][0],
                                           cur[name], target[name]))
         for lid, m in sectors.items():
-            if lid not in by_id or not m.any():
+            if a.rays_only or lid not in by_id or not m.any():
                 continue
             err = float((img - ref)[m].mean())
             lvl = max(float(img[m].mean()), 1.0)

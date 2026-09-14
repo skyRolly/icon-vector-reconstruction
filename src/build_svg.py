@@ -803,9 +803,23 @@ class Builder:
                    (cx + ln * ux - fx, cy + ln * uy - fy), (cx - nx, cy - ny)]
             d = "M%s,%s L%s,%s L%s,%s L%s,%s Z" % tuple(
                 f(v, 2) for q in pts for v in q)
+            # `onset` is the fraction of `len` over which the ray is dark before
+            # it begins.  Without it the longitudinal gradient is already at
+            # 0.62 of peak by half of `peak_at`, so a fan that the reference
+            # shows to be ZERO inside r ~ 60 px could only be made by moving the
+            # whole element outward -- which puts its near end on a curve ridge
+            # and trips the banding check.  A ray's inner extent is a measurable
+            # property of the reference and now has a parameter of its own.
+            on = float(L.get("onset", 0.0))
+            if on > 0.0:
+                on = min(on, pk * 0.95)
+                ramp = ((0.0, 0.0), (on, 0.0), (on + (pk - on) * 0.5, 0.62), (pk, 1.0),
+                        (min(0.999, pk + 0.35), 0.42), (1.0, 0.0))
+            else:
+                ramp = ((0.0, 0.0), (pk * 0.5, 0.62), (pk, 1.0),
+                        (min(0.999, pk + 0.35), 0.42), (1.0, 0.0))
             body = "".join('<stop offset="%s" stop-color="%s" stop-opacity="%s"/>' % (f(o, 4), col, f(av, 4))
-                           for o, av in ((0.0, 0.0), (pk * 0.5, 0.62), (pk, 1.0),
-                                         (min(0.999, pk + 0.35), 0.42), (1.0, 0.0)))
+                           for o, av in ramp)
             self.add_def('<linearGradient id="%s" gradientUnits="userSpaceOnUse" x1="%s" y1="%s" '
                          'x2="%s" y2="%s">%s</linearGradient>'
                          % (gid, f(cx, 2), f(cy, 2), f(cx + ln * ux, 2), f(cy + ln * uy, 2),

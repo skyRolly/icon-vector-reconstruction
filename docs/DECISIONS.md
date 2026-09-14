@@ -1563,3 +1563,283 @@ weighing the two reports against each other. Both original measurements survive
 in the record, including the one that was wrong, because which of them was wrong
 was not obvious in advance and the reasoning that settled it is more reusable
 than the answer.
+
+## D33. The comb was invisible to every shape search, and other infrastructure
+
+Nine review findings, each confirmed against the code before being changed. Two
+of them invalidate earlier results and so are recorded in full; the rest are
+listed with what they broke.
+
+**The fitting cells did not survive subsampling.** `tools/regions.py` builds its
+cells on whatever grid the caller passes, and the optimiser passes a subsampled
+one -- at stride 3 a cell covers a ninth of the samples it covers at full
+resolution. The minimum population was a fixed 60 pixels. Measured:
+
+| stride | comb cells | where that stride is used |
+| --- | --- | --- |
+| 1 | 51 | nothing |
+| 2 | 29 | `fit_photometry --stride 2` |
+| 3 | **0** | `--spec shapes`, twice |
+| 4 | **0** | `--spec tapers`, `geometry`, `field` |
+
+So every shape, taper, geometry and field search in the documented cycle was
+blind to the horizontal comb -- not weighting it lightly, unable to see it --
+and the comb is the sharpest structure in the image and the thing the cell grid
+exists to expose. Thresholds are now areas in reference space, converted to a
+count for the grid in hand, with a separate statistical floor of four samples.
+Comb cells by stride are now 51 / 53 / 49 / 45.
+
+**What that invalidated, classified.** *Unaffected:* everything in this
+iteration and the last that came from direct measurement rather than search --
+the three lines, the four rays, the flanks, the bloom e-folding sweep. Those
+never consulted the objective. *Materially affected:* the flare geometry search
+of D30, which is the one search that ran on flare shapes; its result was already
+rejected on measurement and is not shipped, so nothing built on it. *Partially
+affected:* every photometric fit, which ran at stride 2 and so saw 29 of 51 comb
+cells. Re-running the flare fit with the comb fully visible was the first thing
+tried in this iteration and it made line B **worse** (rms 8.13 -> 9.34), which is
+what established that line B's deficit was a model error and not an amplitude
+one -- see D35.
+
+**Coordinate refinement never refined.** `while moved` in `tools/optimize.py`
+exited the instant a pass failed, so the `step /= 2.2` below it was dead code: a
+parameter whose optimum lay between v0 and v0 + step was left where it started.
+The regression check puts the optimum at +0.45 of one step, where +-1.0 are both
+worse; before the fix the search stayed at 0, after it lands at 0.4545 having
+actually proposed sub-step values. Fine flare geometry is exactly the case that
+needed it.
+
+**The rest.** A flare-anchored layer that pinned one coordinate and inherited the
+other was dropped from the dependency set (the rule wanted *either* missing, not
+both) and so was scored at a stale position. `tools/measure_flare.py` could not
+be told from a stale one: the converged path returned before saving and the
+exhausted path saved a state it had never rendered; both now end in a
+verification pass that re-renders from the file on disk. The documented full
+cycle stopped before validation, the regression checks and the README, so no
+single command defined a reviewable state -- `tools/publish.sh` is now that
+command, and it ends by checking that `src/params.json` rebuilds
+`reconstruction.svg` byte for byte. The README published a flare MAE of 6.37
+against an actual 7.13 because `out/diagnostics.json` had gone an entire
+iteration without regeneration, so the freshness guard now covers every
+generated input and refuses. Chromium discovery was a single hard-coded
+Playwright path, which silently narrowed cross-engine validation to one
+machine's layout. The regression gate imported `resvg_py` itself and aborted
+with a bare `ImportError` rather than naming the documented dependency. And an
+`all` sweep searched eight paths twice because `layer_specs` and `field_specs`
+both emit a radial layer's `cx`/`cy`; they are merged rather than one dropped,
+since one relocates and the other refines -- which is only sufficient because
+the step schedule now actually refines.
+
+## D34. The ray high-pass was reading the mask edge, not the ray
+
+**What was wrong.** D32 introduced an angular high-pass to decide whether a
+narrow ray exists, on the argument that a straight chord across a curved island
+manufactures a peak. That argument stands. The implementation did not: it
+subtracted a 24 px moving AVERAGE, which is unbiased only where the background
+is flat. Against a sloped background it leaves a residual proportional to the
+slope, and the steepest slopes in this image are at the edge of the ridge mask,
+where the window is also truncated.
+
+**Measured.** At r = 70 on the upper-right axis the boxcar reads 4.67 code
+values where a local LINEAR fit over the same samples reads 0.06 -- a factor of
+78. The affected radii are r <= 82 at theta 45.6 and r <= 65 at theta 327.8,
+four of the eleven radii the report scans.
+
+**What it invalidated.** D32's conclusion that the reference's upper-right ray
+"holds 1-2.8 counts out to r = 230", and the lengthening of `flare_ray_e` from
+105 to 215 px that followed from it. With an unbiased statistic and a null
+matched to the reference's JPEG blocking -- which is real and large, a
+column-difference ratio of 2.57 inside the flare box against 1.05 for the render
+-- that ray ends at **r = 145 +- 15**. The lower-right ray's extent is
+confirmed: r = 170 +- 10, against the 185 px the model carries.
+
+**The fix.** `thin_amplitude` now removes a local linear fit rather than a local
+mean, and REFUSES any radius whose ray axis lies within 12 px of arc of the mask
+edge, because there the window cannot be centred and no filter rescues it. The
+refusals are visible in the report as gaps, which is the point: a number that
+cannot be measured should be absent rather than wrong.
+
+**The reference's values change accordingly**, and the earlier ones in D32
+should be read as superseded: on the four axes the high-pass now reads 5.69 /
+6.07 / 2.62 / 5.48 code values where the boxcar read 4.50 / 4.73 / 3.92 / 5.52.
+The conclusions those numbers supported -- that all four rays are real, and that
+iteration 2's lower-left axis was empty -- are unchanged, because they never
+depended on radii near the mask edge.
+
+**The general lesson, which is the same one as D32's.** A filter is a claim
+about the background it removes. The boxcar's claim is "locally flat", and it
+was applied exactly where that is least true. Verifying the ray's existence with
+a second instrument was right; it needed verifying that the second instrument
+was not itself reading an artefact.
+
+## D35. Line B was a model error that fitting could only make worse
+
+**The symptom.** Of the three horizontal lines below the core, line B rendered
+1.6 code values where the reference has 24.6 -- the worst structural deficit in
+the flare, and the one the review named. The obvious reading was that its
+amplitude was too low.
+
+**That reading is refuted, twice over.** The photometric fit, re-run with the
+comb cells now visible to it for the first time (D33), made line B *worse*: rms
+8.13 -> 9.34, and it moved the layer's colour DOWN, from 130 to 92 in blue. An
+objective given more of the relevant evidence chose to dim the line further.
+
+Why becomes clear from the layer's own basis. Rendering `flare_spike` alone and
+normalising both it and the reference at |dx| = 50:
+
+| |dx| | -190 | -120 | -95 | -30 | +70 | +95 | +120 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| reference | 0.04 | 0.01 | 0.20 | 0.91 | 0.50 | 0.27 | -0.03 |
+| basis | 0.00 | 0.09 | 0.26 | **1.87** | 0.56 | 0.24 | 0.09 |
+
+The tails agree to 0.05. The near-core point does not: the exponential is twice
+too peaked. So the fit faced a choice between matching the peak and matching the
+tails, and dimming the whole layer was its least-bad compromise. No amplitude
+could have been right.
+
+**What the reference actually has**, measured without assuming any of the
+previous pass's values:
+
+* all three lines sit 1.0-1.6 px HIGHER than the render put them -- rows 512.4,
+  519.7 and 531.8 against rendered basis rows 513.50, 520.70 and 533.25. The
+  -0.28 px offset an earlier pass reported for line A was an artefact of taking
+  `FLARE_CORE`'s y as the centroid of a SATURATED core, which the one-sided comb
+  beneath drags downward; line A in fact coincides with the reference's
+  brightest row to within 0.1 px.
+* line B is the NARROWEST of the three (FWHM 2.1-2.7 px), where the model made
+  it 2.0 px of sigma with a lower bound of 1.3 -- the measured width was not
+  reachable inside the layer's own bounds.
+* line B is the WHITEST of the three, where the model made it the bluest.
+* the comb is strictly one-sided. The block-immune arch depth is 0.06 +- 0.15
+  code values at dy -19.0 against +1.88 +- 0.15 at dy +19.0: not "3-6x weaker
+  above", but no upper line at all.
+* JPEG blocking is refuted as the explanation for lines A and B by a factor of
+  100-400: the block-edge signature in this filter is 0.08 cv/row against 19-216
+  cv*px for line A.
+
+**The change and its effect.** Rows corrected, line B narrowed to sigma 0.4 with
+its bound lowered to 0.3, re-pointed at the measured white and raised 3.5x, and
+line A's falloff shortened from 64.7 to 54.4 px of e-folding. Measured against
+the reference, the three lines' rms errors go
+
+| | line A | line B | line C | total |
+| --- | --- | --- | --- | --- |
+| before | 3.41 | 8.13 | 1.09 | 12.63 |
+| after | **3.05** | **1.80** | **1.05** | **5.90** |
+
+a 53% reduction, and whole-image MAE improves at the same time, 1.9547 ->
+1.9521. That combination is worth noting because it is rare here: most of this
+iteration's structural gains cost error elsewhere, and this one did not, which
+is what a genuine model error looks like when it is fixed rather than traded
+against.
+
+## D36. The west is two lobes with a gap, and the wedge is one parameter
+
+**The review's claim, tested.** "The reference does NOT contain the current broad
+triangular light region on the left." Half right, and the half it gets wrong
+matters: at r = 130-165 the reference DOES carry a broad westward fan spanning
+theta 141..223 and the render supplies it correctly, agreeing to within 3.7 code
+values per 6-degree bin at r = 100-130. Deleting or dimming that layer would
+open a 5-9 cv hole. The false wedge is confined to r < 60.
+
+**What is actually wrong.** At r = 34..46 the reference's west light is not a
+plateau. It has a bright due-west arm, a broad upper-left flank over theta
+104..136 with a hard outer edge, a broad lower-left flank peaking at 226..232,
+and two genuine MINIMA between them at theta ~148 and ~199..215. The render
+fills both minima -- +8.6 and +10.4 cv at theta 145 and 151, +10.5 and +9.1 at
+205 and 211 -- while being 1-3 cv DIM in the upper-left lobe itself.
+`tools/wedge_report.py` scores this as the angular modulation over 19 cleared
+bins, which is the right statistic: whole-image MAE moves the WRONG WAY when it
+is fixed.
+
+**One parameter, found by elimination.** Splitting the candidate change into its
+parts and measuring each alone:
+
+| change | wedge RMS | banding ridge |
+| --- | --- | --- |
+| none | 5.53 | 4.96 |
+| flanks re-aimed and re-scaled only | 6.12 | 4.96 |
+| flanks + west arm narrowed | 4.51 | 5.03 |
+| `flare_ray_d` alone | **3.84** | 5.79 |
+
+So the wedge is `flare_ray_d` and nothing else -- and every way of fixing it by
+geometry alone trips the banding check, because the layer is a trapezoid 42 px
+wide AT THE CORE whose angular half-width is 46.6 degrees at r = 40 where the
+reference wants 34-37, and shrinking or relocating its near end puts that end on
+the left curve ridge.
+
+**The primitive could not express the shape.** The ray's longitudinal gradient
+is already at 0.62 of peak by half of `peak_at`, so a fan the reference shows to
+be zero inside r ~ 60 was unreachable: every variant that removed the near
+contribution did so by moving the whole element outward. An `onset` parameter --
+the fraction of `len` over which the ray is dark before it begins -- makes it
+expressible. With onset 0.24, peak_at 0.45, len 190 and the near end left WIDE
+at height 30, the wedge RMS falls to 3.84, the flare-region MAE falls from 7.09
+to 6.97, and the banding ridge figure is 4.95, inside its ceiling. The near end
+has to stay wide: narrowing it concentrates light at the ridge and the same
+check rejects it (5.13 to 7.44 across the variants tried).
+
+**Alternatives rejected, with numbers.** Raising the west arm's amplitude was
+tried at six gains: every one that helped the wedge moved bright pixels to the
+core. Measured, a gain of 1.55 put 30 pixels above luminance 250 at the core --
+against the reference's TEN, and 96 of the reference's 106 such pixels are on a
+ridge, not on the flare at all. That is worth stating plainly because it inverts
+the review's "excessive central white area": the render's high-luminance area
+was never too large, it was in the wrong place, and the fix was not to dim
+anything but to stop adding light at the core. The shipped state has exactly ten.
+
+## D37. The right rays, the colour trade, and a budget that is now binding
+
+**Right rays.** The lower-right axis is 328.35 +- 0.15 degrees, not 327.8: the
+render sat 1.9-2.6 px of arc clockwise of the reference at every radius from 82
+to 154, and neither drifts, so it is a rotation and a 1.05-degree correction cuts
+the transverse rms from 2.32 px to 0.68. Both right rays are CYAN in the
+reference and the render made them blue-violet -- hue 252 against the
+reference's 138.7 for the upper-right -- and both were re-pointed at the measured
+ratio. The upper-right ray was shortened from 215 px to 150 for the reason in
+D34. After re-pinning the amplitudes the four rays' hardness reads 0.755 / 0.820
+/ 0.596 / 1.313 against the reference's 0.778 / 0.836 / 0.601 / 1.135: three
+within 3%, the lower-right still 16% hard.
+
+**Colour: one band, one layer, and an opposite sign elsewhere.** The paleness is
+ridge distance 0-16 px, peaking at 4-8, where raw chroma is 22.1% short and red
+39.5% high. `arc_glow1` supplies 55.7% of that ring's white depth and `arc_core`
+the crest; in the basis the ring needs 6.75 cv of white out and 17.97 of cyan in.
+A global boost is refuted by simulation -- the factor that would close this band
+takes the broad field to +36% and the background to +40% -- and three families
+are ALREADY over-saturated: broad field +6.35%, background +9.39%, ridge 16-70 px
++4.65%. So the change is a constant-luminance white-for-cyan trade in those two
+layers and a correction to `field_grad` in the OPPOSITE direction. That the two
+corrections have opposite signs is the finding: no single saturation control
+could have done both. Measured, the ridge 4-8 chroma deficit goes from -15.19 to
+-10.74 cv, red excess from +6.75 to +3.51, hue error from +3.3 to +2.8 degrees.
+
+**The budget is now the binding constraint, and it decided the release.** The
+banding ridge figure has a ceiling of 5.00, set in the previous iteration just
+above the then-shipped value. This iteration's changes each spend part of it:
+the lines +0.09, the west fix +0.08, the colour trade +0.08. They do not all
+fit. Measured combinations:
+
+| candidate | MAE | wedge RMS | flare r<110 | ridge chroma | banding ridge |
+| --- | --- | --- | --- | --- | --- |
+| iteration 3 | 1.9547 | 5.62 | 7.138 | -8.63 | 4.87 |
+| west + full line A | 1.9677 | 3.84 | **6.968** | -8.21 | 4.95 |
+| west + colour, line A given back | **1.9365** | 3.83 | 7.202 | **-6.44** | 4.98 |
+| west + line A + colour | 1.9553 | 3.84 | 7.235 | -6.19 | 5.03 -- **fails** |
+
+The last row is the one that would have been best on structure and it is
+rejected, by 0.03 of a figure I set myself. The alternative was to raise the
+ceiling to fit the result, which is exactly what D31 declined to do for the
+core's falloff and is no more defensible here. So line A's falloff was given
+back -- its rms rises from 2.95 to 4.02, still well below iteration 3's 3.41 --
+and the release takes the colour trade instead.
+
+**What that costs and buys, plainly.** Against iteration 3: whole-image MAE
+1.9547 -> **1.9365**, SSIM 0.97334 -> **0.97365**, pixels off by more than 2
+35.67% -> **35.10%**, MAE on a display curve 5.749 -> **5.504**, the coherent
+banding measure 1.81x -> **1.74x**, the wedge 5.62 -> **3.83**, the three lines
+12.63 -> **6.73**, bright pixels at the core 13 -> **10** against a reference 10.
+Against it: the worst single-channel error rises from 104 to 110, and the
+flare-region MAE from 7.138 to 7.202 -- the region improved on every structural
+measure while its mean absolute error did not, which is the pattern this whole
+iteration has been about.

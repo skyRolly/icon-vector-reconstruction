@@ -134,7 +134,8 @@ def ray_profile(lum, dmin, theta_deg, radii=RADII, half_window=26.0, step=0.5):
 THIN_WIN_PX = 24.0
 
 
-def thin_amplitude(lum, dmin, theta_deg, r, span_px=70.0, core_px=6.0):
+def thin_amplitude(lum, dmin, theta_deg, r, span_px=70.0, core_px=6.0,
+                   edge_guard=12.0):
     """Peak of an angular HIGH-PASS at this radius, near the ray's axis.
 
     The chord excess above is the right measure of a ray's shape, but it has a
@@ -143,13 +144,19 @@ def thin_amplitude(lum, dmin, theta_deg, r, span_px=70.0, core_px=6.0):
     that is not there.  That matters most on the right-hand side, where the
     ridge mask makes the island narrow.
 
-    So this measures the same place a different way.  Subtracting a moving
-    average 24 px of arc wide removes a smooth background of ANY curvature and
-    keeps only structure narrower than the window.  A real ray survives it; a
-    curvature artefact does not.  Measured on the reference, all four ray axes
-    carry 3.9 to 5.5 counts under this filter, which is what settles that they
-    are real -- and the same filter reads 0.59 counts on the iteration-2
-    render's lower-left axis, which is what settles that it was missing.
+    So this measures the same place a different way, by removing a LOCAL LINEAR
+    fit over a 24 px window rather than a moving average of it.  The difference
+    is not cosmetic.  A boxcar mean is unbiased only where the background is
+    flat; against a background with a slope it leaves a residual proportional to
+    that slope, and the steepest slopes here are at the edge of the ridge mask,
+    where the window is also truncated.  Measured, the boxcar read 4.67 code
+    values for the reference's upper-right ray at r = 70 where this filter reads
+    0.06 -- a factor of 78 -- and that over-reading is what made that ray appear
+    to run out to r = 230 when an unbiased statistic ends it at 145 +- 15.
+
+    `edge_guard` is the second half of the same fix: a radius whose ray axis
+    lies within 12 px of arc of the mask edge is REFUSED rather than reported,
+    because there the window cannot be centred and no filter can rescue it.
     """
     dth = math.degrees(0.5 / r)
     span = math.degrees(span_px / r)
@@ -160,14 +167,33 @@ def thin_amplitude(lum, dmin, theta_deg, r, span_px=70.0, core_px=6.0):
     ok = _bilinear(dmin, xs, ys) > RIDGE_CLEAR
     if ok.sum() < 40:
         return None
-    v = np.where(ok, v, np.nan)
-    k = max(5, int(round(THIN_WIN_PX / 0.5)) | 1)
-    vv = np.pad(v, k // 2, mode="edge")
-    sm = np.array([np.nanmean(vv[i:i + k]) if np.isfinite(vv[i:i + k]).sum() > k // 3
-                   else np.nan for i in range(v.size)])
-    near = ok & (np.abs(ths - theta_deg) <= math.degrees(core_px / r))
-    seg = (v - sm)[near]
-    return float(np.nanmax(seg)) if seg.size and np.isfinite(seg).any() else None
+    # how far, in px of arc, the axis sits from the nearest masked sample
+    idx = np.flatnonzero(ok)
+    mid = int(np.argmin(np.abs(ths - theta_deg)))
+    if not ok[mid]:
+        return None
+    lo = mid
+    while lo - 1 >= 0 and ok[lo - 1]:
+        lo -= 1
+    hi = mid
+    while hi + 1 < ok.size and ok[hi + 1]:
+        hi += 1
+    if min(mid - lo, hi - mid) * 0.5 < edge_guard:
+        return None
+    half = max(2, int(round(THIN_WIN_PX / 0.5)) // 2)
+    out = []
+    near = np.abs(ths - theta_deg) <= math.degrees(core_px / r)
+    for i in np.flatnonzero(near & ok):
+        a, b = max(lo, i - half), min(hi, i + half) + 1
+        if b - a < 8:
+            continue
+        t = np.arange(a, b, dtype=float)
+        y = v[a:b]
+        # a straight line through the window, then the residual at its centre
+        A = np.vstack([t - i, np.ones_like(t)]).T
+        coef, *_ = np.linalg.lstsq(A, y, rcond=None)
+        out.append(float(v[i] - coef[1]))
+    return max(out) if out else None
 
 
 def main():

@@ -25,15 +25,15 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 
 | metric | value | for scale |
 |---|---|---|
-| mean absolute error | **1.955** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 4.158 | |
-| MAE on a 1/2.2 display curve | 5.737 | weights the dark background as the eye does; black scores 59.7 |
-| SSIM (luminance) | **0.9733** | black scores 0.142 |
-| worst single-channel error | 104 | |
-| pixels off by more than 2 / 8 / 24 | 35.7% / 5.5% / 0.8% | |
-| mean bias | -0.236 | |
+| mean absolute error | **1.936** / 255 | a flat black canvas scores 17.89 |
+| RMSE | 4.193 | |
+| MAE on a 1/2.2 display curve | 5.504 | weights the dark background as the eye does; black scores 59.7 |
+| SSIM (luminance) | **0.9736** | black scores 0.142 |
+| worst single-channel error | 110 | |
+| pixels off by more than 2 / 8 / 24 | 35.1% / 5.4% / 0.8% | |
+| mean bias | -0.254 | |
 
-Per region (MAE): frame band 2.51, centre 90 px 8.76, bright pixels 10.02, dark background 1.44, everything else 1.71.
+Per region (MAE): frame band 2.50, centre 90 px 8.89, bright pixels 9.60, dark background 1.43, everything else 1.69.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -44,16 +44,16 @@ The two regions a whole-image average cannot police, from
 
 | targeted measurement | value |
 |---|---|
-| MAE within 110 px of the central light | 7.13 |
-| worst ring of the flare's radial profile | +4.5 code values at r = 12-20 |
-| curve glow, rms relative error over 21 signed-distance bins | 4.0% |
-| the same, resolved along the curve (71 cells) | 5.6% |
-| light in the four interior corners, rms relative error | 5.3% |
-| worst single bin of that profile | -11.7% at s = 9..14 px |
-| left lobe, MAE more than 25 px from the ridge | 1.43 (bias -0.11) |
-| right lobe, MAE more than 25 px from the ridge | 1.36 (bias -0.15) |
+| MAE within 110 px of the central light | 7.19 |
+| worst ring of the flare's radial profile | -5.1 code values at r = 30-45 |
+| curve glow, rms relative error over 21 signed-distance bins | 3.9% |
+| the same, resolved along the curve (71 cells) | 5.7% |
+| light in the four interior corners, rms relative error | 5.0% |
+| worst single bin of that profile | -11.8% at s = 9..14 px |
+| left lobe, MAE more than 25 px from the ridge | 1.50 (bias +0.07) |
+| right lobe, MAE more than 25 px from the ridge | 1.33 (bias -0.16) |
 
-Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.816 (SSIM 0.9528); see `out/validation.md` for the resolution sweep.
+Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.668 (SSIM 0.9556); see `out/validation.md` for the resolution sweep.
 <!-- METRICS:END -->
 
 ## What is in here
@@ -76,6 +76,8 @@ tools/ray_report.py      the four diagonal rays: peak, angle and width against t
 tools/core_report.py     the flare core's radial falloff, in bands, where a blur would show
 tools/chroma_report.py   colour by distance from a curve ridge, where the paleness is
 tools/measure_flare.py   sets the rays' and flanks' amplitudes from those measurements
+tools/wedge_report.py    angular modulation west of the flare, where a regional mean is blind
+tools/publish.sh         the one command that produces a reviewable release
 tools/regions.py         the measured anchors and region geometry both of those share
 tools/test_pipeline.py   regression checks that keep optimisation results meaningful
 tools/validate.py        multi-resolution and cross-engine validation report
@@ -185,38 +187,35 @@ enough to search the geometry.
 
 ## Known limitations
 
-* **The flare's structure was chosen over the flare region's mean error.** The
-  four diagonal rays and the three horizontal lines are now built from measured
-  angles, widths and amplitudes, which takes the rays' `peak/FWHM` hardness from
-  0.58 away from the reference to 0.037 and the horizontal lines' error down 36%
-  — and costs 0.020 of whole-image MAE and 0.77 of mean absolute error inside
-  r = 110 px of the flare core. That cost is not evenly spread: about 70% of it
-  is within 30 px of a curve ridge, where the colour-basis error of D28 already
-  dominates at 8.3 code values, and the flare's own off-ridge area rose by 0.3.
-  SSIM is unchanged at 0.9734, and pixels off by more than 2 and the worst single
-  channel both improved.
-  The judgement is deliberate and is recorded in D29 with the evidence on both
-  sides. [`out/flare_rays.png`](out/flare_rays.png) is the visual half of it:
-  reference, iteration 2 and the current reconstruction at 3x, as rendered and
-  contrast-stretched. Iteration 2's flare has no diagonal rays at all.
-* **The paleness beside each curve is located but not fixed.** Within 16 px of a
-  ridge the render is up to 22% short of the reference's chroma, peaking 4-8 px
-  out, and it is 39% too red there — too much white in the mix. Beyond 16 px the
-  sign reverses, which is why the whole-canvas chroma is 1.2% *above* the
-  reference and a global saturation change would be wrong. No layer's footprint
-  is this band, so it is a basis limitation; `tools/chroma_report.py` measures it
-  and D28 records what it would take.
-* **The flare core's falloff is closer but still not right.** The reference's
-  core is very nearly linear in radius -- its gradient is 3.81, 3.80 and 3.12
-  cv/px over r = 1-8, 8-16 and 16-28 px, which is a straight line, not the
-  exponential the bloom is built from. Lengthening that exponential's e-folding
-  from 14.7 to 18.5 px closes about a tenth of the gap and takes the innermost
-  20 px of the flare from 9.47 to 8.73 of mean absolute error. Going further is
-  blocked rather than unattempted: the profile error in the strip beside each
-  curve ridge climbs with the bloom's width and reaches its regression ceiling
-  at an e-folding of 21.3 px, so the core's sharpness and the ridge strip are
-  competing for the same light. Closing the rest needs a measured profile table,
-  the way the horizontal lines got one. D31 has the sweep and the ceiling.
+* **The banding budget is now the binding constraint on the flare.** The profile
+  error in the 26 px strip beside each ridge has a ceiling of 5.00%, and this
+  iteration's three measured corrections spend it: the horizontal lines +0.09,
+  the west fan +0.08, the ridge colour trade +0.08. They do not all fit. The
+  combination that is best on structure measures 5.03% and is **not shipped**;
+  line A's falloff was given back instead, so its error rises from 2.95 to 4.02
+  (still below the 3.41 it had before). Raising the ceiling to fit the result was
+  declined, for the same reason it was declined in D31. D37 has the table.
+* **The flare region's mean absolute error rose while every structural measure
+  in it improved** — 7.138 to 7.202 within 110 px of the core, against a wedge
+  modulation of 5.62 to 3.83, three horizontal lines from 12.63 to 6.73, and
+  bright pixels at the core from 13 to 10 where the reference has 10. This is
+  not incidental: the angular and line diagnostics exist because a regional mean
+  cannot see a redistribution, and it will sometimes move against them.
+* **The worst single-channel error rose from 104 to 110.** It is a handful of
+  pixels on the curve crest beside the flare, where the reference reaches R 254
+  and the reconstruction 249.
+* **The paleness beside each curve is improved but not closed.** In the 4-8 px
+  ring the chroma deficit falls from 15.19 to 10.74 code values and the red
+  excess from 6.75 to 3.51, but the ring is also 7% too dark, and a further
+  white-for-cyan trade drives red negative before the chroma closes. That
+  residual is an amplitude problem, not a colour one.
+* **The upper-left ray carries too much of both its components.** Decomposed
+  against the reference, its narrow part is 1.48x and its broad part 1.29x too
+  bright, at a total 31% too high — it is not a redistribution. And all four
+  reference rays are softer-edged than the reconstruction's: their 25-75% edge
+  run over FWHM is 0.46-0.48 on the left pair against 0.30-0.35 for every
+  rendered ray. Matching that needs a two-scale transverse profile co-axial with
+  the ray, which the single blurred quad cannot express.
 * The reference's JPEG blocking and its low-frequency "smudge" texture are not
   reproduced, by choice: together they set an MAE floor of ~0.6 per channel.
 * The two dark axial wedges between the diverging curves used to be
@@ -225,10 +224,8 @@ enough to search the geometry.
   wedges are dark because nothing in the reference puts light there, and the
   over-prediction was two model errors — a broad glow that was not one-sided
   and a central bloom with more than twice its measured reach — both fixed in
-  `docs/DECISIONS.md` D13 and D14. Re-measured on the current reconstruction the
-  axial region runs +0.35 G bright while the rest of the interior runs -0.53 G
-  dark -- both under one code value, and opposite in sign to what this list used
-  to claim.
+  `docs/DECISIONS.md` D13 and D14.
+
 * **The same SVG is about 2.8 code values brighter in Chromium than in resvg.**
   Chromium composites each dim screen layer 0.26-0.33 counts brighter, and over
   a stack this deep that accumulates to a near-uniform lift of the dark
