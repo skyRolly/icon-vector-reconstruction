@@ -195,8 +195,9 @@ enough to search the geometry.
   SSIM is unchanged at 0.9734, and pixels off by more than 2 and the worst single
   channel both improved.
   The judgement is deliberate and is recorded in D29 with the evidence on both
-  sides, including the rendered crops: before the change the reconstruction's
-  flare had no diagonal rays at all.
+  sides. [`out/flare_rays.png`](out/flare_rays.png) is the visual half of it:
+  reference, iteration 2 and the current reconstruction at 3x, as rendered and
+  contrast-stretched. Iteration 2's flare has no diagonal rays at all.
 * **The paleness beside each curve is located but not fixed.** Within 16 px of a
   ridge the render is up to 22% short of the reference's chroma, peaking 4-8 px
   out, and it is 39% too red there — too much white in the mix. Beyond 16 px the
