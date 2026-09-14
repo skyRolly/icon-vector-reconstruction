@@ -25,15 +25,15 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 
 | metric | value | for scale |
 |---|---|---|
-| mean absolute error | **1.958** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 4.168 | |
-| MAE on a 1/2.2 display curve | 5.746 | weights the dark background as the eye does; black scores 59.7 |
-| SSIM (luminance) | **0.9733** | black scores 0.142 |
+| mean absolute error | **1.954** / 255 | a flat black canvas scores 17.89 |
+| RMSE | 4.156 | |
+| MAE on a 1/2.2 display curve | 5.736 | weights the dark background as the eye does; black scores 59.7 |
+| SSIM (luminance) | **0.9734** | black scores 0.142 |
 | worst single-channel error | 104 | |
-| pixels off by more than 2 / 8 / 24 | 35.6% / 5.6% / 0.8% | |
-| mean bias | -0.239 | |
+| pixels off by more than 2 / 8 / 24 | 35.6% / 5.5% / 0.8% | |
+| mean bias | -0.238 | |
 
-Per region (MAE): frame band 2.51, centre 90 px 8.91, bright pixels 10.02, dark background 1.44, everything else 1.71.
+Per region (MAE): frame band 2.51, centre 90 px 8.74, bright pixels 10.02, dark background 1.44, everything else 1.71.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -187,11 +187,13 @@ enough to search the geometry.
 * **The flare's structure was chosen over the flare region's mean error.** The
   four diagonal rays and the three horizontal lines are now built from measured
   angles, widths and amplitudes, which takes the rays' `peak/FWHM` hardness from
-  0.58 away from the reference to 0.076 and the horizontal lines' error down 36%
-  — and costs 0.022 of whole-image MAE and 0.82 of mean absolute error inside
-  r = 110 px of the flare core. That cost is not evenly spread: 71% of it is
-  within 30 px of a curve ridge, where the colour-basis error of D28 already
-  dominates at 8.3 code values, and the flare's own off-ridge area rose by 0.32.
+  0.58 away from the reference to 0.07 and the horizontal lines' error down 36%
+  — and costs 0.019 of whole-image MAE and 0.74 of mean absolute error inside
+  r = 110 px of the flare core. That cost is not evenly spread: about 70% of it
+  is within 30 px of a curve ridge, where the colour-basis error of D28 already
+  dominates at 8.3 code values, and the flare's own off-ridge area rose by 0.3.
+  SSIM is unchanged at 0.9734, and pixels off by more than 2 and the worst single
+  channel both improved.
   The judgement is deliberate and is recorded in D29 with the evidence on both
   sides, including the rendered crops: before the change the reconstruction's
   flare had no diagonal rays at all.

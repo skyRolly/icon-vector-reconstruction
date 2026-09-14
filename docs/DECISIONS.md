@@ -1324,7 +1324,10 @@ fixed while the bloom is fitted around them.
 
 **What it bought, measured.**
 
-| | baseline | shipped |
+The right-hand column is this change alone; D31 then widens the bloom, which
+improves the whole-image and flare-region figures further, to 1.9538 and 7.114.
+
+| | baseline | this change |
 | --- | --- | --- |
 | ray hardness, mean err in `peak/FWHM` | 0.579 | **0.076** |
 | horizontal line error (D24) | 20.00 | **12.77** |
