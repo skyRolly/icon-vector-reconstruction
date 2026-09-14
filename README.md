@@ -72,6 +72,10 @@ tools/optimize_all.sh    the full fitting cycle
 tools/prune_layers.py    re-fits without each layer to see which ones earn their place
 tools/isolate.py         recovers one layer group's own contribution from the reference
 tools/diagnose.py        targeted reports for the flare, the lobes and the glow profile
+tools/ray_report.py      the four diagonal rays: peak, angle and width against the reference
+tools/core_report.py     the flare core's radial falloff, in bands, where a blur would show
+tools/chroma_report.py   colour by distance from a curve ridge, where the paleness is
+tools/measure_flare.py   sets the rays' and flanks' amplitudes from those measurements
 tools/regions.py         the measured anchors and region geometry both of those share
 tools/test_pipeline.py   regression checks that keep optimisation results meaningful
 tools/validate.py        multi-resolution and cross-engine validation report
