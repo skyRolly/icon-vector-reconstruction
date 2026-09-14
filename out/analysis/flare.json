@@ -1,0 +1,2532 @@
+{
+ "component": "central light source: core, horizontal streak, rays, bloom",
+ "coordinate_convention": {
+  "frame": "pixel-index (integer = pixel centre), x right, y down, canvas 0..1023",
+  "svg_user_space": "SVG_user = pixel_index + 0.5 (verified by the arc-geometry agent with a calibration render); ALL numbers below are pixel-index"
+ },
+ "method_summary": [
+  "R channel is the flare/white discriminator: the cyan field has linear R/G ~= 0.01-0.05 and 8-bit R = 1-3, while the arcs' own white glow is confined to |u|<16 px of each ridge (measured on clean rows y=250,300,350,400,650,700,750). So 8-bit R > 10 at |u|>20 px is flare light, full stop.",
+  "G and B clip at 255 over the whole core region (x 468..560, y 500..528), so every colour/amplitude statement inside that box comes from R only.",
+  "All photometry converted to LINEAR light (sRGB EOTF) before any additive decomposition; 8-bit increments are NOT additive (a white layer on top of a bright cyan base gives a bigger 8-bit step in R than in G purely from the gamma slope, which is why raw 8-bit deltas suggest a red-dominant streak - it is not).",
+  "Thin features isolated by fitting a cubic baseline in y over y in [468,560] with y in [503,524] excluded, per column; broad/arc glow removed by (a) high-pass along the arc in arc-following (u,y) coordinates, (b) mirror-reflection about the arcs' axis x=504.53 which cancels the (mirror-symmetric) arcs exactly.",
+  "Ray ridges traced sub-pixel in (u,y) coordinates on the arc-subtracted residual (mean of G and B), then fitted as straight lines x = a + b*y in real coordinates.",
+  "JPEG-ghost control experiment: a synthetic bright thin line (peak 134 above background) written to JPEG at q=75/85/92/96 with 4:2:0 chroma and re-read produces |ringing| < 0.5 LSB at +-8 px. The secondary lines reported below are 28-37 LSB, so they are REAL image content, not compression."
+ ],
+ "1_centre": {
+  "adopted_flare_centre_pixelindex": {
+   "x": 508.7,
+   "y": 512.2,
+   "sigma_x": 2.5,
+   "sigma_y": 0.3
+  },
+  "adopted_flare_centre_svg_userspace": {
+   "x": 509.2,
+   "y": 512.7
+  },
+  "how_x_was_found": {
+   "primary": "symmetric-exponential fit of the y-integrated linear-G streak flux, F(x)=A*exp(-|x-xc|/L), over |x-xc| in [45,140] px (187 samples, both wings simultaneously): xc=508.75, L=30.31 px, A=9.37 lin*px, rms(lnF)=0.156",
+   "cross_checks": {
+    "log_ratio_match_|d|_60_120": 511.5,
+    "log_ratio_match_|d|_80_160": 510.5,
+    "log_ratio_match_|d|_100_200": 506.0,
+    "white_component_R-0.03G_|d|_55_100": 509.0,
+    "wing_matching_of_the_8bit_R_cut_at_y=512": "506-510",
+    "e_folding_lengths_left_vs_right": "29.9 px (x 350-430) vs 27.4 px (x 590-670) - equal to 5%, so the two wings really are the same object"
+   },
+   "note": "The brightest pixel (543,514) and the whole lum>=250 patch are NOT usable for the centre - see section 2/7; they belong to a separate compact element 26 px further right."
+  },
+  "how_y_was_found": "per-column parabolic peak of the baseline-subtracted linear-G column profile: left wing (x 240-450) mean 512.404 sd 0.292; right wing (x 556-756) mean 511.855 sd 1.73; global straight-line fit y = 513.027 - 0.001790*x -> y(512)=512.11, tilt -0.103 deg. The streak is horizontal to within 0.1 deg.",
+  "offsets": {
+   "from_canvas_centre_512_512": [
+    -3.3,
+    0.2
+   ],
+   "from_frame_centre_508.5_512.5": [
+    0.2,
+    -0.3
+   ],
+   "from_arcs_mirror_axis_x_504.53": 4.2,
+   "from_arcs_own_symmetry_axis_y_514.85": -2.65,
+   "from_waist_mid_height_y_517.3": -5.1,
+   "from_waist_mid_x_(464.94+544.19)/2=504.565": 4.1,
+   "interpretation": "The flare centre coincides with the FRAME centre (508.5,512.5) to 0.2/0.3 px - well inside its own error bar. It is 4.2 px RIGHT of the arcs' mirror axis and 2.6-5.1 px ABOVE the arcs' waist. If the lead needs one anchor, use the frame centre."
+  }
+ },
+ "2_saturated_core": {
+  "lum_definition": "lum = 0.2126R+0.7152G+0.0722B on 8-bit values",
+  "lum_ge_250": {
+   "total_px": 232,
+   "on_arc_core_|u|<=4.5": 202,
+   "off_arc_|u|>8": 26,
+   "off_arc_bbox": {
+    "x": [
+     527,
+     536
+    ],
+    "y": [
+     511,
+     514
+    ]
+   },
+   "off_arc_centroid": [
+    531.9,
+    512.8
+   ]
+  },
+  "lum_ge_245": {
+   "total_px": 961,
+   "on_arc_core_|u|<=4.5": 888,
+   "off_arc_|u|>8": 60,
+   "off_arc_bbox": {
+    "x": [
+     525,
+     536
+    ],
+    "y": [
+     510,
+     516
+    ]
+   },
+   "off_arc_centroid": [
+    531.3,
+    512.8
+   ]
+  },
+  "verdict": "There is NO saturated core at the flare centre (508.7,512.2): there lum=224 (R=157,G=229,B=235) and nothing within 15 px of it reaches 245. Every lum>=245 pixel in the image is either on an arc core or inside the small patch x 525-536, y 510-516 whose centroid is (531.3,512.8) - 22.6 px right of the flare centre.",
+  "radial_R_profile_from_531_513": {
+   "radii": [
+    0,
+    2,
+    4,
+    6,
+    8,
+    10,
+    13,
+    16,
+    20,
+    25,
+    30,
+    40,
+    50,
+    60,
+    80,
+    100
+   ],
+   "note": "'null' where the sample lies within 5 px of an arc core (unusable)",
+   "theta_deg_0_is_plus_x_y_down": {
+    "0": [
+     242,
+     246,
+     243,
+     241,
+     235,
+     null,
+     null,
+     null,
+     184,
+     150,
+     116,
+     62,
+     34,
+     10,
+     6,
+     4
+    ],
+    "30": [
+     242,
+     243,
+     233,
+     222,
+     216,
+     215,
+     null,
+     null,
+     null,
+     146,
+     118,
+     59,
+     9,
+     4,
+     3,
+     3
+    ],
+    "60": [
+     242,
+     237,
+     222,
+     203,
+     182,
+     161,
+     136,
+     119,
+     null,
+     null,
+     null,
+     99,
+     76,
+     25,
+     3,
+     3
+    ],
+    "90": [
+     242,
+     232,
+     214,
+     197,
+     174,
+     156,
+     134,
+     110,
+     82,
+     54,
+     20,
+     6,
+     2,
+     2,
+     4,
+     1
+    ],
+    "120": [
+     242,
+     230,
+     212,
+     194,
+     179,
+     164,
+     138,
+     112,
+     87,
+     62,
+     29,
+     2,
+     0,
+     2,
+     2,
+     4
+    ],
+    "150": [
+     242,
+     232,
+     213,
+     195,
+     181,
+     170,
+     154,
+     131,
+     111,
+     89,
+     69,
+     14,
+     2,
+     0,
+     null,
+     5
+    ],
+    "180": [
+     242,
+     235,
+     226,
+     213,
+     202,
+     187,
+     172,
+     162,
+     162,
+     158,
+     148,
+     124,
+     103,
+     117,
+     114,
+     18
+    ],
+    "210": [
+     242,
+     238,
+     222,
+     200,
+     180,
+     163,
+     138,
+     123,
+     109,
+     81,
+     57,
+     6,
+     0,
+     1,
+     null,
+     13
+    ],
+    "240": [
+     242,
+     236,
+     221,
+     197,
+     174,
+     153,
+     134,
+     111,
+     83,
+     57,
+     32,
+     4,
+     2,
+     2,
+     2,
+     2
+    ],
+    "270": [
+     242,
+     232,
+     212,
+     189,
+     164,
+     144,
+     116,
+     88,
+     59,
+     22,
+     12,
+     4,
+     3,
+     3,
+     6,
+     4
+    ],
+    "300": [
+     242,
+     235,
+     215,
+     195,
+     172,
+     149,
+     122,
+     98,
+     null,
+     null,
+     null,
+     null,
+     85,
+     41,
+     3,
+     3
+    ],
+    "330": [
+     242,
+     245,
+     231,
+     219,
+     207,
+     197,
+     null,
+     null,
+     null,
+     139,
+     110,
+     53,
+     5,
+     0,
+     2,
+     2
+    ]
+   }
+  },
+  "circularity": "Averaging the four clean directions (90,120,240,270) gives R(r) = 242,232,213,194,173,154,130,105,78,48,18,4 at r=0,2,4,6,8,10,13,16,20,25,30,40. Those four agree with each other to +-8 LSB out to r=16 and to +-14 out to r=25, i.e. the core is CIRCULAR to ~5% for r<=16 px. It stops being circular at r~=16-20 px, where the horizontal direction (theta=180) is still at 162 while the vertical directions are at 78-88 - the streak takes over. Half-maximum radius: 13.2 px vertically (FWHM 26.4), ~23 px along +x, >40 px along -x.",
+  "profile_form": "Not Gaussian and not exponential over the full range. Vertical/diagonal directions: a Gaussian in LINEAR light fits well, sigma_y = 9.0-10.4 px for x in [504,530] (rms of ln residual 0.30-0.53); in 8-bit the same curve looks much flatter because of the gamma.",
+  "peak_is_unrecoverable": "R reaches 254 (one pixel in the whole image), G and B are clipped at 255 over the entire patch, so the true peak radiance of the core cannot be recovered from this PNG. Any model whose core clips to white over x 525..547, y 508..518 is consistent with the data."
+ },
+ "3_horizontal_streak": {
+  "ridge_y": 512.2,
+  "tilt_deg": -0.103,
+  "tilt_note": "right end 0.44 px higher than the left over 500 px; treat as horizontal",
+  "transverse_shape": "Gaussian, FWHM 4.8-5.4 px for x in [370,450] and 4.5-6.3 px for x in [556,666] => sigma_y = 2.05-2.30, adopt sigma_y = 2.2 px. NO systematic widening with distance (the apparent widening on the right is the secondary line at y=519.7 leaking into the window).",
+  "length": {
+   "detected_extent_x": [
+    290,
+    715
+   ],
+   "about_centre": [
+    -219,
+    206
+   ],
+   "e_folding_length_of_y_integrated_linear_G_flux": 30.31,
+   "flux_model": "F_G(x) [linear * px] = 9.37 * exp(-|x-508.75|/30.31), valid 45 <= |d| <= 190 px, rms(lnF)=0.156",
+   "reaches_frame": "NO. The frame stroke centre-lines are at x=65.98 and x=951.09; the streak dies out around x=290 and x=715, i.e. it stops ~224 px (left) and ~236 px (right) short of the frame. Stage-1's 'almost the full width of the frame' is the visual impression of the low-level cyan glow, not the streak."
+  },
+  "symmetry": "Symmetric left/right. e-folding lengths 29.9 vs 27.4 px; amplitude ratio L/R = 1.0-1.3 at |d| = 60-100 and ~2 at |d| = 90-100 (the left wing is the brighter one).",
+  "colour": {
+   "linear_ratios_in_the_unclipped_wings": {
+    "R_over_G": "0.01-0.05 (mean 0.03, and R sits on its 1-3 LSB floor so this is an upper bound)",
+    "B_over_G": "1.06-1.28 (mean 1.15)"
+   },
+   "as_8bit_srgb_if_drawn_as_a_single_colour": "rgb(45,240,255) = #2DF0FF; anything from #00F0FF to #3CF0FF fits",
+   "colour_changes_with_radius": "R/G rises from 0.03 (|d|>85) to 0.19 at |d|=72, 0.55 at |d|=61 and >0.9 inside |d|=40: the streak is deep cyan in the wings and pale/white in the core. Two layers (a long cyan streak + a short whiter one) reproduce this; a single colour does not.",
+   "white_sub_component": "W = linR - 0.03*linG (y-integrated) is non-zero only for x in [432,588], i.e. +-78 px about x=510; best symmetry centre 509.0. Its flux: 0.017 at x=430, 0.212 at 440, 0.887 at 450, 0.61 at 480, 1.25 at 490, 2.24 at 500, 3.00 at 510, 4.09 at 520, 8.31 at 530, 8.71 at 540, 3.33 at 550, 0.96 at 560, 0.57 at 570, 0.17 at 580, 0.005 at 590."
+  },
+  "secondary_parallel_lines": {
+   "line_2": {
+    "y": 519.7,
+    "sigma_y_est": 2.2,
+    "x_range": [
+     550,
+     690
+    ],
+    "amplitude_relative_to_main": {
+     "x_560_600": 0.85,
+     "x_600_660": 0.77,
+     "x_660_700": 0.45
+    },
+    "on_the_left": "absent - only a 0.30x shoulder at y=518-520 for x in [414,450]"
+   },
+   "line_3": {
+    "y": 531.5,
+    "x_range": [
+     300,
+     760
+    ],
+    "amplitude_8bit_G_above_local_baseline": "5-10, nearly flat in x (unlike a flare streak)"
+   },
+   "status": "Both are real (see the JPEG control experiment in method_summary). Neither is consistent with a point source: two exactly-horizontal lines 8.1 px apart cannot both pass through one centre, and line_3's flat x-profile is not flare-like. RECOMMENDATION: model ONE streak at y=512.2. If the lead is chasing the last few LSBs, add line_2 as an independent thin cyan streak on the right half only (x 548..700, y 519.7, sigma_y 2.2, peak 0.8x the main streak)."
+  },
+  "profile_table": [
+   {
+    "x": 240,
+    "R": {
+     "peak_lin": 0.00078,
+     "flux_lin_px": 0.00214,
+     "ridge_y": 518.49,
+     "fwhm_y": 4.57,
+     "peak_8bit_above_baseline": 2.6
+    },
+    "G": {
+     "peak_lin": 0.00083,
+     "flux_lin_px": 0.007,
+     "ridge_y": 513.51,
+     "fwhm_y": 10.26,
+     "peak_8bit_above_baseline": 2.4
+    },
+    "B": {
+     "peak_lin": 0.00066,
+     "flux_lin_px": 0.00751,
+     "ridge_y": 518.51,
+     "fwhm_y": 11.3,
+     "peak_8bit_above_baseline": 1.5
+    }
+   },
+   {
+    "x": 250,
+    "R": {
+     "peak_lin": -3e-05,
+     "flux_lin_px": -0.00283,
+     "ridge_y": 512.0,
+     "fwhm_y": 0.1,
+     "peak_8bit_above_baseline": -0.1
+    },
+    "G": {
+     "peak_lin": 0.00175,
+     "flux_lin_px": 0.00683,
+     "ridge_y": 512.25,
+     "fwhm_y": 2.9,
+     "peak_8bit_above_baseline": 4.5
+    },
+    "B": {
+     "peak_lin": 0.00154,
+     "flux_lin_px": 0.00612,
+     "ridge_y": 512.17,
+     "fwhm_y": 3.27,
+     "peak_8bit_above_baseline": 3.1
+    }
+   },
+   {
+    "x": 260,
+    "R": {
+     "peak_lin": 0.00124,
+     "flux_lin_px": 0.01004,
+     "ridge_y": 518.83,
+     "fwhm_y": 11.26,
+     "peak_8bit_above_baseline": 4.1
+    },
+    "G": {
+     "peak_lin": 0.00324,
+     "flux_lin_px": 0.02087,
+     "ridge_y": 512.5,
+     "fwhm_y": 6.87,
+     "peak_8bit_above_baseline": 7.0
+    },
+    "B": {
+     "peak_lin": 0.00287,
+     "flux_lin_px": 0.02024,
+     "ridge_y": 512.5,
+     "fwhm_y": 8.88,
+     "peak_8bit_above_baseline": 5.1
+    }
+   },
+   {
+    "x": 270,
+    "R": {
+     "peak_lin": 0.00059,
+     "flux_lin_px": 0.00091,
+     "ridge_y": 505.0,
+     "fwhm_y": 2.96,
+     "peak_8bit_above_baseline": 2.0
+    },
+    "G": {
+     "peak_lin": 0.00166,
+     "flux_lin_px": 0.00761,
+     "ridge_y": 512.5,
+     "fwhm_y": 3.79,
+     "peak_8bit_above_baseline": 3.5
+    },
+    "B": {
+     "peak_lin": 0.00155,
+     "flux_lin_px": 0.00785,
+     "ridge_y": 505.0,
+     "fwhm_y": 3.98,
+     "peak_8bit_above_baseline": 2.7
+    }
+   },
+   {
+    "x": 280,
+    "R": {
+     "peak_lin": 0.00041,
+     "flux_lin_px": 0.00031,
+     "ridge_y": 512.48,
+     "fwhm_y": 3.3,
+     "peak_8bit_above_baseline": 1.3
+    },
+    "G": {
+     "peak_lin": 0.0016,
+     "flux_lin_px": 0.00874,
+     "ridge_y": 512.48,
+     "fwhm_y": 5.73,
+     "peak_8bit_above_baseline": 3.1
+    },
+    "B": {
+     "peak_lin": 0.0021,
+     "flux_lin_px": 0.01211,
+     "ridge_y": 512.47,
+     "fwhm_y": 5.12,
+     "peak_8bit_above_baseline": 3.2
+    }
+   },
+   {
+    "x": 290,
+    "R": {
+     "peak_lin": 0.00064,
+     "flux_lin_px": 0.00413,
+     "ridge_y": 510.51,
+     "fwhm_y": 2.59,
+     "peak_8bit_above_baseline": 2.1
+    },
+    "G": {
+     "peak_lin": 0.00292,
+     "flux_lin_px": 0.01679,
+     "ridge_y": 512.48,
+     "fwhm_y": 6.06,
+     "peak_8bit_above_baseline": 5.4
+    },
+    "B": {
+     "peak_lin": 0.0033,
+     "flux_lin_px": 0.02854,
+     "ridge_y": 513.54,
+     "fwhm_y": 7.15,
+     "peak_8bit_above_baseline": 5.1
+    }
+   },
+   {
+    "x": 300,
+    "R": {
+     "peak_lin": 0.00033,
+     "flux_lin_px": -0.00422,
+     "ridge_y": 505.0,
+     "fwhm_y": 3.73,
+     "peak_8bit_above_baseline": 1.1
+    },
+    "G": {
+     "peak_lin": 0.00269,
+     "flux_lin_px": 0.00708,
+     "ridge_y": 512.43,
+     "fwhm_y": 4.62,
+     "peak_8bit_above_baseline": 4.6
+    },
+    "B": {
+     "peak_lin": 0.00195,
+     "flux_lin_px": 0.00074,
+     "ridge_y": 511.47,
+     "fwhm_y": 4.87,
+     "peak_8bit_above_baseline": 2.8
+    }
+   },
+   {
+    "x": 310,
+    "R": {
+     "peak_lin": 0.00018,
+     "flux_lin_px": -0.00377,
+     "ridge_y": 512.54,
+     "fwhm_y": 1.4,
+     "peak_8bit_above_baseline": 0.6
+    },
+    "G": {
+     "peak_lin": 0.00305,
+     "flux_lin_px": 0.01067,
+     "ridge_y": 512.49,
+     "fwhm_y": 3.71,
+     "peak_8bit_above_baseline": 4.9
+    },
+    "B": {
+     "peak_lin": 0.00352,
+     "flux_lin_px": 0.01379,
+     "ridge_y": 512.5,
+     "fwhm_y": 3.69,
+     "peak_8bit_above_baseline": 4.8
+    }
+   },
+   {
+    "x": 320,
+    "R": {
+     "peak_lin": -9e-05,
+     "flux_lin_px": -0.00448,
+     "ridge_y": 519.0,
+     "fwhm_y": 0.3,
+     "peak_8bit_above_baseline": -0.3
+    },
+    "G": {
+     "peak_lin": 0.00401,
+     "flux_lin_px": 0.01567,
+     "ridge_y": 512.15,
+     "fwhm_y": 4.36,
+     "peak_8bit_above_baseline": 5.7
+    },
+    "B": {
+     "peak_lin": 0.00492,
+     "flux_lin_px": 0.02575,
+     "ridge_y": 512.99,
+     "fwhm_y": 5.05,
+     "peak_8bit_above_baseline": 6.0
+    }
+   },
+   {
+    "x": 330,
+    "R": {
+     "peak_lin": -0.00014,
+     "flux_lin_px": -0.00548,
+     "ridge_y": 507.49,
+     "fwhm_y": 44.85,
+     "peak_8bit_above_baseline": -0.5
+    },
+    "G": {
+     "peak_lin": 0.00588,
+     "flux_lin_px": 0.02949,
+     "ridge_y": 512.14,
+     "fwhm_y": 5.03,
+     "peak_8bit_above_baseline": 7.6
+    },
+    "B": {
+     "peak_lin": 0.00715,
+     "flux_lin_px": 0.04679,
+     "ridge_y": 512.45,
+     "fwhm_y": 5.78,
+     "peak_8bit_above_baseline": 7.8
+    }
+   },
+   {
+    "x": 340,
+    "R": {
+     "peak_lin": 6e-05,
+     "flux_lin_px": -0.00297,
+     "ridge_y": 505.0,
+     "fwhm_y": 1.22,
+     "peak_8bit_above_baseline": 0.2
+    },
+    "G": {
+     "peak_lin": 0.00643,
+     "flux_lin_px": 0.03478,
+     "ridge_y": 512.48,
+     "fwhm_y": 4.06,
+     "peak_8bit_above_baseline": 7.6
+    },
+    "B": {
+     "peak_lin": 0.00717,
+     "flux_lin_px": 0.05522,
+     "ridge_y": 512.46,
+     "fwhm_y": 5.74,
+     "peak_8bit_above_baseline": 7.5
+    }
+   },
+   {
+    "x": 350,
+    "R": {
+     "peak_lin": 0.00063,
+     "flux_lin_px": -0.0047,
+     "ridge_y": 510.16,
+     "fwhm_y": 1.55,
+     "peak_8bit_above_baseline": 2.1
+    },
+    "G": {
+     "peak_lin": 0.0083,
+     "flux_lin_px": 0.04169,
+     "ridge_y": 512.43,
+     "fwhm_y": 5.66,
+     "peak_8bit_above_baseline": 8.5
+    },
+    "B": {
+     "peak_lin": 0.00856,
+     "flux_lin_px": 0.05078,
+     "ridge_y": 512.38,
+     "fwhm_y": 6.72,
+     "peak_8bit_above_baseline": 7.5
+    }
+   },
+   {
+    "x": 360,
+    "R": {
+     "peak_lin": 0.00096,
+     "flux_lin_px": -0.00167,
+     "ridge_y": 512.25,
+     "fwhm_y": 2.13,
+     "peak_8bit_above_baseline": 3.2
+    },
+    "G": {
+     "peak_lin": 0.01143,
+     "flux_lin_px": 0.04224,
+     "ridge_y": 512.33,
+     "fwhm_y": 3.65,
+     "peak_8bit_above_baseline": 10.4
+    },
+    "B": {
+     "peak_lin": 0.01294,
+     "flux_lin_px": 0.05811,
+     "ridge_y": 512.48,
+     "fwhm_y": 4.2,
+     "peak_8bit_above_baseline": 10.2
+    }
+   },
+   {
+    "x": 370,
+    "R": {
+     "peak_lin": 0.0004,
+     "flux_lin_px": -0.0104,
+     "ridge_y": 512.17,
+     "fwhm_y": 0.99,
+     "peak_8bit_above_baseline": 1.3
+    },
+    "G": {
+     "peak_lin": 0.01599,
+     "flux_lin_px": 0.08751,
+     "ridge_y": 512.73,
+     "fwhm_y": 5.4,
+     "peak_8bit_above_baseline": 12.8
+    },
+    "B": {
+     "peak_lin": 0.01782,
+     "flux_lin_px": 0.11825,
+     "ridge_y": 512.48,
+     "fwhm_y": 5.44,
+     "peak_8bit_above_baseline": 12.7
+    }
+   },
+   {
+    "x": 380,
+    "R": {
+     "peak_lin": 0.00036,
+     "flux_lin_px": -0.0031,
+     "ridge_y": 512.01,
+     "fwhm_y": 1.18,
+     "peak_8bit_above_baseline": 1.2
+    },
+    "G": {
+     "peak_lin": 0.01849,
+     "flux_lin_px": 0.1083,
+     "ridge_y": 512.48,
+     "fwhm_y": 5.43,
+     "peak_8bit_above_baseline": 13.0
+    },
+    "B": {
+     "peak_lin": 0.01957,
+     "flux_lin_px": 0.1357,
+     "ridge_y": 512.48,
+     "fwhm_y": 6.26,
+     "peak_8bit_above_baseline": 12.5
+    }
+   },
+   {
+    "x": 390,
+    "R": {
+     "peak_lin": 0.00066,
+     "flux_lin_px": -0.00229,
+     "ridge_y": 510.84,
+     "fwhm_y": 1.58,
+     "peak_8bit_above_baseline": 2.2
+    },
+    "G": {
+     "peak_lin": 0.02529,
+     "flux_lin_px": 0.18506,
+     "ridge_y": 512.41,
+     "fwhm_y": 6.39,
+     "peak_8bit_above_baseline": 16.1
+    },
+    "B": {
+     "peak_lin": 0.02375,
+     "flux_lin_px": 0.17773,
+     "ridge_y": 511.47,
+     "fwhm_y": 6.76,
+     "peak_8bit_above_baseline": 13.8
+    }
+   },
+   {
+    "x": 400,
+    "R": {
+     "peak_lin": 0.00178,
+     "flux_lin_px": 0.00049,
+     "ridge_y": 512.22,
+     "fwhm_y": 2.07,
+     "peak_8bit_above_baseline": 5.9
+    },
+    "G": {
+     "peak_lin": 0.03982,
+     "flux_lin_px": 0.21405,
+     "ridge_y": 512.2,
+     "fwhm_y": 4.86,
+     "peak_8bit_above_baseline": 21.2
+    },
+    "B": {
+     "peak_lin": 0.04488,
+     "flux_lin_px": 0.25729,
+     "ridge_y": 512.34,
+     "fwhm_y": 4.7,
+     "peak_8bit_above_baseline": 21.2
+    }
+   },
+   {
+    "x": 410,
+    "R": {
+     "peak_lin": 0.00187,
+     "flux_lin_px": 0.00491,
+     "ridge_y": 512.13,
+     "fwhm_y": 1.66,
+     "peak_8bit_above_baseline": 6.1
+    },
+    "G": {
+     "peak_lin": 0.05902,
+     "flux_lin_px": 0.38994,
+     "ridge_y": 512.27,
+     "fwhm_y": 5.32,
+     "peak_8bit_above_baseline": 26.9
+    },
+    "B": {
+     "peak_lin": 0.06433,
+     "flux_lin_px": 0.39991,
+     "ridge_y": 512.27,
+     "fwhm_y": 5.15,
+     "peak_8bit_above_baseline": 25.8
+    }
+   },
+   {
+    "x": 420,
+    "R": {
+     "peak_lin": 0.00233,
+     "flux_lin_px": 0.0108,
+     "ridge_y": 512.17,
+     "fwhm_y": 2.52,
+     "peak_8bit_above_baseline": 7.6
+    },
+    "G": {
+     "peak_lin": 0.07553,
+     "flux_lin_px": 0.46865,
+     "ridge_y": 512.27,
+     "fwhm_y": 5.13,
+     "peak_8bit_above_baseline": 28.1
+    },
+    "B": {
+     "peak_lin": 0.06891,
+     "flux_lin_px": 0.42987,
+     "ridge_y": 512.26,
+     "fwhm_y": 5.15,
+     "peak_8bit_above_baseline": 23.0
+    }
+   },
+   {
+    "x": 430,
+    "R": {
+     "peak_lin": 0.00624,
+     "flux_lin_px": 0.04351,
+     "ridge_y": 511.94,
+     "fwhm_y": 4.06,
+     "peak_8bit_above_baseline": 16.1
+    },
+    "G": {
+     "peak_lin": 0.10755,
+     "flux_lin_px": 0.6912,
+     "ridge_y": 512.07,
+     "fwhm_y": 5.26,
+     "peak_8bit_above_baseline": 31.5
+    },
+    "B": {
+     "peak_lin": 0.09753,
+     "flux_lin_px": 0.50871,
+     "ridge_y": 512.19,
+     "fwhm_y": 4.7,
+     "peak_8bit_above_baseline": 25.5
+    }
+   },
+   {
+    "x": 440,
+    "R": {
+     "peak_lin": 0.03926,
+     "flux_lin_px": 0.26614,
+     "ridge_y": 512.21,
+     "fwhm_y": 4.12,
+     "peak_8bit_above_baseline": 40.1
+    },
+    "G": {
+     "peak_lin": 0.13793,
+     "flux_lin_px": 0.921,
+     "ridge_y": 512.21,
+     "fwhm_y": 4.78,
+     "peak_8bit_above_baseline": 31.5
+    },
+    "B": {
+     "peak_lin": 0.15887,
+     "flux_lin_px": 1.04451,
+     "ridge_y": 512.23,
+     "fwhm_y": 4.47,
+     "peak_8bit_above_baseline": 32.5
+    }
+   },
+   {
+    "x": 450,
+    "R": {
+     "peak_lin": 0.10894,
+     "flux_lin_px": 1.03358,
+     "ridge_y": 512.03,
+     "fwhm_y": 7.5,
+     "peak_8bit_above_baseline": 43.2
+    },
+    "G": {
+     "peak_lin": 0.17324,
+     "flux_lin_px": 1.36274,
+     "ridge_y": 512.06,
+     "fwhm_y": 4.89,
+     "peak_8bit_above_baseline": 31.2
+    },
+    "B": {
+     "peak_lin": 0.19369,
+     "flux_lin_px": 1.61106,
+     "ridge_y": 512.16,
+     "fwhm_y": 4.9,
+     "peak_8bit_above_baseline": 32.0
+    }
+   },
+   {
+    "x": 460,
+    "R": {
+     "peak_lin": 0.25143,
+     "flux_lin_px": 3.21836,
+     "ridge_y": 512.5,
+     "fwhm_y": 13.31,
+     "peak_8bit_above_baseline": 60.0
+    },
+    "G": {
+     "peak_lin": 0.32087,
+     "flux_lin_px": 4.10619,
+     "ridge_y": 512.49,
+     "fwhm_y": 12.81,
+     "peak_8bit_above_baseline": 50.1
+    },
+    "B": {
+     "peak_lin": 0.33058,
+     "flux_lin_px": 4.24295,
+     "ridge_y": 512.49,
+     "fwhm_y": 12.86,
+     "peak_8bit_above_baseline": 49.9
+    }
+   },
+   {
+    "x": 470,
+    "R": {
+     "peak_lin": 0.17933,
+     "flux_lin_px": 1.17275,
+     "ridge_y": 512.46,
+     "fwhm_y": 5.09,
+     "peak_8bit_above_baseline": 92.0
+    },
+    "G": {
+     "peak_lin": 0.34079,
+     "flux_lin_px": 2.43915,
+     "ridge_y": 512.36,
+     "fwhm_y": 5.64,
+     "peak_8bit_above_baseline": 64.7
+    },
+    "B": {
+     "peak_lin": 0.31533,
+     "flux_lin_px": 2.14156,
+     "ridge_y": 512.3,
+     "fwhm_y": 5.52,
+     "peak_8bit_above_baseline": 56.5
+    }
+   },
+   {
+    "x": 480,
+    "R": {
+     "peak_lin": 0.13441,
+     "flux_lin_px": 0.732,
+     "ridge_y": 512.86,
+     "fwhm_y": 4.2,
+     "peak_8bit_above_baseline": 99.0
+    },
+    "G": {
+     "peak_lin": 0.45302,
+     "flux_lin_px": 3.64982,
+     "ridge_y": 512.83,
+     "fwhm_y": 5.99,
+     "peak_8bit_above_baseline": 92.3
+    },
+    "B": {
+     "peak_lin": 0.47117,
+     "flux_lin_px": 3.84861,
+     "ridge_y": 512.77,
+     "fwhm_y": 6.38,
+     "peak_8bit_above_baseline": 88.1
+    }
+   },
+   {
+    "x": 490,
+    "R": {
+     "peak_lin": 0.19405,
+     "flux_lin_px": 1.49903,
+     "ridge_y": 512.84,
+     "fwhm_y": 5.02,
+     "peak_8bit_above_baseline": 112.0
+    },
+    "G": {
+     "peak_lin": 0.50208,
+     "flux_lin_px": 4.38818,
+     "ridge_y": 512.81,
+     "fwhm_y": 6.03,
+     "peak_8bit_above_baseline": 93.5
+    },
+    "B": {
+     "peak_lin": 0.48882,
+     "flux_lin_px": 4.52701,
+     "ridge_y": 512.8,
+     "fwhm_y": 6.99,
+     "peak_8bit_above_baseline": 86.0
+    }
+   },
+   {
+    "x": 500,
+    "R": {
+     "peak_lin": 0.26789,
+     "flux_lin_px": 2.62744,
+     "ridge_y": 512.58,
+     "fwhm_y": 6.27,
+     "peak_8bit_above_baseline": 108.9
+    },
+    "G": {
+     "peak_lin": 0.48142,
+     "flux_lin_px": 4.86489,
+     "ridge_y": 512.57,
+     "fwhm_y": 7.59,
+     "peak_8bit_above_baseline": 80.5
+    },
+    "B": {
+     "peak_lin": 0.48719,
+     "flux_lin_px": 5.02945,
+     "ridge_y": 512.58,
+     "fwhm_y": 6.86,
+     "peak_8bit_above_baseline": 77.1
+    }
+   },
+   {
+    "x": 510,
+    "R": {
+     "peak_lin": 0.29477,
+     "flux_lin_px": 3.49994,
+     "ridge_y": 512.59,
+     "fwhm_y": 12.92,
+     "peak_8bit_above_baseline": 88.1
+    },
+    "G": {
+     "peak_lin": 0.40296,
+     "flux_lin_px": 4.99047,
+     "ridge_y": 512.6,
+     "fwhm_y": 13.62,
+     "peak_8bit_above_baseline": 58.8
+    },
+    "B": {
+     "peak_lin": 0.41303,
+     "flux_lin_px": 4.99866,
+     "ridge_y": 512.59,
+     "fwhm_y": 12.66,
+     "peak_8bit_above_baseline": 58.3
+    }
+   },
+   {
+    "x": 520,
+    "R": {
+     "peak_lin": 0.38994,
+     "flux_lin_px": 4.77849,
+     "ridge_y": 512.34,
+     "fwhm_y": 12.99,
+     "peak_8bit_above_baseline": 95.6
+    },
+    "G": {
+     "peak_lin": 0.39084,
+     "flux_lin_px": 5.22122,
+     "ridge_y": 512.27,
+     "fwhm_y": 15.15,
+     "peak_8bit_above_baseline": 49.4
+    },
+    "B": {
+     "peak_lin": 0.36024,
+     "flux_lin_px": 4.70465,
+     "ridge_y": 512.29,
+     "fwhm_y": 15.22,
+     "peak_8bit_above_baseline": 43.9
+    }
+   },
+   {
+    "x": 530,
+    "R": {
+     "peak_lin": 0.74812,
+     "flux_lin_px": 9.44111,
+     "ridge_y": 512.37,
+     "fwhm_y": 12.9,
+     "peak_8bit_above_baseline": 140.3
+    },
+    "G": {
+     "peak_lin": 0.43537,
+     "flux_lin_px": 6.846,
+     "ridge_y": 512.31,
+     "fwhm_y": 19.84,
+     "peak_8bit_above_baseline": 54.0
+    },
+    "B": {
+     "peak_lin": 0.38941,
+     "flux_lin_px": 6.03514,
+     "ridge_y": 511.44,
+     "fwhm_y": 20.13,
+     "peak_8bit_above_baseline": 47.3
+    }
+   },
+   {
+    "x": 540,
+    "R": {
+     "peak_lin": 0.70056,
+     "flux_lin_px": 10.17026,
+     "ridge_y": 513.25,
+     "fwhm_y": 16.52,
+     "peak_8bit_above_baseline": 130.5
+    },
+    "G": {
+     "peak_lin": 0.48244,
+     "flux_lin_px": 7.56657,
+     "ridge_y": 510.85,
+     "fwhm_y": 20.14,
+     "peak_8bit_above_baseline": 66.1
+    },
+    "B": {
+     "peak_lin": 0.47142,
+     "flux_lin_px": 7.40898,
+     "ridge_y": 510.94,
+     "fwhm_y": 19.37,
+     "peak_8bit_above_baseline": 64.7
+    }
+   },
+   {
+    "x": 550,
+    "R": {
+     "peak_lin": 0.26088,
+     "flux_lin_px": 4.00539,
+     "ridge_y": 511.09,
+     "fwhm_y": 18.95,
+     "peak_8bit_above_baseline": 52.8
+    },
+    "G": {
+     "peak_lin": 0.3018,
+     "flux_lin_px": 4.35823,
+     "ridge_y": 510.39,
+     "fwhm_y": 18.4,
+     "peak_8bit_above_baseline": 41.3
+    },
+    "B": {
+     "peak_lin": 0.31298,
+     "flux_lin_px": 4.53975,
+     "ridge_y": 510.43,
+     "fwhm_y": 18.5,
+     "peak_8bit_above_baseline": 41.7
+    }
+   },
+   {
+    "x": 560,
+    "R": {
+     "peak_lin": 0.10061,
+     "flux_lin_px": 1.09813,
+     "ridge_y": 511.76,
+     "fwhm_y": 6.5,
+     "peak_8bit_above_baseline": 31.9
+    },
+    "G": {
+     "peak_lin": 0.16756,
+     "flux_lin_px": 1.65534,
+     "ridge_y": 511.37,
+     "fwhm_y": 5.58,
+     "peak_8bit_above_baseline": 26.8
+    },
+    "B": {
+     "peak_lin": 0.16822,
+     "flux_lin_px": 1.82473,
+     "ridge_y": 519.0,
+     "fwhm_y": 3.39,
+     "peak_8bit_above_baseline": 25.6
+    }
+   },
+   {
+    "x": 570,
+    "R": {
+     "peak_lin": 0.05451,
+     "flux_lin_px": 0.67559,
+     "ridge_y": 519.0,
+     "fwhm_y": 3.68,
+     "peak_8bit_above_baseline": 43.0
+    },
+    "G": {
+     "peak_lin": 0.12627,
+     "flux_lin_px": 1.15659,
+     "ridge_y": 511.6,
+     "fwhm_y": 5.88,
+     "peak_8bit_above_baseline": 26.3
+    },
+    "B": {
+     "peak_lin": 0.13524,
+     "flux_lin_px": 1.34335,
+     "ridge_y": 511.45,
+     "fwhm_y": 6.22,
+     "peak_8bit_above_baseline": 25.7
+    }
+   },
+   {
+    "x": 580,
+    "R": {
+     "peak_lin": 0.02405,
+     "flux_lin_px": 0.22258,
+     "ridge_y": 511.71,
+     "fwhm_y": 4.89,
+     "peak_8bit_above_baseline": 40.3
+    },
+    "G": {
+     "peak_lin": 0.12847,
+     "flux_lin_px": 1.16942,
+     "ridge_y": 511.48,
+     "fwhm_y": 5.21,
+     "peak_8bit_above_baseline": 33.0
+    },
+    "B": {
+     "peak_lin": 0.15382,
+     "flux_lin_px": 1.32787,
+     "ridge_y": 511.76,
+     "fwhm_y": 5.08,
+     "peak_8bit_above_baseline": 35.4
+    }
+   },
+   {
+    "x": 590,
+    "R": {
+     "peak_lin": 0.00452,
+     "flux_lin_px": 0.03121,
+     "ridge_y": 511.28,
+     "fwhm_y": 2.9,
+     "peak_8bit_above_baseline": 13.8
+    },
+    "G": {
+     "peak_lin": 0.09584,
+     "flux_lin_px": 0.86553,
+     "ridge_y": 511.24,
+     "fwhm_y": 5.12,
+     "peak_8bit_above_baseline": 31.5
+    },
+    "B": {
+     "peak_lin": 0.10339,
+     "flux_lin_px": 0.91388,
+     "ridge_y": 511.3,
+     "fwhm_y": 4.96,
+     "peak_8bit_above_baseline": 29.8
+    }
+   },
+   {
+    "x": 600,
+    "R": {
+     "peak_lin": 0.00281,
+     "flux_lin_px": 0.01535,
+     "ridge_y": 511.83,
+     "fwhm_y": 3.77,
+     "peak_8bit_above_baseline": 9.2
+    },
+    "G": {
+     "peak_lin": 0.06624,
+     "flux_lin_px": 0.70867,
+     "ridge_y": 512.0,
+     "fwhm_y": 6.75,
+     "peak_8bit_above_baseline": 27.2
+    },
+    "B": {
+     "peak_lin": 0.07929,
+     "flux_lin_px": 0.9127,
+     "ridge_y": 511.82,
+     "fwhm_y": 12.81,
+     "peak_8bit_above_baseline": 29.0
+    }
+   },
+   {
+    "x": 610,
+    "R": {
+     "peak_lin": 0.00207,
+     "flux_lin_px": 0.00793,
+     "ridge_y": 511.0,
+     "fwhm_y": 3.06,
+     "peak_8bit_above_baseline": 6.8
+    },
+    "G": {
+     "peak_lin": 0.03786,
+     "flux_lin_px": 0.39992,
+     "ridge_y": 511.5,
+     "fwhm_y": 5.97,
+     "peak_8bit_above_baseline": 19.0
+    },
+    "B": {
+     "peak_lin": 0.04734,
+     "flux_lin_px": 0.4796,
+     "ridge_y": 511.24,
+     "fwhm_y": 6.09,
+     "peak_8bit_above_baseline": 20.7
+    }
+   },
+   {
+    "x": 620,
+    "R": {
+     "peak_lin": 0.00121,
+     "flux_lin_px": 0.00289,
+     "ridge_y": 519.0,
+     "fwhm_y": 3.0,
+     "peak_8bit_above_baseline": 4.0
+    },
+    "G": {
+     "peak_lin": 0.02784,
+     "flux_lin_px": 0.25369,
+     "ridge_y": 511.49,
+     "fwhm_y": 5.09,
+     "peak_8bit_above_baseline": 16.2
+    },
+    "B": {
+     "peak_lin": 0.03549,
+     "flux_lin_px": 0.34928,
+     "ridge_y": 511.49,
+     "fwhm_y": 6.05,
+     "peak_8bit_above_baseline": 18.5
+    }
+   },
+   {
+    "x": 630,
+    "R": {
+     "peak_lin": 0.00144,
+     "flux_lin_px": 0.00357,
+     "ridge_y": 511.9,
+     "fwhm_y": 1.98,
+     "peak_8bit_above_baseline": 4.8
+    },
+    "G": {
+     "peak_lin": 0.01756,
+     "flux_lin_px": 0.14966,
+     "ridge_y": 511.99,
+     "fwhm_y": 5.2,
+     "peak_8bit_above_baseline": 12.0
+    },
+    "B": {
+     "peak_lin": 0.02009,
+     "flux_lin_px": 0.17391,
+     "ridge_y": 512.09,
+     "fwhm_y": 4.86,
+     "peak_8bit_above_baseline": 12.3
+    }
+   },
+   {
+    "x": 640,
+    "R": {
+     "peak_lin": 0.00036,
+     "flux_lin_px": 0.0024,
+     "ridge_y": 511.5,
+     "fwhm_y": 4.19,
+     "peak_8bit_above_baseline": 1.2
+    },
+    "G": {
+     "peak_lin": 0.01001,
+     "flux_lin_px": 0.11861,
+     "ridge_y": 511.45,
+     "fwhm_y": 9.77,
+     "peak_8bit_above_baseline": 8.0
+    },
+    "B": {
+     "peak_lin": 0.01126,
+     "flux_lin_px": 0.13952,
+     "ridge_y": 511.44,
+     "fwhm_y": 10.72,
+     "peak_8bit_above_baseline": 8.0
+    }
+   },
+   {
+    "x": 650,
+    "R": {
+     "peak_lin": 0.00065,
+     "flux_lin_px": 0.00288,
+     "ridge_y": 511.53,
+     "fwhm_y": 4.69,
+     "peak_8bit_above_baseline": 2.1
+    },
+    "G": {
+     "peak_lin": 0.00844,
+     "flux_lin_px": 0.0879,
+     "ridge_y": 511.46,
+     "fwhm_y": 7.33,
+     "peak_8bit_above_baseline": 7.7
+    },
+    "B": {
+     "peak_lin": 0.01029,
+     "flux_lin_px": 0.11901,
+     "ridge_y": 511.48,
+     "fwhm_y": 11.9,
+     "peak_8bit_above_baseline": 8.3
+    }
+   },
+   {
+    "x": 660,
+    "R": {
+     "peak_lin": 0.00047,
+     "flux_lin_px": 0.00396,
+     "ridge_y": 511.84,
+     "fwhm_y": 1.16,
+     "peak_8bit_above_baseline": 1.6
+    },
+    "G": {
+     "peak_lin": 0.00941,
+     "flux_lin_px": 0.07773,
+     "ridge_y": 512.28,
+     "fwhm_y": 5.48,
+     "peak_8bit_above_baseline": 9.2
+    },
+    "B": {
+     "peak_lin": 0.00654,
+     "flux_lin_px": 0.06713,
+     "ridge_y": 512.14,
+     "fwhm_y": 11.31,
+     "peak_8bit_above_baseline": 5.7
+    }
+   },
+   {
+    "x": 670,
+    "R": {
+     "peak_lin": 0.00057,
+     "flux_lin_px": 0.00366,
+     "ridge_y": 518.01,
+     "fwhm_y": 1.89,
+     "peak_8bit_above_baseline": 1.9
+    },
+    "G": {
+     "peak_lin": 0.00628,
+     "flux_lin_px": 0.04646,
+     "ridge_y": 512.47,
+     "fwhm_y": 5.3,
+     "peak_8bit_above_baseline": 7.2
+    },
+    "B": {
+     "peak_lin": 0.00781,
+     "flux_lin_px": 0.07471,
+     "ridge_y": 512.23,
+     "fwhm_y": 5.75,
+     "peak_8bit_above_baseline": 7.7
+    }
+   },
+   {
+    "x": 680,
+    "R": {
+     "peak_lin": 0.00071,
+     "flux_lin_px": 0.00266,
+     "ridge_y": 512.3,
+     "fwhm_y": 3.45,
+     "peak_8bit_above_baseline": 2.3
+    },
+    "G": {
+     "peak_lin": 0.0045,
+     "flux_lin_px": 0.02597,
+     "ridge_y": 512.28,
+     "fwhm_y": 3.96,
+     "peak_8bit_above_baseline": 5.6
+    },
+    "B": {
+     "peak_lin": 0.00647,
+     "flux_lin_px": 0.04835,
+     "ridge_y": 512.32,
+     "fwhm_y": 4.24,
+     "peak_8bit_above_baseline": 7.0
+    }
+   },
+   {
+    "x": 690,
+    "R": {
+     "peak_lin": 0.00057,
+     "flux_lin_px": 0.00026,
+     "ridge_y": 519.0,
+     "fwhm_y": 9.07,
+     "peak_8bit_above_baseline": 1.9
+    },
+    "G": {
+     "peak_lin": 0.00342,
+     "flux_lin_px": 0.01719,
+     "ridge_y": 512.5,
+     "fwhm_y": 4.66,
+     "peak_8bit_above_baseline": 4.6
+    },
+    "B": {
+     "peak_lin": 0.00266,
+     "flux_lin_px": 0.01816,
+     "ridge_y": 512.49,
+     "fwhm_y": 5.0,
+     "peak_8bit_above_baseline": 3.2
+    }
+   },
+   {
+    "x": 700,
+    "R": {
+     "peak_lin": 0.00053,
+     "flux_lin_px": 4e-05,
+     "ridge_y": 519.0,
+     "fwhm_y": 1.74,
+     "peak_8bit_above_baseline": 1.7
+    },
+    "G": {
+     "peak_lin": 0.00211,
+     "flux_lin_px": 0.00308,
+     "ridge_y": 512.5,
+     "fwhm_y": 4.11,
+     "peak_8bit_above_baseline": 3.3
+    },
+    "B": {
+     "peak_lin": 0.00139,
+     "flux_lin_px": -0.00277,
+     "ridge_y": 512.49,
+     "fwhm_y": 2.34,
+     "peak_8bit_above_baseline": 1.9
+    }
+   },
+   {
+    "x": 710,
+    "R": {
+     "peak_lin": 0.0008,
+     "flux_lin_px": -0.00145,
+     "ridge_y": 510.83,
+     "fwhm_y": 1.98,
+     "peak_8bit_above_baseline": 2.6
+    },
+    "G": {
+     "peak_lin": 0.0028,
+     "flux_lin_px": 0.01264,
+     "ridge_y": 510.46,
+     "fwhm_y": 3.74,
+     "peak_8bit_above_baseline": 4.6
+    },
+    "B": {
+     "peak_lin": 0.00336,
+     "flux_lin_px": 0.01813,
+     "ridge_y": 510.99,
+     "fwhm_y": 6.45,
+     "peak_8bit_above_baseline": 4.7
+    }
+   },
+   {
+    "x": 720,
+    "R": {
+     "peak_lin": 0.001,
+     "flux_lin_px": 0.00264,
+     "ridge_y": 505.0,
+     "fwhm_y": 3.08,
+     "peak_8bit_above_baseline": 3.3
+    },
+    "G": {
+     "peak_lin": 0.00165,
+     "flux_lin_px": 0.01211,
+     "ridge_y": 505.0,
+     "fwhm_y": 4.52,
+     "peak_8bit_above_baseline": 3.0
+    },
+    "B": {
+     "peak_lin": 0.00191,
+     "flux_lin_px": 0.00915,
+     "ridge_y": 505.0,
+     "fwhm_y": 3.48,
+     "peak_8bit_above_baseline": 2.7
+    }
+   },
+   {
+    "x": 730,
+    "R": {
+     "peak_lin": 0.00027,
+     "flux_lin_px": -0.0016,
+     "ridge_y": 506.98,
+     "fwhm_y": 0.87,
+     "peak_8bit_above_baseline": 0.9
+    },
+    "G": {
+     "peak_lin": 0.00101,
+     "flux_lin_px": 0.00597,
+     "ridge_y": 510.97,
+     "fwhm_y": 5.13,
+     "peak_8bit_above_baseline": 2.0
+    },
+    "B": {
+     "peak_lin": 0.00057,
+     "flux_lin_px": -0.00381,
+     "ridge_y": 510.98,
+     "fwhm_y": 0.87,
+     "peak_8bit_above_baseline": 0.8
+    }
+   },
+   {
+    "x": 740,
+    "R": {
+     "peak_lin": 0.00045,
+     "flux_lin_px": -0.00314,
+     "ridge_y": 512.3,
+     "fwhm_y": 0.94,
+     "peak_8bit_above_baseline": 1.5
+    },
+    "G": {
+     "peak_lin": 0.00186,
+     "flux_lin_px": 0.01212,
+     "ridge_y": 512.28,
+     "fwhm_y": 3.12,
+     "peak_8bit_above_baseline": 3.8
+    },
+    "B": {
+     "peak_lin": 0.00172,
+     "flux_lin_px": 0.00669,
+     "ridge_y": 512.28,
+     "fwhm_y": 2.73,
+     "peak_8bit_above_baseline": 2.9
+    }
+   },
+   {
+    "x": 750,
+    "R": {
+     "peak_lin": 0.00045,
+     "flux_lin_px": -0.0085,
+     "ridge_y": 513.7,
+     "fwhm_y": 0.95,
+     "peak_8bit_above_baseline": 1.5
+    },
+    "G": {
+     "peak_lin": 0.00268,
+     "flux_lin_px": 0.00667,
+     "ridge_y": 513.7,
+     "fwhm_y": 2.19,
+     "peak_8bit_above_baseline": 5.4
+    },
+    "B": {
+     "peak_lin": 0.00231,
+     "flux_lin_px": -0.00238,
+     "ridge_y": 513.7,
+     "fwhm_y": 1.79,
+     "peak_8bit_above_baseline": 3.9
+    }
+   },
+   {
+    "x": 760,
+    "R": {
+     "peak_lin": 0.00113,
+     "flux_lin_px": 0.00035,
+     "ridge_y": 518.0,
+     "fwhm_y": 1.86,
+     "peak_8bit_above_baseline": 3.7
+    },
+    "G": {
+     "peak_lin": 0.0016,
+     "flux_lin_px": 0.00352,
+     "ridge_y": 518.0,
+     "fwhm_y": 1.77,
+     "peak_8bit_above_baseline": 3.6
+    },
+    "B": {
+     "peak_lin": 0.00216,
+     "flux_lin_px": 0.00401,
+     "ridge_y": 518.0,
+     "fwhm_y": 1.87,
+     "peak_8bit_above_baseline": 3.9
+    }
+   },
+   {
+    "x": 770,
+    "R": {
+     "peak_lin": 0.00071,
+     "flux_lin_px": 0.0039,
+     "ridge_y": 508.99,
+     "fwhm_y": 2.25,
+     "peak_8bit_above_baseline": 2.3
+    },
+    "G": {
+     "peak_lin": 0.00092,
+     "flux_lin_px": 0.00476,
+     "ridge_y": 508.98,
+     "fwhm_y": 2.19,
+     "peak_8bit_above_baseline": 2.4
+    },
+    "B": {
+     "peak_lin": 0.00111,
+     "flux_lin_px": 0.00451,
+     "ridge_y": 508.98,
+     "fwhm_y": 2.07,
+     "peak_8bit_above_baseline": 2.2
+    }
+   },
+   {
+    "x": 780,
+    "R": {
+     "peak_lin": 0.00056,
+     "flux_lin_px": -0.00165,
+     "ridge_y": 509.5,
+     "fwhm_y": 1.61,
+     "peak_8bit_above_baseline": 1.8
+    },
+    "G": {
+     "peak_lin": 0.00057,
+     "flux_lin_px": -0.0022,
+     "ridge_y": 509.5,
+     "fwhm_y": 1.58,
+     "peak_8bit_above_baseline": 1.7
+    },
+    "B": {
+     "peak_lin": 0.00083,
+     "flux_lin_px": -0.0029,
+     "ridge_y": 509.5,
+     "fwhm_y": 1.6,
+     "peak_8bit_above_baseline": 1.8
+    }
+   }
+  ]
+ },
+ "4_rays": {
+  "detection": "Traced on the arc-subtracted residual (mean of the G and B high-pass along the arc), sub-pixel transverse peak per row, then a straight-line fit x = a + b*y. Amplitudes below are 8-bit G above the LOCAL background, i.e. contrast of 3-10% - these are faint features.",
+  "count": "3 confident + 1 marginal companion. No vertical pair. The diagonal set is neither 4-fold nor 6-fold symmetric.",
+  "rays": {
+   "ray_up_left": {
+    "line_x_eq_a_plus_b_y": [
+     -70.686,
+     1.10346
+    ],
+    "n_rows": 54,
+    "peak_amp_G_8bit": 3.84,
+    "transverse_profile_offset_m20_to_p20": [
+     -1.27,
+     -1.29,
+     -1.3,
+     -1.25,
+     -1.24,
+     -1.25,
+     -1.13,
+     -0.95,
+     -0.76,
+     -0.44,
+     -0.14,
+     0.11,
+     0.37,
+     0.65,
+     1.0,
+     1.63,
+     2.25,
+     2.73,
+     3.18,
+     3.51,
+     3.83,
+     3.84,
+     3.59,
+     3.15,
+     2.27,
+     1.34,
+     0.43,
+     -0.26,
+     -0.88,
+     -1.39,
+     -1.82,
+     -2.0,
+     -2.12,
+     -2.12,
+     -2.23,
+     -2.34,
+     -2.21,
+     -2.1,
+     -2.1,
+     -2.0,
+     -1.86
+    ],
+    "crosses_streak_line_at_x": 494.5,
+    "theta_outward_deg": 222.2
+   },
+   "ray_up_right": {
+    "line_x_eq_a_plus_b_y": [
+     1004.66,
+     -0.91137
+    ],
+    "n_rows": 39,
+    "peak_amp_G_8bit": 2.86,
+    "transverse_profile_offset_m20_to_p20": [
+     -0.19,
+     -0.42,
+     -0.54,
+     -1.05,
+     -1.25,
+     -1.5,
+     -1.54,
+     -1.57,
+     -1.62,
+     -1.59,
+     -1.31,
+     -0.89,
+     -0.49,
+     0.02,
+     0.5,
+     0.94,
+     1.6,
+     2.31,
+     2.7,
+     2.8,
+     2.83,
+     2.85,
+     2.86,
+     2.51,
+     2.05,
+     1.5,
+     0.95,
+     0.35,
+     -0.25,
+     -0.85,
+     -1.3,
+     -1.84,
+     -2.07,
+     -2.11,
+     -2.08,
+     -1.84,
+     -1.66,
+     -1.28,
+     -1.0,
+     -0.74,
+     -0.58
+    ],
+    "crosses_streak_line_at_x": 537.9,
+    "theta_outward_deg": 312.3
+   },
+   "ray_dn_right": {
+    "line_x_eq_a_plus_b_y": [
+     -250.53,
+     1.53318
+    ],
+    "n_rows": 80,
+    "peak_amp_G_8bit": 4.7,
+    "transverse_profile_offset_m20_to_p20": [
+     -2.91,
+     -2.72,
+     -2.6,
+     -2.46,
+     -2.3,
+     -2.16,
+     -1.95,
+     -1.58,
+     -1.24,
+     -0.87,
+     -0.48,
+     0.12,
+     0.84,
+     1.63,
+     2.51,
+     3.27,
+     3.88,
+     4.43,
+     4.67,
+     4.7,
+     4.55,
+     4.28,
+     4.04,
+     3.66,
+     3.17,
+     2.84,
+     2.46,
+     2.12,
+     1.69,
+     1.34,
+     1.05,
+     0.74,
+     0.46,
+     0.33,
+     0.22,
+     -0.04,
+     -0.13,
+     -0.23,
+     -0.35,
+     -0.63,
+     -0.65
+    ],
+    "crosses_streak_line_at_x": 534.8,
+    "theta_outward_deg": 33.1
+   }
+  },
+  "extra_marginal": {
+   "name": "ray_up_left_B",
+   "line_x_eq_a_plus_b_y": [
+    -149.81,
+    1.1898
+   ],
+   "theta_outward_deg": 220.0,
+   "peak_amp_G_8bit": 3.5,
+   "fit_rms_px": 2.74,
+   "traced_y": [
+    458,
+    498
+   ],
+   "note": "a companion parallel to ray_up_left and ~40 px further out; same outward angle to 2 deg"
+  },
+  "geometry_summary": [
+   {
+    "name": "ray_dn_right",
+    "theta_outward_deg": 33.1,
+    "fit_rms_px": 1.92,
+    "traced_x": [
+     547,
+     672
+    ],
+    "traced_y": [
+     520,
+     600
+    ],
+    "length_from_centre_px": "~40 to ~145 (inner end hidden by the arc)",
+    "transverse_FWHM_px": 17,
+    "angular_width_deg": 9.7,
+    "peak_amp": 4.7,
+    "falloff": "amplitude 5.7/9.9/10.7/7.1/9.1/5.2/3.5/3.2/2.6/1.7 at y=528..600 step 8 -> exponential with scale ~55 px in r beyond r=60"
+   },
+   {
+    "name": "ray_up_right",
+    "theta_outward_deg": 312.3,
+    "fit_rms_px": 1.6,
+    "traced_x": [
+     549,
+     613
+    ],
+    "traced_y": [
+     430,
+     500
+    ],
+    "length_from_centre_px": "~30 to ~105",
+    "transverse_FWHM_px": 15,
+    "angular_width_deg": 8.6,
+    "peak_amp": 2.86,
+    "falloff": "1.6/3.7/3.6/4.7/4.6/2.7/2.2 at y=440..488 step 8"
+   },
+   {
+    "name": "ray_up_left",
+    "theta_outward_deg": 222.2,
+    "fit_rms_px": 1.04,
+    "traced_x": [
+     371,
+     448
+    ],
+    "traced_y": [
+     400,
+     470
+    ],
+    "length_from_centre_px": "~65 to ~160 measured from x=494.5 on the streak line",
+    "transverse_FWHM_px": 13,
+    "angular_width_deg": 7.4,
+    "peak_amp": 3.84,
+    "falloff": "2.4/3.0/4.8/4.9/4.2/4.7/2.9 at y=408..456 step 8"
+   }
+  ],
+  "convergence": {
+   "ray_up_right_x_ray_dn_right": [
+    536.7,
+    513.5
+   ],
+   "ray_up_left_x_ray_up_right": [
+    518.2,
+    533.7
+   ],
+   "crossings_of_the_streak_line_y=512.2": {
+    "ray_up_left": 494.5,
+    "ray_up_right": 537.9,
+    "ray_dn_right": 534.8
+   },
+   "verdict": "The two right-hand rays converge at (536.7,513.5) - on the compact bright element of section 7, NOT on the flare centre. The single left-hand ray points back to x=494.5. So the spikes are NOT concentric with the streak; they are drawn around the compact element (or the artwork's spikes are simply not concentric). Watch out: everything I could see converging near the arcs at first sight was the arcs' own glow - these three survived removal of a glow model that is smooth along the arc."
+  },
+  "no_rays_found": "below the streak on the LEFT side (residual +-1.5 LSB over the whole region x 180-450, y 520-660), and no vertical spike above or below the centre (the inter-arc strip x 470-540 has 8-bit R = 0-5 for y<484 and y>548)."
+ },
+ "5_bloom": {
+  "shape": "NOT radial. The 'bloom' is a horizontally elongated glow: vertical Gaussian sigma_y = 9.0-10.4 px in white (R) and 21-26 px in cyan (G) near the centre, against a horizontal e-folding length of 30 px (streak) / ~16-24 px (broad part). Axis ratio ~3-4:1.",
+  "white_R_vertical_gaussian_fits_linear": {
+   "note": "amplitude A and sigma of A*exp(-(y-514.0)^2/(2 sigma^2)) fitted to linear R with the two streak bands excluded",
+   "x_470": [
+    0.0137,
+    19.6
+   ],
+   "x_495": [
+    0.0187,
+    10.8
+   ],
+   "x_504": [
+    0.1282,
+    10.4
+   ],
+   "x_512": [
+    0.3564,
+    9.26
+   ],
+   "x_522": [
+    0.6356,
+    8.95
+   ],
+   "x_530": [
+    0.4428,
+    10.2
+   ],
+   "x_540": [
+    0.2813,
+    12.77
+   ],
+   "x_560": [
+    0.0885,
+    13.45
+   ]
+  },
+  "cyan_G_vertical_gaussian_fits_linear": {
+   "x_420": [
+    0.0227,
+    30.1
+   ],
+   "x_450": [
+    0.0789,
+    21.9
+   ],
+   "x_487": [
+    0.1915,
+    23.8
+   ],
+   "x_504": [
+    0.357,
+    25.9
+   ],
+   "x_522": [
+    0.637,
+    21.2
+   ],
+   "x_560": [
+    0.182,
+    16.9
+   ],
+   "x_580": [
+    0.0948,
+    28.8
+   ],
+   "x_610": [
+    0.024,
+    25.9
+   ]
+  },
+  "vertical_cut_x_504_8bit": {
+   "y": [
+    420,
+    440,
+    460,
+    480,
+    488,
+    492,
+    496,
+    500,
+    504,
+    508,
+    512,
+    516,
+    520,
+    524,
+    528,
+    532,
+    536,
+    540,
+    544,
+    548,
+    560,
+    580,
+    600
+   ],
+   "R": [
+    2.0,
+    3.0,
+    1.3,
+    5.0,
+    12.3,
+    25.3,
+    43.0,
+    68.3,
+    95.7,
+    110.3,
+    154.3,
+    124.0,
+    132.3,
+    86.7,
+    68.3,
+    54.3,
+    36.3,
+    22.3,
+    5.7,
+    1.3,
+    2.7,
+    2.7,
+    1.3
+   ],
+   "G": [
+    39.3,
+    61.0,
+    82.3,
+    113.7,
+    125.0,
+    133.7,
+    139.7,
+    157.0,
+    176.0,
+    186.7,
+    227.0,
+    202.7,
+    210.0,
+    166.3,
+    156.7,
+    149.0,
+    142.7,
+    139.3,
+    130.3,
+    121.7,
+    92.0,
+    70.7,
+    49.0
+   ],
+   "B": [
+    47.7,
+    71.0,
+    94.0,
+    125.7,
+    133.3,
+    142.3,
+    149.7,
+    167.3,
+    185.7,
+    195.0,
+    235.0,
+    209.7,
+    221.0,
+    179.0,
+    168.7,
+    161.3,
+    155.3,
+    152.7,
+    144.7,
+    137.7,
+    112.7,
+    88.7,
+    61.0
+   ]
+  },
+  "white_bloom_along_x_504_fit": "linear R, streak bands excluded: Gaussian in y with sigma = 9.2 px and peak 0.20 (linear) centred y=514.3. Checked at r=6/14/18/22/26 px: implied ln A = -1.64/-2.84+.. all give A = 0.194-0.208, i.e. the Gaussian form holds over the whole measurable range. Exponential and power-law forms are clearly worse (ln-residual rms 0.47/0.70 vs 0.29-0.53 for Gaussian at other columns).",
+  "arcs_vs_flare_decomposition": {
+   "white_R": "The arcs contribute essentially NO white light away from their cores: on clean rows (y=250..400, 650..750) the arc R profile falls from ~200 at the core to 10-20 at |u|=6-12 and to 2-5 (the noise floor) at |u|>=16. On the vertical line x=504 the 8-bit R is 1-3 for y<484 and y>548. Therefore 100% of the R signal at x=504 and 100% of R at |u|>20 px anywhere is flare light. Use R as the flare's own channel and do not let the arc-glow agent claim any of it beyond |u|=16.",
+   "cyan_G_on_the_vertical_line_x_504": {
+    "arc_pedestal_linear": 0.0499,
+    "flare_share": {
+     "y_496": "81%",
+     "y_504": "89%",
+     "y_512": "93%",
+     "y_516": "92%",
+     "y_524": "87%",
+     "y_532": "83%",
+     "y_540": "81%"
+    }
+   },
+   "cyan_G_on_the_horizontal_centre_line_y_512": {
+    "note": "pedestal = mean of linear G at (x,443) and (x,592), a proxy for the arcs' smooth field",
+    "flare_share": {
+     "x_300": "38%",
+     "x_340": "40%",
+     "x_380": "43%",
+     "x_400": "49%",
+     "x_420": "53%",
+     "x_440": "54%",
+     "x_570": "64%",
+     "x_590": "65%",
+     "x_610": "57%",
+     "x_630": "50%",
+     "x_650": "43%",
+     "x_690": "37%"
+    },
+    "x_460_and_550": "pedestal exceeds the value (arc core in the pedestal rows) - unusable"
+   },
+   "instruction_to_avoid_double_counting": "Give the arcs' glow agent the field measured at |y-515| > 60 (where the flare's cyan is < 5% on the mirror axis) and give the flare everything in R. On the horizontal centre line the split is roughly 50/50 at |d| = 60-120 px and 40/60 (flare/arcs) at |d| > 150 px."
+  },
+  "radial_extent": "Zero white beyond |dy| = 45 px on the vertical line x=504; cyan detectable to |dy| ~ 90 px there. Horizontally the cyan is detectable to |dx| ~ 210 px."
+ },
+ "7_second_compact_element_IMPORTANT": {
+  "claim": "The visually brightest thing in the icon is NOT the flare centre. There is a separate compact, nearly-saturated element centred at (534.5 +- 2, 514.3 +- 1.0), sitting 9.7 px inside the right arc's apex (544.19) and 26 px right of the flare centre.",
+  "evidence": [
+   "it carries every off-arc lum>=245 pixel (x 525-536, y 510-516, centroid (531.3,512.8))",
+   "the asymmetric excess D = R - mirror(R about the arcs' axis 504.53) has a clean bump: at x=532 D = 6/19/53/92/119/153/170/154/165/150/124/96/68/42/18/5 for y = 486..546 step 4, i.e. FWHM 35.5 px centred y=514.8; horizontally D peaks at x=531 (152-158) and falls to 20 by x=510 and to 7 by x=585",
+   "its up/down profile about y=514 is symmetric to 10-20% (D = 44/84/118/150/165 upward and 60/89/117/143/158 downward at r=20/16/12/8/4), so it is a round-ish blob, not a lobe hugging the arc",
+   "the two right-hand ray ridges converge on it (536.7,513.5)",
+   "its vertical centre (514.8) coincides with the ARCS' own symmetry axis (514.85), not with the streak (512.2)"
+  ],
+  "photometry": {
+   "peak_R_excess_8bit": 170,
+   "peak_excess_linear_R": 0.77,
+   "FWHM_px": [
+    28,
+    35
+   ],
+   "sigma_px": [
+    12,
+    15
+   ],
+   "colour_linear": {
+    "dR_over_dG": 0.32,
+    "dB_over_dG": 1.05,
+    "note": "measured at 6 points where G is still unclipped ((522,498),(524,494),(520,530),(526,532),(530,536),(518,496)); spread dR/dG 0.21-0.42",
+    "as_8bit_srgb": "~rgb(150,232,238) = #96E8EE, a pale cyan - much whiter than the streak's #2DF0FF but not neutral white"
+   }
+  },
+  "two_readings": [
+   "(a) a second, brighter 'glint' element of the flare placed on the right arc's apex (this is what the ray convergence says), or",
+   "(b) an extra inner glow lobe belonging to the right arc near the waist (this is what the y-centre coincidence with 514.85 says)."
+  ],
+  "recommendation": "Either way the lead must draw it, because it is 170/255 of signal over a 30 px blob. Draw it as a separate radial layer at (534.5,514.3) as specified in section 8; that reproduces the pixels under both readings. Flag it to the arc-glow agent so it is not also folded into the arcs' cross-section."
+ },
+ "8_recommended_svg": {
+  "compositing_space": "Put the whole flare group in one filter/group with color-interpolation-filters=\"linearRGB\" (the SVG default for filters) and add the layers with feComposite operator=\"arithmetic\" k2=1 k3=1, or use mix-blend-mode:screen on plain shapes. The measured decomposition is additive in LINEAR light, not in sRGB: a sRGB-space sum overshoots the wings by 30-60%.",
+  "layers": [
+   {
+    "id": "streak-cyan",
+    "what": "long thin horizontal streak",
+    "geometry": "rect x=258 y=498 width=502 height=29  (i.e. centre 509.2,512.7 in SVG user space; the height only has to cover +-4 sigma)",
+    "paint": "fill=#2DF0FF, opacity driven by a horizontal linearGradient whose stops follow exp(-|d|/30.3): offsets 0,0.10,0.20,0.30,0.40,0.50,0.60,0.70,0.80,0.90,1.00 -> opacity 0.001,0.006,0.031,0.15,0.55,1.0,0.55,0.15,0.031,0.006,0.001",
+    "blur": "feGaussianBlur stdDeviation='0 2.0' on a 4-px-tall rect (VERIFIED: rendered FWHM 5.46 px in resvg at 1024 px vs 5.2-5.6 measured in the reference). filterUnits='userSpaceOnUse'.",
+    "peak": "set the gradient's 1.0 stop so the un-clipped linear G reaches 1.70 at the centre (it will clip) and 0.097 at x=440; in practice: peak linear G = 1.7"
+   },
+   {
+    "id": "streak-white",
+    "what": "short whiter streak that makes the core read as white",
+    "geometry": "rect centred (509.2,512.7), half-length 78 px (x 431..587), same sigma_y 2.2",
+    "paint": "fill=#D8F6FA (linear R/G/B = 0.62/0.85/0.93 relative) with a gradient exp(-|d|/24)",
+    "check": "reproduces W(x) = 0.017/0.212/0.61/1.25/2.24/3.00 at x=430/440/480/490/500/510 (linear*px)"
+   },
+   {
+    "id": "bloom",
+    "what": "the horizontally elongated glow",
+    "geometry": "ellipse cx=509.2 cy=514.5 rx=1 ry=1 scaled: use <ellipse rx=\"40\" ry=\"12\"/> then feGaussianBlur stdDeviation=\"22 7\"",
+    "equivalent_gaussian": "sigma_x ~= 30-40 px, sigma_y = 9.3 px in white / 24 px in cyan; because the two channels need different sigma_y, use TWO ellipses: cyan #2DF0FF with stdDeviation 40 24, and pale #A8EEF4 with stdDeviation 30 9",
+    "peak": "linear G 0.36 at x=504 for the cyan one; linear R 0.13 at x=504 for the pale one"
+   },
+   {
+    "id": "glint",
+    "what": "the compact nearly-saturated element of section 7",
+    "geometry": "circle cx=535.0 cy=514.8 r=1 blurred: <circle r=\"6\"/> + feGaussianBlur stdDeviation=\"11\" gives FWHM ~30 px",
+    "paint": "fill=#F2FEFF, peak linear R 0.77 / G 1.0+ (it must clip over x 525..547, y 508..518)",
+    "check": "reproduces D(x=532) FWHM 35.5, D peak 170 8-bit, and lum>=250 over x 525..536 once the arc core is added"
+   },
+   {
+    "id": "spikes",
+    "what": "3 diagonal rays",
+    "geometry": "for each ray, a rect of length 150 and height 16 rotated about (535.5,514.0) then feGaussianBlur stdDeviation=\"0 5\" in the rotated frame; angles (SVG rotate, degrees clockwise from +x): 33.1, 312.3 about (535.5,514.0) and 222.2 about (495.0,512.7)",
+    "paint": "fill=#7FE8F5 at opacity ~0.06-0.10 (they are only 3-5 LSB above a background of 50-120)",
+    "note": "a linearGradient along each ray going 0.0 -> 1.0 -> 0.0 with the 1.0 stop at 30% of the length reproduces the measured amplitude run (peak at r~40-60, e-folding ~55 px)"
+   }
+  ],
+  "numeric_check_of_the_sum": {
+   "point_x504_y512": {
+    "measured_linear": {
+     "R": 0.3247,
+     "G": 0.7682
+    },
+    "model": "streak-cyan 0.03/1.00 * 1.28 (exp(-4.7/30.3)=0.855 * 1.70 peak, transverse 1.0) is already >1 in G -> clips; R contribution 0.044; bloom-pale gives R 0.128; glint at r=30.5 gives R 0.77*exp(-30.5^2/(2*12^2))=0.026; total R = 0.198 + streak-white 0.12 = 0.32 (measured 0.3247) OK"
+   },
+   "point_x440_y512": {
+    "measured_linear": {
+     "R": 0.0416,
+     "G": 0.3502
+    },
+    "model": "streak-cyan: 1.70*exp(-68.7/30.3)=0.177 in G; + arcs' cyan field 0.163 (see 5_bloom decomposition) = 0.340 vs 0.350 measured. R: streak-white W-flux 0.212/(2.2*2.5066)=0.038 vs 0.0416 measured. OK"
+   },
+   "point_x600_y512": {
+    "measured_linear": {
+     "R": 0.003,
+     "G": 0.1403
+    },
+    "model": "streak-cyan 1.70*exp(-91.3/30.3)=0.0838 + arc field 0.052 = 0.136 vs 0.1403. R: 0.03*0.0838=0.0025 vs 0.0030. OK"
+   }
+  },
+  "not_reproducible_with_svg_primitives": [
+   "The colour gradient along the streak (deep cyan wings -> pale core) is not achievable with one shape: SVG gradients interpolate colour along the gradient axis, so it CAN be done with a single rect whose linearGradient carries both the colour and opacity ramp - that is the cheapest faithful approximation and is what I recommend (2 stops of colour + 5 of opacity).",
+   "The secondary parallel line at y=519.7 that exists only on the right half has no single-primitive equivalent; add a separate clipped rect if wanted.",
+   "The true peak radiance of the core and of the glint is unrecoverable (G,B clipped over the whole patch, R clips in 1 px). Any model that clips to white over x 525-547, y 508-518 matches.",
+   "The rays are not concentric with the streak; a single rotational 'starburst' primitive cannot reproduce them. Three individually placed rotated rects are needed."
+  ],
+  "eight_bit_targets": {
+   "note": "Fit against these, in the renderer's own space: peak 8-bit value of the thin streak above its own local y-baseline, at the streak ridge.",
+   "G": {
+    "360": 10.6,
+    "380": 13.2,
+    "400": 21.3,
+    "420": 28.1,
+    "430": 31.6,
+    "440": 31.2,
+    "450": 30.8,
+    "560": 26.7,
+    "580": 32.8,
+    "600": 27.0,
+    "620": 16.1,
+    "640": 8.0,
+    "660": 9.1,
+    "680": 5.6,
+    "700": 3.3
+   },
+   "R": {
+    "400": 5.9,
+    "420": 7.5,
+    "430": 16.0,
+    "440": 39.4,
+    "450": 42.5,
+    "560": 31.8,
+    "580": 39.7,
+    "590": 13.9,
+    "600": 9.2,
+    "610": 6.8,
+    "620": 4.0
+   },
+   "absolute_values_on_the_horizontal_centre_line_y_511_513_mean": {
+    "note": "total image value, for end-to-end checking",
+    "x": [
+     380,
+     400,
+     420,
+     440,
+     460,
+     480,
+     500,
+     510,
+     520,
+     530,
+     540,
+     550,
+     560,
+     580,
+     600,
+     620,
+     640
+    ],
+    "R": [
+     3.3,
+     6.7,
+     10.0,
+     57.3,
+     152.3,
+     89.7,
+     141.7,
+     157.3,
+     181.7,
+     238.0,
+     235.7,
+     186.3,
+     122.3,
+     40.7,
+     10.0,
+     6.3,
+     4.0
+    ],
+    "G": [
+     63.0,
+     82.7,
+     111.0,
+     159.7,
+     204.3,
+     196.0,
+     221.3,
+     228.7,
+     240.0,
+     254.7,
+     250.3,
+     233.0,
+     202.7,
+     147.3,
+     104.7,
+     76.0,
+     56.0
+    ],
+    "B": [
+     68.3,
+     90.7,
+     118.3,
+     173.3,
+     211.3,
+     206.0,
+     228.7,
+     235.0,
+     243.7,
+     255.0,
+     251.0,
+     238.0,
+     212.3,
+     160.3,
+     115.0,
+     84.0,
+     62.0
+    ]
+   }
+  }
+ },
+ "9_uncertainties": [
+  "Centre x: the three estimators spread over 506-511.5. The spread is driven by how the broad component is apportioned between the streak and the arcs' field, not by noise. sigma_x = 2.5 px is honest; sigma_y = 0.3 px is solid.",
+  "Whether the compact element of section 7 belongs to the flare or to the right arc cannot be decided from the reference. Its y-centre matches the arcs' axis; its rays match a flare.",
+  "The arcs' glow and the flare's cyan bloom are not separable in G/B in the region |d| < 60 px because G and B clip. Everything quantitative there rests on R alone.",
+  "The secondary horizontal lines (y=519.7, y=531.5) are real but not explicable as one point source; they may be artefacts of whatever produced the reference image (Picasa, per the XMP) rather than design.",
+  "Ray amplitudes are 3-5 LSB above local backgrounds of 50-120; a fourth/fifth spike below the noise cannot be excluded, and the marginal ray_up_left_B may be one feature with ray_up_left.",
+  "I did not verify any of this against a test render; the coordinate +0.5 SVG offset is taken from the arc-geometry agent's calibration, not re-derived."
+ ],
+ "6_renderer_calibration_measured": {
+  "why_this_matters": "The reference's flare is additive in LINEAR light (all my decompositions only close in linear). Both available renderers do the opposite: I rendered one SVG with three identical blurs tagged color-interpolation-filters=linearRGB / sRGB / (default); resvg gives byte-identical output for all three (peak8=86, 8-bit flux exactly 4.008 for a 4px rect) and chromium likewise (peak8=89, 8-bit flux 4.000). So feGaussianBlur is done in GAMMA (sRGB) space and color-interpolation-filters is ignored by both. 8-bit flux is conserved; LINEAR flux is not (0.81 of nominal in that test).",
+  "consequence": "Do NOT plug my linear-light amplitudes straight into the SVG. Fit the layer amplitudes against the 8-bit tables (section 3 field peak_8bit_above_baseline, and eight_bit_targets in section 8) using screen / plus-lighter compositing, and treat the linear numbers as the shape/geometry ground truth.",
+  "blur_geometry_table_resvg_1024px": {
+   "columns": [
+    "rect_height_px",
+    "stdDeviation_y",
+    "rendered_FWHM_8bit",
+    "rendered_peak_8bit_opaque_00FF00",
+    "8bit_flux_over_255",
+    "sigma_equivalent"
+   ],
+   "rows": [
+    [
+     1,
+     1.5,
+     3.32,
+     67,
+     0.98,
+     1.49
+    ],
+    [
+     1,
+     2.0,
+     4.87,
+     50,
+     1.004,
+     2.04
+    ],
+    [
+     1,
+     2.2,
+     5.82,
+     43,
+     1.004,
+     2.38
+    ],
+    [
+     1,
+     2.6,
+     7.92,
+     31,
+     1.0,
+     3.28
+    ],
+    [
+     2,
+     2.0,
+     4.78,
+     101,
+     2.0,
+     2.01
+    ],
+    [
+     2,
+     2.2,
+     5.73,
+     86,
+     2.008,
+     2.38
+    ],
+    [
+     4,
+     2.0,
+     5.46,
+     179,
+     4.0,
+     2.27
+    ],
+    [
+     4,
+     2.2,
+     6.19,
+     158,
+     4.008,
+     2.58
+    ],
+    [
+     4,
+     2.75,
+     8.29,
+     117,
+     3.992,
+     3.47
+    ],
+    [
+     6,
+     1.8,
+     6.37,
+     228,
+     5.953,
+     2.66
+    ],
+    [
+     1,
+     4.0,
+     11.33,
+     21,
+     1.004,
+     4.86
+    ],
+    [
+     1,
+     9.2,
+     23.0,
+     10,
+     1.055,
+     10.73
+    ],
+    [
+     4,
+     9.0,
+     22.33,
+     44,
+     4.349,
+     10.06
+    ],
+    [
+     12,
+     9.0,
+     23.5,
+     124,
+     12.09,
+     9.92
+    ]
+   ],
+   "rule_of_thumb": "sigma_rendered ~= sqrt(stdDeviation^2 + h^2/12) for stdDeviation <= 3; resvg's 3-box approximation adds 10-20% for stdDeviation >= 4.",
+   "pick_for_the_streak": "rect height 4 + stdDeviation='0 2.0' gives FWHM 5.46 (8-bit), matching the reference's measured 5.2-5.6. A 1px rect needs stdDeviation 2.1.",
+   "filter_region_gotcha": "With a 1-4 px tall rect, percentage filter regions (y='-500%' height='1100%') give only +-5..20 px and truncate the blur. Use filterUnits='userSpaceOnUse' with explicit x/y/width/height on every flare filter."
+  }
+ }
+}

@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1024" height="1024" viewBox="0 0 1024 1024" >
+<defs><mask id="m" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><rect width="1024" height="1024" fill="#fff" fill-opacity="0.5"/></mask></defs><rect width="1024" height="1024" fill="#000"/><path d="M 100 500 L 900 500" stroke="#fff" stroke-width="200" stroke-opacity="0.5" mask="url(#m)"/><path d="M 100 800 L 900 800" stroke="#fff" stroke-width="100" stroke-opacity="0.5"/>
+</svg>

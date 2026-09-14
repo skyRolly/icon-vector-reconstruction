@@ -1,0 +1,3131 @@
+{
+ "canvas": 1024,
+ "flare": {
+  "cx": 529.95,
+  "cy": 514.33,
+  "note": "the compact source: the centroid of every off-arc pixel above lum 245 (531.3,512.8) and the peak of the isolated flare (532,513) agree here. The long horizontal streak has its own, different measured centre (~511.5) and carries it explicitly."
+ },
+ "frame": {
+  "bottom": 991.6551,
+  "corner_blend_deg": 5.0916,
+  "corner_model": "three_arc",
+  "corner_n": 2.45,
+  "corner_note": "continuous-curvature corner: blend arc, main arc, blend arc; fits the measured corner outline to 0.13-0.27 px vs 0.66-0.84 px for a circular rounded rect. r_blend and corner_blend_deg are degenerate: what the corner fit measures is the lateral blend offset r_blend*(1-cos(blend_deg)) = 2.67 px, so r_blend is held at its fitted value and only the angle is searched",
+  "corner_r_blend": 639.0638,
+  "corner_r_main": 163.5607,
+  "corner_segments": 3,
+  "left": 66.5225,
+  "note": "SVG user units; centre-lines from opaque-bar fits to 371-461 cross-sections per edge",
+  "radius": 171.8,
+  "radius_note": "only used if corner_model is switched to 'squircle'; 171.8 is the best single circular radius",
+  "right": 951.57,
+  "stroke_width": 6.135,
+  "top": 34.3555
+ },
+ "geometry": {
+  "arc_left": {
+   "cubics": {
+    "left": [
+     [
+      [
+       230.931,
+       86.296
+      ],
+      [
+       381.164,
+       161.388
+      ],
+      [
+       465.431,
+       342.283
+      ],
+      [
+       465.431,
+       519.793
+      ]
+     ],
+     [
+      [
+       465.431,
+       519.793
+      ],
+      [
+       465.431,
+       699.356
+      ],
+      [
+       365.846,
+       890.085
+      ],
+      [
+       216.904,
+       948.839
+      ]
+     ]
+    ]
+   },
+   "insetcentre": {
+    "left": [
+     78.913,
+     515.286
+    ]
+   }
+  },
+  "arc_right": {
+   "cubics": {
+    "right": [
+     [
+      [
+       778.84,
+       86.39
+      ],
+      [
+       621.263,
+       165.571
+      ],
+      [
+       544.79,
+       353.776
+      ],
+      [
+       544.79,
+       517.656
+      ]
+     ],
+     [
+      [
+       544.79,
+       517.656
+      ],
+      [
+       544.79,
+       715.692
+      ],
+      [
+       648.355,
+       875.699
+      ],
+      [
+       770.242,
+       937.077
+      ]
+     ]
+    ]
+   },
+   "insetcentre": {
+    "right": [
+     923.121,
+     515.048
+    ]
+   }
+  },
+  "cubics_note": "two cubic Beziers per curve joined at the apex with a vertical tangent; fitted to the sub-pixel ridge, RMS 0.085 px (left) / 0.095 px (right)",
+  "lens_ellipse": {
+   "left": {
+    "cx": 78.913,
+    "cy": 515.286,
+    "rx": 383.18184,
+    "ry": 470.07000000000005
+   },
+   "right": {
+    "cx": 923.121,
+    "cy": 515.048,
+    "rx": 378.12,
+    "ry": 463.35
+   }
+  },
+  "lens_grow": 4.094304,
+  "measured_ellipse_fits_pixelindex": {
+   "left": {
+    "cx": 78.413,
+    "cy": 514.786,
+    "ridge_rms_px": 0.331,
+    "rx": 386.05,
+    "ry": 467.47
+   },
+   "right": {
+    "cx": 922.621,
+    "cy": 514.548,
+    "ridge_rms_px": 0.473,
+    "rx": 378.12,
+    "ry": 463.35
+   }
+  },
+  "mirror_axis_x": 505.03,
+  "note": "SVG user space = measured pixel-index + 0.5 (verified by rendering a line at a known coordinate and re-measuring it)"
+ },
+ "layers": [
+  {
+   "blue": 0.02237,
+   "color": [
+    0.29,
+    1.78,
+    7.58
+   ],
+   "cyan": 0.00622,
+   "id": "field_base",
+   "kind": "field",
+   "white": 0.00114
+  },
+  {
+   "blue": 1e-05,
+   "bounds": {
+    "profile": [
+     0.2,
+     1.2
+    ],
+    "r": [
+     180,
+     520
+    ],
+    "squash": [
+     0.35,
+     1.9
+    ]
+   },
+   "color": [
+    0.0,
+    16.55,
+    17.61
+   ],
+   "cx": 507.256,
+   "cy": 531.2144000000001,
+   "cyan": 0.06904,
+   "id": "field_mid",
+   "kind": "field_radial",
+   "note": "the broad central wash. Its vertical extent is searched separately from its radius: the inter-curve region 90-150 px from either curve sits at 6.3 code values in the reference, so a round blob of this size over-fills the top and bottom of the lens",
+   "profile": {
+    "kind": "gauss",
+    "sigma": 0.9925020160000002
+   },
+   "r": 290.4,
+   "squash": 0.88,
+   "white": 0.0
+  },
+  {
+   "blue": 0.00092,
+   "bounds": {
+    "r": [
+     600,
+     1400
+    ]
+   },
+   "color": [
+    3.04,
+    4.87,
+    5.22
+   ],
+   "cx": 827.1729599999999,
+   "cy": 758.6230400000002,
+   "cyan": 0.00762,
+   "id": "field_grad",
+   "kind": "field_radial",
+   "note": "measured on a glow-free mask (20% of the interior): a single isotropic radial gradient centred well outside the canvas at (882,678.5) beats flat by 33% in G MAE; distance-to-frame explains only 4% of the variance (no vignette) and distance-to-the-arcs explains nothing, so the field is its own element",
+   "profile": [
+    [
+     0,
+     0.0
+    ],
+    [
+     0.2,
+     0.208
+    ],
+    [
+     0.4,
+     0.264
+    ],
+    [
+     0.6,
+     0.42
+    ],
+    [
+     0.8,
+     0.166
+    ],
+    [
+     1.0,
+     1.0
+    ]
+   ],
+   "r": 853.336,
+   "white": 0.01193
+  },
+  {
+   "blue": 0.00408,
+   "color": [
+    0.47,
+    1.25,
+    2.34
+   ],
+   "cyan": 0.00325,
+   "id": "field_vert",
+   "kind": "canvas",
+   "note": "the reference's interior is brighter at the top than at the bottom by ~2.7 code values (row-band means), consistent with the rim being top-lit; this is that tilt",
+   "paint": {
+    "kind": "linear",
+    "stops": [
+     [
+      0.0,
+      1.0
+     ],
+     [
+      0.25,
+      0.72
+     ],
+     [
+      0.5,
+      0.45
+     ],
+     [
+      0.75,
+      0.22
+     ],
+     [
+      1.0,
+      0.0
+     ]
+    ],
+    "x1": 0,
+    "x2": 0,
+    "y1": 34.4,
+    "y2": 991.7
+   },
+   "region": "inside",
+   "white": 0.00184
+  },
+  {
+   "blue": 0.00512,
+   "color": [
+    0.06,
+    0.77,
+    2.12
+   ],
+   "cyan": 0.00296,
+   "id": "exterior",
+   "kind": "canvas",
+   "region": "outside",
+   "white": 0.00024
+  },
+  {
+   "blue": 0.00882,
+   "color": [
+    0.8,
+    0.8,
+    3.05
+   ],
+   "cyan": 0.0,
+   "id": "exterior_top",
+   "kind": "canvas",
+   "paint": {
+    "kind": "linear",
+    "stops": [
+     [
+      0.0,
+      1.0
+     ],
+     [
+      0.25,
+      0.95
+     ],
+     [
+      0.45,
+      0.45
+     ],
+     [
+      0.62,
+      0.42
+     ],
+     [
+      0.8,
+      0.62
+     ],
+     [
+      1.0,
+      0.55
+     ]
+    ],
+    "x1": 0,
+    "x2": 0,
+    "y1": 0,
+    "y2": 1024
+   },
+   "region": "outside",
+   "white": 0.00314
+  },
+  {
+   "blue": 0.011,
+   "bounds": {
+    "paint_r": [
+     600,
+     900
+    ]
+   },
+   "color": [
+    0.48,
+    1.82,
+    4.71
+   ],
+   "cyan": 0.00559,
+   "id": "exterior_corner",
+   "kind": "canvas",
+   "paint": {
+    "cx": 509.0,
+    "cy": 513.0,
+    "kind": "radial",
+    "profile": [
+     [
+      0,
+      0.0
+     ],
+     [
+      0.6,
+      0.0
+     ],
+     [
+      0.72,
+      0.25
+     ],
+     [
+      0.85,
+      0.7
+     ],
+     [
+      1.0,
+      1.0
+     ]
+    ],
+    "r": 760.0
+   },
+   "region": "outside",
+   "white": 0.00188
+  },
+  {
+   "blue": 0.0,
+   "blur": 19.984384000000006,
+   "bounds": {
+    "blur": [
+     10,
+     95
+    ],
+    "r": [
+     540,
+     860
+    ],
+    "width": [
+     80,
+     320
+    ]
+   },
+   "clip": true,
+   "color": [
+    1.45,
+    6.5,
+    6.82
+   ],
+   "cx": 515.0,
+   "cy": 538.4544000000001,
+   "cyan": 0.02106,
+   "id": "corner_in",
+   "kind": "frame_corner_glow",
+   "note": "the light in the four interior corners. Measured in the lobes more than 40 px from a curve: within 100 px of the frame the corner quadrants read 9.5-11.0 code values in the reference against 7.0-8.3 rendered (30% too dark, 67k px), while the edge midpoints agree to 0.1-0.7. Nothing else in the model is corner-weighted on the inside",
+   "profile": [
+    [
+     0,
+     0.0
+    ],
+    [
+     0.66,
+     0.0
+    ],
+    [
+     0.78,
+     0.32
+    ],
+    [
+     0.9,
+     0.78
+    ],
+    [
+     1.0,
+     1.0
+    ]
+   ],
+   "r": 607.2,
+   "white": 0.00569,
+   "width": 135.0976
+  },
+  {
+   "blue": 0.0,
+   "blur": 36.0,
+   "bounds": {
+    "blur": [
+     10,
+     95
+    ],
+    "cy": [
+     560,
+     900
+    ],
+    "r": [
+     600,
+     1000
+    ],
+    "width": [
+     70,
+     320
+    ]
+   },
+   "clip": true,
+   "color": [
+    3.96,
+    8.5,
+    8.79
+   ],
+   "cx": 478.03999999999996,
+   "cy": 720.0,
+   "cyan": 0.01894,
+   "id": "corner_in_top",
+   "kind": "frame_corner_glow",
+   "note": "the interior corner light is not symmetric top to bottom: 12-45 px inside the frame the top corners read 13.7 code values against 8.3 at the bottom. One radial gradient cannot be both corner-weighted and top-weighted, so this second copy has its centre pushed *below* the icon, which makes the top corners the farthest and brightest points of its gradient",
+   "profile": [
+    [
+     0,
+     0.0
+    ],
+    [
+     0.62,
+     0.0
+    ],
+    [
+     0.78,
+     0.28
+    ],
+    [
+     0.9,
+     0.72
+    ],
+    [
+     1.0,
+     1.0
+    ]
+   ],
+   "r": 830.0,
+   "white": 0.01553,
+   "width": 288.6912
+  },
+  {
+   "blue": 0.00096,
+   "blur": 76.158337024,
+   "bounds": {
+    "blur": [
+     30,
+     130
+    ],
+    "inset": [
+     50,
+     230
+    ],
+    "width": [
+     120,
+     380
+    ]
+   },
+   "clip": "lens",
+   "color": [
+    3.34,
+    16.41,
+    17.49
+   ],
+   "cyan": 0.05453,
+   "id": "arc_haze",
+   "inset": 153.512,
+   "kind": "arc",
+   "note": "measured at |t|<62 with the flare excluded, the glow is 1.7x brighter on the concave side 11 px out and 5.9x brighter 100 px out, and the inter-curve midline 140 px from both curves sits at 3.9 code values against 13.5 in the lobes: the broad component lives inside the lens and is clipped to it",
+   "taper": "haze",
+   "white": 0.0131,
+   "width": 147.22592638658148
+  },
+  {
+   "blue": 0.0,
+   "blur": 40.070553600000004,
+   "bounds": {
+    "blur": [
+     28,
+     80
+    ],
+    "inset": [
+     20,
+     110
+    ],
+    "width": [
+     60,
+     220
+    ]
+   },
+   "clip": "lens",
+   "color": [
+    0.0,
+    64.48,
+    68.59
+   ],
+   "cyan": 0.26899,
+   "id": "arc_glow3",
+   "inset": 26.229999999999993,
+   "kind": "arc",
+   "taper": "glow3",
+   "white": 0.0,
+   "width": 89.29650687999998
+  },
+  {
+   "blue": 0.0,
+   "blur": 19.06386944,
+   "bounds": {
+    "blur": [
+     12,
+     40
+    ],
+    "inset": [
+     4,
+     40
+    ],
+    "width": [
+     26,
+     100
+    ]
+   },
+   "color": [
+    0.0,
+    101.59,
+    108.07
+   ],
+   "cyan": 0.42381,
+   "id": "arc_glow2",
+   "inset": 6.999999999999999,
+   "kind": "arc",
+   "taper": "glow2",
+   "white": 0.0,
+   "width": 26.891391999999996
+  },
+  {
+   "blue": 0.00048,
+   "blur": 29.6239104,
+   "bounds": {
+    "blur": [
+     6,
+     50
+    ],
+    "inset": [
+     -45,
+     20
+    ],
+    "width": [
+     14,
+     90
+    ]
+   },
+   "color": [
+    2.66,
+    19.56,
+    20.76
+   ],
+   "cyan": 0.0705,
+   "id": "arc_glow2b",
+   "inset": -15.2,
+   "kind": "arc",
+   "note": "the only component offset towards the convex side. Every other glow stroke is inset into the lobe, which left the region 28-70 px between the curves 13-19% too dark while the lobe 14-38 px out was 6-11% too bright; one convex-biased stroke cuts the profile rms relative error from 8.6% to 7.0% at no cost to the global metric",
+   "taper": "glow2b",
+   "white": 0.01043,
+   "width": 56.81176281087999
+  },
+  {
+   "blue": 0.01255,
+   "blur": 5.108561919999999,
+   "bounds": {
+    "blur": [
+     2.5,
+     12
+    ],
+    "inset": [
+     0,
+     10
+    ],
+    "width": [
+     7,
+     30
+    ]
+   },
+   "color": [
+    96.09,
+    181.47,
+    190.12
+   ],
+   "cyan": 0.35621,
+   "id": "arc_glow1",
+   "inset": 5.279999999999999,
+   "kind": "arc",
+   "taper": "glow1",
+   "white": 0.37683,
+   "width": 9.8131968
+  },
+  {
+   "blue": 0.0433,
+   "blur": 2.408,
+   "bounds": {
+    "blur": [
+     1.5,
+     14
+    ],
+    "inset": [
+     -22,
+     2
+    ],
+    "width": [
+     4,
+     24
+    ]
+   },
+   "color": [
+    0.0,
+    56.55,
+    71.2
+   ],
+   "cyan": 0.23592,
+   "id": "arc_glow1b",
+   "inset": -6.0,
+   "kind": "arc",
+   "note": "the 9-14 px band on the convex side ran 12-17% too dark with nothing narrow enough to fill it: arc_glow1 is inset into the lobe and reaches only 0.10 of its peak there, and arc_glow2b is four times too wide",
+   "taper": "glow1",
+   "white": 0.0,
+   "width": 7.92
+  },
+  {
+   "blue": 0.0,
+   "bounds": {
+    "profile": [
+     0.1,
+     0.45
+    ],
+    "r": [
+     140,
+     340
+    ],
+    "squash": [
+     0.35,
+     1.1
+    ]
+   },
+   "color": [
+    0.0,
+    239.7,
+    255.0
+   ],
+   "cyan": 1.0,
+   "id": "flare_halo_far",
+   "kind": "radial",
+   "note": "the isolated flare is below 0.01 in additive luminance beyond r ~ 130 px and indistinguishable from zero beyond ~160, so this widest bloom ends there; the broad light between the curves is the central field, not the flare",
+   "profile": {
+    "kind": "exp",
+    "scale": 0.2464
+   },
+   "r": 140.44800000000004,
+   "squash": 0.777728,
+   "white": 0.0
+  },
+  {
+   "blue": 0.0,
+   "bounds": {
+    "profile": [
+     0.07,
+     0.4
+    ],
+    "r": [
+     90,
+     260
+    ],
+    "squash": [
+     0.45,
+     1.05
+    ]
+   },
+   "color": [
+    255.0,
+    255.0,
+    255.0
+   ],
+   "cyan": 0.0,
+   "id": "flare_halo",
+   "kind": "radial",
+   "note": "u = 2.757*exp(-sqrt((dx/22.7)^2+(dy/16.9)^2)) fitted over 63k px of the isolated flare",
+   "profile": {
+    "kind": "exp",
+    "scale": 0.2
+   },
+   "r": 92.41600000000001,
+   "squash": 0.645292032,
+   "white": 1.0
+  },
+  {
+   "blue": 0.0,
+   "blur_x": 0.0,
+   "bounds": {
+    "cy": [
+     510.0,
+     518.0
+    ],
+    "east_gain": [
+     0.3,
+     1.8
+    ],
+    "half_len": [
+     240.0,
+     420.0
+    ],
+    "profile": [
+     0.12,
+     0.34
+    ],
+    "sigma_y": [
+     1.4,
+     3.2
+    ]
+   },
+   "color": [
+    62.21,
+    255.0,
+    255.0
+   ],
+   "cy": 512.95,
+   "cyan": 0.82422,
+   "east_gain": 1.0,
+   "half_len": 320.0,
+   "id": "flare_streak",
+   "kind": "streak",
+   "note": "line A, on the core.  Its rendered row is calibrated against the isolated basis (row = cy - 0.547), not against FLARE_CORE's y, which is the centroid of a saturated core and reads 1.1 px low",
+   "profile": {
+    "kind": "exp",
+    "scale": 0.2022
+   },
+   "profile_e": [
+    [
+     0.0,
+     0.3
+    ],
+    [
+     0.147,
+     0.208
+    ],
+    [
+     0.219,
+     0.134
+    ],
+    [
+     0.297,
+     0.077
+    ],
+    [
+     0.375,
+     0.05
+    ],
+    [
+     0.469,
+     0.034
+    ],
+    [
+     0.594,
+     0.023
+    ],
+    [
+     0.75,
+     0.005
+    ],
+    [
+     1.0,
+     0.0
+    ]
+   ],
+   "sigma_y": 1.6,
+   "white": 0.24397
+  },
+  {
+   "blue": 0.292845,
+   "blur_x": 0.0,
+   "bounds": {
+    "dy": [
+     5.0,
+     8.5
+    ],
+    "east_gain": [
+     0.3,
+     2.0
+    ],
+    "half_len": [
+     90.0,
+     240.0
+    ],
+    "profile": [
+     0.1,
+     0.6
+    ],
+    "sigma_y": [
+     0.3,
+     3.0
+    ]
+   },
+   "color": [
+    256.94116,
+    372.92157,
+    455.0
+   ],
+   "cyan": 0.483858,
+   "dy": 5.74,
+   "east_gain": 1.0,
+   "half_len": 150.0,
+   "id": "flare_spike",
+   "kind": "streak",
+   "note": "line B, the narrowest and whitest of the three and 3.5x too dim before this.  Its sigma_y bound of 1.3 made the measured 2.1-2.7 px FWHM unreachable, which is why fitting it only turned it down",
+   "profile": {
+    "kind": "exp",
+    "scale": 0.216
+   },
+   "sigma_y": 0.4,
+   "white": 1.007612
+  },
+  {
+   "blue": 0.0,
+   "blur_x": 0.0,
+   "bounds": {
+    "dy": [
+     17.0,
+     22.0
+    ],
+    "east_gain": [
+     0.3,
+     1.6
+    ],
+    "half_len": [
+     240.0,
+     420.0
+    ],
+    "sigma_y": [
+     1.5,
+     3.4
+    ]
+   },
+   "color": [
+    0.0,
+    9.71,
+    10.33
+   ],
+   "cyan": 0.04052,
+   "dy": 17.88,
+   "east_gain": 0.85,
+   "half_len": 320.0,
+   "id": "flare_sat_long",
+   "kind": "streak",
+   "note": "line C: dy +19.33, rises from an inner cut-off near |dx| 80, peaks at 110-170, then falls -- an explicit table because no monotone law fits",
+   "profile": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.22,
+     0.06
+    ],
+    [
+     0.3,
+     0.58
+    ],
+    [
+     0.36,
+     1.0
+    ],
+    [
+     0.45,
+     0.97
+    ],
+    [
+     0.53,
+     0.81
+    ],
+    [
+     0.57,
+     0.8
+    ],
+    [
+     0.72,
+     0.29
+    ],
+    [
+     0.9,
+     0.16
+    ],
+    [
+     1.0,
+     0.0
+    ]
+   ],
+   "sigma_y": 2.3,
+   "white": 0.0
+  },
+  {
+   "blue": 0.0,
+   "blur_x": 0.0,
+   "bounds": {
+    "half_len": [
+     60,
+     280
+    ],
+    "profile": [
+     0.08,
+     0.5
+    ],
+    "sigma_y": [
+     5.0,
+     24.0
+    ]
+   },
+   "color": [
+    120.77,
+    120.77,
+    120.77
+   ],
+   "cyan": 0.0,
+   "half_len": 123.2,
+   "id": "flare_fan",
+   "kind": "streak",
+   "note": "the horizontal streak has two widths: a sigma ~2.8 px spike and this broader wash (half width ~8 px at r=30, ~25 px at r=92)",
+   "profile": {
+    "kind": "exp",
+    "scale": 0.22
+   },
+   "sigma_y": 10.85,
+   "white": 0.47359
+  },
+  {
+   "blue": 0.0616,
+   "blur_x": 0.0,
+   "bounds": {
+    "cy": [
+     510.0,
+     520.0
+    ],
+    "east_gain": [
+     0.0,
+     0.4
+    ],
+    "half_len": [
+     80.0,
+     160.0
+    ],
+    "sigma_y": [
+     3.5,
+     8.0
+    ]
+   },
+   "color": [
+    35.0625,
+    85.1598,
+    104.0655
+   ],
+   "cy": 514.8,
+   "cyan": 0.209,
+   "east_gain": 0.0,
+   "half_len": 118.0,
+   "id": "flare_arm_w",
+   "kind": "streak",
+   "note": "the west arm: a horizontal band of light due west of the core that the reconstruction did not have at all.  Measured against a MATCHED NULL -- the same cell moved up and down the left curve ridge at the same perpendicular distance, which shares the curve glow and the JPEG grain but not the flare -- the shipped render was 8.6/18.1/23.4/23.8 code values too dim at |dx| 20-28/28-36/36-44/44-52 in dy -5..+9, against a null of +1 to +2 with a spread of 2-3, i.e. 4.3 to 13.4 sigma.  The reference is 22-35 cv brighter west than east at the same radii where the render was symmetric, so this is a measured asymmetry and not a generic flare shape; east_gain is 0 because the east side needs no light and was already 4-7 cv too bright.  Cross section: centre dy +1.3 (the estimator's own spread is about +-1.5), FWHM ~13.5 px, sigma 5.0 chosen over 5.7 because it holds the angular modulation west of the core (wedge RMS 3.81 against 3.83) where 5.7 cost 0.2 and 6.5 cost 0.7.  The profile is tabulated, not a law: beyond |dx| 52 the left ridge is nearer than 20 px and NOTHING there is measurable, so the outer stops are an extrapolation checked after the fact (|dx| 74-90 improved from -29.3 to -10.1 and 90-110 from -7.2 to +0.2 without being fitted), not a measurement",
+   "profile": [
+    [
+     0.0,
+     0.15
+    ],
+    [
+     0.203,
+     0.56
+    ],
+    [
+     0.271,
+     0.98
+    ],
+    [
+     0.339,
+     1.0
+    ],
+    [
+     0.407,
+     0.88
+    ],
+    [
+     0.695,
+     0.8
+    ],
+    [
+     0.847,
+     0.12
+    ],
+    [
+     1.0,
+     0.0
+    ]
+   ],
+   "profile_e": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.085,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ]
+   ],
+   "sigma_y": 5.0,
+   "white": 0.1375
+  },
+  {
+   "blue": 0.04284,
+   "blur_y": 0.0,
+   "bounds": {
+    "cx": [
+     526.0,
+     533.0
+    ],
+    "half_len": [
+     90.0,
+     145.0
+    ],
+    "sigma_x": [
+     1.0,
+     3.0
+    ],
+    "south_gain": [
+     0.4,
+     1.8
+    ]
+   },
+   "color": [
+    15.9579,
+    36.0927,
+    48.3021
+   ],
+   "cx": 529.4,
+   "cyan": 0.084,
+   "half_len": 110.0,
+   "id": "flare_vline",
+   "kind": "vstreak",
+   "note": "the vertical diffraction line through the brightest point -- a real feature of the reference that the reconstruction had no trace of.  It took a channel-aware measurement to see: within ~12 px of the core G and B are CLIPPED (421 and 453 px at or above 253 in a 90x90 box, against 4 for R), so a luminance statistic there measures the clip.  In R the column high-pass A_4 reads 12.3/9.8/4.4/2.0/1.5/1.5 code values over |dy| 16-26/26-36/36-50/50-70/70-90/90-110 where the render read 2.4/0.5/0.7/0.4/-0.4/-0.2; see tools/vstreak_report.py.  Axis array x 528.9 +- 0.5, vertical to 0.3 +- 0.2 deg, FWHM 3.3-4.6 px.  It survives 4x downsampling, is flat across all eight y mod 8 JPEG phases, and the seven other block-boundary columns in the same rows read 0.0-0.6 against its 4.1, so it is light and not blocking.  The profile is TABULATED because it has a factor-3.1 step at |dy| ~33 that neither a power law nor an exponential reproduces.  Three things are deliberately absent: no broad halo (the flank at |dx| 3-8 is consistent with zero), nothing past |dy| 110 (pooled 110-240 is within 1.3 cv of zero at 95%), and nothing east of the core, where the right ridge allows only an 11.6 cv limit and the honest position is silence. The amplitude inside |dy| 16 is unconstrained -- the bloom's own curvature dominates there -- so the inner stop is continuity, not a measurement",
+   "profile": [
+    [
+     0.0,
+     1.0
+    ],
+    [
+     0.191,
+     1.0
+    ],
+    [
+     0.282,
+     0.843
+    ],
+    [
+     0.391,
+     0.259
+    ],
+    [
+     0.545,
+     0.107
+    ],
+    [
+     0.727,
+     0.139
+    ],
+    [
+     0.909,
+     0.154
+    ],
+    [
+     1.0,
+     0.0
+    ]
+   ],
+   "sigma_x": 1.7,
+   "south_gain": 1.0,
+   "white": 0.06258
+  },
+  {
+   "blue": 0.014377,
+   "blur": 3.9088,
+   "bounds": {
+    "blur": [
+     0.6,
+     10.0
+    ],
+    "height": [
+     3.0,
+     40.0
+    ],
+    "len": [
+     87.0,
+     192.0
+    ],
+    "peak_at": [
+     0.2,
+     0.75
+    ],
+    "rot": [
+     -119.6,
+     -107.6
+    ],
+    "spread": [
+     1.0,
+     3.0
+    ]
+   },
+   "color": [
+    0.0,
+    42.52141,
+    48.90228
+   ],
+   "cyan": 0.177391,
+   "height": 12.0,
+   "id": "flare_ray_a",
+   "kind": "ray",
+   "len": 132.0,
+   "peak_at": 0.49,
+   "rot": -113.6,
+   "spread": 1.0,
+   "white": 0.0
+  },
+  {
+   "blue": 0.083187,
+   "blur": 6.0,
+   "bounds": {
+    "blur": [
+     3.0,
+     14.0
+    ],
+    "height": [
+     12.0,
+     55.0
+    ],
+    "len": [
+     80.0,
+     190.0
+    ],
+    "peak_at": [
+     0.12,
+     0.6
+    ],
+    "rot": [
+     -252.0,
+     -216.0
+    ],
+    "spread": [
+     1.0,
+     4.0
+    ]
+   },
+   "color": [
+    0.0,
+    34.97023,
+    58.41715
+   ],
+   "cyan": 0.145904,
+   "height": 30.0,
+   "id": "flare_flank_dl",
+   "kind": "ray",
+   "len": 110.0,
+   "note": "the lower-left ray is a sharp spike on a broad fan; this is the fan. theta 210-260, peaking at 225, measured as the angular deficit left when the ray was narrowed to its measured 8.3 px width",
+   "peak_at": 0.2,
+   "rot": -234.0,
+   "spread": 1.7,
+   "white": 0.0
+  },
+  {
+   "blue": 0.004024,
+   "blur": 6.0,
+   "bounds": {
+    "blur": [
+     3.0,
+     14.0
+    ],
+    "height": [
+     10.0,
+     45.0
+    ],
+    "len": [
+     80.0,
+     190.0
+    ],
+    "peak_at": [
+     0.12,
+     0.6
+    ],
+    "rot": [
+     -136.0,
+     -100.0
+    ],
+    "spread": [
+     1.0,
+     4.0
+    ]
+   },
+   "color": [
+    0.0,
+    4.09391,
+    5.38001
+   ],
+   "cyan": 0.017074,
+   "height": 22.0,
+   "id": "flare_flank_ul",
+   "kind": "ray",
+   "len": 110.0,
+   "note": "the upper-left ray's broad fan, the companion to the 10.6 px spike at theta 113.6; measured as the angular deficit over theta 105-135",
+   "peak_at": 0.2,
+   "rot": -118.0,
+   "spread": 2.0,
+   "white": 0.0
+  },
+  {
+   "blue": 0.034645,
+   "blur": 2.4331,
+   "bounds": {
+    "blur": [
+     0.6,
+     10.0
+    ],
+    "height": [
+     3.0,
+     40.0
+    ],
+    "len": [
+     65.0,
+     170.0
+    ],
+    "peak_at": [
+     0.2,
+     0.75
+    ],
+    "rot": [
+     -255.7,
+     -243.7
+    ],
+    "spread": [
+     1.0,
+     3.0
+    ]
+   },
+   "color": [
+    0.0,
+    21.30018,
+    31.4941
+   ],
+   "cyan": 0.088858,
+   "height": 8.0,
+   "id": "flare_ray_b",
+   "kind": "ray",
+   "len": 110.0,
+   "peak_at": 0.6,
+   "rot": -249.7,
+   "spread": 1.25,
+   "white": 0.0
+  },
+  {
+   "blue": 0.009833,
+   "blur": 1.5392,
+   "bounds": {
+    "blur": [
+     0.6,
+     10.0
+    ],
+    "dx": [
+     -6.0,
+     6.0
+    ],
+    "dy": [
+     -6.0,
+     6.0
+    ],
+    "height": [
+     3.0,
+     40.0
+    ],
+    "len": [
+     140.0,
+     245.0
+    ],
+    "peak_at": [
+     0.2,
+     0.75
+    ],
+    "rot": [
+     -335.0,
+     -322.0
+    ],
+    "spread": [
+     1.0,
+     3.0
+    ]
+   },
+   "color": [
+    1.31157,
+    22.20304,
+    26.04407
+   ],
+   "cyan": 0.087156,
+   "height": 4.85,
+   "id": "flare_ray_c",
+   "kind": "ray",
+   "len": 185.0,
+   "note": "lower-right ray.  Its line is PARALLEL to the render's -- the reference's own direction measures 328.18 +- 0.21 against the render's 328.40 -- and the discrepancy is an OFFSET: the reference's ray sits at s = +1.37 px where the render's sat at -1.66, flat across nine radii from 60 to 140 with no trend, which an angle error cannot produce.  A constant angular difference is rejected at chi2/dof 6.18 against 0.45 for a line. So `dx`/`dy` displace the origin 3.0 px along the +s normal instead of rotating: an earlier pass rotated this ray from 327.8 to 328.85 on a claimed axis of 328.35 +- 0.15, re-measurement gave 328.0 +- 0.8, and the change had to be reverted -- a rotation over-corrects inside r 70 and under-corrects beyond r 150 because the measured offset is constant in PIXELS, not in degrees.  NO ray axis in this image supports a precision near 0.15 deg; the best-determined of the four spreads 0.55 deg across the six reasonable definitions of a centre before any noise enters. height 4.0 -> 4.85 and spread 1.6 -> 1.9 because the reference is 1.3-1.8x wider and widens with radius where the render was flat: transverse FWHM 5.87 in the reference against 4.40, now 5.62",
+   "peak_at": 0.32,
+   "rot": -328.1,
+   "spread": 1.9,
+   "white": 0.005143,
+   "dx": 1.5809,
+   "dy": -2.5497
+  },
+  {
+   "blue": 0.02082,
+   "blur": 4.0,
+   "bounds": {
+    "blur": [
+     2.0,
+     14.0
+    ],
+    "height": [
+     4.0,
+     45.0
+    ],
+    "len": [
+     60.0,
+     300.0
+    ],
+    "peak_at": [
+     0.1,
+     0.6
+    ],
+    "rot": [
+     -189,
+     -161
+    ],
+    "spread": [
+     1.0,
+     40.0
+    ]
+   },
+   "color": [
+    1.89,
+    21.16,
+    27.71
+   ],
+   "cyan": 0.08042,
+   "height": 30.0,
+   "id": "flare_ray_d",
+   "kind": "ray",
+   "len": 155.0,
+   "note": "the westward fan.  Its LENGTH is measured by re-rendering, not by reading the reference: nine renders at len 130..190 move the west sector mean (r 110-170, theta 148-216) monotonically from -2.42 to +3.50 code values, crossing zero at 154, and move STEP -- the statistic that cancels the curve glow by comparing |t| < 16 deg with 16..26 deg along the left curve, so only light anchored to the flare survives -- across zero at 157. Two independent implementations and two different renders agree on both crossings.  155 sits between them; the 1-sigma interval is 145-163 against a conservative rotational null and 150-159 against a translated one.  The excess it removes grew OUTWARD (0.24 of the layer at r 114-175 rising to 0.70 at r 136-191), which is the signature of a ray too long rather than one too bright, and deleting the layer overshoots to -3.60.  Note that r 48..93 due west cannot be checked against the reference at all -- the left ridge is within 26 px -- so 45 px of this ray's length is unmeasured rather than measured and clean.  See tools/fan_report.py.  `onset` was raised from 0.240 to 0.310 in the same change and that is not a free parameter: onset is a FRACTION of len, so shortening the ray from 190 to 155 would have dragged its inner edge from r 45.6 to r 37.2 and put light where the reference has none.  0.310 x 155 = 48, which is what the reference shows -- 0.00 cv at r 20..45 due west, first nonzero 0.79 at r 50.  With it the horizontal-arm strip and the angular residual are unchanged (3.81 cv) while S and STEP both fall to zero; without it they degrade to 3.88 and the strip gains a code value in every band",
+   "onset": 0.31,
+   "peak_at": 0.45,
+   "rot": -182.2,
+   "spread": 7.7,
+   "white": 0.0074
+  },
+  {
+   "blue": 0.0,
+   "blur": 1.4417,
+   "bounds": {
+    "blur": [
+     0.6,
+     10.0
+    ],
+    "height": [
+     3.0,
+     40.0
+    ],
+    "len": [
+     95.0,
+     215.0
+    ],
+    "peak_at": [
+     0.2,
+     0.75
+    ],
+    "rot": [
+     -51.6,
+     -39.6
+    ],
+    "spread": [
+     1.0,
+     3.0
+    ]
+   },
+   "color": [
+    0.0,
+    37.39782,
+    11.21934
+   ],
+   "cyan": 0.156021,
+   "height": 4.0,
+   "id": "flare_ray_e",
+   "kind": "ray",
+   "len": 150.0,
+   "note": "upper-right ray.  Axis 44.90 +- 0.37 deg, not 45.6.  It ends at r = 154 (1-sigma 143-166) by a linear-taper fit against a matched null, and a continuation past r = 150 is bounded at 11% of the amplitude inside r = 120, so the len = 215 an earlier pass used is excluded at about 2.7 sigma",
+   "peak_at": 0.28,
+   "rot": -44.9,
+   "spread": 1.3,
+   "white": 0.0
+  },
+  {
+   "blue": 0.0,
+   "blur": 0.6137416122421083,
+   "bounds": {
+    "blur": [
+     0.2,
+     1.1
+    ],
+    "inset": [
+     -0.8,
+     0.8
+    ],
+    "width": [
+     5.2,
+     7.2
+    ]
+   },
+   "color": [
+    216.24,
+    255.0,
+    255.0
+   ],
+   "cyan": 0.16363,
+   "id": "arc_core",
+   "inset": 0.0,
+   "kind": "arc",
+   "taper": "core",
+   "white": 0.84799,
+   "width": 6.832
+  },
+  {
+   "blue": 0.06856,
+   "blur": 0.20421316015498364,
+   "bounds": {
+    "blur": [
+     0.2,
+     1.6
+    ],
+    "inset": [
+     0.0,
+     5.0
+    ],
+    "width": [
+     3.0,
+     9.0
+    ]
+   },
+   "color": [
+    93.91,
+    184.25,
+    207.5
+   ],
+   "cyan": 0.37689,
+   "id": "arc_core_wide",
+   "inset": 2.0,
+   "kind": "arc",
+   "note": "the reference core is asymmetric about its centre-line: its 50% edges reach 4.8 px on the concave side but only 3.3 px on the convex side, and it widens from 6.1 px at the tips to 8.4 px at mid-height. This second, inset, mid-tapered stroke supplies exactly that extra concave-side width.",
+   "taper": "core_wide",
+   "white": 0.36827,
+   "width": 4.02688
+  },
+  {
+   "blend": "normal",
+   "blue": 0.01554,
+   "bounds": {
+    "width": [
+     5.4,
+     7.0
+    ]
+   },
+   "color": [
+    14.36,
+    25.11,
+    29.76
+   ],
+   "cyan": 0.04485,
+   "id": "frame_base",
+   "kind": "frame_ring",
+   "paint": {
+    "kind": "uniform"
+   },
+   "white": 0.05631,
+   "width": 6.135
+  },
+  {
+   "blend": "normal",
+   "blue": 0.02401,
+   "bounds": {
+    "paint_r": [
+     480,
+     700
+    ],
+    "width": [
+     5.4,
+     7.0
+    ]
+   },
+   "color": [
+    112.73,
+    119.74,
+    126.31
+   ],
+   "cyan": 0.02924,
+   "id": "frame_rim",
+   "kind": "frame_ring",
+   "paint": {
+    "cx": 508.34,
+    "cy": 476.4,
+    "kind": "radial",
+    "profile": [
+     [
+      0,
+      1.0
+     ],
+     [
+      0.68,
+      1.0
+     ],
+     [
+      0.7391,
+      0.563
+     ],
+     [
+      0.7826,
+      0.422
+     ],
+     [
+      0.8261,
+      0.219
+     ],
+     [
+      0.8696,
+      0.171
+     ],
+     [
+      0.913,
+      0.177
+     ],
+     [
+      0.9565,
+      0.028
+     ],
+     [
+      1.0,
+      0.067
+     ]
+    ],
+    "r": 575.0,
+    "squash": 1.13006
+   },
+   "white": 0.44208,
+   "width": 6.135
+  }
+ ],
+ "tapers": {
+  "core": {
+   "gamma": 1.0,
+   "kind": "table",
+   "left": [
+    [
+     87.3,
+     0.0
+    ],
+    [
+     100,
+     0.1977
+    ],
+    [
+     120,
+     0.5769
+    ],
+    [
+     140,
+     0.728
+    ],
+    [
+     160,
+     0.7664
+    ],
+    [
+     180,
+     0.882
+    ],
+    [
+     200,
+     0.8853
+    ],
+    [
+     220,
+     0.9021
+    ],
+    [
+     240,
+     0.917
+    ],
+    [
+     260,
+     0.8474
+    ],
+    [
+     280,
+     0.8815
+    ],
+    [
+     300,
+     0.817
+    ],
+    [
+     320,
+     0.8414
+    ],
+    [
+     340,
+     0.799
+    ],
+    [
+     360,
+     0.8436
+    ],
+    [
+     380,
+     0.8607
+    ],
+    [
+     400,
+     0.8091
+    ],
+    [
+     420,
+     0.8503
+    ],
+    [
+     440,
+     0.8317
+    ],
+    [
+     460,
+     0.8502
+    ],
+    [
+     480,
+     0.8796
+    ],
+    [
+     500,
+     0.9479
+    ],
+    [
+     520,
+     0.9734
+    ],
+    [
+     540,
+     0.8766
+    ],
+    [
+     560,
+     0.8349
+    ],
+    [
+     580,
+     0.8154
+    ],
+    [
+     600,
+     0.7933
+    ],
+    [
+     620,
+     0.8179
+    ],
+    [
+     640,
+     0.7572
+    ],
+    [
+     660,
+     0.8117
+    ],
+    [
+     680,
+     0.7891
+    ],
+    [
+     700,
+     0.8342
+    ],
+    [
+     720,
+     0.8762
+    ],
+    [
+     740,
+     0.8784
+    ],
+    [
+     760,
+     0.9182
+    ],
+    [
+     780,
+     0.9904
+    ],
+    [
+     800,
+     0.9506
+    ],
+    [
+     820,
+     0.988
+    ],
+    [
+     840,
+     0.9075
+    ],
+    [
+     860,
+     0.8579
+    ],
+    [
+     880,
+     0.7241
+    ],
+    [
+     900,
+     0.5076
+    ],
+    [
+     920,
+     0.29
+    ],
+    [
+     940,
+     0.0353
+    ],
+    [
+     944.5,
+     0.0
+    ]
+   ],
+   "right": [
+    [
+     84.7,
+     0.0
+    ],
+    [
+     100,
+     0.2282
+    ],
+    [
+     120,
+     0.5498
+    ],
+    [
+     140,
+     0.7402
+    ],
+    [
+     160,
+     0.8365
+    ],
+    [
+     180,
+     0.8643
+    ],
+    [
+     200,
+     0.9159
+    ],
+    [
+     220,
+     0.9092
+    ],
+    [
+     240,
+     0.9104
+    ],
+    [
+     260,
+     0.9018
+    ],
+    [
+     280,
+     0.8585
+    ],
+    [
+     300,
+     0.8527
+    ],
+    [
+     320,
+     0.7803
+    ],
+    [
+     340,
+     0.8226
+    ],
+    [
+     360,
+     0.8155
+    ],
+    [
+     380,
+     0.7599
+    ],
+    [
+     400,
+     0.814
+    ],
+    [
+     420,
+     0.7393
+    ],
+    [
+     440,
+     0.7978
+    ],
+    [
+     460,
+     0.7516
+    ],
+    [
+     480,
+     0.8057
+    ],
+    [
+     500,
+     0.9214
+    ],
+    [
+     520,
+     0.9898
+    ],
+    [
+     540,
+     0.8746
+    ],
+    [
+     560,
+     0.7544
+    ],
+    [
+     580,
+     0.7707
+    ],
+    [
+     600,
+     0.733
+    ],
+    [
+     620,
+     0.7127
+    ],
+    [
+     640,
+     0.7273
+    ],
+    [
+     660,
+     0.7031
+    ],
+    [
+     680,
+     0.7224
+    ],
+    [
+     700,
+     0.713
+    ],
+    [
+     720,
+     0.7287
+    ],
+    [
+     740,
+     0.7812
+    ],
+    [
+     760,
+     0.8271
+    ],
+    [
+     780,
+     0.8479
+    ],
+    [
+     800,
+     0.8901
+    ],
+    [
+     820,
+     0.8197
+    ],
+    [
+     840,
+     0.7934
+    ],
+    [
+     860,
+     0.7441
+    ],
+    [
+     880,
+     0.6239
+    ],
+    [
+     900,
+     0.4629
+    ],
+    [
+     920,
+     0.2268
+    ],
+    [
+     939.8,
+     0.0
+    ]
+   ],
+   "scale": 1.0,
+   "y_offset": 0.8999999999999999
+  },
+  "core_wide": {
+   "kind": "ramp",
+   "p0": 3.4716288000000004,
+   "p1": 0.6755200000000002,
+   "y0": 204.29760000000002,
+   "y1": 332.4,
+   "y2": 609.04,
+   "y3": 810.1424
+  },
+  "glow1": {
+   "gamma": 1.6216000000000004,
+   "kind": "table",
+   "left": [
+    [
+     87.3,
+     0.0
+    ],
+    [
+     100,
+     0.1584
+    ],
+    [
+     120,
+     0.1967
+    ],
+    [
+     140,
+     0.2753
+    ],
+    [
+     160,
+     0.2906
+    ],
+    [
+     180,
+     0.3581
+    ],
+    [
+     200,
+     0.3199
+    ],
+    [
+     220,
+     0.3867
+    ],
+    [
+     240,
+     0.4006
+    ],
+    [
+     260,
+     0.3444
+    ],
+    [
+     280,
+     0.4448
+    ],
+    [
+     300,
+     0.4778
+    ],
+    [
+     320,
+     0.6538
+    ],
+    [
+     340,
+     0.6518
+    ],
+    [
+     360,
+     0.7109
+    ],
+    [
+     380,
+     0.7881
+    ],
+    [
+     400,
+     0.7964
+    ],
+    [
+     420,
+     0.8616
+    ],
+    [
+     440,
+     0.9311
+    ],
+    [
+     460,
+     0.9398
+    ],
+    [
+     480,
+     0.9486
+    ],
+    [
+     500,
+     0.9573
+    ],
+    [
+     520,
+     0.9661
+    ],
+    [
+     540,
+     0.9748
+    ],
+    [
+     560,
+     0.9836
+    ],
+    [
+     580,
+     0.9923
+    ],
+    [
+     600,
+     0.9807
+    ],
+    [
+     620,
+     0.8678
+    ],
+    [
+     640,
+     0.8225
+    ],
+    [
+     660,
+     0.8553
+    ],
+    [
+     680,
+     0.7727
+    ],
+    [
+     700,
+     0.7752
+    ],
+    [
+     720,
+     0.7607
+    ],
+    [
+     740,
+     0.7037
+    ],
+    [
+     760,
+     0.6343
+    ],
+    [
+     780,
+     0.6135
+    ],
+    [
+     800,
+     0.5186
+    ],
+    [
+     820,
+     0.5443
+    ],
+    [
+     840,
+     0.4003
+    ],
+    [
+     860,
+     0.3329
+    ],
+    [
+     880,
+     0.2491
+    ],
+    [
+     900,
+     0.1596
+    ],
+    [
+     920,
+     0.1454
+    ],
+    [
+     940,
+     0.0971
+    ],
+    [
+     944.5,
+     0.0
+    ]
+   ],
+   "right": [
+    [
+     84.7,
+     0.0
+    ],
+    [
+     100,
+     0.1389
+    ],
+    [
+     120,
+     0.1633
+    ],
+    [
+     140,
+     0.2447
+    ],
+    [
+     160,
+     0.3184
+    ],
+    [
+     180,
+     0.327
+    ],
+    [
+     200,
+     0.4053
+    ],
+    [
+     220,
+     0.3685
+    ],
+    [
+     240,
+     0.3961
+    ],
+    [
+     260,
+     0.3968
+    ],
+    [
+     280,
+     0.3976
+    ],
+    [
+     300,
+     0.5318
+    ],
+    [
+     320,
+     0.5351
+    ],
+    [
+     340,
+     0.5865
+    ],
+    [
+     360,
+     0.6691
+    ],
+    [
+     380,
+     0.649
+    ],
+    [
+     400,
+     0.8154
+    ],
+    [
+     420,
+     0.8247
+    ],
+    [
+     440,
+     0.8392
+    ],
+    [
+     460,
+     0.8588
+    ],
+    [
+     480,
+     0.8784
+    ],
+    [
+     500,
+     0.8979
+    ],
+    [
+     520,
+     0.9175
+    ],
+    [
+     540,
+     0.9371
+    ],
+    [
+     560,
+     0.9567
+    ],
+    [
+     580,
+     0.9763
+    ],
+    [
+     600,
+     0.9959
+    ],
+    [
+     620,
+     0.9025
+    ],
+    [
+     640,
+     0.8775
+    ],
+    [
+     660,
+     0.7458
+    ],
+    [
+     680,
+     0.7592
+    ],
+    [
+     700,
+     0.6819
+    ],
+    [
+     720,
+     0.6058
+    ],
+    [
+     740,
+     0.6354
+    ],
+    [
+     760,
+     0.5762
+    ],
+    [
+     780,
+     0.5463
+    ],
+    [
+     800,
+     0.563
+    ],
+    [
+     820,
+     0.4877
+    ],
+    [
+     840,
+     0.4207
+    ],
+    [
+     860,
+     0.3256
+    ],
+    [
+     880,
+     0.2022
+    ],
+    [
+     900,
+     0.159
+    ],
+    [
+     920,
+     0.114
+    ],
+    [
+     939.8,
+     0.0
+    ]
+   ],
+   "scale": 0.96,
+   "y_offset": -13.309600000000003
+  },
+  "glow2": {
+   "gamma": 1.12,
+   "kind": "table",
+   "left": [
+    [
+     87.3,
+     0.0
+    ],
+    [
+     100,
+     0.0799
+    ],
+    [
+     120,
+     0.0883
+    ],
+    [
+     140,
+     0.1624
+    ],
+    [
+     160,
+     0.2358
+    ],
+    [
+     180,
+     0.3338
+    ],
+    [
+     200,
+     0.3612
+    ],
+    [
+     220,
+     0.4071
+    ],
+    [
+     240,
+     0.4553
+    ],
+    [
+     260,
+     0.4989
+    ],
+    [
+     280,
+     0.5593
+    ],
+    [
+     300,
+     0.5867
+    ],
+    [
+     320,
+     0.6101
+    ],
+    [
+     340,
+     0.6426
+    ],
+    [
+     360,
+     0.6852
+    ],
+    [
+     380,
+     0.7487
+    ],
+    [
+     400,
+     0.7802
+    ],
+    [
+     420,
+     0.8509
+    ],
+    [
+     440,
+     0.8852
+    ],
+    [
+     460,
+     0.8998
+    ],
+    [
+     480,
+     0.9144
+    ],
+    [
+     500,
+     0.9289
+    ],
+    [
+     520,
+     0.9435
+    ],
+    [
+     540,
+     0.9581
+    ],
+    [
+     560,
+     0.9727
+    ],
+    [
+     580,
+     0.9872
+    ],
+    [
+     600,
+     0.9932
+    ],
+    [
+     620,
+     0.8982
+    ],
+    [
+     640,
+     0.8202
+    ],
+    [
+     660,
+     0.7436
+    ],
+    [
+     680,
+     0.6889
+    ],
+    [
+     700,
+     0.6745
+    ],
+    [
+     720,
+     0.6233
+    ],
+    [
+     740,
+     0.6068
+    ],
+    [
+     760,
+     0.5874
+    ],
+    [
+     780,
+     0.5504
+    ],
+    [
+     800,
+     0.5404
+    ],
+    [
+     820,
+     0.4552
+    ],
+    [
+     840,
+     0.3956
+    ],
+    [
+     860,
+     0.33
+    ],
+    [
+     880,
+     0.23
+    ],
+    [
+     900,
+     0.1204
+    ],
+    [
+     920,
+     0.0245
+    ],
+    [
+     940,
+     0.0086
+    ],
+    [
+     944.5,
+     0.0
+    ]
+   ],
+   "right": [
+    [
+     84.7,
+     0.0
+    ],
+    [
+     100,
+     0.1273
+    ],
+    [
+     120,
+     0.1742
+    ],
+    [
+     140,
+     0.2649
+    ],
+    [
+     160,
+     0.3464
+    ],
+    [
+     180,
+     0.3935
+    ],
+    [
+     200,
+     0.4455
+    ],
+    [
+     220,
+     0.479
+    ],
+    [
+     240,
+     0.5374
+    ],
+    [
+     260,
+     0.5632
+    ],
+    [
+     280,
+     0.6246
+    ],
+    [
+     300,
+     0.6453
+    ],
+    [
+     320,
+     0.6526
+    ],
+    [
+     340,
+     0.6789
+    ],
+    [
+     360,
+     0.7201
+    ],
+    [
+     380,
+     0.8049
+    ],
+    [
+     400,
+     0.8506
+    ],
+    [
+     420,
+     0.9766
+    ],
+    [
+     440,
+     0.9988
+    ],
+    [
+     460,
+     0.9973
+    ],
+    [
+     480,
+     0.9958
+    ],
+    [
+     500,
+     0.9943
+    ],
+    [
+     520,
+     0.9929
+    ],
+    [
+     540,
+     0.9914
+    ],
+    [
+     560,
+     0.9899
+    ],
+    [
+     580,
+     0.9885
+    ],
+    [
+     600,
+     0.987
+    ],
+    [
+     620,
+     0.9527
+    ],
+    [
+     640,
+     0.8667
+    ],
+    [
+     660,
+     0.8087
+    ],
+    [
+     680,
+     0.737
+    ],
+    [
+     700,
+     0.6626
+    ],
+    [
+     720,
+     0.6647
+    ],
+    [
+     740,
+     0.6286
+    ],
+    [
+     760,
+     0.6152
+    ],
+    [
+     780,
+     0.5923
+    ],
+    [
+     800,
+     0.5607
+    ],
+    [
+     820,
+     0.5013
+    ],
+    [
+     840,
+     0.4639
+    ],
+    [
+     860,
+     0.3916
+    ],
+    [
+     880,
+     0.2983
+    ],
+    [
+     900,
+     0.1698
+    ],
+    [
+     920,
+     0.0602
+    ],
+    [
+     939.8,
+     0.0
+    ]
+   ],
+   "scale": 0.9199999999999999,
+   "y_offset": -0.563999999999997
+  },
+  "glow2b": {
+   "kind": "ramp",
+   "p0": 0.5920000000000001,
+   "p1": 0.8,
+   "y0": 38.464,
+   "y1": 382.56000000000006,
+   "y2": 862.5600000000001,
+   "y3": 962.0
+  },
+  "glow3": {
+   "gamma": 1.0,
+   "kind": "table",
+   "left": [
+    [
+     87.3,
+     0.0
+    ],
+    [
+     100,
+     0.0
+    ],
+    [
+     120,
+     0.0
+    ],
+    [
+     140,
+     0.0
+    ],
+    [
+     160,
+     0.0
+    ],
+    [
+     180,
+     0.0017
+    ],
+    [
+     200,
+     0.0869
+    ],
+    [
+     220,
+     0.2088
+    ],
+    [
+     240,
+     0.3414
+    ],
+    [
+     260,
+     0.452
+    ],
+    [
+     280,
+     0.4958
+    ],
+    [
+     300,
+     0.5783
+    ],
+    [
+     320,
+     0.6755
+    ],
+    [
+     340,
+     0.7769
+    ],
+    [
+     360,
+     0.8307
+    ],
+    [
+     380,
+     0.8467
+    ],
+    [
+     400,
+     0.9293
+    ],
+    [
+     420,
+     0.9695
+    ],
+    [
+     440,
+     0.999
+    ],
+    [
+     460,
+     0.9973
+    ],
+    [
+     480,
+     0.9956
+    ],
+    [
+     500,
+     0.9939
+    ],
+    [
+     520,
+     0.9922
+    ],
+    [
+     540,
+     0.9905
+    ],
+    [
+     560,
+     0.9888
+    ],
+    [
+     580,
+     0.9871
+    ],
+    [
+     600,
+     0.9776
+    ],
+    [
+     620,
+     0.9408
+    ],
+    [
+     640,
+     0.8943
+    ],
+    [
+     660,
+     0.8798
+    ],
+    [
+     680,
+     0.8895
+    ],
+    [
+     700,
+     0.8061
+    ],
+    [
+     720,
+     0.7666
+    ],
+    [
+     740,
+     0.6957
+    ],
+    [
+     760,
+     0.6119
+    ],
+    [
+     780,
+     0.541
+    ],
+    [
+     800,
+     0.4247
+    ],
+    [
+     820,
+     0.3321
+    ],
+    [
+     840,
+     0.2192
+    ],
+    [
+     860,
+     0.0873
+    ],
+    [
+     880,
+     0.0071
+    ],
+    [
+     900,
+     0.0032
+    ],
+    [
+     920,
+     0.0292
+    ],
+    [
+     940,
+     0.0286
+    ],
+    [
+     944.5,
+     0.0
+    ]
+   ],
+   "right": [
+    [
+     84.7,
+     0.0
+    ],
+    [
+     100,
+     0.0279
+    ],
+    [
+     120,
+     0.0215
+    ],
+    [
+     140,
+     0.0
+    ],
+    [
+     160,
+     0.0217
+    ],
+    [
+     180,
+     0.09
+    ],
+    [
+     200,
+     0.1348
+    ],
+    [
+     220,
+     0.225
+    ],
+    [
+     240,
+     0.378
+    ],
+    [
+     260,
+     0.5082
+    ],
+    [
+     280,
+     0.5489
+    ],
+    [
+     300,
+     0.6383
+    ],
+    [
+     320,
+     0.7416
+    ],
+    [
+     340,
+     0.835
+    ],
+    [
+     360,
+     0.8678
+    ],
+    [
+     380,
+     0.8801
+    ],
+    [
+     400,
+     0.9033
+    ],
+    [
+     420,
+     0.9135
+    ],
+    [
+     440,
+     0.9172
+    ],
+    [
+     460,
+     0.9273
+    ],
+    [
+     480,
+     0.9373
+    ],
+    [
+     500,
+     0.9474
+    ],
+    [
+     520,
+     0.9575
+    ],
+    [
+     540,
+     0.9676
+    ],
+    [
+     560,
+     0.9777
+    ],
+    [
+     580,
+     0.9878
+    ],
+    [
+     600,
+     0.9979
+    ],
+    [
+     620,
+     0.9424
+    ],
+    [
+     640,
+     0.9178
+    ],
+    [
+     660,
+     0.8876
+    ],
+    [
+     680,
+     0.878
+    ],
+    [
+     700,
+     0.8513
+    ],
+    [
+     720,
+     0.7733
+    ],
+    [
+     740,
+     0.7176
+    ],
+    [
+     760,
+     0.6805
+    ],
+    [
+     780,
+     0.6191
+    ],
+    [
+     800,
+     0.5017
+    ],
+    [
+     820,
+     0.3781
+    ],
+    [
+     840,
+     0.2356
+    ],
+    [
+     860,
+     0.1375
+    ],
+    [
+     880,
+     0.0367
+    ],
+    [
+     900,
+     0.036
+    ],
+    [
+     920,
+     0.0619
+    ],
+    [
+     939.8,
+     0.0
+    ]
+   ],
+   "scale": 1.0,
+   "y_offset": -12.956
+  },
+  "haze": {
+   "kind": "ramp",
+   "p0": 3.2180480000000005,
+   "p1": 1.6204800000000001,
+   "y0": 110.0,
+   "y1": 448.09600000000006,
+   "y2": 545.9039999999999,
+   "y3": 940.0
+  },
+  "note": "core/glow1..3 are the measured station-by-station fades of the core coverage and of the three glow gaussians' G amplitudes (out/analysis/arc_photometry.json). core_wide is the extra width the core gains towards mid-height. | haze and glow2b are ramps, not measured tables: both layers postdate the station-by-station cross-section fit, so reusing glow3's table for them would be an assumption dressed as a measurement. Resolving the profile error by |t| band showed exactly why it matters: at |t| 40-62 deg the concave side was +13 to +27% too bright and the convex side 9-15% too dark, i.e. the glow is less one-sided towards the tips than glow3's fade allows."
+ }
+}

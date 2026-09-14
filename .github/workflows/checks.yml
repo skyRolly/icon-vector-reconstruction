@@ -1,0 +1,58 @@
+# The regression gate, run in a clean environment against the documented
+# dependencies.  It exists because the gate previously aborted when `resvg_py`
+# was missing while nothing guaranteed the dependency was ever installed: a
+# regression gate that cannot execute under its own documented requirements is
+# not a gate.  This installs exactly what README.md's "Reproducing" section
+# names -- numpy, Pillow and resvg-py -- and nothing else, so the
+# "shipped tools import only documented dependencies" check is also a live
+# statement about this environment rather than a claim about a developer's.
+#
+# Chromium is deliberately NOT installed.  Cross-engine validation is a
+# cross-check, not the acceptance renderer, and `tools/validate.py`
+# distinguishes an intentional skip from a configured Chromium that fails: it
+# exits 2 only in the second case, so this job proves the skip path works.
+name: checks
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  regression-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install the documented dependencies, and only those
+        run: python -m pip install --upgrade pip numpy pillow resvg-py
+
+      - name: The acceptance renderer is actually importable
+        run: python -c "import resvg_py, numpy, PIL; print('resvg-py ok')"
+
+      - name: Regression gate
+        run: python -u tools/test_pipeline.py
+
+      - name: Diagnostics run from an unrelated working directory
+        run: |
+          mkdir -p /tmp/elsewhere && cd /tmp/elsewhere
+          python "$GITHUB_WORKSPACE/tools/line_report.py" shipped \
+                 "$GITHUB_WORKSPACE/out/render_1024.png" | head -5
+
+      - name: Validation without Chromium exits 0 and says it skipped
+        run: |
+          python tools/validate.py --no-chromium
+          python - <<'PY'
+          import json
+          s = json.load(open("out/validation.json"))["chromium"]["status"]
+          assert s.startswith("skipped"), s
+          print("chromium status:", s)
+          PY
+
+      - name: The committed parameters reproduce the committed SVG
+        run: |
+          python src/build_svg.py --params src/params.json --out /tmp/repro.svg
+          cmp /tmp/repro.svg reconstruction.svg && echo "byte-identical"
