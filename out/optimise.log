@@ -1,0 +1,1098 @@
+# Iteration 2 optimisation record (stages in order)
+
+===== out/opt_cycleD.log =====
+PASS flare-dependent layers are discovered from the builder  -- found ['flare_halo_far', 'flare_halo', 'flare_spike', 'flare_fan', 'flare_ray_a', 'flare_ray_b', 'flare_ray_c', 'flare_ray_d', 'flare_ray_e', 'flare_core']
+PASS flare/cx declares every dependent layer  -- declared ['flare_core', 'flare_fan', 'flare_halo', 'flare_halo_far', 'flare_ray_a', 'flare_ray_b', 'flare_ray_c', 'flare_ray_d', 'flare_ray_e', 'flare_spike']
+PASS moving flare/cx by 6 px moves every dependent layer  -- moved: flare_halo_far(dx=+6.00), flare_halo(dx=+6.00), flare_spike(dx=+6.00), flare_fan(dx=+6.00), flare_ray_a(dx=+6.00), flare_ray_b(dx=+6.00), flare_ray_c(dx=+6.00), flare_ray_d(dx=+6.00), flare_ray_e(dx=+6.00), flare_core(dx=+6.00)
+PASS content-addressed cache re-renders without an explicit invalidate  -- max delta 0.2039
+PASS every search interval contains the current value  -- out of range: []
+PASS radial gradient centres stored under paint/ are optimisable  -- missing: []
+PASS anisotropic blur components are optimisable  -- artwork missing [] (0 list-valued layers); probe missing []; per-component intervals kept
+PASS the fitting weight equalises the profile cells and lifts the flare  -- 77 cells (84163 px in the outermost along-curve band), cost of a 1% error spread 2.30x (was 182.87x un-emphasised), region lift 1.45x, interior corners 100% covered, flare 2.17x
+PASS objective composite matches the rebuilt SVG render  -- MAE 0.5024 code values
+
+all checks passed
+optimising 92 parameters (shapes), stride=3
+sweep 1/2
+  start sse=0.000397678 mae=2.0620
+  end   sse=0.000351043 mae=2.0324  (33 accepted moves, 262 renders)
+sweep 2/2
+  start sse=0.000344369 mae=2.0166
+  end   sse=0.000335531 mae=1.9870  (15 accepted moves, 470 renders)
+final: sse=0.000375567 mae=1.9906  (1917.8s, 471 renders)
+wrote /home/user/icon-vector-reconstruction/src/params.json
+optimising 30 parameters (tapers), stride=4
+sweep 1/2
+  start sse=0.000316936 mae=2.0013
+  end   sse=0.000312272 mae=1.9707  (11 accepted moves, 109 renders)
+sweep 2/2
+  start sse=0.000312076 mae=1.9752
+  end   sse=0.000311704 mae=1.9728  (1 accepted moves, 174 renders)
+final: sse=0.00037232 mae=1.9618  (501.0s, 175 renders)
+wrote /home/user/icon-vector-reconstruction/src/params.json
+optimising 9 parameters (geometry), stride=4
+sweep 1/1
+  start sse=0.000312258 mae=1.9769
+  end   sse=0.00031091 mae=1.9716  (2 accepted moves, 526 renders)
+final: sse=0.000371281 mae=1.9605  (466.8s, 554 renders)
+wrote /home/user/icon-vector-reconstruction/src/params.json
+optimising 8 parameters (field), stride=4
+sweep 1/1
+  start sse=0.000311383 mae=1.9748
+  end   sse=0.00031028 mae=1.9711  (2 accepted moves, 49 renders)
+final: sse=0.000370558 mae=1.9587  (276.4s, 50 renders)
+wrote /home/user/icon-vector-reconstruction/src/params.json
+optimising 92 parameters (shapes), stride=3
+sweep 1/1
+  start sse=0.000329627 mae=1.9545
+  end   sse=0.000324039 mae=1.9546  (11 accepted moves, 229 renders)
+final: sse=0.000364696 mae=1.9513  (998.8s, 230 renders)
+wrote /home/user/icon-vector-reconstruction/src/params.json
+fitting 28 layers x ('white', 'cyan', 'blue')  [stride 2]
+  iter 0  mae=1.9551  weighted_sse=84.989  lam=0.0333
+  iter 1  mae=1.9544  weighted_sse=84.9234  lam=0.0667
+  iter 2  mae=1.9531  weighted_sse=84.8315  lam=0.133
+  iter 3  mae=1.9522  weighted_sse=84.7702  lam=0.267
+  iter 4  mae=1.9517  weighted_sse=84.7375  lam=0.533
+  iter 5  mae=1.9511  weighted_sse=84.7313  lam=0.178
+  iter 6  mae=1.9509  weighted_sse=84.7081  lam=0.356
+  iter 7  mae=1.9508  weighted_sse=84.6938  lam=0.711
+  iter 8  mae=1.9503  weighted_sse=84.6918  lam=0.237
+  iter 9  mae=1.9503  weighted_sse=84.6794  lam=0.474
+  iter 10  mae=1.9503  weighted_sse=84.6718  lam=0.948
+  iter 11  mae=1.9499  weighted_sse=84.6699  lam=0.316
+  iter 12  mae=1.9499  weighted_sse=84.6627  lam=0.632
+  iter 13  mae=1.9499  weighted_sse=84.6583  lam=1.26
+  iter 14  mae=1.9496  weighted_sse=84.6564  lam=0.421
+  iter 15  mae=1.9497  weighted_sse=84.652  lam=0.843
+  iter 16  mae=1.9497  weighted_sse=84.6495  lam=1.69
+  iter 17  mae=1.9494  weighted_sse=84.6478  lam=0.562
+  iter 18  mae=1.9495  weighted_sse=84.645  lam=1.12
+  iter 19  mae=1.9495  weighted_sse=84.6435  lam=2.25
+  iter 20  mae=1.9493  weighted_sse=84.642  lam=0.749
+  iter 21  mae=1.9494  weighted_sse=84.6403  lam=1.5
+  iter 22  mae=1.9492  weighted_sse=84.64  lam=0.499
+  iter 23  mae=1.9493  weighted_sse=84.6378  lam=0.999
+  iter 24  mae=1.9493  weighted_sse=84.6365  lam=2
+  iter 25  mae=1.9491  weighted_sse=84.6358  lam=0.666
+  iter 26  mae=1.9492  weighted_sse=84.6342  lam=1.33
+  iter 27  mae=1.9492  weighted_sse=84.6334  lam=2.66
+  iter 28  mae=1.9490  weighted_sse=84.6325  lam=0.888
+  iter 29  mae=1.9491  weighted_sse=84.6315  lam=1.78
+analytic composite mae=1.9482
+  field_base         white= 0.0005 cyan= 0.0056 blue= 0.0225 -> rgb[0.14, 1.48, 7.29]
+  field_mid          white= 0.0000 cyan= 0.0685 blue= 0.0001 -> rgb[0.0, 16.41, 17.47]
+  field_grad         white= 0.0088 cyan= 0.0120 blue= 0.0010 -> rgb[2.23, 5.12, 5.57]
+  field_vert         white= 0.0048 cyan= 0.0059 blue= 0.0040 -> rgb[1.22, 2.63, 3.73]
+  exterior           white= 0.0002 cyan= 0.0030 blue= 0.0052 -> rgb[0.05, 0.77, 2.13]
+  exterior_top       white= 0.0031 cyan= 0.0000 blue= 0.0088 -> rgb[0.8, 0.8, 3.04]
+  exterior_corner    white= 0.0019 cyan= 0.0056 blue= 0.0110 -> rgb[0.48, 1.82, 4.71]
+  corner_in          white= 0.0098 cyan= 0.0240 blue= 0.0000 -> rgb[2.49, 8.25, 8.62]
+  arc_haze           white= 0.0082 cyan= 0.0399 blue= 0.0005 -> rgb[2.08, 11.65, 12.38]
+  arc_glow3          white= 0.0034 cyan= 0.2836 blue= 0.0000 -> rgb[0.87, 68.85, 73.19]
+  arc_glow2          white= 0.0000 cyan= 0.4728 blue= 0.0038 -> rgb[0.0, 113.34, 121.54]
+  arc_glow2b         white= 0.0072 cyan= 0.0544 blue= 0.0000 -> rgb[1.83, 14.87, 15.7]
+  arc_glow1          white= 0.4941 cyan= 0.3362 blue= 0.0511 -> rgb[126.0, 206.58, 224.76]
+  flare_halo_far     white= 0.0000 cyan= 0.9957 blue= 0.0047 -> rgb[0.0, 238.67, 255.0]
+  flare_halo         white= 0.9907 cyan= 0.0000 blue= 0.0000 -> rgb[252.63, 252.63, 252.63]
+  flare_streak       white= 0.3027 cyan= 0.3575 blue= 0.0002 -> rgb[77.2, 162.9, 168.42]
+  flare_spike        white= 0.2201 cyan= 0.2004 blue= 0.1263 -> rgb[56.12, 104.16, 139.45]
+  flare_fan          white= 0.6675 cyan= 0.0000 blue= 0.0000 -> rgb[170.22, 170.22, 170.22]
+  flare_ray_a        white= 0.0000 cyan= 0.2178 blue= 0.0192 -> rgb[0.0, 52.21, 60.43]
+  flare_ray_b        white= 0.0002 cyan= 0.1917 blue= 0.0781 -> rgb[0.06, 46.01, 68.85]
+  flare_ray_c        white= 0.0542 cyan= 0.0365 blue= 0.0488 -> rgb[13.82, 22.58, 35.59]
+  flare_ray_d        white= 0.0076 cyan= 0.0958 blue= 0.0346 -> rgb[1.93, 24.9, 35.18]
+  flare_ray_e        white= 0.1023 cyan= 0.0899 blue= 0.0750 -> rgb[26.08, 47.63, 68.13]
+  arc_core           white= 0.8986 cyan= 0.1066 blue= 0.0011 -> rgb[229.13, 254.69, 255.0]
+  arc_core_wide      white= 0.3696 cyan= 0.3351 blue= 0.0589 -> rgb[94.24, 174.57, 194.72]
+  flare_core         white= 0.0186 cyan= 0.0000 blue= 0.0000 -> rgb[4.73, 4.73, 4.73]
+  frame_base         white= 0.0554 cyan= 0.0457 blue= 0.0150 -> rgb[14.13, 25.09, 29.63]
+  frame_rim          white= 0.4439 cyan= 0.0309 blue= 0.0248 -> rgb[113.2, 120.61, 127.41]
+updated /home/user/icon-vector-reconstruction/src/params.json
+wrote /home/user/icon-vector-reconstruction/reconstruction.svg (67707 bytes)
+wrote out/render_1024.png (326197 bytes, 1024x1024, resvg)
+{
+  "edge_iou": 0.6722969046604425,
+  "mae": 2.073566118876139,
+  "mae_bright": 10.501966668940272,
+  "mae_centre": 8.20351511815358,
+  "mae_dark": 1.5709712899036667,
+  "mae_frame": 2.58700194184303,
+  "mae_gamma": 5.999450395226783,
+  "mae_rest": 1.8530981294583733,
+  "max_ch": 103.0,
+  "mean_bias": -0.5432577133178711,
+  "pct_gt2": 39.208412170410156,
+  "pct_gt24": 0.8769989013671875,
+  "pct_gt8": 6.1031341552734375,
+  "rmse": 4.249651763711153,
+  "ssim": 0.9708209646454848
+}
+flare: radial profile about the measured core (530.95, 513.33)
+      r      ref      rec     diff
+    0-  6   240.78   244.03    +3.24
+    6- 12   218.22   224.81    +6.58
+   12- 20   195.94   202.09    +6.15
+   20- 30   163.98   163.28    -0.70
+   30- 45   124.15   122.12    -2.03
+   45- 65    90.56    92.82    +2.26
+   65- 90    86.53    86.50    -0.02
+   90-130    61.34    61.55    +0.22
+  130-180    42.59    42.89    +0.30
+  180-250    28.53    28.14    -0.39
+  ref peak lum 254.7 at (543, 514); >90% centroid (541.93, 513.34)
+  rec peak lum 254.0 at (529, 514); >90% centroid (540.56, 513.99)
+  horizontal cut through the core (y = 513):
+     x:     380    410    440    470    500    530    560    590    620    650    680
+   ref:    46.0   68.7  130.7  173.0  202.0  250.0  174.7   86.0   53.7   36.3   27.3
+   rec:    45.3   71.0  116.7  184.7  177.3  253.0  174.3   93.3   51.3   28.7   20.7
+  vertical cut through the core (x = 531):
+     y:     390    415    440    465    490    515    540    565    590    615    640
+   ref:    26.0   35.7   47.3   70.7  117.0  247.0  119.0   70.7   46.3   34.3   28.7
+   rec:    28.7   36.0   46.0   65.3  127.0  251.0  119.0   69.0   45.7   37.3   30.0
+  angular structure, mean lum minus the per-band median:
+      band     0    30    60    90   120   150   180   210   240   270   300   330
+  ref  30- 50 +18.2 +38.3 +42.6 -23.5 -20.9 +14.7 +19.3  -8.6 -17.9 +44.3 +29.2 +18.4
+  rec  30- 50 +14.0 +28.4 +38.5 -22.8 -21.7 +15.5 +16.2 -11.4 -16.8 +44.7 +20.7 +16.2
+  ref  50- 80  -3.3  +9.3 +52.3 -18.8  -9.7 +85.0 +83.7  -0.1 -14.2 +53.5  +5.7  -2.6
+  rec  50- 80  -3.6  +8.1 +46.6 -20.3  -8.6 +81.0 +81.9  +0.6 -16.2 +51.5  +1.5  -2.0
+  ref  80-120 -11.4  -2.2 +41.0 -19.2 +54.3 +42.2 +34.7 +57.4 -15.2 +44.3  -1.7 -10.0
+  rec  80-120 -12.5  -2.2 +40.3 -18.2 +53.8 +32.4 +31.6 +59.0 -16.6 +42.9  -2.6 -11.7
+  ref 120-180 -10.5  -2.8 +32.3  -7.8 +43.4  +6.6  +7.3 +44.3  -4.9 +36.2  -1.7  -9.5
+  rec 120-180 -13.1  -3.1 +33.2  -7.6 +42.7  +8.1  +7.3 +43.2  -5.1 +34.3  -2.7 -12.6
+  MAE within 110 px of the core: 6.863
+
+lobes: mean luminance against inward distance from each curve
+  left curve  (s < 0 = concave side, towards the nearer frame edge)
+      t        -20    -40    -70   -110   -160   -220   -300
+    -45 ref   27.3   18.7   12.7    8.8    9.7    6.9    9.6
+        rec   25.0   17.9   13.6    9.7    8.3    8.0    9.0
+        d     -2.3   -0.7   +1.0   +0.8   -1.3   +1.1   -0.6
+    -25 ref   54.1   38.7   26.8   17.7   11.0    9.2    7.3
+        rec   49.6   37.0   25.8   15.7    9.3    8.7    7.0
+        d     -4.6   -1.7   -1.0   -2.0   -1.6   -0.5   -0.3
+     -5 ref   97.8   68.7   41.2   25.0   18.0   11.3    7.6
+        rec   84.9   65.6   45.2   25.2   17.0   11.0    7.0
+        d    -12.9   -3.1   +4.1   +0.2   -1.0   -0.3   -0.6
+    +15 ref   68.8   48.2   35.2   21.3   14.0    9.3    7.7
+        rec   64.6   48.6   36.4   22.5   14.7    9.3    5.7
+        d     -4.2   +0.4   +1.2   +1.1   +0.7   +0.0   -2.0
+    +35 ref   42.6   31.4   22.4   12.7    9.8    7.3    6.3
+        rec   40.5   29.1   18.7   12.3    9.3    7.3    5.0
+        d     -2.1   -2.3   -3.7   -0.4   -0.5   +0.0   -1.3
+  right curve  (s < 0 = concave side, towards the nearer frame edge)
+      t        -20    -40    -70   -110   -160   -220   -300
+    -45 ref   28.0   18.1   12.7    8.6    6.3    6.3    8.3
+        rec   27.6   19.0   13.7    9.3    7.7    7.3    7.3
+        d     -0.3   +0.9   +1.0   +0.7   +1.3   +1.0   -1.0
+    -25 ref   55.2   36.0   27.3   18.5   12.3    7.7    6.3
+        rec   51.1   39.5   27.1   16.9   11.0    8.7    5.7
+        d     -4.1   +3.5   -0.2   -1.6   -1.3   +1.0   -0.7
+     -5 ref  104.4   63.7   39.9   24.3   17.6   11.1    7.7
+        rec  103.5   66.2   42.7   25.3   17.0   11.3    6.3
+        d     -0.9   +2.6   +2.7   +0.9   -0.6   +0.2   -1.3
+    +15 ref   65.2   48.0   33.7   22.9   15.7   11.1    7.3
+        rec   63.6   48.4   34.3   22.0   14.3    9.7    5.3
+        d     -1.7   +0.3   +0.7   -0.9   -1.3   -1.5   -2.0
+    +35 ref   40.0   32.0   19.9   13.8    7.8    5.4    4.3
+        rec   40.8   29.6   19.3   11.7    8.3    7.0    4.7
+        d     +0.7   -2.4   -0.6   -2.1   +0.5   +1.6   +0.3
+  left lobe (>25 px from the ridge): MAE 1.544, bias -0.418
+  right lobe (>25 px from the ridge): MAE 1.400, bias -0.478
+  colour in the lobes (mean rgb, same masks):
+    left  ref ( 2.38,19.16,25.85)  rec ( 2.44,18.17,25.17)   G/B ref 0.741 rec 0.722
+    right ref ( 2.02,13.81,20.10)  rec ( 1.87,12.73,19.45)   G/B ref 0.687 rec 0.654
+
+profile: mean luminance against signed distance from the curve
+  s < 0 concave (lobe) side, s > 0 convex (between the curves)
+       s        n      ref      rec     diff     rel
+   -300..-240    38108     7.48     6.99    -0.50    -6.6%
+   -240..-190    44491     9.28     9.11    -0.17    -1.8%
+   -190..-150    39134    10.94    10.40    -0.54    -4.9%
+   -150..-115    34443    12.40    11.69    -0.71    -5.8%
+   -115..-90     23401    14.02    13.44    -0.58    -4.1%
+    -90..-70     19050    16.50    15.73    -0.76    -4.6%
+    -70..-52     17681    19.78    18.26    -1.52    -7.7%
+    -52..-38     14186    23.20    21.93    -1.27    -5.5%
+    -38..-28     10425    26.27    26.15    -0.12    -0.5%
+    -28..-20      8527    30.05    29.56    -0.49    -1.6%
+    -20..-14      6506    33.86    34.57    +0.71    +2.1%
+    -14..-9       5500    41.56    43.33    +1.77    +4.3%
+      9..14       5858    26.39    23.30    -3.09   -11.7%
+     14..20       7157    19.44    19.02    -0.41    -2.1%
+     20..28       9713    16.38    16.26    -0.12    -0.7%
+     28..38      12500    13.44    13.45    +0.01    +0.1%
+     38..52      18168    11.71    10.86    -0.85    -7.3%
+     52..70      23755     9.49     9.01    -0.48    -5.1%
+     70..90      23911     7.63     7.26    -0.37    -4.9%
+     90..115     23127     6.26     5.91    -0.35    -5.6%
+    115..150     21618     6.38     5.75    -0.64   -10.0%
+  rms relative error over the bins: 5.5%
+
+  the same profile by along-curve band (relative error, |t| in degrees):
+       s          0-22    22-40    40-54    54-66
+   -300..-240     -5.1%    -9.7%    -6.3%    -3.4%
+   -240..-190     -4.2%    -2.4%    +2.6%    +2.9%
+   -190..-150     -6.0%    -8.1%    +1.9%    -0.6%
+   -150..-115     -5.3%   -11.4%    +4.0%    -3.1%
+   -115..-90      +0.2%    -7.3%    -0.0%    -7.2%
+    -90..-70      +0.4%    -4.2%    -5.3%   -13.3%
+    -70..-52      +0.8%    -5.7%   -10.8%   -17.1%
+    -52..-38      +0.6%    -4.0%    -7.3%   -13.4%
+    -38..-28          .    +0.2%    -0.9%    -6.4%
+    -28..-20          .    -2.9%    +0.8%    -2.8%
+    -20..-14          .    +0.4%    +5.2%    +2.8%
+    -14..-9           .    +2.6%    +6.3%    +8.5%
+      9..14           .    -8.3%   -17.4%   -10.1%
+     14..20           .    +2.7%    -8.4%    -5.7%
+     20..28           .    +7.2%   -10.5%    -4.9%
+     28..38           .    +8.2%    -9.8%    -3.6%
+     38..52           .    -6.2%   -10.5%    -4.0%
+     52..70       +2.0%    -1.5%   -11.4%    -3.1%
+     70..90           .    +0.8%   -12.6%    +0.3%
+     90..115          .    +1.7%   -10.5%    -4.4%
+    115..150          .    -9.3%   -10.3%        .
+  rms relative error over the 71 cells: 7.0%
+
+  interior corners, by distance inside the frame:
+     d_frame  half       n      ref      rec      rel
+     12..45   top       11469    13.72    12.66    -7.7%
+     12..45   bottom    11754     8.34     8.41    +0.8%
+     45..100  top       21230    12.26    10.52   -14.2%
+     45..100  bottom    22364     6.80     6.41    -5.7%
+    100..170  top       24252     9.80     8.48   -13.5%
+    100..170  bottom    24710     6.87     5.89   -14.3%
+  rms relative error over the corner cells: 10.7%
+
+wrote crops to /home/user/icon-vector-reconstruction/out (reference | render | signed difference x6)
+wrote out/diagnostics.json
+wrote previews to /home/user/icon-vector-reconstruction/out
+
+===== out/opt_cycleE.log =====
+fitting 30 layers x ('white', 'cyan', 'blue')  [stride 2]
+  iter 0  mae=1.9337  weighted_sse=84.0516  lam=0.0333
+  iter 1  mae=1.9362  weighted_sse=83.9191  lam=0.0667
+  iter 2  mae=1.9360  weighted_sse=83.8078  lam=0.133
+  iter 3  mae=1.9356  weighted_sse=83.7384  lam=0.267
+  iter 4  mae=1.9353  weighted_sse=83.7021  lam=0.533
+  iter 5  mae=1.9349  weighted_sse=83.6925  lam=0.178
+  iter 6  mae=1.9349  weighted_sse=83.6663  lam=0.356
+  iter 7  mae=1.9349  weighted_sse=83.6503  lam=0.711
+  iter 8  mae=1.9345  weighted_sse=83.6465  lam=0.237
+  iter 9  mae=1.9345  weighted_sse=83.6333  lam=0.474
+  iter 10  mae=1.9346  weighted_sse=83.625  lam=0.948
+  iter 11  mae=1.9342  weighted_sse=83.6228  lam=0.316
+  iter 12  mae=1.9344  weighted_sse=83.6147  lam=0.632
+  iter 13  mae=1.9344  weighted_sse=83.6099  lam=1.26
+  iter 14  mae=1.9341  weighted_sse=83.6075  lam=0.421
+  iter 15  mae=1.9342  weighted_sse=83.6024  lam=0.843
+  iter 16  mae=1.9343  weighted_sse=83.5995  lam=1.69
+  iter 17  mae=1.9340  weighted_sse=83.5972  lam=0.562
+  iter 18  mae=1.9342  weighted_sse=83.594  lam=1.12
+  iter 19  mae=1.9341  weighted_sse=83.5938  lam=0.375
+  iter 20  mae=1.9341  weighted_sse=83.5909  lam=0.749
+  iter 21  mae=1.9342  weighted_sse=83.5885  lam=1.5
+  iter 22  mae=1.9339  weighted_sse=83.5874  lam=0.499
+  iter 23  mae=1.9341  weighted_sse=83.5844  lam=0.999
+analytic composite mae=1.9329
+  field_base         white= 0.0010 cyan= 0.0064 blue= 0.0224 -> rgb[0.25, 1.79, 7.61]
+  field_mid          white= 0.0000 cyan= 0.0679 blue= 0.0002 -> rgb[0.0, 16.28, 17.36]
+  field_grad         white= 0.0086 cyan= 0.0117 blue= 0.0012 -> rgb[2.21, 5.0, 5.49]
+  field_vert         white= 0.0038 cyan= 0.0040 blue= 0.0039 -> rgb[0.98, 1.94, 3.0]
+  exterior           white= 0.0002 cyan= 0.0030 blue= 0.0051 -> rgb[0.05, 0.77, 2.12]
+  exterior_top       white= 0.0032 cyan= 0.0000 blue= 0.0088 -> rgb[0.81, 0.81, 3.05]
+  exterior_corner    white= 0.0019 cyan= 0.0056 blue= 0.0110 -> rgb[0.48, 1.82, 4.71]
+  corner_in          white= 0.0077 cyan= 0.0193 blue= 0.0000 -> rgb[1.95, 6.57, 6.87]
+  corner_in_top      white= 0.0068 cyan= 0.0147 blue= 0.0000 -> rgb[1.73, 5.25, 5.47]
+  arc_haze           white= 0.0078 cyan= 0.0402 blue= 0.0002 -> rgb[1.98, 11.61, 12.29]
+  arc_glow3          white= 0.0046 cyan= 0.2849 blue= 0.0000 -> rgb[1.16, 69.46, 73.82]
+  arc_glow2          white= 0.0000 cyan= 0.4701 blue= 0.0021 -> rgb[0.0, 112.68, 120.4]
+  arc_glow2b         white= 0.0067 cyan= 0.0533 blue= 0.0000 -> rgb[1.71, 14.49, 15.31]
+  arc_glow1          white= 0.4918 cyan= 0.3340 blue= 0.0500 -> rgb[125.42, 205.48, 223.35]
+  arc_glow1b         white= 0.0000 cyan= 0.0603 blue= 0.0012 -> rgb[0.0, 14.45, 15.68]
+  flare_halo_far     white= 0.0000 cyan= 0.9955 blue= 0.0045 -> rgb[0.0, 238.63, 255.0]
+  flare_halo         white= 0.9906 cyan= 0.0000 blue= 0.0000 -> rgb[252.59, 252.59, 252.59]
+  flare_streak       white= 0.3028 cyan= 0.3575 blue= 0.0002 -> rgb[77.22, 162.92, 168.43]
+  flare_spike        white= 0.2200 cyan= 0.2004 blue= 0.1264 -> rgb[56.11, 104.16, 139.45]
+  flare_fan          white= 0.6672 cyan= 0.0000 blue= 0.0000 -> rgb[170.14, 170.14, 170.14]
+  flare_ray_a        white= 0.0004 cyan= 0.2185 blue= 0.0195 -> rgb[0.09, 52.46, 60.79]
+  flare_ray_b        white= 0.0008 cyan= 0.1924 blue= 0.0785 -> rgb[0.21, 46.34, 69.28]
+  flare_ray_c        white= 0.0541 cyan= 0.0366 blue= 0.0489 -> rgb[13.79, 22.55, 35.58]
+  flare_ray_d        white= 0.0074 cyan= 0.0952 blue= 0.0344 -> rgb[1.89, 24.72, 34.94]
+  flare_ray_e        white= 0.1023 cyan= 0.0899 blue= 0.0751 -> rgb[26.08, 47.63, 68.15]
+  arc_core           white= 0.8983 cyan= 0.1059 blue= 0.0010 -> rgb[229.07, 254.45, 255.0]
+  arc_core_wide      white= 0.3695 cyan= 0.3352 blue= 0.0589 -> rgb[94.22, 174.57, 194.72]
+  flare_core         white= 0.0183 cyan= 0.0000 blue= 0.0000 -> rgb[4.66, 4.66, 4.66]
+  frame_base         white= 0.0554 cyan= 0.0456 blue= 0.0151 -> rgb[14.13, 25.06, 29.61]
+  frame_rim          white= 0.4435 cyan= 0.0306 blue= 0.0247 -> rgb[113.11, 120.45, 127.21]
+updated /home/user/icon-vector-reconstruction/src/params.json
+optimising 100 parameters (shapes), stride=3
+sweep 1/2
+  start sse=0.0003196 mae=1.9372
+  end   sse=0.000307718 mae=1.9213  (15 accepted moves, 261 renders)
+sweep 2/2
+  start sse=0.000307557 mae=1.9227
+  end   sse=0.000305982 mae=1.9226  (5 accepted moves, 476 renders)
+final: sse=0.000349235 mae=1.9166  (2007.4s, 477 renders)
+wrote /home/user/icon-vector-reconstruction/src/params.json
+optimising 10 parameters (field), stride=4
+sweep 1/1
+  start sse=0.000287408 mae=1.9426
+  end   sse=0.000285153 mae=1.9404  (8 accepted moves, 68 renders)
+final: sse=0.000349099 mae=1.9146  (309.2s, 69 renders)
+wrote /home/user/icon-vector-reconstruction/src/params.json
+optimising 30 parameters (tapers), stride=4
+sweep 1/1
+  start sse=0.000285152 mae=1.9381
+  end   sse=0.000279136 mae=1.9066  (14 accepted moves, 120 renders)
+final: sse=0.000344809 mae=1.8827  (448.0s, 121 renders)
+wrote /home/user/icon-vector-reconstruction/src/params.json
+optimising 100 parameters (shapes), stride=3
+sweep 1/1
+  start sse=0.000301531 mae=1.8853
+  end   sse=0.000300313 mae=1.8855  (4 accepted moves, 244 renders)
+final: sse=0.000342641 mae=1.8837  (1134.5s, 245 renders)
+wrote /home/user/icon-vector-reconstruction/src/params.json
+fitting 30 layers x ('white', 'cyan', 'blue')  [stride 2]
+  iter 0  mae=1.8847  weighted_sse=78.5421  lam=0.0333
+  iter 1  mae=1.8842  weighted_sse=78.4681  lam=0.0667
+  iter 2  mae=1.8837  weighted_sse=78.4104  lam=0.133
+  iter 3  mae=1.8834  weighted_sse=78.3759  lam=0.267
+  iter 4  mae=1.8833  weighted_sse=78.3583  lam=0.533
+  iter 5  mae=1.8828  weighted_sse=78.3556  lam=0.178
+  iter 6  mae=1.8830  weighted_sse=78.3451  lam=0.356
+  iter 7  mae=1.8831  weighted_sse=78.3385  lam=0.711
+  iter 8  mae=1.8827  weighted_sse=78.3371  lam=0.237
+  iter 9  mae=1.8829  weighted_sse=78.3309  lam=0.474
+  iter 10  mae=1.8830  weighted_sse=78.3271  lam=0.948
+  iter 11  mae=1.8826  weighted_sse=78.3259  lam=0.316
+  iter 12  mae=1.8828  weighted_sse=78.322  lam=0.632
+  iter 13  mae=1.8829  weighted_sse=78.3197  lam=1.26
+  iter 14  mae=1.8826  weighted_sse=78.3186  lam=0.421
+  iter 15  mae=1.8828  weighted_sse=78.3161  lam=0.843
+  iter 16  mae=1.8829  weighted_sse=78.3147  lam=1.69
+  iter 17  mae=1.8826  weighted_sse=78.3137  lam=0.562
+  iter 18  mae=1.8828  weighted_sse=78.3121  lam=1.12
+  iter 19  mae=1.8827  weighted_sse=78.3121  lam=0.375
+  iter 20  mae=1.8827  weighted_sse=78.3107  lam=0.749
+  iter 21  mae=1.8828  weighted_sse=78.3096  lam=1.5
+  iter 22  mae=1.8826  weighted_sse=78.3092  lam=0.499
+  iter 23  mae=1.8827  weighted_sse=78.3078  lam=0.999
+  iter 24  mae=1.8828  weighted_sse=78.307  lam=2
+  iter 25  mae=1.8826  weighted_sse=78.3065  lam=0.666
+  iter 26  mae=1.8827  weighted_sse=78.3055  lam=1.33
+  iter 27  mae=1.8826  weighted_sse=78.3055  lam=0.444
+  iter 28  mae=1.8826  weighted_sse=78.3046  lam=0.888
+  iter 29  mae=1.8827  weighted_sse=78.3039  lam=1.78
+analytic composite mae=1.8812
+  field_base         white= 0.0011 cyan= 0.0063 blue= 0.0224 -> rgb[0.29, 1.79, 7.59]
+  field_mid          white= 0.0000 cyan= 0.0690 blue= 0.0000 -> rgb[0.0, 16.54, 17.6]
+  field_grad         white= 0.0090 cyan= 0.0122 blue= 0.0010 -> rgb[2.29, 5.22, 5.65]
+  field_vert         white= 0.0020 cyan= 0.0035 blue= 0.0041 -> rgb[0.52, 1.37, 2.46]
+  exterior           white= 0.0002 cyan= 0.0030 blue= 0.0051 -> rgb[0.05, 0.77, 2.12]
+  exterior_top       white= 0.0031 cyan= 0.0000 blue= 0.0089 -> rgb[0.8, 0.8, 3.06]
+  exterior_corner    white= 0.0019 cyan= 0.0056 blue= 0.0110 -> rgb[0.48, 1.82, 4.71]
+  corner_in          white= 0.0054 cyan= 0.0208 blue= 0.0000 -> rgb[1.38, 6.37, 6.68]
+  corner_in_top      white= 0.0155 cyan= 0.0186 blue= 0.0000 -> rgb[3.95, 8.41, 8.69]
+  arc_haze           white= 0.0129 cyan= 0.0538 blue= 0.0011 -> rgb[3.28, 16.18, 17.28]
+  arc_glow3          white= 0.0000 cyan= 0.2688 blue= 0.0000 -> rgb[0.0, 64.42, 68.54]
+  arc_glow2          white= 0.0000 cyan= 0.4270 blue= 0.0000 -> rgb[0.0, 102.36, 108.9]
+  arc_glow2b         white= 0.0104 cyan= 0.0698 blue= 0.0006 -> rgb[2.65, 19.37, 20.59]
+  arc_glow1          white= 0.5051 cyan= 0.1632 blue= 0.0134 -> rgb[128.81, 167.94, 173.85]
+  arc_glow1b         white= 0.0000 cyan= 0.2345 blue= 0.0430 -> rgb[0.0, 56.2, 70.75]
+  flare_halo_far     white= 0.0000 cyan= 0.9855 blue= 0.0137 -> rgb[0.0, 236.23, 254.79]
+  flare_halo         white= 0.9999 cyan= 0.0000 blue= 0.0000 -> rgb[254.97, 254.97, 254.97]
+  flare_streak       white= 0.2871 cyan= 0.3437 blue= 0.0000 -> rgb[73.21, 155.61, 160.88]
+  flare_spike        white= 0.1960 cyan= 0.1967 blue= 0.1271 -> rgb[49.97, 97.11, 132.54]
+  flare_fan          white= 0.6626 cyan= 0.0000 blue= 0.0000 -> rgb[168.97, 168.97, 168.97]
+  flare_ray_a        white= 0.0000 cyan= 0.2223 blue= 0.0184 -> rgb[0.0, 53.28, 61.38]
+  flare_ray_b        white= 0.0000 cyan= 0.1956 blue= 0.0763 -> rgb[0.0, 46.9, 69.35]
+  flare_ray_c        white= 0.0496 cyan= 0.0323 blue= 0.0518 -> rgb[12.65, 20.4, 34.1]
+  flare_ray_d        white= 0.0105 cyan= 0.0845 blue= 0.0343 -> rgb[2.68, 22.93, 32.97]
+  flare_ray_e        white= 0.0863 cyan= 0.0761 blue= 0.0804 -> rgb[22.02, 40.27, 61.93]
+  arc_core           white= 0.8681 cyan= 0.1375 blue= 0.0008 -> rgb[221.38, 254.33, 255.0]
+  arc_core_wide      white= 0.3681 cyan= 0.3763 blue= 0.0685 -> rgb[93.88, 184.07, 207.28]
+  flare_core         white= 0.0060 cyan= 0.0000 blue= 0.0000 -> rgb[1.53, 1.53, 1.53]
+  frame_base         white= 0.0563 cyan= 0.0449 blue= 0.0153 -> rgb[14.35, 25.1, 29.68]
+  frame_rim          white= 0.4430 cyan= 0.0299 blue= 0.0244 -> rgb[112.97, 120.14, 126.81]
+updated /home/user/icon-vector-reconstruction/src/params.json
+wrote /home/user/icon-vector-reconstruction/reconstruction.svg (75648 bytes)
+wrote out/render_1024.png (325918 bytes, 1024x1024, resvg)
+{
+  "edge_iou": 0.6831961888263317,
+  "mae": 1.9426921208699544,
+  "mae_bright": 10.009799240615692,
+  "mae_centre": 7.59274695605447,
+  "mae_dark": 1.456006677835948,
+  "mae_frame": 2.5456508685621584,
+  "mae_gamma": 5.787628703005339,
+  "mae_rest": 1.7262178199901748,
+  "max_ch": 105.0,
+  "mean_bias": -0.3154662450154622,
+  "pct_gt2": 35.57710647583008,
+  "pct_gt24": 0.7317543029785156,
+  "pct_gt8": 5.482959747314453,
+  "rmse": 4.075214346024526,
+  "ssim": 0.9730986443203657
+}
+flare: radial profile about the measured core (530.95, 513.33)
+      r      ref      rec     diff
+    0-  6   240.78   243.63    +2.85
+    6- 12   218.22   223.79    +5.56
+   12- 20   195.94   201.08    +5.13
+   20- 30   163.98   162.72    -1.26
+   30- 45   124.15   121.65    -2.49
+   45- 65    90.56    92.33    +1.77
+   65- 90    86.53    86.22    -0.31
+   90-130    61.34    61.58    +0.24
+  130-180    42.59    43.00    +0.41
+  180-250    28.53    28.39    -0.14
+  ref peak lum 254.7 at (543, 514); >90% centroid (541.93, 513.34)
+  rec peak lum 254.0 at (529, 514); >90% centroid (540.65, 514.05)
+  horizontal cut through the core (y = 513):
+     x:     380    410    440    470    500    530    560    590    620    650    680
+   ref:    46.0   68.7  130.7  173.0  202.0  250.0  174.7   86.0   53.7   36.3   27.3
+   rec:    46.7   72.7  118.3  178.7  177.0  253.0  174.0   92.7   51.3   30.0   20.3
+  vertical cut through the core (x = 531):
+     y:     390    415    440    465    490    515    540    565    590    615    640
+   ref:    26.0   35.7   47.3   70.7  117.0  247.0  119.0   70.7   46.3   34.3   28.7
+   rec:    28.7   35.3   45.0   62.7  125.0  251.0  117.3   67.0   45.3   36.7   30.3
+  angular structure, mean lum minus the per-band median:
+      band     0    30    60    90   120   150   180   210   240   270   300   330
+  ref  30- 50 +18.2 +38.3 +42.6 -23.5 -20.9 +14.7 +19.3  -8.6 -17.9 +44.3 +29.2 +18.4
+  rec  30- 50 +14.3 +28.2 +37.2 -22.8 -21.8 +15.2 +16.0 -11.2 -16.5 +43.6 +21.5 +16.6
+  ref  50- 80  -3.3  +9.3 +52.3 -18.8  -9.7 +85.0 +83.7  -0.1 -14.2 +53.5  +5.7  -2.6
+  rec  50- 80  -3.5  +8.1 +45.8 -20.6  -9.4 +79.7 +80.6  +0.0 -16.0 +50.6  +2.2  -1.8
+  ref  80-120 -11.4  -2.2 +41.0 -19.2 +54.3 +42.2 +34.7 +57.4 -15.2 +44.3  -1.7 -10.0
+  rec  80-120 -12.4  -1.8 +40.4 -18.0 +53.6 +33.2 +32.4 +58.7 -16.2 +43.0  -1.9 -11.5
+  ref 120-180 -10.5  -2.8 +32.3  -7.8 +43.4  +6.6  +7.3 +44.3  -4.9 +36.2  -1.7  -9.5
+  rec 120-180 -12.9  -3.1 +33.3  -8.2 +43.2  +8.1  +7.6 +43.7  -5.2 +34.7  -2.7 -12.3
+  MAE within 110 px of the core: 6.355
+
+lobes: mean luminance against inward distance from each curve
+  left curve  (s < 0 = concave side, towards the nearer frame edge)
+      t        -20    -40    -70   -110   -160   -220   -300
+    -45 ref   27.3   18.7   12.7    8.8    9.7    6.9    9.6
+        rec   23.9   17.3   12.6    9.6    8.0    8.0    8.7
+        d     -3.4   -1.3   -0.0   +0.8   -1.7   +1.1   -0.9
+    -25 ref   54.1   38.7   26.8   17.7   11.0    9.2    7.3
+        rec   50.6   37.5   25.8   15.7    9.3    8.2    7.7
+        d     -3.6   -1.2   -1.0   -2.0   -1.6   -1.0   +0.3
+     -5 ref   97.8   68.7   41.2   25.0   18.0   11.3    7.6
+        rec   85.4   66.1   44.6   25.9   17.7   11.3    7.3
+        d    -12.4   -2.6   +3.4   +0.9   -0.3   +0.0   -0.2
+    +15 ref   68.8   48.2   35.2   21.3   14.0    9.3    7.7
+        rec   65.2   50.2   36.3   22.8   15.9   10.0    6.3
+        d     -3.6   +2.0   +1.1   +1.5   +1.9   +0.7   -1.3
+    +35 ref   42.6   31.4   22.4   12.7    9.8    7.3    6.3
+        rec   40.3   28.9   19.6   12.3    9.7    7.7    5.8
+        d     -2.3   -2.5   -2.7   -0.3   -0.1   +0.3   -0.5
+  right curve  (s < 0 = concave side, towards the nearer frame edge)
+      t        -20    -40    -70   -110   -160   -220   -300
+    -45 ref   28.0   18.1   12.7    8.6    6.3    6.3    8.3
+        rec   26.7   19.3   12.7    9.7    7.3    7.3    6.3
+        d     -1.2   +1.2   -0.0   +1.1   +1.0   +1.0   -2.0
+    -25 ref   55.2   36.0   27.3   18.5   12.3    7.7    6.3
+        rec   52.0   39.6   26.5   16.6   11.0    8.5    6.3
+        d     -3.2   +3.6   -0.9   -1.9   -1.3   +0.8   +0.0
+     -5 ref  104.4   63.7   39.9   24.3   17.6   11.1    7.7
+        rec  102.2   66.6   42.6   25.6   17.0   11.4    6.4
+        d     -2.2   +2.9   +2.6   +1.3   -0.6   +0.2   -1.2
+    +15 ref   65.2   48.0   33.7   22.9   15.7   11.1    7.3
+        rec   64.1   49.4   33.9   21.9   15.3    9.8    6.0
+        d     -1.1   +1.3   +0.2   -1.0   -0.3   -1.3   -1.3
+    +35 ref   40.0   32.0   19.9   13.8    7.8    5.4    4.3
+        rec   41.2   29.5   19.6   12.0    8.7    7.3    5.0
+        d     +1.2   -2.5   -0.3   -1.8   +0.8   +1.9   +0.7
+  left lobe (>25 px from the ridge): MAE 1.469, bias -0.081
+  right lobe (>25 px from the ridge): MAE 1.369, bias -0.232
+  colour in the lobes (mean rgb, same masks):
+    left  ref ( 2.38,19.16,25.85)  rec ( 2.04,18.90,26.03)   G/B ref 0.741 rec 0.726
+    right ref ( 2.02,13.81,20.10)  rec ( 1.50,13.27,20.11)   G/B ref 0.687 rec 0.660
+
+profile: mean luminance against signed distance from the curve
+  s < 0 concave (lobe) side, s > 0 convex (between the curves)
+       s        n      ref      rec     diff     rel
+   -300..-240    38108     7.48     7.59    +0.10    +1.4%
+   -240..-190    44491     9.28     9.52    +0.24    +2.6%
+   -190..-150    39134    10.94    10.73    -0.21    -1.9%
+   -150..-115    34443    12.40    11.94    -0.47    -3.8%
+   -115..-90     23401    14.02    13.61    -0.41    -2.9%
+    -90..-70     19050    16.50    15.89    -0.61    -3.7%
+    -70..-52     17681    19.78    18.57    -1.21    -6.1%
+    -52..-38     14186    23.20    22.19    -1.00    -4.3%
+    -38..-28     10425    26.27    26.39    +0.12    +0.5%
+    -28..-20      8527    30.05    29.78    -0.27    -0.9%
+    -20..-14      6506    33.86    34.84    +0.98    +2.9%
+    -14..-9       5500    41.56    44.34    +2.78    +6.7%
+      9..14       5858    26.39    23.28    -3.11   -11.8%
+     14..20       7157    19.44    19.01    -0.42    -2.2%
+     20..28       9713    16.38    16.58    +0.21    +1.3%
+     28..38      12500    13.44    13.84    +0.40    +3.0%
+     38..52      18168    11.71    11.18    -0.53    -4.5%
+     52..70      23755     9.49     9.11    -0.37    -4.0%
+     70..90      23911     7.63     7.31    -0.32    -4.2%
+     90..115     23127     6.26     6.18    -0.08    -1.3%
+    115..150     21618     6.38     6.30    -0.09    -1.4%
+  rms relative error over the bins: 4.2%
+
+  the same profile by along-curve band (relative error, |t| in degrees):
+       s          0-22    22-40    40-54    54-66
+   -300..-240     +3.5%    +0.6%    -0.3%    +0.4%
+   -240..-190     +1.2%    +1.3%    +6.5%    +6.2%
+   -190..-150     -1.6%    -6.3%    +5.3%    -0.3%
+   -150..-115     -2.1%   -10.0%    +5.9%    -0.7%
+   -115..-90      +1.1%    -6.4%    +0.8%    -1.5%
+    -90..-70      +0.8%    -3.7%    -5.3%    -5.6%
+    -70..-52      +1.4%    -4.4%    -9.8%   -10.7%
+    -52..-38      +2.4%    -2.9%    -7.2%    -8.1%
+    -38..-28          .    +1.3%    -1.2%    -1.8%
+    -28..-20          .    -2.1%    +0.3%    +1.1%
+    -20..-14          .    +1.2%    +4.8%    +6.9%
+    -14..-9           .    +4.9%    +8.2%   +13.7%
+      9..14           .    -9.9%   -16.3%    -5.7%
+     14..20           .    +0.3%    -6.6%    -1.1%
+     20..28           .    +7.2%    -7.3%    +0.2%
+     28..38           .    +8.7%    -5.0%    +1.6%
+     38..52           .    -6.1%    -4.9%    +0.3%
+     52..70       -0.8%    -4.0%    -6.3%    +0.7%
+     70..90           .    -3.2%    -7.4%    +4.0%
+     90..115          .    +2.6%    -3.9%    -1.5%
+    115..150          .    -0.0%    -2.1%        .
+  rms relative error over the 71 cells: 5.4%
+
+  interior corners, by distance inside the frame:
+     d_frame  half       n      ref      rec      rel
+     12..45   top       11469    13.72    13.06    -4.8%
+     12..45   bottom    11754     8.34     8.23    -1.3%
+     45..100  top       21230    12.26    11.41    -6.9%
+     45..100  bottom    22364     6.80     6.29    -7.4%
+    100..170  top       24252     9.80     9.14    -6.7%
+    100..170  bottom    24710     6.87     6.32    -7.9%
+  rms relative error over the corner cells: 6.3%
+
+wrote crops to /home/user/icon-vector-reconstruction/out (reference | render | signed difference x6)
+wrote out/diagnostics.json
+wrote previews to /home/user/icon-vector-reconstruction/out
+
+===== out/opt_cycleF.log =====
+fitting 29 layers x ('white', 'cyan', 'blue')  [stride 2]
+  iter 0  mae=1.8829  weighted_sse=78.3095  lam=1.2
+  iter 1  mae=1.8828  weighted_sse=78.3095  lam=0.4
+  iter 2  mae=1.8828  weighted_sse=78.3088  lam=0.8
+  iter 3  mae=1.8829  weighted_sse=78.3081  lam=1.6
+  iter 4  mae=1.8827  weighted_sse=78.3081  lam=0.533
+  iter 5  mae=1.8829  weighted_sse=78.3072  lam=1.07
+  iter 6  mae=1.8830  weighted_sse=78.3067  lam=2.13
+  iter 7  mae=1.8828  weighted_sse=78.3064  lam=0.711
+  iter 8  mae=1.8829  weighted_sse=78.3058  lam=1.42
+  iter 9  mae=1.8830  weighted_sse=78.3054  lam=2.84
+  iter 10  mae=1.8828  weighted_sse=78.3051  lam=0.948
+  iter 11  mae=1.8829  weighted_sse=78.3047  lam=1.9
+  iter 12  mae=1.8827  weighted_sse=78.3046  lam=0.632
+  iter 13  mae=1.8828  weighted_sse=78.3039  lam=1.26
+  iter 14  mae=1.8829  weighted_sse=78.3036  lam=2.53
+  iter 15  mae=1.8828  weighted_sse=78.3034  lam=0.843
+  iter 16  mae=1.8829  weighted_sse=78.3029  lam=1.69
+  iter 17  mae=1.8828  weighted_sse=78.3029  lam=0.562
+  iter 18  mae=1.8828  weighted_sse=78.3025  lam=1.12
+  iter 19  mae=1.8829  weighted_sse=78.3021  lam=2.25
+  iter 20  mae=1.8827  weighted_sse=78.302  lam=0.749
+  iter 21  mae=1.8828  weighted_sse=78.3015  lam=1.5
+  iter 22  mae=1.8829  weighted_sse=78.3013  lam=3
+  iter 23  mae=1.8828  weighted_sse=78.3011  lam=0.999
+  iter 24  mae=1.8829  weighted_sse=78.3007  lam=2
+  iter 25  mae=1.8827  weighted_sse=78.3007  lam=0.666
+  iter 26  mae=1.8828  weighted_sse=78.3002  lam=1.33
+  iter 27  mae=1.8829  weighted_sse=78.2999  lam=2.66
+  iter 28  mae=1.8827  weighted_sse=78.2998  lam=0.888
+  iter 29  mae=1.8828  weighted_sse=78.2994  lam=1.78
+analytic composite mae=1.8814
+  field_base         white= 0.0012 cyan= 0.0062 blue= 0.0223 -> rgb[0.3, 1.79, 7.59]
+  field_mid          white= 0.0000 cyan= 0.0687 blue= 0.0000 -> rgb[0.0, 16.48, 17.53]
+  field_grad         white= 0.0090 cyan= 0.0122 blue= 0.0010 -> rgb[2.29, 5.22, 5.66]
+  field_vert         white= 0.0020 cyan= 0.0036 blue= 0.0040 -> rgb[0.51, 1.36, 2.45]
+  exterior           white= 0.0002 cyan= 0.0030 blue= 0.0051 -> rgb[0.05, 0.77, 2.12]
+  exterior_top       white= 0.0031 cyan= 0.0000 blue= 0.0089 -> rgb[0.8, 0.8, 3.06]
+  exterior_corner    white= 0.0019 cyan= 0.0056 blue= 0.0110 -> rgb[0.48, 1.82, 4.71]
+  corner_in          white= 0.0055 cyan= 0.0206 blue= 0.0000 -> rgb[1.4, 6.34, 6.65]
+  corner_in_top      white= 0.0156 cyan= 0.0187 blue= 0.0000 -> rgb[3.97, 8.45, 8.74]
+  arc_haze           white= 0.0127 cyan= 0.0540 blue= 0.0012 -> rgb[3.25, 16.19, 17.32]
+  arc_glow3          white= 0.0000 cyan= 0.2689 blue= 0.0000 -> rgb[0.0, 64.46, 68.58]
+  arc_glow2          white= 0.0000 cyan= 0.4268 blue= 0.0000 -> rgb[0.0, 102.29, 108.82]
+  arc_glow2b         white= 0.0102 cyan= 0.0701 blue= 0.0006 -> rgb[2.6, 19.41, 20.64]
+  arc_glow1          white= 0.5048 cyan= 0.1631 blue= 0.0133 -> rgb[128.72, 167.81, 173.69]
+  arc_glow1b         white= 0.0000 cyan= 0.2346 blue= 0.0430 -> rgb[0.0, 56.23, 70.79]
+  flare_halo_far     white= 0.0000 cyan= 0.9855 blue= 0.0137 -> rgb[0.0, 236.23, 254.8]
+  flare_halo         white= 0.9999 cyan= 0.0000 blue= 0.0000 -> rgb[254.97, 254.97, 254.97]
+  flare_streak       white= 0.2871 cyan= 0.3438 blue= 0.0000 -> rgb[73.21, 155.61, 160.88]
+  flare_spike        white= 0.1960 cyan= 0.1967 blue= 0.1272 -> rgb[49.97, 97.11, 132.54]
+  flare_fan          white= 0.6626 cyan= 0.0000 blue= 0.0000 -> rgb[168.96, 168.96, 168.96]
+  flare_ray_a        white= 0.0000 cyan= 0.2222 blue= 0.0184 -> rgb[0.0, 53.26, 61.35]
+  flare_ray_b        white= 0.0000 cyan= 0.1956 blue= 0.0763 -> rgb[0.0, 46.89, 69.34]
+  flare_ray_c        white= 0.0496 cyan= 0.0324 blue= 0.0518 -> rgb[12.65, 20.41, 34.12]
+  flare_ray_d        white= 0.0104 cyan= 0.0845 blue= 0.0343 -> rgb[2.65, 22.9, 32.95]
+  flare_ray_e        white= 0.0864 cyan= 0.0761 blue= 0.0804 -> rgb[22.02, 40.27, 61.93]
+  arc_core           white= 0.8683 cyan= 0.1348 blue= 0.0002 -> rgb[221.42, 253.72, 255.0]
+  arc_core_wide      white= 0.3681 cyan= 0.3763 blue= 0.0685 -> rgb[93.88, 184.08, 207.29]
+  frame_base         white= 0.0562 cyan= 0.0448 blue= 0.0153 -> rgb[14.33, 25.08, 29.66]
+  frame_rim          white= 0.4429 cyan= 0.0299 blue= 0.0243 -> rgb[112.95, 120.1, 126.76]
+updated /home/user/icon-vector-reconstruction/src/params.json
+optimising 50 parameters (shapes only flare), stride=3
+sweep 1/1
+  start sse=0.000300093 mae=1.8860
+  end   sse=0.000300093 mae=1.8860  (0 accepted moves, 131 renders)
+final: sse=0.000342642 mae=1.8833  (684.5s, 132 renders)
+wrote /home/user/icon-vector-reconstruction/src/params.json
+fitting 29 layers x ('white', 'cyan', 'blue')  [stride 2]
+  iter 0  mae=1.8848  weighted_sse=78.4964  lam=0.0333
+  iter 1  mae=1.8845  weighted_sse=78.4344  lam=0.0667
+  iter 2  mae=1.8842  weighted_sse=78.3845  lam=0.133
+  iter 3  mae=1.8840  weighted_sse=78.3544  lam=0.267
+  iter 4  mae=1.8839  weighted_sse=78.3388  lam=0.533
+  iter 5  mae=1.8833  weighted_sse=78.334  lam=0.178
+  iter 6  mae=1.8834  weighted_sse=78.3245  lam=0.356
+  iter 7  mae=1.8836  weighted_sse=78.3189  lam=0.711
+  iter 8  mae=1.8832  weighted_sse=78.3186  lam=0.237
+  iter 9  mae=1.8834  weighted_sse=78.3136  lam=0.474
+  iter 10  mae=1.8835  weighted_sse=78.3105  lam=0.948
+  iter 11  mae=1.8832  weighted_sse=78.3099  lam=0.316
+  iter 12  mae=1.8834  weighted_sse=78.3067  lam=0.632
+  iter 13  mae=1.8835  weighted_sse=78.3048  lam=1.26
+  iter 14  mae=1.8832  weighted_sse=78.3041  lam=0.421
+  iter 15  mae=1.8834  weighted_sse=78.3021  lam=0.843
+  iter 16  mae=1.8835  weighted_sse=78.3009  lam=1.69
+  iter 17  mae=1.8832  weighted_sse=78.3002  lam=0.562
+  iter 18  mae=1.8834  weighted_sse=78.2989  lam=1.12
+  iter 19  mae=1.8833  weighted_sse=78.2989  lam=0.375
+  iter 20  mae=1.8833  weighted_sse=78.2979  lam=0.749
+  iter 21  mae=1.8834  weighted_sse=78.297  lam=1.5
+  iter 22  mae=1.8832  weighted_sse=78.2968  lam=0.499
+  iter 23  mae=1.8833  weighted_sse=78.2957  lam=0.999
+  iter 24  mae=1.8834  weighted_sse=78.295  lam=2
+  iter 25  mae=1.8832  weighted_sse=78.2946  lam=0.666
+  iter 26  mae=1.8833  weighted_sse=78.2938  lam=1.33
+  iter 27  mae=1.8834  weighted_sse=78.2934  lam=2.66
+  iter 28  mae=1.8832  weighted_sse=78.293  lam=0.888
+  iter 29  mae=1.8833  weighted_sse=78.2925  lam=1.78
+analytic composite mae=1.8818
+  field_base         white= 0.0012 cyan= 0.0062 blue= 0.0224 -> rgb[0.3, 1.79, 7.59]
+  field_mid          white= 0.0000 cyan= 0.0690 blue= 0.0000 -> rgb[0.0, 16.53, 17.58]
+  field_grad         white= 0.0090 cyan= 0.0122 blue= 0.0009 -> rgb[2.29, 5.22, 5.65]
+  field_vert         white= 0.0021 cyan= 0.0035 blue= 0.0041 -> rgb[0.53, 1.37, 2.46]
+  exterior           white= 0.0002 cyan= 0.0030 blue= 0.0051 -> rgb[0.06, 0.77, 2.12]
+  exterior_top       white= 0.0031 cyan= 0.0000 blue= 0.0089 -> rgb[0.8, 0.8, 3.06]
+  exterior_corner    white= 0.0019 cyan= 0.0056 blue= 0.0110 -> rgb[0.48, 1.82, 4.71]
+  corner_in          white= 0.0054 cyan= 0.0207 blue= 0.0000 -> rgb[1.38, 6.35, 6.67]
+  corner_in_top      white= 0.0153 cyan= 0.0189 blue= 0.0000 -> rgb[3.91, 8.44, 8.73]
+  arc_haze           white= 0.0127 cyan= 0.0541 blue= 0.0010 -> rgb[3.24, 16.21, 17.29]
+  arc_glow3          white= 0.0000 cyan= 0.2690 blue= 0.0000 -> rgb[0.0, 64.49, 68.6]
+  arc_glow2          white= 0.0000 cyan= 0.4252 blue= 0.0000 -> rgb[0.0, 101.92, 108.43]
+  arc_glow2b         white= 0.0103 cyan= 0.0702 blue= 0.0005 -> rgb[2.63, 19.46, 20.66]
+  arc_glow1          white= 0.5035 cyan= 0.1625 blue= 0.0129 -> rgb[128.39, 167.33, 173.1]
+  arc_glow1b         white= 0.0000 cyan= 0.2352 blue= 0.0431 -> rgb[0.0, 56.38, 70.98]
+  flare_halo_far     white= 0.0000 cyan= 0.9855 blue= 0.0139 -> rgb[0.0, 236.22, 254.84]
+  flare_halo         white= 0.9999 cyan= 0.0000 blue= 0.0000 -> rgb[254.96, 254.96, 254.96]
+  flare_streak       white= 0.2871 cyan= 0.3437 blue= 0.0000 -> rgb[73.22, 155.61, 160.87]
+  flare_spike        white= 0.1959 cyan= 0.1967 blue= 0.1272 -> rgb[49.95, 97.1, 132.53]
+  flare_fan          white= 0.6624 cyan= 0.0000 blue= 0.0000 -> rgb[168.91, 168.91, 168.91]
+  flare_ray_a        white= 0.0000 cyan= 0.2217 blue= 0.0182 -> rgb[0.0, 53.14, 61.16]
+  flare_ray_b        white= 0.0000 cyan= 0.1954 blue= 0.0762 -> rgb[0.0, 46.84, 69.25]
+  flare_ray_c        white= 0.0498 cyan= 0.0326 blue= 0.0519 -> rgb[12.69, 20.5, 34.24]
+  flare_ray_d        white= 0.0105 cyan= 0.0845 blue= 0.0344 -> rgb[2.68, 22.94, 33.0]
+  flare_ray_e        white= 0.0865 cyan= 0.0762 blue= 0.0804 -> rgb[22.06, 40.32, 61.99]
+  arc_core           white= 0.8684 cyan= 0.1344 blue= 0.0008 -> rgb[221.44, 253.66, 255.0]
+  arc_core_wide      white= 0.3682 cyan= 0.3766 blue= 0.0685 -> rgb[93.89, 184.16, 207.38]
+  frame_base         white= 0.0562 cyan= 0.0449 blue= 0.0154 -> rgb[14.34, 25.09, 29.71]
+  frame_rim          white= 0.4425 cyan= 0.0295 blue= 0.0242 -> rgb[112.84, 119.92, 126.54]
+updated /home/user/icon-vector-reconstruction/src/params.json
+wrote /home/user/icon-vector-reconstruction/reconstruction.svg (74031 bytes)
+wrote out/render_1024.png (325586 bytes, 1024x1024, resvg)
+{
+  "edge_iou": 0.6830790432129147,
+  "mae": 1.9420801798502605,
+  "mae_bright": 10.008435077188913,
+  "mae_centre": 7.599169058572196,
+  "mae_dark": 1.4552646548610477,
+  "mae_frame": 2.5446184963182237,
+  "mae_gamma": 5.78716609660984,
+  "mae_rest": 1.7254561438285916,
+  "max_ch": 105.0,
+  "mean_bias": -0.3158976236979167,
+  "pct_gt2": 35.592079162597656,
+  "pct_gt24": 0.7307052612304688,
+  "pct_gt8": 5.480480194091797,
+  "rmse": 4.075209314630171,
+  "ssim": 0.9731192448051045
+}
+flare: radial profile about the measured core (530.95, 513.33)
+      r      ref      rec     diff
+    0-  6   240.78   243.62    +2.84
+    6- 12   218.22   223.77    +5.55
+   12- 20   195.94   201.05    +5.11
+   20- 30   163.98   162.69    -1.29
+   30- 45   124.15   121.61    -2.54
+   45- 65    90.56    92.28    +1.73
+   65- 90    86.53    86.17    -0.36
+   90-130    61.34    61.54    +0.21
+  130-180    42.59    42.99    +0.40
+  180-250    28.53    28.39    -0.14
+  ref peak lum 254.7 at (543, 514); >90% centroid (541.93, 513.34)
+  rec peak lum 254.0 at (529, 514); >90% centroid (540.65, 514.05)
+  horizontal cut through the core (y = 513):
+     x:     380    410    440    470    500    530    560    590    620    650    680
+   ref:    46.0   68.7  130.7  173.0  202.0  250.0  174.7   86.0   53.7   36.3   27.3
+   rec:    46.7   72.7  118.3  178.7  177.0  253.0  174.0   92.7   51.3   30.0   20.3
+  vertical cut through the core (x = 531):
+     y:     390    415    440    465    490    515    540    565    590    615    640
+   ref:    26.0   35.7   47.3   70.7  117.0  247.0  119.0   70.7   46.3   34.3   28.7
+   rec:    28.3   35.3   45.3   62.7  125.0  251.0  117.3   66.7   45.7   36.7   30.3
+  angular structure, mean lum minus the per-band median:
+      band     0    30    60    90   120   150   180   210   240   270   300   330
+  ref  30- 50 +18.2 +38.3 +42.6 -23.5 -20.9 +14.7 +19.3  -8.6 -17.9 +44.3 +29.2 +18.4
+  rec  30- 50 +14.3 +28.1 +37.1 -22.9 -21.8 +15.2 +16.0 -11.3 -16.6 +43.6 +21.4 +16.6
+  ref  50- 80  -3.3  +9.3 +52.3 -18.8  -9.7 +85.0 +83.7  -0.1 -14.2 +53.5  +5.7  -2.6
+  rec  50- 80  -3.3  +8.2 +45.9 -20.5  -9.3 +79.8 +80.8  +0.2 -15.9 +50.6  +2.3  -1.7
+  ref  80-120 -11.4  -2.2 +41.0 -19.2 +54.3 +42.2 +34.7 +57.4 -15.2 +44.3  -1.7 -10.0
+  rec  80-120 -12.4  -1.8 +40.3 -18.0 +53.5 +33.1 +32.3 +58.6 -16.2 +42.9  -1.9 -11.5
+  ref 120-180 -10.5  -2.8 +32.3  -7.8 +43.4  +6.6  +7.3 +44.3  -4.9 +36.2  -1.7  -9.5
+  rec 120-180 -12.6  -2.8 +33.6  -7.8 +43.5  +8.4  +7.9 +44.0  -4.9 +35.0  -2.3 -12.0
+  MAE within 110 px of the core: 6.358
+
+lobes: mean luminance against inward distance from each curve
+  left curve  (s < 0 = concave side, towards the nearer frame edge)
+      t        -20    -40    -70   -110   -160   -220   -300
+    -45 ref   27.3   18.7   12.7    8.8    9.7    6.9    9.6
+        rec   23.9   17.3   12.6    9.6    8.0    8.0    8.7
+        d     -3.4   -1.3   -0.0   +0.8   -1.7   +1.1   -0.9
+    -25 ref   54.1   38.7   26.8   17.7   11.0    9.2    7.3
+        rec   50.6   37.3   25.8   15.7    9.3    8.2    7.7
+        d     -3.6   -1.3   -1.0   -2.0   -1.6   -1.0   +0.3
+     -5 ref   97.8   68.7   41.2   25.0   18.0   11.3    7.6
+        rec   85.1   65.9   44.6   25.9   17.7   11.3    7.3
+        d    -12.7   -2.8   +3.4   +0.9   -0.3   +0.0   -0.2
+    +15 ref   68.8   48.2   35.2   21.3   14.0    9.3    7.7
+        rec   65.5   50.0   36.3   22.8   15.9   10.0    6.3
+        d     -3.3   +1.8   +1.1   +1.5   +1.9   +0.7   -1.3
+    +35 ref   42.6   31.4   22.4   12.7    9.8    7.3    6.3
+        rec   40.3   29.0   19.6   12.3    9.7    7.7    5.8
+        d     -2.3   -2.4   -2.7   -0.3   -0.1   +0.3   -0.5
+  right curve  (s < 0 = concave side, towards the nearer frame edge)
+      t        -20    -40    -70   -110   -160   -220   -300
+    -45 ref   28.0   18.1   12.7    8.6    6.3    6.3    8.3
+        rec   26.7   19.3   12.7    9.7    7.3    7.3    6.3
+        d     -1.2   +1.2   -0.0   +1.1   +1.0   +1.0   -2.0
+    -25 ref   55.2   36.0   27.3   18.5   12.3    7.7    6.3
+        rec   52.0   39.6   26.5   16.6   11.0    8.5    6.3
+        d     -3.2   +3.6   -0.9   -1.9   -1.3   +0.8   +0.0
+     -5 ref  104.4   63.7   39.9   24.3   17.6   11.1    7.7
+        rec  102.1   66.6   42.6   25.6   17.0   11.4    6.4
+        d     -2.3   +2.9   +2.6   +1.3   -0.6   +0.2   -1.2
+    +15 ref   65.2   48.0   33.7   22.9   15.7   11.1    7.3
+        rec   64.0   49.3   33.9   21.9   15.3    9.8    6.0
+        d     -1.2   +1.3   +0.2   -1.0   -0.3   -1.3   -1.3
+    +35 ref   40.0   32.0   19.9   13.8    7.8    5.4    4.3
+        rec   41.5   29.2   19.6   12.0    8.7    7.3    5.0
+        d     +1.5   -2.8   -0.3   -1.8   +0.8   +1.9   +0.7
+  left lobe (>25 px from the ridge): MAE 1.469, bias -0.078
+  right lobe (>25 px from the ridge): MAE 1.369, bias -0.228
+  colour in the lobes (mean rgb, same masks):
+    left  ref ( 2.38,19.16,25.85)  rec ( 2.04,18.91,26.04)   G/B ref 0.741 rec 0.726
+    right ref ( 2.02,13.81,20.10)  rec ( 1.50,13.27,20.12)   G/B ref 0.687 rec 0.660
+
+profile: mean luminance against signed distance from the curve
+  s < 0 concave (lobe) side, s > 0 convex (between the curves)
+       s        n      ref      rec     diff     rel
+   -300..-240    38108     7.48     7.59    +0.10    +1.4%
+   -240..-190    44491     9.28     9.52    +0.24    +2.6%
+   -190..-150    39134    10.94    10.73    -0.21    -1.9%
+   -150..-115    34443    12.40    11.94    -0.46    -3.7%
+   -115..-90     23401    14.02    13.62    -0.40    -2.9%
+    -90..-70     19050    16.50    15.90    -0.60    -3.6%
+    -70..-52     17681    19.78    18.58    -1.20    -6.1%
+    -52..-38     14186    23.20    22.20    -1.00    -4.3%
+    -38..-28     10425    26.27    26.37    +0.10    +0.4%
+    -28..-20      8527    30.05    29.76    -0.29    -1.0%
+    -20..-14      6506    33.86    34.81    +0.96    +2.8%
+    -14..-9       5500    41.56    44.28    +2.72    +6.5%
+      9..14       5858    26.39    23.27    -3.12   -11.8%
+     14..20       7157    19.44    18.99    -0.44    -2.3%
+     20..28       9713    16.38    16.58    +0.20    +1.2%
+     28..38      12500    13.44    13.83    +0.39    +2.9%
+     38..52      18168    11.71    11.20    -0.51    -4.4%
+     52..70      23755     9.49     9.12    -0.36    -3.8%
+     70..90      23911     7.63     7.33    -0.30    -4.0%
+     90..115     23127     6.26     6.19    -0.07    -1.1%
+    115..150     21618     6.38     6.32    -0.07    -1.1%
+  rms relative error over the bins: 4.2%
+
+  the same profile by along-curve band (relative error, |t| in degrees):
+       s          0-22    22-40    40-54    54-66
+   -300..-240     +3.5%    +0.6%    -0.3%    +0.4%
+   -240..-190     +1.2%    +1.3%    +6.5%    +6.2%
+   -190..-150     -1.5%    -6.2%    +5.3%    -0.3%
+   -150..-115     -2.1%   -10.0%    +5.9%    -0.7%
+   -115..-90      +1.2%    -6.3%    +0.8%    -1.5%
+    -90..-70      +0.8%    -3.6%    -5.2%    -5.6%
+    -70..-52      +1.5%    -4.3%    -9.8%   -10.7%
+    -52..-38      +2.4%    -2.9%    -7.2%    -8.0%
+    -38..-28          .    +1.2%    -1.2%    -1.8%
+    -28..-20          .    -2.1%    +0.2%    +1.0%
+    -20..-14          .    +1.1%    +4.8%    +6.8%
+    -14..-9           .    +4.7%    +8.1%   +13.5%
+      9..14           .   -10.1%   -16.3%    -5.6%
+     14..20           .    +0.1%    -6.7%    -1.0%
+     20..28           .    +7.2%    -7.3%    +0.4%
+     28..38           .    +8.6%    -5.0%    +1.9%
+     38..52           .    -5.9%    -4.8%    +0.8%
+     52..70       -0.8%    -4.0%    -6.4%    +1.6%
+     70..90           .    -3.1%    -7.2%    +4.8%
+     90..115          .    +2.6%    -3.5%    -1.5%
+    115..150          .    -0.1%    -1.6%        .
+  rms relative error over the 71 cells: 5.3%
+
+  interior corners, by distance inside the frame:
+     d_frame  half       n      ref      rec      rel
+     12..45   top       11469    13.72    13.06    -4.8%
+     12..45   bottom    11754     8.34     8.23    -1.3%
+     45..100  top       21230    12.26    11.41    -6.9%
+     45..100  bottom    22364     6.80     6.29    -7.4%
+    100..170  top       24252     9.80     9.14    -6.7%
+    100..170  bottom    24710     6.87     6.33    -7.9%
+  rms relative error over the corner cells: 6.3%
+
+wrote crops to /home/user/icon-vector-reconstruction/out (reference | render | signed difference x6)
+wrote out/diagnostics.json
+wrote previews to /home/user/icon-vector-reconstruction/out
+
+===== out/opt_cycleG.log =====
+optimising 15 parameters (shapes only frame,corner,exterior), stride=3
+sweep 1/2
+  start sse=0.000300058 mae=1.8864
+  end   sse=0.000299777 mae=1.8859  (1 accepted moves, 59 renders)
+sweep 2/2
+  start sse=0.000299701 mae=1.8869
+  end   sse=0.000299701 mae=1.8869  (0 accepted moves, 89 renders)
+final: sse=0.000342671 mae=1.8834  (504.3s, 90 renders)
+wrote /home/user/icon-vector-reconstruction/src/params.json
+fitting 29 layers x ('white', 'cyan', 'blue')  [stride 2]
+  iter 0  mae=1.8853  weighted_sse=78.3967  lam=0.0333
+  iter 1  mae=1.8850  weighted_sse=78.3317  lam=0.0667
+  iter 2  mae=1.8846  weighted_sse=78.2813  lam=0.133
+  iter 3  mae=1.8844  weighted_sse=78.2511  lam=0.267
+  iter 4  mae=1.8843  weighted_sse=78.2355  lam=0.533
+  iter 5  mae=1.8837  weighted_sse=78.2317  lam=0.178
+  iter 6  mae=1.8839  weighted_sse=78.2222  lam=0.356
+  iter 7  mae=1.8840  weighted_sse=78.2167  lam=0.711
+  iter 8  mae=1.8836  weighted_sse=78.2162  lam=0.237
+  iter 9  mae=1.8838  weighted_sse=78.2112  lam=0.474
+  iter 10  mae=1.8840  weighted_sse=78.2081  lam=0.948
+  iter 11  mae=1.8836  weighted_sse=78.2074  lam=0.316
+  iter 12  mae=1.8838  weighted_sse=78.2042  lam=0.632
+  iter 13  mae=1.8839  weighted_sse=78.2024  lam=1.26
+  iter 14  mae=1.8836  weighted_sse=78.2016  lam=0.421
+  iter 15  mae=1.8838  weighted_sse=78.1996  lam=0.843
+  iter 16  mae=1.8839  weighted_sse=78.1985  lam=1.69
+  iter 17  mae=1.8836  weighted_sse=78.1977  lam=0.562
+  iter 18  mae=1.8838  weighted_sse=78.1964  lam=1.12
+  iter 19  mae=1.8838  weighted_sse=78.1957  lam=2.25
+  iter 20  mae=1.8836  weighted_sse=78.1951  lam=0.749
+  iter 21  mae=1.8838  weighted_sse=78.1942  lam=1.5
+  iter 22  mae=1.8835  weighted_sse=78.1941  lam=0.499
+  iter 23  mae=1.8837  weighted_sse=78.193  lam=0.999
+  iter 24  mae=1.8838  weighted_sse=78.1924  lam=2
+  iter 25  mae=1.8836  weighted_sse=78.1921  lam=0.666
+  iter 26  mae=1.8837  weighted_sse=78.1913  lam=1.33
+  iter 27  mae=1.8838  weighted_sse=78.1909  lam=2.66
+  iter 28  mae=1.8836  weighted_sse=78.1906  lam=0.888
+  iter 29  mae=1.8837  weighted_sse=78.1901  lam=1.78
+analytic composite mae=1.8822
+  field_base         white= 0.0011 cyan= 0.0062 blue= 0.0224 -> rgb[0.29, 1.78, 7.58]
+  field_mid          white= 0.0000 cyan= 0.0690 blue= 0.0000 -> rgb[0.0, 16.55, 17.61]
+  field_grad         white= 0.0090 cyan= 0.0122 blue= 0.0009 -> rgb[2.29, 5.21, 5.63]
+  field_vert         white= 0.0019 cyan= 0.0033 blue= 0.0041 -> rgb[0.47, 1.25, 2.34]
+  exterior           white= 0.0002 cyan= 0.0030 blue= 0.0051 -> rgb[0.06, 0.77, 2.12]
+  exterior_top       white= 0.0031 cyan= 0.0000 blue= 0.0088 -> rgb[0.8, 0.8, 3.05]
+  exterior_corner    white= 0.0019 cyan= 0.0056 blue= 0.0110 -> rgb[0.48, 1.82, 4.71]
+  corner_in          white= 0.0057 cyan= 0.0210 blue= 0.0000 -> rgb[1.45, 6.5, 6.82]
+  corner_in_top      white= 0.0155 cyan= 0.0189 blue= 0.0000 -> rgb[3.96, 8.5, 8.79]
+  arc_haze           white= 0.0131 cyan= 0.0545 blue= 0.0010 -> rgb[3.34, 16.41, 17.49]
+  arc_glow3          white= 0.0000 cyan= 0.2690 blue= 0.0000 -> rgb[0.0, 64.48, 68.59]
+  arc_glow2          white= 0.0000 cyan= 0.4238 blue= 0.0000 -> rgb[0.0, 101.59, 108.07]
+  arc_glow2b         white= 0.0104 cyan= 0.0705 blue= 0.0005 -> rgb[2.66, 19.56, 20.76]
+  arc_glow1          white= 0.5024 cyan= 0.1620 blue= 0.0126 -> rgb[128.12, 166.95, 172.63]
+  arc_glow1b         white= 0.0000 cyan= 0.2359 blue= 0.0433 -> rgb[0.0, 56.55, 71.2]
+  flare_halo_far     white= 0.0000 cyan= 0.9854 blue= 0.0141 -> rgb[0.0, 236.21, 254.89]
+  flare_halo         white= 0.9998 cyan= 0.0000 blue= 0.0000 -> rgb[254.94, 254.94, 254.94]
+  flare_streak       white= 0.2872 cyan= 0.3437 blue= 0.0000 -> rgb[73.23, 155.61, 160.87]
+  flare_spike        white= 0.1958 cyan= 0.1967 blue= 0.1272 -> rgb[49.93, 97.09, 132.52]
+  flare_fan          white= 0.6621 cyan= 0.0000 blue= 0.0000 -> rgb[168.85, 168.85, 168.85]
+  flare_ray_a        white= 0.0000 cyan= 0.2212 blue= 0.0180 -> rgb[0.0, 53.02, 60.98]
+  flare_ray_b        white= 0.0000 cyan= 0.1952 blue= 0.0761 -> rgb[0.0, 46.79, 69.17]
+  flare_ray_c        white= 0.0499 cyan= 0.0328 blue= 0.0521 -> rgb[12.73, 20.58, 34.37]
+  flare_ray_d        white= 0.0106 cyan= 0.0846 blue= 0.0344 -> rgb[2.71, 22.99, 33.06]
+  flare_ray_e        white= 0.0867 cyan= 0.0762 blue= 0.0805 -> rgb[22.11, 40.38, 62.07]
+  arc_core           white= 0.8686 cyan= 0.1344 blue= 0.0008 -> rgb[221.48, 253.7, 255.0]
+  arc_core_wide      white= 0.3683 cyan= 0.3769 blue= 0.0685 -> rgb[93.91, 184.25, 207.5]
+  frame_base         white= 0.0563 cyan= 0.0449 blue= 0.0155 -> rgb[14.36, 25.11, 29.76]
+  frame_rim          white= 0.4421 cyan= 0.0292 blue= 0.0240 -> rgb[112.73, 119.74, 126.31]
+updated /home/user/icon-vector-reconstruction/src/params.json
+wrote /home/user/icon-vector-reconstruction/reconstruction.svg (74032 bytes)
+wrote out/render_1024.png (325939 bytes, 1024x1024, resvg)
+{
+  "edge_iou": 0.6823594245114054,
+  "mae": 1.9411379496256511,
+  "mae_bright": 10.020246458859104,
+  "mae_centre": 7.601646155257605,
+  "mae_dark": 1.4533248636657938,
+  "mae_frame": 2.54826691387417,
+  "mae_gamma": 5.7660924570195355,
+  "mae_rest": 1.7239507470962219,
+  "max_ch": 105.0,
+  "mean_bias": -0.3061822255452474,
+  "pct_gt2": 35.652828216552734,
+  "pct_gt24": 0.7307052612304688,
+  "pct_gt8": 5.483913421630859,
+  "rmse": 4.075169765314024,
+  "ssim": 0.9731423428482616
+}
+flare: radial profile about the measured core (530.95, 513.33)
+      r      ref      rec     diff
+    0-  6   240.78   243.62    +2.84
+    6- 12   218.22   223.77    +5.54
+   12- 20   195.94   201.05    +5.11
+   20- 30   163.98   162.68    -1.31
+   30- 45   124.15   121.57    -2.58
+   45- 65    90.56    92.25    +1.69
+   65- 90    86.53    86.16    -0.36
+   90-130    61.34    61.57    +0.23
+  130-180    42.59    43.04    +0.45
+  180-250    28.53    28.41    -0.13
+  ref peak lum 254.7 at (543, 514); >90% centroid (541.93, 513.34)
+  rec peak lum 254.0 at (529, 514); >90% centroid (540.65, 514.05)
+  horizontal cut through the core (y = 513):
+     x:     380    410    440    470    500    530    560    590    620    650    680
+   ref:    46.0   68.7  130.7  173.0  202.0  250.0  174.7   86.0   53.7   36.3   27.3
+   rec:    46.7   72.7  118.3  178.7  177.0  253.0  174.3   92.7   51.3   30.0   20.3
+  vertical cut through the core (x = 531):
+     y:     390    415    440    465    490    515    540    565    590    615    640
+   ref:    26.0   35.7   47.3   70.7  117.0  247.0  119.0   70.7   46.3   34.3   28.7
+   rec:    28.3   35.3   45.3   62.3  125.0  251.0  117.0   67.3   45.3   37.0   30.3
+  angular structure, mean lum minus the per-band median:
+      band     0    30    60    90   120   150   180   210   240   270   300   330
+  ref  30- 50 +18.2 +38.3 +42.6 -23.5 -20.9 +14.7 +19.3  -8.6 -17.9 +44.3 +29.2 +18.4
+  rec  30- 50 +14.3 +28.1 +37.1 -22.9 -21.7 +15.2 +16.0 -11.4 -16.8 +43.5 +21.3 +16.6
+  ref  50- 80  -3.3  +9.3 +52.3 -18.8  -9.7 +85.0 +83.7  -0.1 -14.2 +53.5  +5.7  -2.6
+  rec  50- 80  -3.1  +8.4 +46.0 -20.2  -9.1 +80.0 +80.9  +0.2 -15.7 +50.8  +2.3  -1.5
+  ref  80-120 -11.4  -2.2 +41.0 -19.2 +54.3 +42.2 +34.7 +57.4 -15.2 +44.3  -1.7 -10.0
+  rec  80-120 -12.2  -1.8 +40.3 -18.0 +53.5 +33.2 +32.3 +58.6 -16.1 +42.8  -1.9 -11.5
+  ref 120-180 -10.5  -2.8 +32.3  -7.8 +43.4  +6.6  +7.3 +44.3  -4.9 +36.2  -1.7  -9.5
+  rec 120-180 -12.8  -3.1 +33.3  -8.1 +43.2  +8.2  +7.5 +43.7  -5.2 +34.6  -2.6 -12.4
+  MAE within 110 px of the core: 6.365
+
+lobes: mean luminance against inward distance from each curve
+  left curve  (s < 0 = concave side, towards the nearer frame edge)
+      t        -20    -40    -70   -110   -160   -220   -300
+    -45 ref   27.3   18.7   12.7    8.8    9.7    6.9    9.6
+        rec   24.0   17.3   12.5    9.6    8.0    7.7    8.7
+        d     -3.3   -1.3   -0.1   +0.8   -1.7   +0.8   -0.9
+    -25 ref   54.1   38.7   26.8   17.7   11.0    9.2    7.3
+        rec   50.2   37.0   25.5   15.7    9.3    8.3    7.7
+        d     -3.9   -1.7   -1.4   -2.0   -1.6   -0.8   +0.3
+     -5 ref   97.8   68.7   41.2   25.0   18.0   11.3    7.6
+        rec   85.1   66.0   44.6   25.9   17.7   11.4    7.7
+        d    -12.7   -2.7   +3.4   +0.9   -0.3   +0.0   +0.1
+    +15 ref   68.8   48.2   35.2   21.3   14.0    9.3    7.7
+        rec   65.5   50.2   36.3   23.1   15.9    9.7    6.0
+        d     -3.3   +2.0   +1.1   +1.8   +1.9   +0.3   -1.7
+    +35 ref   42.6   31.4   22.4   12.7    9.8    7.3    6.3
+        rec   40.4   29.0   19.6   12.3    9.7    7.7    5.8
+        d     -2.1   -2.4   -2.7   -0.3   -0.1   +0.3   -0.5
+  right curve  (s < 0 = concave side, towards the nearer frame edge)
+      t        -20    -40    -70   -110   -160   -220   -300
+    -45 ref   28.0   18.1   12.7    8.6    6.3    6.3    8.3
+        rec   26.7   19.3   12.7    9.7    7.3    7.0    6.3
+        d     -1.2   +1.2   -0.0   +1.1   +1.0   +0.7   -2.0
+    -25 ref   55.2   36.0   27.3   18.5   12.3    7.7    6.3
+        rec   51.5   39.3   26.5   16.6   11.0    8.7    6.3
+        d     -3.7   +3.3   -0.8   -1.9   -1.3   +1.0   +0.0
+     -5 ref  104.4   63.7   39.9   24.3   17.6   11.1    7.7
+        rec  102.2   66.6   42.6   25.6   17.0   11.4    6.7
+        d     -2.2   +2.9   +2.6   +1.3   -0.6   +0.2   -1.0
+    +15 ref   65.2   48.0   33.7   22.9   15.7   11.1    7.3
+        rec   64.0   49.4   33.9   22.2   15.3    9.5    5.7
+        d     -1.2   +1.3   +0.2   -0.6   -0.3   -1.6   -1.6
+    +35 ref   40.0   32.0   19.9   13.8    7.8    5.4    4.3
+        rec   41.5   29.2   19.6   12.0    8.7    7.3    5.3
+        d     +1.4   -2.8   -0.3   -1.8   +0.8   +1.9   +1.0
+  left lobe (>25 px from the ridge): MAE 1.474, bias -0.064
+  right lobe (>25 px from the ridge): MAE 1.367, bias -0.209
+  colour in the lobes (mean rgb, same masks):
+    left  ref ( 2.38,19.16,25.85)  rec ( 2.09,18.90,26.03)   G/B ref 0.741 rec 0.726
+    right ref ( 2.02,13.81,20.10)  rec ( 1.55,13.26,20.11)   G/B ref 0.687 rec 0.660
+
+profile: mean luminance against signed distance from the curve
+  s < 0 concave (lobe) side, s > 0 convex (between the curves)
+       s        n      ref      rec     diff     rel
+   -300..-240    38108     7.48     7.58    +0.10    +1.3%
+   -240..-190    44491     9.28     9.53    +0.26    +2.8%
+   -190..-150    39134    10.94    10.75    -0.19    -1.7%
+   -150..-115    34443    12.40    11.97    -0.43    -3.5%
+   -115..-90     23401    14.02    13.64    -0.38    -2.7%
+    -90..-70     19050    16.50    15.93    -0.57    -3.4%
+    -70..-52     17681    19.78    18.62    -1.16    -5.9%
+    -52..-38     14186    23.20    22.24    -0.96    -4.1%
+    -38..-28     10425    26.27    26.41    +0.14    +0.5%
+    -28..-20      8527    30.05    29.78    -0.27    -0.9%
+    -20..-14      6506    33.86    34.82    +0.96    +2.8%
+    -14..-9       5500    41.56    44.26    +2.70    +6.5%
+      9..14       5858    26.39    23.30    -3.09   -11.7%
+     14..20       7157    19.44    19.03    -0.41    -2.1%
+     20..28       9713    16.38    16.62    +0.24    +1.5%
+     28..38      12500    13.44    13.89    +0.45    +3.3%
+     38..52      18168    11.71    11.23    -0.48    -4.1%
+     52..70      23755     9.49     9.14    -0.34    -3.6%
+     70..90      23911     7.63     7.33    -0.31    -4.0%
+     90..115     23127     6.26     6.20    -0.06    -1.0%
+    115..150     21618     6.38     6.31    -0.07    -1.1%
+  rms relative error over the bins: 4.1%
+
+  the same profile by along-curve band (relative error, |t| in degrees):
+       s          0-22    22-40    40-54    54-66
+   -300..-240     +3.7%    -0.2%    +0.0%    +0.2%
+   -240..-190     +1.7%    +1.5%    +5.9%    +6.4%
+   -190..-150     -1.3%    -5.7%    +5.1%    +0.3%
+   -150..-115     -1.6%   -10.0%    +5.8%    +0.7%
+   -115..-90      +1.7%    -6.4%    +0.8%    +0.0%
+    -90..-70      +1.0%    -3.7%    -5.1%    -3.9%
+    -70..-52      +1.6%    -4.4%    -9.4%    -9.7%
+    -52..-38      +2.6%    -2.9%    -6.8%    -7.2%
+    -38..-28          .    +1.2%    -1.0%    -1.2%
+    -28..-20          .    -2.2%    +0.4%    +1.6%
+    -20..-14          .    +1.0%    +4.9%    +7.3%
+    -14..-9           .    +4.6%    +8.2%   +13.9%
+      9..14           .   -10.1%   -16.0%    -5.2%
+     14..20           .    +0.1%    -6.3%    -0.5%
+     20..28           .    +7.1%    -6.8%    +0.8%
+     28..38           .    +8.8%    -4.4%    +2.3%
+     38..52           .    -5.9%    -4.1%    +0.7%
+     52..70       -0.9%    -3.7%    -5.7%    +0.7%
+     70..90           .    -3.1%    -6.9%    +3.1%
+     90..115          .    +3.1%    -3.7%    -3.8%
+    115..150          .    +0.6%    -2.0%        .
+  rms relative error over the 71 cells: 5.2%
+
+  interior corners, by distance inside the frame:
+     d_frame  half       n      ref      rec      rel
+     12..45   top       11469    13.72    13.12    -4.4%
+     12..45   bottom    11754     8.34     8.27    -0.8%
+     45..100  top       21230    12.26    11.51    -6.2%
+     45..100  bottom    22364     6.80     6.33    -6.9%
+    100..170  top       24252     9.80     9.33    -4.8%
+    100..170  bottom    24710     6.87     6.34    -7.7%
+  rms relative error over the corner cells: 5.6%
+
+wrote crops to /home/user/icon-vector-reconstruction/out (reference | render | signed difference x6)
+wrote out/diagnostics.json
+wrote previews to /home/user/icon-vector-reconstruction/out
+

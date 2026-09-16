@@ -1,0 +1,85 @@
+{
+ "rows": [
+  {
+   "engine": "resvg",
+   "size": 256,
+   "note": "reference downsampled to 256",
+   "mae": 1.7396742502848308,
+   "rmse": 3.277588851426574,
+   "max": 64.5625,
+   "mae_gamma": 4.947049890396997,
+   "ssim": 0.9809788565151093,
+   "pct_gt8": 5.51605224609375
+  },
+  {
+   "engine": "resvg",
+   "size": 512,
+   "note": "reference downsampled to 512",
+   "mae": 1.8198305765787761,
+   "rmse": 3.6936881949325766,
+   "max": 88.0,
+   "mae_gamma": 5.2073710491620595,
+   "ssim": 0.9777145080263636,
+   "pct_gt8": 5.2570343017578125
+  },
+  {
+   "engine": "resvg",
+   "size": 1024,
+   "note": "native",
+   "mae": 1.8977718353271484,
+   "rmse": 4.093183638437645,
+   "max": 110.0,
+   "mae_gamma": 5.468492258978009,
+   "ssim": 0.9738955461858012,
+   "pct_gt8": 5.136013031005859
+  },
+  {
+   "engine": "resvg",
+   "size": 2048,
+   "note": "downsampled 2048->1024",
+   "mae": 1.8928903738657634,
+   "rmse": 4.076609555264442,
+   "max": 103.5,
+   "mae_gamma": 5.460281386498306,
+   "ssim": 0.9741717216727999,
+   "pct_gt8": 5.275058746337891
+  },
+  {
+   "engine": "resvg",
+   "size": 4096,
+   "note": "downsampled 4096->1024",
+   "mae": 1.8963444232940674,
+   "rmse": 4.054882954729659,
+   "max": 97.5,
+   "mae_gamma": 5.463711402832779,
+   "ssim": 0.9742188605095115,
+   "pct_gt8": 5.385112762451172
+  },
+  {
+   "engine": "chromium",
+   "size": 1024,
+   "note": "native",
+   "mae": 3.1414928436279297,
+   "rmse": 4.877600929705891,
+   "max": 136.0,
+   "mae_gamma": 9.741688873215923,
+   "ssim": 0.9437407882450779,
+   "pct_gt8": 7.241344451904297
+  }
+ ],
+ "cross_engine": {
+  "mae": 2.666568120320638,
+  "rmse": 3.2084981372335033,
+  "max": 44.0,
+  "mae_gamma": 9.351261630245453,
+  "ssim": 0.9555578955479695,
+  "pct_gt8": 0.6827354431152344
+ },
+ "chromium": {
+  "status": "ran",
+  "path": "/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell",
+  "found_via": "glob /opt/pw-browsers/*/chrome-linux/headless_shell"
+ },
+ "svg_sha256": "4b755dca83086c4ffc517a091c652c59db82bc78763ff82a722d430339df23bb",
+ "reference_sha256": "cf35ca00fa38d263d734b44fb7a1ba21080b0e25487fcb8a1d2cf48389a9a4a7"
+}

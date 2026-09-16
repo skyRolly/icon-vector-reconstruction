@@ -1,0 +1,301 @@
+#!/usr/bin/env python3
+"""Measured anchors and region geometry shared by the fitter and the diagnostics.
+
+Both the fitting weight and the diagnostic reports need to talk about the same
+places -- "the concave side of the left curve, 70 px out", "within 110 px of
+the central light" -- so those definitions live here once rather than being
+restated (and drifting) in each tool.
+
+All coordinates are SVG user space at 1024 px; every helper scales to the
+shape it is given.
+"""
+from __future__ import annotations
+
+import numpy as np
+
+#: Centroid of the reference's off-arc pixels above luminance 245, which agrees
+#: with the peak of the isolated flare to within a pixel.
+FLARE_CORE = (530.95, 513.33)
+
+#: Fitted lens ellipses of the two luminous curves.  Used only to define
+#: distance-from-the-curve; the rendered curves are cubic Beziers.
+ARCS = {"left": (78.913, 515.286, 386.05, 467.47),
+        "right": (923.121, 515.048, 378.12, 463.35)}
+
+#: Frame centre-lines, from the opaque-bar fits in src/params.json.  Only used
+#: to keep the frame's own stroke and rim glow out of the curve-profile bins.
+FRAME = {"left": 66.5225, "top": 34.3555, "right": 951.57, "bottom": 991.6551}
+
+#: Signed-distance bin edges for the cross-curve profile.  Negative is the
+#: concave side (the lobe, towards the nearer frame edge), positive the convex
+#: side (between the two curves).  The +-9 px gap skips the core stroke itself,
+#: whose sub-pixel edge placement dominates any comparison there.
+PROFILE_EDGES = (-300, -240, -190, -150, -115, -90, -70, -52, -38, -28, -20, -14, -9,
+                 9, 14, 20, 28, 38, 52, 70, 90, 115, 150)
+
+
+def curve_frame(shape):
+    """Signed distance to the nearer curve, its along-curve angle, flare radius.
+
+    `d < 0` is the concave side.  The distance is the ellipse's radial distance
+    scaled to pixels, which agrees with the true normal distance to better than
+    1% over the range used here.
+    """
+    h, w = shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w]
+    sx, sy = w / 1024.0, h / 1024.0
+    X = (xx + 0.5) / sx
+    Y = (yy + 0.5) / sy
+    dsig = np.full((h, w), 1e9, np.float32)
+    tang = np.zeros((h, w), np.float32)
+    for side, (cx, cy, rx, ry) in ARCS.items():
+        a = (X - cx) / rx
+        b = (Y - cy) / ry
+        rr = np.sqrt(a * a + b * b)
+        d = (rr - 1.0) * np.sqrt((a * rx) ** 2 + (b * ry) ** 2) / np.maximum(rr, 1e-6)
+        t = np.degrees(np.arctan2(b, a if side == "left" else -a))
+        take = np.abs(d) < np.abs(dsig)
+        dsig = np.where(take, d, dsig).astype(np.float32)
+        tang = np.where(take, t, tang).astype(np.float32)
+    rfl = np.hypot(X - FLARE_CORE[0], Y - FLARE_CORE[1]).astype(np.float32)
+    return dsig, tang, rfl
+
+
+def interior(shape, margin=18.0):
+    """Inside the frame by `margin` px, in SVG user space."""
+    h, w = shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w]
+    X = (xx + 0.5) / (w / 1024.0)
+    Y = (yy + 0.5) / (h / 1024.0)
+    return ((X > FRAME["left"] + margin) & (X < FRAME["right"] - margin)
+            & (Y > FRAME["top"] + margin) & (Y < FRAME["bottom"] - margin))
+
+
+#: Along-curve bands for the 2-D profile cells.  `t` is the lens ellipse's
+#: parametric angle, 0 at the waist.  The bands stop at 66 degrees because that
+#: is where the drawn curves end: the four Bezier endpoints sit at |t| = 66.1,
+#: 66.8, 67.6 and 68.9 degrees.  Beyond them there is no curve, so a cell there
+#: would be asking the glow layers to light a region that has no source -- the
+#: light the reference does have past the tips belongs to the frame's interior
+#: corners, which is a separate element (`corner_in`).
+PROFILE_T_BANDS = ((0, 22), (22, 40), (40, 54), (54, 66))
+
+
+#: Every cell threshold below is an area in REFERENCE pixels, converted to a
+#: count on whatever grid the caller actually passes.
+REF_AREA = 1024.0 * 1024.0
+
+
+def min_count(shape, min_px, floor=4):
+    """Convert a reference-space area threshold to a sample count for `shape`.
+
+    Cells are built on whatever grid the caller hands in, and the optimiser
+    hands in a subsampled one: at stride 3 a cell covers a ninth of the samples
+    it covers at full resolution.  A FIXED count therefore deletes the smallest
+    cells exactly when the search is cheapest -- and the smallest cells here are
+    the horizontal comb, which is the sharpest structure in the image and the
+    one this whole cell grid exists to expose.
+
+    Measured before the fix, with a fixed 60: 51 comb cells at full resolution,
+    29 at stride 2, and ZERO at strides 3 and 4 -- which is every shape, taper,
+    geometry and field stage of `tools/optimize_all.sh`.  Those searches were
+    not weighting the comb lightly, they could not see it at all.
+
+    The floor is the separate, statistical guard: a cell of three samples
+    estimates its own mean too poorly to score, however large it is in
+    reference space.
+    """
+    h, w = shape[:2]
+    return max(int(floor), int(round(min_px * (h * w) / REF_AREA)))
+
+
+def profile_cells(shape, flare_exclude=200.0, min_px=150, margin=18.0,
+                  t_bands=PROFILE_T_BANDS):
+    """Masks for signed-distance x along-curve cells, pooled over both curves.
+
+    The 1-D pooled bins below hide an error the cells expose: with the curve
+    tips left out, the fit drained them, and the lobe within 80 px of a tip
+    ended up 20-30% too dark while every pooled bin looked fine.  Scoring
+    cells instead of bins is what keeps the whole length of each curve in the
+    objective.
+    """
+    min_px = min_count(shape, min_px)
+    dsig, tang, rfl = curve_frame(shape)
+    keep = (rfl > flare_exclude) & interior(shape, margin)
+    at = np.abs(tang)
+    out = []
+    for lo, hi in zip(PROFILE_EDGES[:-1], PROFILE_EDGES[1:]):
+        if lo == -9:
+            continue
+        band = keep & (dsig >= lo) & (dsig < hi)
+        for t0, t1 in t_bands:
+            m = band & (at >= t0) & (at < t1)
+            if m.sum() >= min_px:
+                out.append((lo, hi, t0, t1, m))
+    return out
+
+
+#: Distance-from-the-frame bands for the interior corner cells.
+CORNER_EDGES = (12, 45, 100, 170)
+
+
+def frame_distance(shape):
+    """Distance inside the frame's bounding box, in SVG user units."""
+    h, w = shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w]
+    X = (xx + 0.5) / (w / 1024.0)
+    Y = (yy + 0.5) / (h / 1024.0)
+    return np.minimum(np.minimum(X - FRAME["left"], FRAME["right"] - X),
+                      np.minimum(Y - FRAME["top"], FRAME["bottom"] - Y)).astype(np.float32)
+
+
+def corner_cells(shape, min_px=300, corner_span=230.0):
+    """Masks for the light in the four interior corners.
+
+    Past the curve ends there is no curve glow, but the reference is not dark
+    there: within 100 px of the frame the corner quadrants read 9.5-11.0 code
+    values against 7.0-8.3 rendered before `corner_in` was added, while the
+    edge midpoints agreed to 0.1-0.7.  These cells put that region in the
+    objective on the same footing as the curve profile.
+    """
+    min_px = min_count(shape, min_px)
+    h, w = shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w]
+    X = (xx + 0.5) / (w / 1024.0)
+    Y = (yy + 0.5) / (h / 1024.0)
+    dsig, tang, rfl = curve_frame(shape)
+    dfr = frame_distance(shape)
+    near_corner = ((np.minimum(np.abs(X - FRAME["left"]), np.abs(X - FRAME["right"])) < corner_span)
+                   & (np.minimum(np.abs(Y - FRAME["top"]), np.abs(Y - FRAME["bottom"])) < corner_span))
+    keep = interior(shape, 12.0) & near_corner & (dsig < -40.0) & (rfl > 250.0)
+    out = []
+    for lo, hi in zip(CORNER_EDGES[:-1], CORNER_EDGES[1:]):
+        for top in (True, False):
+            m = keep & (dfr >= lo) & (dfr < hi) & ((Y < 512) if top else (Y >= 512))
+            if m.sum() >= min_px:
+                out.append((lo, hi, "top" if top else "bottom", m))
+    return out
+
+
+#: Radius bands and angular sectors for the flare cells.
+FLARE_R_BANDS = ((6, 12), (12, 20), (20, 30), (30, 45), (45, 65), (65, 90),
+                 (90, 125), (125, 170), (170, 220))
+FLARE_SECTORS = 16
+
+#: Rows of the horizontal streak comb, as offsets from the flare centre, and
+#: the |dx| bands along it.  The comb is the reference's sharpest flare
+#: feature and the one a radial cell grid averages away: a 4-px-wide line at
+#: dy=+6.5 and another at +18.5 both sit inside a single 12-30 px radius band.
+COMB_DY = (-10, -6, -3, -1, 1, 3, 5, 8, 11, 14, 17, 21, 25)
+COMB_DX = ((18, 45), (45, 80), (80, 130), (130, 190), (190, 260))
+
+
+def flare_cells(shape, min_px=60, arc_margin=30.0):
+    """Cells around the central light: radius x sector, plus the streak comb.
+
+    The flare is 5% of the canvas and carries the image's sharpest structure -
+    a comb of parallel horizontal lines and six thin spokes, 2-11 code values
+    each on a 15-40 code value background.  A whole-image average cannot see
+    them and neither can a radial profile, so they get cells of their own.
+
+    `arc_margin` has to be generous, and 13 px was not.  The curve ridges cross
+    the streak row only 14.5 px east and 65.5 px west of the flare centre, and
+    the curve's own glow reaches far past that -- `arc_glow2` alone has an
+    effective cross-curve width of 20.6 px.  Inside 30 px of a ridge the
+    vertical cross-section is the curve's, not the streak's, so a comb cell
+    there scores the curve and calls it the comb.  It did: with the margin at
+    13 the flare search drove the streak's west side to 9.6/20.1/26.7 counts
+    where the reference has 5.2/11.8/19.4, and its east side down to 6.2 where
+    the reference has 15.9 -- the opposite of what an arc-masked measurement of
+    the same lines asks for.  30 px is what the same measurement needs to come
+    out clean (docs/DECISIONS.md D21).
+    """
+    min_px = min_count(shape, min_px)
+    h, w = shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w]
+    sx, sy = w / 1024.0, h / 1024.0
+    X = (xx + 0.5) / sx
+    Y = (yy + 0.5) / sy
+    dx = X - FLARE_CORE[0]
+    dy = Y - FLARE_CORE[1]
+    r = np.hypot(dx, dy)
+    th = (np.degrees(np.arctan2(-dy, dx)) + 360.0) % 360.0
+    dmin = np.full((h, w), 1e9, np.float32)
+    for side, (cx, cy, rx, ry) in ARCS.items():
+        u = (X - cx) / rx
+        v = (Y - cy) / ry
+        rr = np.sqrt(u * u + v * v)
+        d = np.abs(rr - 1.0) * np.sqrt((u * rx) ** 2 + (v * ry) ** 2) / np.maximum(rr, 1e-6)
+        dmin = np.minimum(dmin, d.astype(np.float32))
+    off_arc = dmin > arc_margin
+    out = []
+    # the comb first, so it owns its pixels
+    step = 360.0 / FLARE_SECTORS
+    for i in range(len(COMB_DY) - 1):
+        lo, hi = COMB_DY[i], COMB_DY[i + 1]
+        band = off_arc & (dy >= lo) & (dy < hi)
+        for a, b in COMB_DX:
+            m = band & (np.abs(dx) >= a) & (np.abs(dx) < b)
+            if m.sum() >= min_px:
+                out.append(("comb", lo, hi, a, b, m))
+    taken = np.zeros((h, w), bool)
+    for cell in out:
+        taken |= cell[-1]
+    for r0, r1 in FLARE_R_BANDS:
+        band = off_arc & (r >= r0) & (r < r1) & ~taken
+        for k in range(FLARE_SECTORS):
+            a0, a1 = k * step, (k + 1) * step
+            m = band & (th >= a0) & (th < a1)
+            if m.sum() >= min_px:
+                out.append(("sector", r0, r1, a0, a1, m))
+    return out
+
+
+def weight_cells(shape, min_px=300):
+    """Every cell the fitting weight equalises: curve profile plus corners.
+
+    The two sets are made disjoint.  Overlapping cells would each be given a
+    per-pixel weight computed as if they owned their pixels outright, and the
+    shared pixels would then take whichever value was written last -- which
+    silently unbalances both (the cost of a 1% error went from 2.3x to 6.2x
+    across cells when they were allowed to overlap).
+    """
+    min_px = min_count(shape, min_px)
+    out = list(flare_cells(shape))
+    taken = np.zeros(shape[:2], bool)
+    for cell in out:
+        taken |= cell[-1]
+    for cell in profile_cells(shape):
+        m = cell[-1] & ~taken
+        if m.sum() >= min_px:
+            out.append(cell[:-1] + (m,))
+            taken |= m
+    for lo, hi, half, m in corner_cells(shape):
+        m = m & ~taken
+        if m.sum() >= min_px:
+            out.append((lo, hi, half, m))
+            taken |= m
+    return out
+
+
+def profile_bins(shape, flare_exclude=200.0, t_limit=62.0, min_px=200, margin=18.0):
+    """Masks for the signed-distance bins, pooled over both curves.
+
+    Pixels nearer the flare than `flare_exclude` are dropped: the flare is a
+    separate element and would otherwise be read as curve glow.  `t_limit`
+    keeps to the part of each curve whose normal stays inside the frame, and
+    `margin` keeps the frame's own stroke out: where the curves are furthest
+    apart the inter-curve bins reach the top and bottom edges, and including
+    the frame there tripled those bins' internal brightness spread.
+    """
+    min_px = min_count(shape, min_px)
+    dsig, tang, rfl = curve_frame(shape)
+    keep = (rfl > flare_exclude) & (np.abs(tang) < t_limit) & interior(shape, margin)
+    out = []
+    for lo, hi in zip(PROFILE_EDGES[:-1], PROFILE_EDGES[1:]):
+        if lo == -9:
+            continue
+        m = keep & (dsig >= lo) & (dsig < hi)
+        if m.sum() >= min_px:
+            out.append((lo, hi, m))
+    return out

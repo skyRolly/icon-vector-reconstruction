@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1024" height="1024" viewBox="0 0 1024 1024" >
+<defs><filter id="id" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024" color-interpolation-filters="sRGB"><feOffset dx="0" dy="0"/></filter><mask id="mk" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><rect width="1024" height="1024" fill="#fff"/></mask><clipPath id="cp"><rect width="1024" height="1024"/></clipPath></defs><rect width="1024" height="1024" fill="#000"/><rect x="200" y="150" width="600" height="700" fill="#404040"/><g><rect x="300" y="250" width="300" height="500" fill="#404040" style="mix-blend-mode:screen"/></g>
+</svg>
