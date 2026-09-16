@@ -141,7 +141,15 @@ def write_provenance(render_path, svg_path, data, size, renderer):
     digest is the whole point: without it the sidecar describes a FILENAME, and
     a filename can be overwritten by anything.
     """
-    prov = {"svg_sha256": sha256_file(svg_path), "svg_path": os.path.abspath(svg_path),
+    # `svg_path` is a label, not evidence -- nothing reads it, and the two
+    # digests are what prove anything.  It is stored RELATIVE to the repository
+    # root because an absolute one made every committed sidecar carry the
+    # machine it was generated on, so regenerating identical artefacts somewhere
+    # else changed tracked metadata without changing a single input.
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    rel = os.path.relpath(os.path.abspath(svg_path), root)
+    prov = {"svg_sha256": sha256_file(svg_path),
+            "svg_path": rel if not rel.startswith("..") else os.path.abspath(svg_path),
             "size": size, "renderer": renderer,
             "png_sha256": hashlib.sha256(data).hexdigest()}
     json.dump(prov, open(provenance_path(render_path), "w"), indent=1, sort_keys=True)

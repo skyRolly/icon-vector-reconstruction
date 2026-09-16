@@ -21,9 +21,21 @@ rays away again" looks like from the inside.
 
 Each check returns (value, lo, hi) where `value` is the render's statistic as a
 fraction of the reference's, so 1.00 is agreement and the interval says how far
-from it is tolerable.  `None` means NOT MEASURABLE on this image, which is a
-pass: a check that cannot see its structure must not claim the structure is
-gone.
+from it is tolerable.  `None` means the ratio could not be formed, and WHICH
+SIDE could not form it decides the verdict: the reference unable to establish
+the structure is a pass, because a check that cannot see its structure in the
+source must not claim the render lost it; the render unable to, while the
+reference can, is a failure, because that is what losing it looks like.
+
+PRESENCE, NOT FIDELITY.  Every band here is a gate against a structure
+disappearing or being over-driven, and several floors are set where the CURRENT
+artwork sits rather than where agreement with the reference would be: the two
+right rays pass at 0.49 and 0.76 of the reference because that is what they
+measure today, and the floors exist only to stop them getting worse.  A green
+run therefore means "nothing the reference has has vanished from the render",
+NOT "the render agrees with the reference".  Fidelity is what out/metrics.json
+and tools/diagnose.py report; read those for how close the artwork is, and read
+this for whether a change has quietly deleted something.
 """
 from __future__ import annotations
 

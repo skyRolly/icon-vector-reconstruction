@@ -1,4 +1,12 @@
 {
+ "rendered_sizes": [
+  256,
+  512,
+  1024,
+  2048,
+  4096
+ ],
+ "quick": false,
  "rows": [
   {
    "engine": "resvg",

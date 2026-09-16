@@ -44,16 +44,23 @@ set +e
 python3 tools/validate.py
 validate_status=$?
 set -e
+cross_engine_ran=yes
 if [ "$validate_status" = 2 ] || [ "$validate_status" = 3 ]; then
+    cross_engine_ran=no
     echo "!! validate.py exited $validate_status: the OPTIONAL cross-engine check did"
     echo "!! not run.  out/validation.{md,json} say why, and the README will omit the"
     echo "!! cross-engine line rather than publish a number nothing measured."
-    echo "!! The resvg rows -- which are the report -- are unaffected; continuing."
+    echo "!! The resvg rows -- which are the report -- are unaffected; continuing,"
+    echo "!! and the final line of this run will say the check was not made."
 elif [ "$validate_status" != 0 ]; then
     echo "FAIL: validate.py exited $validate_status" >&2
     exit "$validate_status"
 fi
 python3 tools/make_previews.py out/render_1024.png
+# The flare inspection sheet is the instrument the acceptance decision rests on,
+# so the documented release command has to produce it: a reviewer who runs this
+# should not have to know the tool exists to see what it shows.
+python3 tools/flare_view.py out/render_1024.png --out out/flare_view.png
 
 echo "== 4. regression checks =="
 python3 -u tools/test_pipeline.py
@@ -78,4 +85,12 @@ else
     diff "$tmp/a.txt" "$tmp/b.txt" | head -20 >&2 || true
     exit 1
 fi
-echo "PUBLISH OK"
+if [ "$cross_engine_ran" = yes ]; then
+    echo "PUBLISH OK"
+else
+    # Not blocking the release and not calling it clean either: a reviewer
+    # reading only the last line must not be told a check ran when it did not.
+    echo "PUBLISH OK -- EXCEPT the optional cross-engine check, which did not run"
+    echo "(validate.py exited $validate_status; see out/validation.md).  Every"
+    echo "resvg number published here was measured."
+fi

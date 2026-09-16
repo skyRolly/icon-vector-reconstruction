@@ -642,6 +642,57 @@ def main():
                                 ("dx", dx, L.get("dx", 0.0)), ("dy", dy, L.get("dy", 0.0))):
             if got is None or abs(float(want) - float(got)) > 1e-6:
                 drift.append("%s/%s preset %.4g vs shipped %s" % (lid, name, want, got))
+    # The FLANKS template is the other half of --geometry's promise: it INSERTS
+    # a flank that has been deleted, so a stale entry silently ships a different
+    # model.  It did -- rot -234.0 against the measured and committed -240.0 --
+    # and no calibration afterwards can move a rotation.  Colour is excluded on
+    # purpose: the photometric fit rewrites it by design, so asserting it would
+    # fire on every legitimate refit.
+    fdrift = []
+    for tpl in MFL.FLANKS:
+        L = next((x for x in params["layers"] if x["id"] == tpl["id"]), None)
+        if L is None:
+            fdrift.append("%s missing from params" % tpl["id"]); continue
+        for name in ("kind", "rot", "height", "spread", "len", "peak_at", "blur"):
+            want, got = tpl.get(name), L.get(name)
+            same = (want == got if isinstance(want, str)
+                    else got is not None and abs(float(want) - float(got)) <= 1e-6)
+            if not same:
+                fdrift.append("%s/%s template %s vs shipped %s" % (tpl["id"], name, want, got))
+    # A bound is only "reachable" if a spec targets THAT parameter.  Raw prefix
+    # matching let a sibling stand in for it -- a blur_x spec satisfied an
+    # unreachable blur bound, and profile_e satisfied profile -- so the guard
+    # reported a clean search space while the parameter was frozen, which is the
+    # one thing it exists to catch.
+    _probe = {"layers": [{"id": "probe", "kind": "streak", "blur_x": 2.0,
+                          "sigma_y": 3.0, "half_len": 100.0,
+                          "bounds": {"blur": [1.0, 9.0], "blur_x": [0.0, 6.0]},
+                          "color": [0, 0, 0], "white": 0.0, "cyan": 0.0, "blue": 0.0}],
+              "flare": {"cx": 530.0, "cy": 513.0}, "tapers": {}, "geometry": {},
+              "frame": {}, "canvas": 1024}
+    _pun, _ = O.verify_searchable(_probe)
+    # The inspection sheet must not change a feature's aspect ratio.  A centre
+    # within `half` of an edge used to return a short crop that enlarge() then
+    # squashed into a square: --cx 10 gave a 320x170 box shown at 450x450.
+    import flare_view as _FV
+    _blank = np.zeros((1024, 1024, 3), dtype=np.float64)
+    _shapes = [_FV.crop(_blank, 10, 513, h).shape[:2] for _n, h, _z in _FV.CROPS]
+    _square = all(sh == (2 * h, 2 * h) for sh, (_n, h, _z) in zip(_shapes, _FV.CROPS))
+    check("an off-centre inspection crop stays square instead of being stretched",
+          _square,
+          "crops at cx=10 are %s for half-widths %s"
+          % (_shapes, [h for _n, h, _z in _FV.CROPS]))
+
+    check("a bound is not counted reachable because a sibling name shares its prefix",
+          [n for _i, n in _pun] == ["blur"],
+          "a layer with bounds.blur but only blur_x emitted reports unreachable %s"
+          % (_pun or "nothing"))
+
+    check("the flank insertion template matches the shipped flanks",
+          not fdrift,
+          "; ".join(fdrift) if fdrift
+          else "all %d flank layers agree on every structural field" % len(MFL.FLANKS))
+
     check("the ray geometry preset matches the shipped params",
           not drift, "; ".join(drift) if drift else "all %d ray layers agree" % len(MFL.RAY_GEOMETRY))
 

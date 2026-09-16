@@ -94,23 +94,23 @@ def main():
     CANONICAL = [256, 512, 1024, 2048, 4096]
     sizes = [1024, 2048] if a.quick else CANONICAL
     # A --quick run rewrites two of the five canonical rasters and leaves the
-    # other three where the last full run put them.  Each of those keeps a
-    # sidecar that still authenticates it -- truthfully, because the PNG really
-    # did come from the SVG named in it -- so out/ ends up holding a mixture of
-    # renders of DIFFERENT SVGs, every one of them provably authentic and only
-    # two of them current.  Provenance answers "did this raster come from that
-    # SVG", not "is this raster still the one this directory is about", so the
-    # honest move is the one render.py already names: a sidecar that can no
-    # longer be vouched for is deleted rather than left to speak for a file
-    # nobody refreshed.
+    # other three where the last full run put them, each with a sidecar that
+    # still authenticates it truthfully -- the PNG really did come from the SVG
+    # named in it.  So out/ can hold renders of DIFFERENT SVGs, every one of them
+    # provably authentic and only two of them current.
+    #
+    # The first attempt at this DELETED those sidecars, which is worse: it turns
+    # a tracked artefact that can be verified into one that cannot, and it means
+    # a diagnostic run mutates files it was never asked to touch.  Provenance
+    # answers "did this raster come from that SVG", and each of those answers is
+    # still correct.  What was missing is the other question -- "which of these
+    # did THIS run produce" -- so the run records the sizes it rendered, in the
+    # report and in the JSON, and changes nothing on disk that it did not write.
     stale = [z for z in CANONICAL if z not in sizes]
     if stale:
-        dropped = [z for z in stale
-                   if R.clear_provenance(os.path.join(a.outdir, "render_%d.png" % z))]
-        if dropped:
-            print("--quick: dropped provenance for the sizes this run did not "
-                  "render (%s); their PNGs are from an earlier run"
-                  % ", ".join(str(z) for z in dropped))
+        print("--quick: rendered %s; %s are left from an earlier run and this "
+              "run's report covers only what it rendered"
+              % (", ".join(str(z) for z in sizes), ", ".join(str(z) for z in stale)))
     rows = []
     for size in sizes:
         png = R.render(a.svg, size, "resvg")
@@ -171,6 +171,12 @@ def main():
     for eng, size, note, m in rows:
         lines.append("| %s | %d | %s | %.3f | %.3f | %.0f | %.3f | %.4f | %.2f |"
                      % (eng, size, note, m["mae"], m["rmse"], m["max"], m["mae_gamma"], m["ssim"], m["pct_gt8"]))
+    if stale:
+        lines += ["",
+                  "This was a `--quick` run: it rendered %s.  The %s rasters in "
+                  "`out/` are from an earlier run and are not described by the "
+                  "table above." % (", ".join(str(z) for z in sizes),
+                                    ", ".join(str(z) for z in stale))]
     lines += ["", "## Cross-engine agreement at 1024 (resvg vs Chromium)", ""]
     if cross:
         lines += ["| MAE | RMSE | max | SSIM |", "|---|---|---|---|",
@@ -220,7 +226,8 @@ def main():
               else "skipped (--no-chromium)" if a.no_chromium
               else "misconfigured" if chrome_state == "misconfigured"
               else "skipped (unavailable)")
-    json.dump({"rows": [{"engine": e, "size": s, "note": n, **m} for e, s, n, m in rows],
+    json.dump({"rendered_sizes": sizes, "quick": bool(a.quick),
+               "rows": [{"engine": e, "size": s, "note": n, **m} for e, s, n, m in rows],
                "cross_engine": cross,
                "chromium": {"status": status, "path": chrome_path,
                             "found_via": chrome_how, "discovery_state": chrome_state,

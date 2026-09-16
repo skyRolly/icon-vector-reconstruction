@@ -196,6 +196,14 @@ def verify_searchable(params, specs=None):
     A bound name maps to a spec path through BOUND_PATHS, so a new nested
     parameter has to be declared here as well as emitted -- which is the point:
     the two lists cannot drift apart without this failing.
+
+    SCOPE, stated because it is easy to over-read: this audits `bounds` entries
+    against emitted specs and nothing else.  A numeric field that carries no
+    bound is invisible to it and can stay frozen without ever appearing here --
+    `flare_wash_far`'s sigma_y was exactly that in reverse (a bound that WAS
+    reachable and still wrong).  "No unreachable bounds" means the declared
+    search space is fully covered, not that every number in the model is
+    searched.
     """
     if specs is None:
         specs = layer_specs(params)
@@ -206,8 +214,20 @@ def verify_searchable(params, specs=None):
             prefixes = BOUND_PATHS.get(name, ("layers/%d/%s" % (i, name),))
             if isinstance(prefixes, str):
                 prefixes = (prefixes,)
-            hit = any(q.startswith(pre % i if "%d" in pre else pre)
-                      for pre in prefixes for q in paths)
+            # Exact path, or a descendant separated by "/" -- NOT a raw prefix.
+            # `startswith` matched sibling names that merely begin with the same
+            # letters, so a `blur_x` spec satisfied an unreachable `blur` bound
+            # and `profile_e` satisfied `profile`: the guard reported nothing
+            # unreachable while the parameter was frozen, which is the exact
+            # failure it exists to catch.  The descendant form is still needed,
+            # because a named-law profile is searched at `.../profile/scale`.
+            for pre in prefixes:
+                root = pre % i if "%d" in pre else pre
+                if any(q == root or q.startswith(root + "/") for q in paths):
+                    hit = True
+                    break
+            else:
+                hit = False
             if not hit:
                 unreachable.append((L["id"], name))
     invalid = []

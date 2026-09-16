@@ -111,17 +111,49 @@ def load(p):
     return np.asarray(Image.open(p).convert("RGB")).astype(np.float64)
 
 
+#: crops that had to be padded, so the sheet can say so once at the end.
+_CLAMPED = []
+
+
 def crop(a, cx, cy, half):
-    """The same integer box out of every image, clamped to the canvas."""
+    """The same 2*half box out of every image, PADDED where it leaves the canvas.
+
+    It used to be clamped and returned short.  `enlarge` then resized whatever
+    came back to a square, so a centre within `half` of an edge was displayed
+    with the wrong aspect ratio and no indication: `--cx 10` with the 160-px crop
+    yields 320x170 shown at 450x450, stretching horizontal features 1.88x
+    against vertical ones on a sheet whose whole purpose is judging flare shape.
+
+    Padding instead keeps every pixel at its true aspect.  The fill is black,
+    which is what the canvas outside the artwork is anyway and which `chroma`
+    maps to exactly neutral, so it reads as absent rather than as structure; and
+    because both images are the same size and get the same box, they are padded
+    identically.  The caller is told, because a padded panel is smaller than it
+    looks.
+    """
     x0, y0 = int(round(cx)) - half, int(round(cy)) - half
     x1, y1 = x0 + 2 * half, y0 + 2 * half
-    x0, y0 = max(0, x0), max(0, y0)
-    x1, y1 = min(a.shape[1], x1), min(a.shape[0], y1)
-    return a[y0:y1, x0:x1]
+    cx0, cy0 = max(0, x0), max(0, y0)
+    cx1, cy1 = min(a.shape[1], x1), min(a.shape[0], y1)
+    sub = a[cy0:cy1, cx0:cx1]
+    if sub.shape[0] == 2 * half and sub.shape[1] == 2 * half:
+        return sub
+    out = np.zeros((2 * half, 2 * half) + a.shape[2:], dtype=a.dtype)
+    out[cy0 - y0:cy0 - y0 + sub.shape[0], cx0 - x0:cx0 - x0 + sub.shape[1]] = sub
+    note = "+-%d px box at (%d, %d): %dx%d of %dx%d is off-canvas and padded" % (
+        half, int(round(cx)), int(round(cy)), sub.shape[1], sub.shape[0],
+        2 * half, 2 * half)
+    if note not in _CLAMPED:
+        _CLAMPED.append(note)
+    return out
 
 
 def enlarge(a, size):
-    """Nearest-neighbour to `size` px.  See the module docstring."""
+    """Nearest-neighbour to `size` px.  See the module docstring.
+
+    This is only honest because `crop` now returns a square: resizing a
+    rectangle to (size, size) silently changes aspect ratios.
+    """
     im = Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
     return im.resize((size, size), Image.NEAREST)
 
@@ -317,6 +349,9 @@ def main():
                      "names, e.g. --labels \"previous,candidate\"")
         labels = parts
     sheet(ref, rec, a.out, a.cx, a.cy, labels)
+    for note in _CLAMPED:
+        print("NOTE: %s.  The panel keeps its aspect ratio; the padding is not "
+              "image data." % note, file=sys.stderr)
     return 0
 
 

@@ -144,23 +144,35 @@ FLANK_SECTOR = {"flare_flank_ul": (100.0, 140.0), "flare_flank_dl": (205.0, 262.
 FLANK_RADII = (20.0, 80.0)
 CHANNELS = ("white", "cyan", "blue")
 
+#: The template that --geometry uses to re-insert a flank that has been deleted.
+#: It is not an initial guess any more: it held the ORIGINAL rot -234.0 for the
+#: lower-left long after measurement moved that axis to -240.0, and the original
+#: colours for both flanks long after the photometric fit had changed them (the
+#: upper-left by a factor of four).  Deleting a flank and running the documented
+#: geometry rebuild therefore inserted a DIFFERENT model than the committed one,
+#: and the calibration that follows can rescale a colour but never a rotation.
+#: `test_pipeline.py` now asserts that every structural field here matches the
+#: shipped layer, so the two cannot drift again.  The colours are synchronised
+#: too but deliberately NOT asserted: photometric calibration rewrites them by
+#: design, and a check that fires on every legitimate refit is a check people
+#: learn to ignore.
 FLANKS = [
-    {"id": "flare_flank_dl", "kind": "ray", "rot": -234.0, "height": 30.0,
-     "spread": 1.7, "len": 110.0, "peak_at": 0.20, "blur": 6.0,
+    {"id": "flare_flank_dl", "kind": "ray", "rot": -240.0, "height": 30.0,
+     "spread": 1.7, "len": 110.0, "peak_at": 0.2, "blur": 6.0,
      "note": ("the lower-left ray is a sharp spike on a broad fan; this is the fan, "
               "found as the angular deficit left when the ray was narrowed to its "
               "measured 8.3 px width -- theta 210-260, peaking 13.5 cv at 225"),
      "bounds": {"blur": [3.0, 14.0], "height": [12.0, 55.0], "len": [80.0, 190.0],
                 "peak_at": [0.12, 0.6], "rot": [-252.0, -216.0], "spread": [1.0, 4.0]},
-     "color": [0.0, 18.0, 26.0], "white": 0.0, "cyan": 0.07, "blue": 0.03},
+     "color": [0.0, 34.97023, 58.41715], "white": 0.0, "cyan": 0.145904, "blue": 0.083187},
     {"id": "flare_flank_ul", "kind": "ray", "rot": -118.0, "height": 22.0,
-     "spread": 2.0, "len": 110.0, "peak_at": 0.20, "blur": 6.0,
+     "spread": 2.0, "len": 110.0, "peak_at": 0.2, "blur": 6.0,
      "note": ("the upper-left ray's fan, the companion to its 10.6 px spike; found "
               "the same way and second, which is what makes the pair a decomposition "
               "rather than a patch"),
      "bounds": {"blur": [3.0, 14.0], "height": [10.0, 45.0], "len": [80.0, 190.0],
                 "peak_at": [0.12, 0.6], "rot": [-136.0, -100.0], "spread": [1.0, 4.0]},
-     "color": [0.0, 16.0, 22.0], "white": 0.0, "cyan": 0.06, "blue": 0.025},
+     "color": [0.0, 4.09391, 5.38001], "white": 0.0, "cyan": 0.017074, "blue": 0.004024},
 ]
 
 
