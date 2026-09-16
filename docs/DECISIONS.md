@@ -2326,6 +2326,15 @@ reference's excess over the render peaks at the flare's own row (-23.8 cv at
 zero at +-60 px: it decays away from the flare, so it belongs to the flare and
 not to the curve.
 
+**Confirmed on the shipped replacement, which is the number that was missing
+here.** The -3.577 / -2.635 above is the BARE deletion, and quoting only that
+leaves the entry unable to say whether the band put the light back. Run on all
+three models, `fan_report` reads S 0.113 / STEP -0.209 for the pre-change
+baseline (identical to the iteration-5 release), -3.577 / -2.635 for the bare
+deletion, and **-0.128 / -0.488 for what shipped** -- 0.3 sigma from the
+baseline against a null sd of 0.72, where the deletion sits at 5.1 and 3.4
+sigma. The straight edges went and the light did not.
+
 So the light stays and the straight edges go. `flare_arm_w2` is a west-only
 streak with a Gaussian cross-section, sigma 46, centred 6 px above the core's
 row, carrying the measured longitudinal profile (144 screen units at |dx| 86,
