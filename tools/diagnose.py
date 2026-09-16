@@ -616,7 +616,8 @@ def crops(ref, rec, outdir):
 
 
 
-def _provenance(render_path, require=False, expect_size=None, expect_renderer=None):
+def _provenance(render_path, require=False, expect_size=None,
+                expect_renderer=None, expect_svg=None):
     """The SVG digest recorded beside a render -- see tools/render.py.
 
     This was a byte-for-byte copy of compare.py's version, and both trusted the
@@ -625,7 +626,9 @@ def _provenance(render_path, require=False, expect_size=None, expect_renderer=No
     """
     import render as _R
     return _R.read_provenance(render_path, require=require,
-                              expect_size=expect_size, expect_renderer=expect_renderer)
+                              expect_size=expect_size,
+                              expect_renderer=expect_renderer,
+                              expect_svg=expect_svg)
 
 
 def main():
@@ -639,8 +642,22 @@ def main():
                     help="also require the sidecar to record this render size")
     ap.add_argument("--expect-renderer", default=None,
                     help="also require the sidecar to record this renderer")
+    ap.add_argument("--expect-svg", default=None,
+                    help="also require this SVG to still hash to the recorded "
+                         "svg_sha256, which is what proves the render is not stale")
     ap.add_argument("--crops", default=os.path.join(ROOT, "out"))
     a = ap.parse_args()
+    # First, before anything is loaded, printed or written -- the same hole
+    # compare.py had, in both of its forms.  `--require-provenance` and the
+    # expectation flags say something about the raster being measured, so they
+    # can be conditional neither on the caller also wanting a JSON file nor on
+    # the reports having already run: crops() writes diag_flare.png and the two
+    # lobe crops, and a rejected raster used to leave all three behind, looking
+    # exactly like the output of a run that had succeeded.
+    digest = _provenance(a.render, require=a.require_provenance,
+                         expect_size=a.expect_size,
+                         expect_renderer=a.expect_renderer,
+                         expect_svg=a.expect_svg)
     ref, rec = load(a.reference), load(a.render)
     out = {"render": os.path.relpath(a.render, ROOT)}
     flare_report(ref, rec, out)
@@ -650,12 +667,6 @@ def main():
     comb_report(ref, rec, out)
     spoke_report(ref, rec, out)
     crops(ref, rec, a.crops)
-    # Unconditionally: the same hole compare.py had.  `--require-provenance` and
-    # the expectation flags say something about the raster being measured, so
-    # they cannot be conditional on the caller also wanting a JSON file.
-    digest = _provenance(a.render, require=a.require_provenance,
-                         expect_size=a.expect_size,
-                         expect_renderer=a.expect_renderer)
     if a.json:
         out = dict(out, source_svg_sha256=digest)
         json.dump(out, open(a.json, "w"), indent=1)

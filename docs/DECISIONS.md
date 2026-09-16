@@ -3209,11 +3209,70 @@ whole-image fit and should not be reached for on the evidence of 1650 px.
 ### Where the artwork ended up
 
 MAE 1.88059 -> **1.87815**, SSIM 0.974039 -> **0.974081**, flare r<110 6.522 ->
-**6.457**, r<40 9.785 -> **9.610**, core box 7.790 -> **6.328**. All 33 pipeline
-checks and all 12 structural checks pass. Five of the twelve structural ratios
+**6.457**, r<40 9.785 -> **9.610**, core box 7.790 -> **6.328**. All 40 pipeline
+checks and all 12 structural checks pass -- 33 at the end of the iteration's
+own work, and seven more added by the review rounds recorded in D55 and
+above. Five of the twelve structural ratios
 moved towards the reference (the west field, line C, the skirt, the lower-right
 ray and the white-core radius) and four moved away (the two right rays by 0.05
 and 0.10 in opposite directions, the vertical line by 0.02, the cyan fraction by
 0.01); line B moved away on purpose, because the ratio it reports includes the
 bar this iteration removed from the core. The reasons are above, and none of them
 is "the aggregate improved".
+
+## D55. The audit's own blind spot, measured instead of disclaimed
+
+`verify_searchable()` compares `bounds` entries against emitted specs. A review
+raised the obvious limit: a numeric field that carries no bound is invisible to
+it, so a parameter can stay frozen for a release without ever appearing in the
+audit's result -- which is the same failure `flare_vline.sigma_x` shipped with,
+one level further out.
+
+The limit is real. The first instinct -- report every unbounded number -- was
+tried and is worthless: **470 of the artwork's 609 numeric leaves carry no
+bound.** A report that names three quarters of the model names nothing, and
+nothing in the data distinguishes "deliberately fixed" from "should have been
+searched and was forgotten".
+
+What is checkable is the inventory. Every one of those 470 falls into exactly
+twelve kinds:
+
+| kind | leaves | why it carries no bound |
+|---|---|---|
+| `white`, `cyan`, `blue` | 105 | fitted photometrically, not searched |
+| `color` | 105 | derived from those coefficients (D5), and checked against them |
+| `profile`, `profile_e` | 202 | tabulated off the reference |
+| `paint/profile`, `paint/stops` | 50 | tabulated off the reference |
+| `paint/x1`, `x2`, `y1`, `y2` | 8 | frozen canvas gradient extents -- see below |
+
+Eight of the twelve are searched by a different mechanism or measured rather
+than fitted. The other four are the genuine instance of the reviewed class: eight
+linear-gradient extents on `field_vert` and `exterior_top`, with no bound, no
+spec and no mechanism behind them. `field_vert`'s `y1 = 34.4` / `y2 = 991.7` are
+plainly fitted numbers that have not moved since.
+
+**They stay frozen, and the reason is a measurement rather than a preference.**
+Rendered at +-10 and +-40 px on each:
+
+| | -40 | -10 | +10 | +40 |
+|---|---|---|---|---|
+| `field_vert.paint.y1` (34.4) | -0.00008 | -0.00003 | +0.00012 | +0.00010 |
+| `field_vert.paint.y2` (991.7) | **-0.00051** | -0.00024 | +0.00006 | -0.00007 |
+
+against a baseline of 1.87815. The best of the eight sweeps is worth 0.0005 of
+MAE -- an order of magnitude below anything this iteration shipped, and below
+the 0.003 variant that was rejected in D45 for improving an aggregate. Adding
+them to the search space would also widen it after every published number here
+was measured against the current one, for a return inside the noise. Recorded,
+not taken.
+
+The part that is not a preference is the guard. `test_pipeline.py` now pins the
+inventory: the twelve kinds are declared with their reason, and a numeric field
+appearing in a **new** kind fails the check. That is the case `verify_searchable`
+structurally cannot see, so it is caught one level up instead of passing
+silently. Verified not vacuous by adding an unbounded `falloff_exponent` to a
+layer and watching it be named.
+
+The general rule, since this is the fourth bound-or-reachability fault in this
+project: **an audit that cannot see a class of fault should say so in a form
+that fails, not in a docstring.**

@@ -204,6 +204,19 @@ def verify_searchable(params, specs=None):
     reachable and still wrong).  "No unreachable bounds" means the declared
     search space is fully covered, not that every number in the model is
     searched.
+
+    That blind spot was then measured rather than left as a caveat.  470 of the
+    artwork's 609 numeric leaves carry no bound, so flagging unbounded fields
+    flags three quarters of the model and says nothing; what is checkable is the
+    inventory.  Every one of those 470 falls into twelve kinds -- the
+    white/cyan/blue coefficients and the `color` derived from them (fitted
+    photometrically, not searched), four kinds of table measured off the
+    reference, and `paint/x1..y2`, eight canvas gradient extents that really
+    are frozen with no mechanism behind them.  Those eight move MAE by at most
+    0.0005 at +-40 px, which is why they stay frozen; see D55.
+    test_pipeline.py pins the inventory, so a new unbounded field in a NEW kind
+    -- the case this function cannot see -- fails there instead of passing
+    silently here.
     """
     if specs is None:
         specs = layer_specs(params)

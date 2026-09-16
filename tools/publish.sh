@@ -32,8 +32,14 @@ echo "== 3. measure =="
 # not that it is the RIGHT raster.  validate.py writes a Chromium render of the
 # same SVG into the same directory with its own valid sidecar, so without these
 # two the README could publish Chromium's numbers as the acceptance figures.
-python3 tools/compare.py reference.png out/render_1024.png --out-prefix out/diff --json out/metrics.json --require-provenance --expect-size 1024 --expect-renderer resvg
-python3 tools/diagnose.py out/render_1024.png --json out/diagnostics.json --require-provenance --expect-size 1024 --expect-renderer resvg
+# --expect-svg: and all of that authenticates the RASTER.  The recorded
+# svg_sha256 was still only a claim about a file nobody re-read, so a render
+# that is perfectly authentic and four commits stale passed everything above --
+# which is exactly how three of this iteration's verifiers came to measure a
+# model that no longer existed.  This re-hashes reconstruction.svg and requires
+# it to still be the SVG the sidecar names.
+python3 tools/compare.py reference.png out/render_1024.png --out-prefix out/diff --json out/metrics.json --require-provenance --expect-size 1024 --expect-renderer resvg --expect-svg reconstruction.svg
+python3 tools/diagnose.py out/render_1024.png --json out/diagnostics.json --require-provenance --expect-size 1024 --expect-renderer resvg --expect-svg reconstruction.svg
 # The cross-engine check is documented as OPTIONAL, so it must not be able to
 # stop a release -- but it must not be able to hide either, which is why
 # validate.py grew distinct exit codes in the first place.  Both halves are kept:

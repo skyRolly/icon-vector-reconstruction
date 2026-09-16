@@ -170,7 +170,8 @@ def clear_provenance(render_path):
         return False
 
 
-def read_provenance(render_path, require=False, expect_size=None, expect_renderer=None):
+def read_provenance(render_path, require=False, expect_size=None,
+                    expect_renderer=None, expect_svg=None):
     """The SVG digest recorded beside a render, VERIFIED against the raster itself.
 
     The sidecar records two digests and only one of them was ever checked.  A
@@ -197,6 +198,16 @@ def read_provenance(render_path, require=False, expect_size=None, expect_rendere
     out/render_1024_chromium.png in the same directory from the same SVG, and
     copying it over out/render_1024.png with its own sidecar would satisfy every
     digest here while publishing Chromium's numbers as the acceptance figures.
+
+    `expect_svg` closes the last gap, and it was a real one: everything above
+    authenticates the RASTER, and `svg_sha256` stayed a recorded claim about a
+    file nobody re-read.  A render whose SVG has since been rebuilt is exactly
+    as authentic as one whose SVG has not -- that is what "stale" means, and
+    three of this iteration's eight verifiers were caught measuring precisely
+    that.  Pass the SVG the caller believes it is measuring and the recorded
+    digest becomes checkable rather than merely recorded.  It is opt-in because
+    an ad-hoc render of a scratch SVG is legitimate and the file may be gone;
+    for the acceptance render, publish.sh passes it.
     """
     side = provenance_path(render_path)
     if not os.path.exists(side):
@@ -231,6 +242,17 @@ def read_provenance(render_path, require=False, expect_size=None, expect_rendere
     svg = d.get("svg_sha256")
     if not svg:
         raise ProvenanceError("provenance beside %s names no SVG" % render_path)
+    if expect_svg is not None:
+        if not os.path.exists(expect_svg):
+            raise ProvenanceError(
+                "provenance beside %s was to be checked against %s, which does not "
+                "exist" % (render_path, expect_svg))
+        now = sha256_file(expect_svg)
+        if now != svg:
+            raise ProvenanceError(
+                "provenance beside %s records svg_sha256 %s... but %s now hashes to "
+                "%s...: the render is authentic and stale -- it predates the SVG it "
+                "is being measured as" % (render_path, svg[:12], expect_svg, now[:12]))
     return svg
 
 

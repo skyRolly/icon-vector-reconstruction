@@ -161,6 +161,65 @@ def main():
           "%d bounded parameters; unreachable: %s"
           % (sum(len(L.get("bounds", {})) for L in params["layers"]),
              ", ".join("%s/%s" % u for u in unreachable) or "none"))
+    # verify_searchable() audits `bounds` against emitted specs, so a numeric
+    # field that carries no bound is invisible to it: it can stay frozen without
+    # ever being reported.  That gap cannot be closed by flagging every unbounded
+    # number -- 470 of the model's 609 numeric leaves are unbounded on purpose,
+    # so a report of all of them reports nothing.  What CAN be pinned is the
+    # inventory: every unbounded number today belongs to one of twelve kinds,
+    # each searched by a different mechanism or measured rather than fitted.  A
+    # new unbounded field in a NEW kind is the case worth catching, and this
+    # fires on it.  `paint/x1..y2` is the one kind that is neither -- eight
+    # canvas gradient extents, frozen, and measured at +-40 px they are worth at
+    # most 0.0005 of MAE, which is why they are recorded (D55) and not searched.
+    _KNOWN_UNBOUNDED = {
+        "white": "photometric fit", "cyan": "photometric fit",
+        "blue": "photometric fit", "color": "derived from the coefficients",
+        "profile": "tabulated from the reference",
+        "profile_e": "tabulated from the reference",
+        "paint/profile": "tabulated from the reference",
+        "paint/stops": "tabulated from the reference",
+        "paint/x1": "frozen canvas gradient extent (D55)",
+        "paint/x2": "frozen canvas gradient extent (D55)",
+        "paint/y1": "frozen canvas gradient extent (D55)",
+        "paint/y2": "frozen canvas gradient extent (D55)",
+    }
+
+    def _numeric_leaves(node, prefix):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                for q in _numeric_leaves(v, prefix + "/" + k):
+                    yield q
+        elif isinstance(node, list):
+            for j, v in enumerate(node):
+                for q in _numeric_leaves(v, prefix + "/" + str(j)):
+                    yield q
+        elif isinstance(node, (int, float)) and not isinstance(node, bool):
+            yield prefix
+
+    _spec_paths = {sp["path"] for sp in allspecs}
+    _kinds, _n_unbounded, _n_total = {}, 0, 0
+    for _i, _L in enumerate(params["layers"]):
+        for _p in _numeric_leaves(_L, "layers/%d" % _i):
+            if "/bounds/" in _p:
+                continue
+            _n_total += 1
+            if _p in _spec_paths:
+                continue
+            _n_unbounded += 1
+            _f = [x for x in _p.split("layers/%d/" % _i, 1)[-1].split("/")
+                  if not x.isdigit()]
+            _k = "/".join(_f[:2]) if _f[0] == "paint" else _f[0]
+            _kinds[_k] = _kinds.get(_k, 0) + 1
+    _novel = sorted(k for k in _kinds if k not in _KNOWN_UNBOUNDED)
+    check("every number outside the search space is one of the kinds known to be",
+          not _novel,
+          "%d of %d numeric leaves carry no bound, in %d known kinds (%s); "
+          "unaccounted: %s"
+          % (_n_unbounded, _n_total, len(_kinds),
+             ", ".join("%s %d" % (k, _kinds[k]) for k in sorted(_kinds)),
+             ", ".join(_novel) or "none"))
+
     # and the guard is not vacuous: a truncated key list must be caught
     trunc = O.layer_specs(params, keys=("width", "blur", "r"))
     caught, _ = O.verify_searchable(params, trunc + O.taper_specs(params)
@@ -715,6 +774,45 @@ def main():
           "; ".join("%s -> exit %d (want %d)" % (" ".join(a), rc, w)
                     for a, rc, w in _prov_cases))
 
+    # A precondition that runs after the side effects it is meant to prevent is
+    # not a precondition.  Both tools used to measure first and validate after,
+    # so a rejected raster still left `compare`'s three visualisations and
+    # `diagnose`'s three crops on disk -- indistinguishable from the output of a
+    # run that had succeeded, and with a nonzero exit status that nothing
+    # downstream was obliged to look at.
+    import shutil as _sh
+    import tempfile as _tf0
+    _leak = []
+    for _tool, _mk in (("compare.py",
+                        lambda d: [os.path.join(ROOT, "reference.png"),
+                                   os.path.join(d, "r.png"),
+                                   "--out-prefix", os.path.join(d, "diff"),
+                                   "--json", os.path.join(d, "m.json"),
+                                   "--require-provenance"]),
+                       ("diagnose.py",
+                        lambda d: [os.path.join(d, "r.png"),
+                                   "--reference", os.path.join(ROOT, "reference.png"),
+                                   "--crops", d,
+                                   "--json", os.path.join(d, "d.json"),
+                                   "--require-provenance"])):
+        _d = _tf0.mkdtemp()
+        try:
+            _sh.copyfile(os.path.join(ROOT, "out", "render_1024.png"),
+                         os.path.join(_d, "r.png"))
+            _r = _sp2.run([sys.executable, os.path.join(ROOT, "tools", _tool)] + _mk(_d),
+                          capture_output=True, text=True, cwd=ROOT)
+            _left = sorted(f for f in os.listdir(_d) if f != "r.png")
+            if _r.returncode == 0:
+                _leak.append("%s accepted a render with no sidecar" % _tool)
+            elif _left:
+                _leak.append("%s exited %d but left %s"
+                             % (_tool, _r.returncode, ", ".join(_left)))
+        finally:
+            _sh.rmtree(_d, ignore_errors=True)
+    check("a render rejected on provenance leaves no report artefacts behind",
+          not _leak, "; ".join(_leak) if _leak
+          else "compare and diagnose both refuse before writing anything")
+
     check("a bound is not counted reachable because a sibling name shares its prefix",
           [n for _i, n in _pun] == ["blur"],
           "a layer with bounds.blur but only blur_x emitted reports unreachable %s"
@@ -920,13 +1018,32 @@ def main():
             step7 = False
         except _R.ProvenanceError:
             step7 = True
+        # step 8: everything above authenticates the RASTER.  `svg_sha256` was
+        # still a recorded claim about a file nobody re-read, so a render that
+        # is authentic AND stale -- its SVG rebuilt since -- passed every check
+        # here.  That is not hypothetical: three of this iteration's eight
+        # verifiers measured a model four commits old.  `expect_svg` re-hashes
+        # the SVG the caller believes it is measuring.
+        step8 = _R.read_provenance(_png, require=True, expect_svg=_svg) \
+            == _R.sha256_file(_svg)
+        open(_svg, "a").write("<!-- the SVG moves on without the render -->")
+        try:
+            _R.read_provenance(_png, require=True, expect_svg=_svg)
+            step9 = False
+        except _R.ProvenanceError:
+            step9 = True
+        # and the raster alone is still accepted, because staleness is opt-in:
+        # an ad-hoc render of a scratch SVG is legitimate
+        step10 = _R.read_provenance(_png, require=True) is not None
+    _steps = (step1, step2, step3, step4, step5, step6, step7, step8, step9, step10)
     check("a render sidecar cannot authenticate a PNG it does not describe",
-          step1 and step2 and step3 and step4 and step5 and step6 and step7,
+          all(_steps),
           "valid render accepted: %s; replaced PNG rejected: %s; "
           "absent provenance optional: %s; absent provenance required-fails: %s; "
           "authentic-but-wrong-engine accepted without the expectation: %s, "
-          "rejected with it: %s; wrong size rejected: %s"
-          % (step1, step2, step3, step4, step5, step6, step7))
+          "rejected with it: %s; wrong size rejected: %s; "
+          "matching SVG accepted: %s; authentic-but-stale SVG rejected: %s; "
+          "staleness stays opt-in: %s" % _steps)
 
     # ---- the vertical streak's own two numbers actually move the render ---- #
     # Reachability (check 4b) says a spec exists; this says the spec DOES
