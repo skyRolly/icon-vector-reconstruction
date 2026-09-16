@@ -128,13 +128,45 @@ def main():
           "out of range: %s" % bad)
 
     # ---- 4. nested and anisotropic parameters are not silently omitted ---- #
-    fpaths = {s["path"] for s in O.field_specs(params)}
-    radial_canvas = [(i, L) for i, L in enumerate(params["layers"])
-                     if isinstance(L.get("paint"), dict) and L["paint"].get("kind") == "radial"
-                     and L["kind"] in ("canvas", "field_radial", "radial")]
-    missing = [L["id"] for i, L in radial_canvas if "layers/%d/paint/cx" % i not in fpaths]
+    # Against the UNION of the four spec builders, and over EVERY layer that
+    # carries a radial paint.  Both widenings were needed and each hid a real
+    # gap.  Restricting the builder to `field_specs` and the layers to kinds
+    # canvas/field_radial/radial passed while `frame_rim` -- a `frame_ring`
+    # whose paint is positioned rather than concentric -- had a centre that no
+    # builder emitted at all, so it was frozen under every --spec including
+    # `all`.  A check that is narrower than the thing it guards will pass
+    # precisely because the gap is outside it.
+    allspecs = (O.layer_specs(params) + O.taper_specs(params)
+                + O.geometry_specs(params) + O.field_specs(params))
+    apaths = {sp["path"] for sp in allspecs}
+    radial_paints = [(i, L) for i, L in enumerate(params["layers"])
+                     if isinstance(L.get("paint"), dict) and L["paint"].get("kind") == "radial"]
+    missing = [L["id"] for i, L in radial_paints
+               if any("layers/%d/paint/%s" % (i, k) not in apaths
+                      for k in ("cx", "cy") if k in L["paint"])]
     check("radial gradient centres stored under paint/ are optimisable", not missing,
-          "missing: %s" % missing)
+          "%d radial paints, missing: %s" % (len(radial_paints), missing or "none"))
+
+    # ---- 4b. a declared bound must be reachable by some spec --------------- #
+    # The failure this exists for is silent by construction: a parameter gets a
+    # carefully measured `bounds` entry, its name is not in `layer_specs`' key
+    # list, and every subsequent report says the shapes were optimised while it
+    # never moved.  `flare_vline.sigma_x` and `flare_vline.south_gain` -- the
+    # vertical streak's width and its north/south balance -- shipped that way
+    # for a release.  Checking the two names would not have helped; checking
+    # that NO bound is unreachable does.
+    unreachable, invalid = O.verify_searchable(params, allspecs)
+    check("every bound declared in params.json is reachable by some spec",
+          not unreachable,
+          "%d bounded parameters; unreachable: %s"
+          % (sum(len(L.get("bounds", {})) for L in params["layers"]),
+             ", ".join("%s/%s" % u for u in unreachable) or "none"))
+    # and the guard is not vacuous: a truncated key list must be caught
+    trunc = O.layer_specs(params, keys=("width", "blur", "r"))
+    caught, _ = O.verify_searchable(params, trunc + O.taper_specs(params)
+                                    + O.geometry_specs(params) + O.field_specs(params))
+    check("the reachability guard detects a key list that has fallen behind",
+          len(caught) > 5, "a 3-key spec list leaves %d bounds unreachable" % len(caught))
 
     # A list-valued parameter must yield one spec per component, each with its
     # own interval.  The shipped artwork happens to state the streak's
@@ -314,7 +346,11 @@ def main():
                   # record what was tested and rejected, which is not a claim
                   # that they are in the model (docs/DECISIONS.md D22)
                   "arc_glow1c", "flare_sat2", "flare_ray_up", "flare_ray_dn",
-                  "flare_ray_dl", "lobe_field_left", "lobe_field_right"}
+                  "flare_ray_dl", "lobe_field_left", "lobe_field_right",
+                  # removed in this iteration and named in the record OF its
+                  # removal: a flat-topped quadrilateral standing in for the
+                  # broad west lobe, replaced by `flare_arm_w2`
+                  "flare_ray_d"}
     import re as _re
     named, missing = set(), {}
     for doc in ("README.md", os.path.join("docs", "METHOD.md"),
@@ -658,6 +694,76 @@ def main():
           % (bres["banding_worst_dev"], BAND_DEV_MAX,
              bres["banding_interior_pct"], BAND_INTERIOR_MAX,
              bres["banding_ridge_pct"], BAND_RIDGE_MAX))
+
+    # ---- render provenance cannot authenticate a raster it does not describe #
+    # The three-step case the review asks for, run for real rather than
+    # asserted: render a known SVG, replace the PNG underneath its sidecar, and
+    # require that validation FAILS.  Before the fix it passed, because the
+    # sidecar's `svg_sha256` was read without ever hashing the PNG -- so every
+    # downstream report went on attributing its numbers to an SVG that had not
+    # produced the raster being measured.
+    import render as _R
+    import tempfile as _tf
+    with _tf.TemporaryDirectory() as _td:
+        _svg = os.path.join(_td, "a.svg")
+        open(_svg, "w").write(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8">'
+            '<rect width="8" height="8" fill="#123"/></svg>')
+        _png = os.path.join(_td, "a.png")
+        _data = _R.render(_svg, 64, "resvg")
+        open(_png, "wb").write(_data)
+        _R.write_provenance(_png, _svg, _data, 64, "resvg")
+        step1 = _R.read_provenance(_png, require=True) == _R.sha256_file(_svg)
+        # step 2: different bytes, same filename, sidecar untouched
+        open(_png, "wb").write(bytearray(b ^ 0x01 if i == 40 else b
+                                         for i, b in enumerate(_data)))
+        try:
+            _R.read_provenance(_png, require=True)
+            step2 = False
+        except _R.ProvenanceError:
+            step2 = True
+        # step 3: a missing sidecar is an absence when optional and an error
+        # when required -- the two are not the same and must not collapse
+        _R.clear_provenance(_png)
+        step3 = _R.read_provenance(_png, require=False) is None
+        try:
+            _R.read_provenance(_png, require=True)
+            step4 = False
+        except _R.ProvenanceError:
+            step4 = True
+    check("a render sidecar cannot authenticate a PNG it does not describe",
+          step1 and step2 and step3 and step4,
+          "valid render accepted: %s; replaced PNG rejected: %s; "
+          "absent provenance optional: %s; absent provenance required-fails: %s"
+          % (step1, step2, step3, step4))
+
+    # ---- the vertical streak's own two numbers actually move the render ---- #
+    # Reachability (check 4b) says a spec exists; this says the spec DOES
+    # something.  A parameter can be emitted, bounded and searched and still be
+    # inert if the builder ignores it, which would leave the same silence with
+    # more machinery behind it.
+    vl = next((L for L in params["layers"] if L.get("kind") == "vstreak"), None)
+    if vl is not None:
+        import copy as _copy
+        base_img = obj.basis(params, vl["id"])
+        moves = {}
+        for key, delta in (("sigma_x", 1.4), ("south_gain", 0.5)):
+            trial = _copy.deepcopy(params)
+            tl = next(L for L in trial["layers"] if L["id"] == vl["id"])
+            tl[key] = float(tl[key]) + delta
+            moves[key] = float(np.abs(obj.basis(trial, vl["id"]) - base_img).max())
+        check("the vertical streak's width and north/south balance change the render",
+              all(v > 0.004 for v in moves.values()),
+              "max basis delta " + ", ".join("%s %+.1f -> %.4f" % (k, d, moves[k])
+                                             for k, d in (("sigma_x", 1.4),
+                                                          ("south_gain", 0.5))))
+        spaths = {sp["path"] for sp in O.layer_specs(params)}
+        i_vl = [L["id"] for L in params["layers"]].index(vl["id"])
+        check("the vertical streak's width and north/south balance are searched",
+              all("layers/%d/%s" % (i_vl, k) in spaths
+                  for k in ("sigma_x", "south_gain")),
+              "specs present: %s" % sorted(q.rsplit("/", 1)[1] for q in spaths
+                                           if q.startswith("layers/%d/" % i_vl)))
 
     print()
     if FAIL:

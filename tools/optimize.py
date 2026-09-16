@@ -73,8 +73,8 @@ def layer_index(params, lid):
 
 def layer_specs(params, keys=("width", "blur", "inset", "r", "squash", "rot",
                               "half_len", "height", "len", "peak_at", "onset", "cx", "cy",
-                              "sigma_y", "blur_x", "spread", "dx", "dy",
-                              "scale", "inner", "east_gain")):
+                              "sigma_y", "sigma_x", "blur_x", "blur_y", "spread", "dx", "dy",
+                              "scale", "inner", "east_gain", "south_gain")):
     """One spec per tunable shape number on each layer.
 
     Per-layer `bounds` in params.json win over the global defaults.  They are
@@ -82,6 +82,16 @@ def layer_specs(params, keys=("width", "blur", "inset", "r", "squash", "rot",
     swaps a "near" glow and a "wide" glow, or collapses the core stroke into
     the halo, which costs nothing numerically but destroys the artwork's
     editability.
+
+    `keys` is the whole of what can be searched, so a name missing from it is a
+    parameter that silently never moves however carefully its bounds were
+    chosen.  That is not hypothetical: the vertical streak shipped with bounds
+    on `sigma_x` and `south_gain` -- its transverse width and its north/south
+    balance, the two numbers that decide what it looks like -- and neither name
+    was here, so `--spec shapes` and `--spec all` both left them frozen at the
+    values they were first guessed at.  `verify_searchable()` now fails the
+    regression suite if any bounded parameter is unreachable, so the list
+    cannot fall behind the model again.
     """
     out = []
     for i, L in enumerate(params["layers"]):
@@ -147,7 +157,79 @@ def layer_specs(params, keys=("width", "blur", "inset", "r", "squash", "rot",
                 lo, hi = b.get("paint_squash", (0.5, 2.2))
                 out.append({"path": "layers/%d/paint/squash" % i, "lo": lo, "hi": hi,
                             "step": 0.02, "affects": [L["id"]]})
+            # A radial paint's own centre.  These are nested one level deeper
+            # than a layer's `cx`/`cy` and were reached by neither: the loop
+            # above only sees top-level keys and the block here only emitted the
+            # radius, the falloff and the squash.  So `exterior_corner` and
+            # `frame_rim` -- the two layers whose paint is positioned rather
+            # than concentric -- had frozen centres.  Same +-40 px window and
+            # 1.5 px step as a top-level centre, for the same reason: a centre
+            # is not a shape number and a wide search moves it into a different
+            # layer's job.
+            for k in ("cx", "cy"):
+                if k in pt:
+                    v = float(pt[k])
+                    lo, hi = b.get("paint_" + k, (v - 40.0, v + 40.0))
+                    out.append({"path": "layers/%d/paint/%s" % (i, k), "lo": lo, "hi": hi,
+                                "step": 1.5, "affects": [L["id"]]})
     return out
+
+
+def verify_searchable(params, specs=None):
+    """Bounds that no spec can reach, and specs whose interval excludes their value.
+
+    Two failure modes, both silent and both of which have shipped:
+
+    * a parameter carries a carefully measured `bounds` entry in params.json
+      and is simply absent from `layer_specs`' `keys`, so the search never
+      touches it.  `flare_vline.sigma_x` and `flare_vline.south_gain` were in
+      that state for a whole release -- the vertical streak's width and its
+      north/south balance, frozen at their first guess while every report said
+      the shapes had been optimised;
+
+    * a bound is narrowed (or a value is edited) until the interval no longer
+      contains the current value, which makes the first trial of that sweep an
+      unconditional change.
+
+    Returns (unreachable, invalid).  `unreachable` is a list of
+    (layer_id, bound_name); `invalid` is a list of (path, value, lo, hi).
+    A bound name maps to a spec path through BOUND_PATHS, so a new nested
+    parameter has to be declared here as well as emitted -- which is the point:
+    the two lists cannot drift apart without this failing.
+    """
+    if specs is None:
+        specs = layer_specs(params)
+    paths = {sp["path"] for sp in specs}
+    unreachable = []
+    for i, L in enumerate(params["layers"]):
+        for name in L.get("bounds", {}):
+            prefixes = BOUND_PATHS.get(name, ("layers/%d/%s" % (i, name),))
+            if isinstance(prefixes, str):
+                prefixes = (prefixes,)
+            hit = any(q.startswith(pre % i if "%d" in pre else pre)
+                      for pre in prefixes for q in paths)
+            if not hit:
+                unreachable.append((L["id"], name))
+    invalid = []
+    for sp in specs:
+        v = float(get_path(params, sp["path"]))
+        if not (sp["lo"] <= v <= sp["hi"]):
+            invalid.append((sp["path"], v, sp["lo"], sp["hi"]))
+    return unreachable, invalid
+
+
+#: bound name in params.json -> the spec path prefix(es) that would search it.
+#: `%d` is the layer index.  A plain shape number needs no entry; only the
+#: nested ones, whose bound name and path spelling differ, do.
+BOUND_PATHS = {
+    "paint_r": ("layers/%d/paint/r",),
+    "paint_squash": ("layers/%d/paint/squash",),
+    "paint_profile": ("layers/%d/paint/profile",),
+    "paint_cx": ("layers/%d/paint/cx",),
+    "paint_cy": ("layers/%d/paint/cy",),
+    "profile": ("layers/%d/profile", "layers/%d/paint/profile"),
+    "profile_e": ("layers/%d/profile_e",),
+}
 
 
 SHAPE_BOUNDS = {
@@ -161,7 +243,14 @@ SHAPE_BOUNDS = {
     "inner": (0.0, 120.0, 2.0),
     "spread": (1.0, 8.0, 0.2),
     "sigma_y": (0.8, 24.0, 0.15),
+    #: The vertical streak's transverse width -- the same quantity as `sigma_y`
+    #: with the axes exchanged, so it gets the same range and step.
+    "sigma_x": (0.8, 24.0, 0.15),
+    #: The vertical streak's south/north brightness ratio, the counterpart of
+    #: `east_gain` on a horizontal one.
+    "south_gain": (0.05, 2.5, 0.04),
     "blur_x": (0.0, 6.0, 0.2),
+    "blur_y": (0.0, 6.0, 0.2),
     "half_len": (30.0, 500.0, None),
     "height": (2.0, 200.0, None),
     "len": (30.0, 400.0, None),

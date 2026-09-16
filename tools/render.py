@@ -46,17 +46,40 @@ CHROME_FIXED = (
 )
 
 
+#: The four states a caller has to be able to tell apart.  Collapsing the
+#: middle two into "no browser, never mind" is what let a broken cross-engine
+#: check report a successful validation:
+#:
+#:   configured    an environment variable names a usable binary
+#:   discovered    none was named, but one was found -- also usable
+#:   misconfigured an environment variable names something that is NOT usable.
+#:                 This is a BROKEN SETUP, not an absent optional dependency:
+#:                 somebody asked for a specific browser and did not get it, so
+#:                 it must not pass as a skip.
+#:   absent        nothing named and nothing found.  A genuine optional skip.
+#:
+#: Execution failure is a fifth outcome and does not live here, because it is
+#: only knowable after a render is attempted; `validate.py` reports it.
+CHROME_STATES = ("configured", "discovered", "misconfigured", "absent")
+
+
 def find_chromium():
     """The first usable Chromium, or None.  Never raises.
 
-    Returns the path; `chromium_source()` says how it was found, which is what
-    a validation report needs in order to be honest about its own coverage.
+    Returns the path; `chromium_status()` says how it was found and whether
+    "none" means "none configured" or "the configured one is broken", which is
+    what a validation report needs in order to be honest about its own coverage.
     """
     return _chromium()[0]
 
 
 def chromium_source():
     """(path, how) for the Chromium that would be used -- (None, reason) if none."""
+    return _chromium()[:2]
+
+
+def chromium_status():
+    """(path, how, state) -- `state` is one of CHROME_STATES."""
     return _chromium()
 
 
@@ -71,22 +94,27 @@ def _chromium():
         p = os.environ.get(var)
         if p:
             if _ok(p):
-                return p, "$%s" % var
-            return None, "$%s is set to %r, which is not an executable file" % (var, p)
+                return p, "$%s" % var, "configured"
+            why = ("does not exist" if not os.path.exists(p)
+                   else "is a directory" if os.path.isdir(p)
+                   else "is not executable" if not os.access(p, os.X_OK)
+                   else "is not a regular file")
+            return None, "$%s is set to %r, which %s" % (var, p, why), "misconfigured"
     for pat in CHROME_GLOBS:
         hits = sorted(_glob.glob(os.path.expanduser(pat)))
         for p in hits:
             if _ok(p):
-                return p, "glob %s" % pat
+                return p, "glob %s" % pat, "discovered"
     for name in CHROME_NAMES:
         p = _shutil.which(name)
         if _ok(p):
-            return p, "PATH (%s)" % name
+            return p, "PATH (%s)" % name, "discovered"
     for p in CHROME_FIXED:
         if _ok(p):
-            return p, "well-known path"
+            return p, "well-known path", "discovered"
     return None, ("no Chromium found: set one of %s, or install one on PATH as %s"
-                  % (", ".join("$" + v for v in CHROME_ENV), "/".join(CHROME_NAMES[:3])))
+                  % (", ".join("$" + v for v in CHROME_ENV), "/".join(CHROME_NAMES[:3])),
+                  "absent")
 
 
 def sha256_file(path):
@@ -96,6 +124,88 @@ def sha256_file(path):
         for chunk in iter(lambda: fh.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+class ProvenanceError(Exception):
+    """A render cannot be shown to have come from the SVG its sidecar names."""
+
+
+def provenance_path(render_path):
+    return str(render_path) + ".prov.json"
+
+
+def write_provenance(render_path, svg_path, data, size, renderer):
+    """Record which SVG this raster came from, by content, beside the raster.
+
+    `data` is the PNG's own bytes, and its digest goes in too.  That second
+    digest is the whole point: without it the sidecar describes a FILENAME, and
+    a filename can be overwritten by anything.
+    """
+    prov = {"svg_sha256": sha256_file(svg_path), "svg_path": os.path.abspath(svg_path),
+            "size": size, "renderer": renderer,
+            "png_sha256": hashlib.sha256(data).hexdigest()}
+    json.dump(prov, open(provenance_path(render_path), "w"), indent=1, sort_keys=True)
+    return prov
+
+
+def clear_provenance(render_path):
+    """Remove a sidecar, for a writer that replaces a render without describing it.
+
+    Deleting provenance is honest; leaving a stale one is not.  A tool that
+    cannot say where a raster came from must not leave behind a file that says
+    it can.
+    """
+    try:
+        os.remove(provenance_path(render_path))
+        return True
+    except FileNotFoundError:
+        return False
+
+
+def read_provenance(render_path, require=False):
+    """The SVG digest recorded beside a render, VERIFIED against the raster itself.
+
+    The sidecar records two digests and only one of them was ever checked.  A
+    reader that trusts `svg_sha256` alone is trusting a claim about a path: replace
+    out/render_1024.png with different bytes and leave the sidecar untouched, and
+    every downstream report goes on attributing its numbers to the SVG named
+    there.  That is not a corner case -- it is what a stale artefact, a restored
+    backup or a second tool writing the same filename actually looks like.
+
+    So the PNG is hashed and compared with `png_sha256` first.  Only if that
+    matches is `svg_sha256` returned, and it is then a statement about content.
+
+    `require=False` returns None when there is no sidecar at all: provenance is
+    optional for an ad-hoc render.  It is never optional once a sidecar exists --
+    a sidecar that does not describe this file is an error, not an absence,
+    because it is evidence that something has gone wrong rather than evidence
+    that nothing has been recorded.
+    """
+    side = provenance_path(render_path)
+    if not os.path.exists(side):
+        if require:
+            raise ProvenanceError("no provenance beside %s: it cannot be shown to "
+                                  "have come from any particular SVG" % render_path)
+        return None
+    try:
+        d = json.load(open(side))
+    except Exception as exc:                               # noqa: BLE001
+        raise ProvenanceError("provenance beside %s is unreadable: %s" % (render_path, exc))
+    want = d.get("png_sha256")
+    if not want:
+        raise ProvenanceError(
+            "provenance beside %s records no png_sha256, so it describes a filename "
+            "rather than a file" % render_path)
+    got = sha256_file(render_path)
+    if got != want:
+        raise ProvenanceError(
+            "provenance beside %s describes a different raster (sidecar png_sha256 "
+            "%s..., actual %s...): the render was replaced without its sidecar"
+            % (render_path, want[:12], got[:12]))
+    svg = d.get("svg_sha256")
+    if not svg:
+        raise ProvenanceError("provenance beside %s names no SVG" % render_path)
+    return svg
 
 
 def render_resvg_string(svg: str, size: int) -> bytes:
@@ -169,10 +279,7 @@ def main() -> int:
     # README's freshness check used to compare modification times, which a copy
     # or a restore defeats -- a metrics file can be newer than the SVG and still
     # describe a different one.  A digest cannot be wrong about that.
-    prov = {"svg_sha256": sha256_file(a.svg), "svg_path": os.path.abspath(a.svg),
-            "size": a.size, "renderer": a.renderer,
-            "png_sha256": hashlib.sha256(data).hexdigest()}
-    json.dump(prov, open(a.out + ".prov.json", "w"), indent=1, sort_keys=True)
+    write_provenance(a.out, a.svg, data, a.size, a.renderer)
     print("wrote %s (%d bytes, %dx%d, %s)" % (a.out, len(data), a.size, a.size, a.renderer))
     return 0
 

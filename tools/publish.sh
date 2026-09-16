@@ -24,8 +24,12 @@ echo "== 2. render =="
 python3 tools/render.py reconstruction.svg out/render_1024.png
 
 echo "== 3. measure =="
-python3 tools/compare.py reference.png out/render_1024.png --out-prefix out/diff --json out/metrics.json
-python3 tools/diagnose.py out/render_1024.png --json out/diagnostics.json
+# --require-provenance: these two write the JSON the README publishes, so they
+# must be able to PROVE the raster they measured came from the SVG rebuilt in
+# step 1.  Without it a stale out/render_1024.png with an old sidecar beside it
+# is measured and published as if it were the shipped artwork.
+python3 tools/compare.py reference.png out/render_1024.png --out-prefix out/diff --json out/metrics.json --require-provenance
+python3 tools/diagnose.py out/render_1024.png --json out/diagnostics.json --require-provenance
 python3 tools/validate.py
 python3 tools/make_previews.py out/render_1024.png
 

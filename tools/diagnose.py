@@ -616,16 +616,15 @@ def crops(ref, rec, outdir):
 
 
 
-def _provenance(render_path):
-    """The SVG digest recorded beside a render, so a report names its own input."""
-    import json as _json
-    side = str(render_path) + ".prov.json"
-    if os.path.exists(side):
-        try:
-            return _json.load(open(side)).get("svg_sha256")
-        except Exception:                                  # noqa: BLE001
-            return None
-    return None
+def _provenance(render_path, require=False):
+    """The SVG digest recorded beside a render -- see tools/render.py.
+
+    This was a byte-for-byte copy of compare.py's version, and both trusted the
+    sidecar's `svg_sha256` without checking that the sidecar described the PNG
+    actually on disk.  One implementation now, in the module that writes them.
+    """
+    import render as _R
+    return _R.read_provenance(render_path, require=require)
 
 
 def main():
@@ -633,6 +632,8 @@ def main():
     ap.add_argument("render", nargs="?", default=os.path.join(ROOT, "out", "render_1024.png"))
     ap.add_argument("--reference", default=os.path.join(ROOT, "reference.png"))
     ap.add_argument("--json", default=os.path.join(ROOT, "out", "diagnostics.json"))
+    ap.add_argument("--require-provenance", action="store_true",
+                    help="fail unless the render can be shown to come from a known SVG")
     ap.add_argument("--crops", default=os.path.join(ROOT, "out"))
     a = ap.parse_args()
     ref, rec = load(a.reference), load(a.render)
@@ -645,7 +646,7 @@ def main():
     spoke_report(ref, rec, out)
     crops(ref, rec, a.crops)
     if a.json:
-        out = dict(out, source_svg_sha256=_provenance(a.render))
+        out = dict(out, source_svg_sha256=_provenance(a.render, require=a.require_provenance))
         json.dump(out, open(a.json, "w"), indent=1)
         print("wrote %s" % a.json)
 

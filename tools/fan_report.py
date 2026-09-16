@@ -3,7 +3,7 @@
 
     python3 tools/fan_report.py <label> <render.png> [<label> <render.png> ...]
 
-`flare_ray_d` is the largest layer of the flare and it reaches out along the
+The westward fan is the largest part of the flare and it reaches out along the
 left curve, so two quite different errors look alike in any regional average:
 the fan being too BRIGHT, and the fan being too LONG.  They are separated here
 by asking how the excess is distributed along the curve.
@@ -16,9 +16,14 @@ by asking how the excess is distributed along the curve.
          the ALONG-CURVE angle measured from the flare's own position on that
          curve.  Every arc layer is nearly flat in |t| at fixed distance
          (arc_glow3 reads 11.67/11.54/11.03 code values across the three |t|
-         bands, arc_haze 4.79/4.31/3.68), while flare_ray_d falls from 5.0-8.6
-         to 0.0-0.31 across the same bands.  STEP therefore cancels the curve
-         glow and keeps only light anchored to the flare.
+         bands, arc_haze 4.79/4.31/3.68), while the westward fan falls from
+         5.0-8.6 to 0.0-0.31 across the same bands.  STEP therefore cancels the
+         curve glow and keeps only light anchored to the flare.
+
+The fan was carried by `flare_ray_d`, a flat-topped quadrilateral, and is now
+carried by `flare_arm_w2`, a Gaussian-section band; both read the same on these
+two statistics (S 0.11 against -0.30, STEP -0.21 against -0.63, null sd 0.73),
+which is the point of quoting them against a null rather than against zero.
 
 Both are quoted against nulls built from this image rather than from a noise
 model: the block-mean scatter of (render - reference) in the quiet background

@@ -28,6 +28,8 @@ import sys
 import numpy as np
 from PIL import Image
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 
 def load(p, size=None):
     im = Image.open(p).convert("RGB")
@@ -155,16 +157,16 @@ def compare(ref_path, rec_path, out_prefix=None, quiet=False):
 
 
 
-def _provenance(render_path):
-    """The SVG digest recorded beside a render, so a report names its own input."""
-    import json as _json
-    side = str(render_path) + ".prov.json"
-    if os.path.exists(side):
-        try:
-            return _json.load(open(side)).get("svg_sha256")
-        except Exception:                                  # noqa: BLE001
-            return None
-    return None
+def _provenance(render_path, require=False):
+    """The SVG digest recorded beside a render, so a report names its own input.
+
+    Defined in tools/render.py and shared, rather than copied here and into
+    diagnose.py as it was: two copies of a check are two chances for one of them
+    to skip the part that matters, and the part that matters -- hashing the PNG
+    before believing what the sidecar says about it -- was missing from both.
+    """
+    import render as _R
+    return _R.read_provenance(render_path, require=require)
 
 
 def main():
@@ -173,10 +175,15 @@ def main():
     ap.add_argument("render")
     ap.add_argument("--out-prefix", default=None)
     ap.add_argument("--json", default=None)
+    ap.add_argument("--require-provenance", action="store_true",
+                    help="fail unless the render can be shown to come from a known SVG")
     a = ap.parse_args()
     m = compare(a.reference, a.render, a.out_prefix)
     if a.json:
-        m = dict(m, source_svg_sha256=_provenance(a.render))
+        # Written BEFORE the metrics file exists, so a provenance failure cannot
+        # leave a metrics file behind that the README might later publish.
+        digest = _provenance(a.render, require=a.require_provenance)
+        m = dict(m, source_svg_sha256=digest)
         open(a.json, "w").write(json.dumps(m, indent=2, sort_keys=True))
     return 0
 

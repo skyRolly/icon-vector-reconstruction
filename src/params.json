@@ -1239,9 +1239,9 @@
    "id": "flare_flank_dl",
    "kind": "ray",
    "len": 110.0,
-   "note": "the lower-left ray is a sharp spike on a broad fan; this is the fan. theta 210-260, peaking at 225, measured as the angular deficit left when the ray was narrowed to its measured 8.3 px width",
+   "note": "the lower-left broad lobe.  Its axis was -234 and is -240 +- 2: the light the reference wants over a render without this layer runs +4.2/+7.3/+11.5/+15.2/+17.4/+17.1/+14.0/+11.1/+8.3 cv across theta 212-252 at r 40-56 -- a broad lobe peaking at 230-240 with a half-max half-width of about 17 deg -- while at -234 the layer supplied a flatter +7.6/+10.0/+11.6/+12.2/+12.5/+12.6/+12.2/+11.0/+9.1, too much at 210-222 and too little at 228-240.  The gain is small (6% of the angular-modulation RMS, 2% of the west MAE) and the optimum is flat between -238 and -242, so no tighter value than -240 +- 2 is claimed.  Narrowing the widening instead (spread 1.7 -> 1.0) improves the angular RMS but costs both west and whole MAE, so the spread is left alone",
    "peak_at": 0.2,
-   "rot": -234.0,
+   "rot": -240.0,
    "spread": 1.7,
    "white": 0.0
   },
@@ -1390,50 +1390,96 @@
    "dy": -2.5497
   },
   {
-   "blue": 0.02082,
-   "blur": 4.0,
-   "bounds": {
-    "blur": [
-     2.0,
-     14.0
+   "id": "flare_arm_w2",
+   "kind": "streak",
+   "cy": 508.0,
+   "sigma_y": 46.0,
+   "blur_x": 0.0,
+   "half_len": 165.0,
+   "east_gain": 0.0,
+   "white": 0.016576,
+   "cyan": 0.180096,
+   "blue": 0.046592,
+   "color": [
+    4.2269,
+    47.3959,
+    62.0323
+   ],
+   "profile": [
+    [
+     0.0,
+     0.0
     ],
-    "height": [
-     4.0,
-     45.0
+    [
+     0.18,
+     0.02
     ],
-    "len": [
-     60.0,
-     300.0
+    [
+     0.3,
+     0.15
     ],
-    "peak_at": [
-     0.1,
-     0.6
+    [
+     0.42,
+     0.55
     ],
-    "rot": [
-     -189,
-     -161
+    [
+     0.52,
+     1.0
     ],
-    "spread": [
+    [
+     0.62,
+     0.48
+    ],
+    [
+     0.72,
+     0.245
+    ],
+    [
+     0.84,
+     0.12
+    ],
+    [
+     0.94,
+     0.05
+    ],
+    [
      1.0,
-     40.0
+     0.0
+    ]
+   ],
+   "profile_e": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.085,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ]
+   ],
+   "bounds": {
+    "cy": [
+     498.0,
+     520.0
+    ],
+    "sigma_y": [
+     18.0,
+     70.0
+    ],
+    "half_len": [
+     120.0,
+     200.0
+    ],
+    "east_gain": [
+     0.0,
+     0.3
     ]
    },
-   "color": [
-    1.89,
-    21.16,
-    27.71
-   ],
-   "cyan": 0.08042,
-   "height": 30.0,
-   "id": "flare_ray_d",
-   "kind": "ray",
-   "len": 155.0,
-   "note": "the westward fan.  Its LENGTH is measured by re-rendering, not by reading the reference: nine renders at len 130..190 move the west sector mean (r 110-170, theta 148-216) monotonically from -2.42 to +3.50 code values, crossing zero at 154, and move STEP -- the statistic that cancels the curve glow by comparing |t| < 16 deg with 16..26 deg along the left curve, so only light anchored to the flare survives -- across zero at 157. Two independent implementations and two different renders agree on both crossings.  155 sits between them; the 1-sigma interval is 145-163 against a conservative rotational null and 150-159 against a translated one.  The excess it removes grew OUTWARD (0.24 of the layer at r 114-175 rising to 0.70 at r 136-191), which is the signature of a ray too long rather than one too bright, and deleting the layer overshoots to -3.60.  Note that r 48..93 due west cannot be checked against the reference at all -- the left ridge is within 26 px -- so 45 px of this ray's length is unmeasured rather than measured and clean.  See tools/fan_report.py.  `onset` was raised from 0.240 to 0.310 in the same change and that is not a free parameter: onset is a FRACTION of len, so shortening the ray from 190 to 155 would have dragged its inner edge from r 45.6 to r 37.2 and put light where the reference has none.  0.310 x 155 = 48, which is what the reference shows -- 0.00 cv at r 20..45 due west, first nonzero 0.79 at r 50.  With it the horizontal-arm strip and the angular residual are unchanged (3.81 cv) while S and STEP both fall to zero; without it they degrade to 3.88 and the strip gains a code value in every band",
-   "onset": 0.31,
-   "peak_at": 0.45,
-   "rot": -182.2,
-   "spread": 7.7,
-   "white": 0.0074
+   "note": "the broad west lobe.  It replaces flare_ray_d, a ray-kind QUADRILATERAL 30 px tall at the core and 231 px tall at its far end, whose transverse profile was FLAT: rendered on its own it put 48-51 screen units at every dy from -40 to +46 at |dx| 84-104, where the reference wants a peak of 157 at dy -5 falling to 60-88 at the edges.  A flat quad with a 4 px blur has visibly straight edges at that size and that is what reads as a triangle; isolating the layer shows the trapezoid directly.  THE LIGHT IS REAL and was not removed -- deleting the layer outright opens 2-8 cv holes across theta 145-220 at r 96-170 (fan_report S 0.113 -> -3.577, STEP -0.209 -> -2.635 against a null sd of 0.72) -- so this carries the same light with a Gaussian cross-section instead of a straight edge. Measured against a render with every west layer removed, in the screen domain: peak contribution 144 units at |dx| 86, 69 at 102, 35 at 119, 17 at 138, 10 at 159; transverse centre dy -6 +- 9 and sigma 30-54 depending on how far the wings are trusted, of which 46 is what the render sweep prefers.  Confined to |dy| < 90: at dy 90-130 the reference needs 0 +- 1 unit and the quad supplied up to 7.  The far-field amplitude is NOT independently measurable -- the left ridge is within 20 px of the whole annulus r 48-88 due west, so about a quarter of this layer's light sits where reference.png cannot adjudicate it, and the outer profile stops are chosen to hold fan_report's S and STEP at zero rather than fitted"
   },
   {
    "blue": 0.0,
