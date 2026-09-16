@@ -3,7 +3,7 @@
  "flare": {
   "cx": 529.95,
   "cy": 514.33,
-  "note": "the compact source: the centroid of every off-arc pixel above lum 245 (531.3,512.8) and the peak of the isolated flare (532,513) agree here. The long horizontal streak has its own, different measured centre (~511.5) and carries it explicitly."
+  "note": "the compact source.  The layer centre cx,cy is where the flare-anchored stack is positioned; it is NOT the reference's brightest point and the two should not be conflated, which an earlier version of this note did.  Measured on the reference: the compact peak sits 2.4-3.4 px EAST and 0.6-1.1 px NORTH of this cx,cy by the estimators that use R (the unclipped channel) or a sub-pixel translation fit, and 0.7-1.5 px east by the G and B centroids at low threshold -- those two are measuring the broad bloom, whose centroid agrees with this one to within 0.2-0.7 px.  The disagreement between the two is the finding: the PEAK is displaced and the BLOOM is not.  cx,cy is deliberately left where it is, because moving it drags all fifteen flare-anchored layers with it and costs 0.009 MAE and 0.28 in the flare region; correcting the peak alone needs a displaced compact layer, which is not built"
  },
  "frame": {
   "bottom": 991.6551,
@@ -722,7 +722,7 @@
    "cyan": 1.0,
    "id": "flare_halo_far",
    "kind": "radial",
-   "note": "the isolated flare is below 0.01 in additive luminance beyond r ~ 130 px and indistinguishable from zero beyond ~160, so this widest bloom ends there; the broad light between the curves is the central field, not the flare",
+   "note": "the isolated flare is below 0.01 in additive luminance beyond r ~ 130 px and indistinguishable from zero beyond ~160, so this widest bloom ends there; the broad light between the curves is the central field, not the flare.\nMEASURED, NOT ACTED ON -- the flare's mid-radius colour error.  In the annulus r 20-55 the render carries too much of the WHITE primary and too little cyan at nearly constant luminance, which is what makes the surround read as a white wash instead of a cyan bloom and is the measurable part of the standing under-saturation complaint.  Per-channel mean(render - reference), ridge clearance 8, unclipped, at r 20-40 / 40-55:\n    north  dR +12.3/+3.8   dG -4.8/-6.5   dB -6.4/-10.2\n    south  dR  +4.1/+5.1   dG +0.7/-5.5   dB +3.6/-6.9\n    nw     dR  -1.0/+6.4   dG -6.1/-2.3   dB -7.5/-5.6\n    sw     dR  -7.6/+7.9   dG -4.2/-9.4   dB -1.4/-8.4\nagainst a 36-placement matched null at z = +27 for the north cell, where the luminance difference is only +0.4 and sees almost none of it.\nTHE MODEL CANNOT CORRECT IT WITH THE LEVERS IT HAS, and three separate attempts establish that rather than assert it.  (1) Both halo layers are already at maximum amplitude -- white 1.0 and cyan 1.0 -- so the only levers are geometric.  A 9-point sweep of the pair's e-folding (halo 0.14/0.17/0.20 x this layer 0.246/0.32/0.40) leaves the shipped 0.20/0.2464 the MAE optimum: the best chroma cell, 0.14/0.32, improves the colour statistic from 5.73 to 4.99 and costs MAE 1.8886 -> 1.9414.  (2) Adding a NEW mid-radius cyan halo (four geometries, r 48-75) gets the chroma statistic to 5.14 for 0.0035 of MAE and 0.10 of flare-region MAE -- a tenth of the defect for a measurable regression.  (3) The reason both fail is that the error is ANISOTROPIC and every lever here is isotropic: the same annulus that is too white to the north and south is too DIM in red due west (dR -6.9 at r 20-40), so an elliptical halo cannot move white out of one and into the other.  Correcting it needs an angular colour decomposition -- white moved from the isotropic halo into a horizontal carrier, with the cyan raised to hold the luminance -- fitted against per-direction per-radius colour cells.  That is a rebuild of the bloom's colour basis and it is deliberately not attempted as a parameter change",
    "profile": {
     "kind": "exp",
     "scale": 0.2464
@@ -755,13 +755,13 @@
    "cyan": 0.0,
    "id": "flare_halo",
    "kind": "radial",
-   "note": "u = 2.757*exp(-sqrt((dx/22.7)^2+(dy/16.9)^2)) fitted over 63k px of the isolated flare",
+   "note": "u = 2.757*exp(-sqrt((dx/22.7)^2+(dy/16.9)^2)) fitted over 63k px of the isolated flare.  squash was 0.6453 and is 0.58 [0.56, 0.60]: the render's core is too TALL rather than too big.  Measured from each image's own peak, the R half-width to the north and south exceeds the reference's by 1.1-2.9 px at every level from R=200 down to R=140 while the westward half-width matches within +-0.5 px (nine levels, mean -0.13, no trend).  Aspect W/N: reference 1.90 at R=200 and 2.09 at R=160, render 1.49 and 1.60.  The range is honest and not a rounding: the north and south R-excess zero-crossings are at 0.578 and 0.577, whole-image MAE is flat to 0.0016 across 0.56-0.62 and so cannot choose, and a third criterion (the S 20-40 cell) would want 0.522.  At 0.58 the north R excess at r 8-20 falls from +9.25 to +2.05 cv and the south from +5.81 to -0.97.  What this does NOT fix is the r 20-40 excess, which is a colour error and not a shape one -- see the note on flare_halo_far",
    "profile": {
     "kind": "exp",
     "scale": 0.2
    },
    "r": 92.41600000000001,
-   "squash": 0.645292032,
+   "squash": 0.58,
    "white": 1.0
   },
   {
