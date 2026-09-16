@@ -72,8 +72,26 @@ import ray_report as RR  # noqa: E402
 #: degree. The values below are the centre of the supported range, not a claim
 #: of precision.
 RAY_GEOMETRY = {
-    "flare_ray_a": (113.6, 12.3, 12.0, 1.00, 132.0, 0.49),   # upper-left
-    "flare_ray_b": (249.7,  7.9,  8.0, 1.25, 110.0, 0.60),   # lower-left
+    # Upper-left: the reference's ray is NOT parallel to the rendered one.  Over
+    # 39 estimator variants the transverse centre difference fits
+    # Delta = a + b*r with b = -3.7 to -8.9 deg (median -6.5) and a = +1.8 to
+    # +7.6 px (median +5.2); a straight line beat a pure translation in 39 of 39,
+    # median sum-of-squares ratio 0.09.  a and b are strongly anti-correlated, so
+    # the defensible statement is the Delta(r) curve and not either alone.  The
+    # rotation lives here; the +5.22 px offset along the normal is the layer's
+    # own dx/dy, which the builder supports.  len 132 -> 100 and height 12 -> 9
+    # because beyond r 70 the ray carried 1.8-3.0x too much light and reached too
+    # far: the reference is at 0.29 of its peak by r 100 where the model held
+    # 0.67.  peak_at 0.62 keeps the longitudinal peak at r = 62.
+    "flare_ray_a": (107.1, 12.3,  9.0, 1.00, 100.0, 0.62),   # upper-left
+    # Lower-left: too SHORT.  Bias-calibrated peak ratios render/reference run
+    # 1.18/1.07/0.92/0.33 at r 76/88/100/112 -- the reference is still at half its
+    # peak where a len of 110 has gone out.  124 is inside the defensible 118-128;
+    # a trial at 130 overshot the outermost band and moved flare r<110 the wrong
+    # way.  peak_at 0.532 keeps the longitudinal peak near r = 66.  Its angle is
+    # also about +4.5 deg out with a compensating -7 px offset, but that is worth
+    # only 3.5% of the sector error and is recorded rather than applied.
+    "flare_ray_b": (249.7,  7.9,  8.0, 1.25, 124.0, 0.532),  # lower-left
     # Upper-right: axis 44.9 +- 0.4, and it ends at r = 154 (1-sigma 143-166),
     # so len 150. An earlier 215 came from a boxcar high-pass over-reading at the
     # ridge-mask edge by up to 78x; a continuation past r = 150 is bounded at 11%

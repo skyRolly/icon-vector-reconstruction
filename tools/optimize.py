@@ -256,6 +256,15 @@ SHAPE_BOUNDS = {
     "len": (30.0, 400.0, None),
     "peak_at": (0.05, 0.8, 0.03),
     "width": (0.2, 900.0, None),
+    #: `blur` is QUANTISED by the acceptance renderer, and the step below can be
+    #: smaller than the quantum.  Measured on the upper-left ray: every value
+    #: from 3.91 to 4.60 renders BIT-IDENTICALLY and the first change is at 4.75.
+    #: The default step here is max(0.02, 0.12*v), which is 0.54 at v = 4.5 --
+    #: comparable to that plateau -- so a fraction of the blur trials are no-ops
+    #: rather than rejections, and a fitted blur is not meaningful to three
+    #: figures.  This is a property of the renderer, not of the search, so it is
+    #: recorded rather than corrected: widening the step would trade one kind of
+    #: blindness for another.
     "blur": (0.0, 400.0, None),
     "inset": (-40.0, 320.0, 2.0),
     "r": (4.0, 1400.0, None),

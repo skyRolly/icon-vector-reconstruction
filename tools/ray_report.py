@@ -43,16 +43,54 @@ from regions import ARCS, FLARE_CORE  # noqa: E402
 
 CORE = (FLARE_CORE[0] - 0.5, FLARE_CORE[1] - 0.5)
 RIDGE_CLEAR = 30.0
-#: The ray directions the reference is known to carry, as angles in the
-#: convention theta = 0 due east, increasing counter-clockwise (y is down, so
-#: theta = degrees(atan2(-dy, dx))).  Upper-left is 90..180, lower-left
-#: 180..270.  Measured: see docs/DECISIONS.md.
-#: The right-hand pair was first scanned at 32 and 310 degrees.  Both were
-#: wrong: within those windows the reference's peak sits coherently at 45.6 and
-#: 327.8 degrees at every radius that clears the ridge mask, which is what the
-#: `ref angle` row is for.
+#: SAMPLING angles, in the convention theta = 0 due east, increasing
+#: counter-clockwise (y is down, so theta = degrees(atan2(-dy, dx))).
+#:
+#: THESE ARE NOT THE ARTWORK'S RAY AXES, and the two should not be reconciled by
+#: copying one into the other.  `RAY_GEOMETRY` in tools/measure_flare.py holds
+#: the layers' geometric axes -- the direction each quadrilateral is built along,
+#: fitted to the reference's transverse centre as a function of radius.  What is
+#: here is the angle this report SCANS, which only has to put the structure in
+#: the window; and the `ref angle` row reports where a chord-excess PEAK lands
+#: inside that window, which is a third quantity again, and a biased one.
+#:
+#: How biased: at 30 px clearance the cleared angular island around the
+#: upper-left ray reaches only s = +5.8 / +4.2 / +3.0 px at r = 90 / 95 / 100
+#: while extending to -31 / -35 / -38 on the other side, so the chord's positive
+#: endpoint lands ON the ray.  Taking the render's own ray field, rotating it by
+#: 5 degrees (total flux ratio 1.0000) and putting it back moved this report's
+#: peak from 2.64 to 9.11 at r = 90 and from 0.59 to 7.69 at r = 100: a factor of
+#: 3.5 to 13 from POSITION alone, with the light unchanged.  That is the whole of
+#: a long-standing disagreement between this report and an integrated-flux audit
+#: over the upper-left ray's amplitude, and the audit was right.
+#: `ISLAND_MARGIN` below now makes those radii report nothing instead.
+#:
+#: The right-hand pair is scanned at 45.6 and 327.8 where the layers are built at
+#: 44.9 and 328.1, and the upper-left at 113.6 where its layer is now built at
+#: 107.1 with a 5.2 px offset.  None of those is reconciled, on purpose: the
+#: scan window is +-26 px, which is +-20 degrees at r = 75, so every one of them
+#: contains its structure comfortably.  Moving a scan angle onto its layer's axis
+#: is not free either -- pointing this one at 107.1 walks the window into the
+#: left ridge and costs r 50-70, the radii at which this ray is brightest.
 RAYS = (("upper-left", 113.6), ("lower-left", 249.7),
         ("upper-right", 45.6), ("lower-right", 327.8))
+
+#: A chord-excess peak measures BRIGHTNESS only if the chord's endpoints sit off
+#: the structure.  This is the clearance, in px at the scan radius, that the
+#: island must reach on BOTH sides for that to hold.  The rays here are 8-14 px
+#: across, so a half-width is 4-7 px and 8 is that plus a little.
+#:
+#: What it costs, measured (min of the two island reaches, in px, per radius
+#: r = 50..100 in steps of 5):
+#:   upper-left    7.0  9.5 12.0 13.5 12.0 10.0  8.5  7.0  5.5  4.0  3.0
+#:   lower-left    3.5  6.0  8.0 10.5 13.0 14.0 12.5 11.0 10.0  9.0  8.0
+#:   upper-right    --   --   --   --  2.0  6.0  9.5 13.0 16.5 19.5 23.0
+#:   lower-right    --  2.0  8.0 14.0 19.0 24.0 26.0 26.0 26.0 26.0 26.0
+#: so the upper-left loses r >= 85 and r = 50, the lower-left r <= 55, the
+#: upper-right r <= 75 and the lower-right r = 55.  Every one of those is a cell
+#: where one chord endpoint sits on the ray; the columns that remain are the
+#: ones where this statistic means what it says.
+ISLAND_MARGIN = 8.0
 RADII = (50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100)
 
 
@@ -126,6 +164,14 @@ def ray_profile(lum, dmin, theta_deg, radii=RADII, half_window=26.0, step=0.5):
         if hi - lo < 10:
             out.append(None); continue
         seg_t, seg_v = ths[lo:hi + 1], vals[lo:hi + 1]
+        # Does the island reach far enough on BOTH sides for the chord's
+        # endpoints to be off the structure?  Where it does not, the "peak" is a
+        # statement about where the ray sits relative to the mask edge and not
+        # about how bright it is -- see the comment on RAYS.  Report nothing.
+        s_lo = math.radians(theta_deg - float(seg_t[0])) * r
+        s_hi = math.radians(float(seg_t[-1]) - theta_deg) * r
+        if min(s_lo, s_hi) < ISLAND_MARGIN:
+            out.append(None); continue
         chord = np.linspace(seg_v[0], seg_v[-1], seg_v.size)
         ex = seg_v - chord
         k = int(np.argmax(ex))

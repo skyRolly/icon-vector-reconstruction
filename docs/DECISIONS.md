@@ -2673,3 +2673,96 @@ calibration that exhausts its round budget returns nonzero and reports NOT
 converged; isolation rejects orderings its algebra cannot express; the
 profile-weight cache is keyed on the target rather than on its luminance sum;
 and geometry trials are re-baselined with equal colour freedom.
+
+## D51. The left rays: an instrument conflict resolved, and two rays that are
+## not parallel to their own model
+
+D43 left an unresolved disagreement: `tools/ray_report.py` at 30 px clearance and
+an integrated-flux audit at 16 px disagreed about the SIGN of the upper-left
+ray's amplitude error at r 90-100. It is resolved, and the resolution is a
+property of the instrument rather than of the artwork.
+
+**A chord-excess peak measures brightness only if the chord's endpoints are off
+the structure.** At 30 px clearance the cleared angular island around the
+upper-left ray reaches only s = +5.8 / +4.2 / +3.0 px at r = 90 / 95 / 100 while
+extending to -31 / -35 / -38 on the other side, so the chord's positive endpoint
+lands ON the ray. The decisive test used no reference data at all: take the
+render's own ray field (render minus a render with the layer deleted), rotate it
+by 5 degrees about the flare centre -- total flux ratio 1.0000, peak 18.13
+against 18.33 -- and put it back on the same background. The report's peak moves
+from 2.64 to 9.11 at r = 90 and from 0.59 to 7.69 at r = 100. **A factor of 3.5
+to 13 from position alone, with the light unchanged.** The audit was right.
+
+`ISLAND_MARGIN` now makes such a radius report nothing. With the biased cells
+gone the two images agree where they used to differ: reference mean peak 10.14
+cv against the render's 9.34, where the unguarded report read 8.08 against 6.83.
+
+This also answers section 19's question about `RAY_GEOMETRY` and
+`ray_report.RAYS` carrying different angles. They are different quantities and
+should not be reconciled by copying one into the other: `RAY_GEOMETRY` holds the
+layers' geometric axes, `RAYS` holds SCAN angles that only have to put the
+structure inside a +-26 px window, and the `ref angle` row reports where a
+(biased) peak lands inside that window -- a third thing again. Pointing the
+upper-left scan at its layer's new axis was tried and rejected: it walks the
+window into the left ridge and costs r 50-70, the radii at which that ray is
+brightest.
+
+**Neither left ray is parallel to its rendered counterpart.** For the upper-left
+ray, the transverse centre difference fits Delta = a + b*r with b = -3.7 to -8.9
+degrees (median -6.5) and a = +1.8 to +7.6 px (median +5.2) over 39 estimator
+variants; a straight line beat a pure translation in 39 of 39, median
+sum-of-squares ratio 0.09. Delta is -0.2 px at r 45, -3.7 at r 75 and -7.1 at
+r 105, against a render whose own ridge is flat to 0.17 degrees, so the
+background's curvature cancels. Three independent cross-checks agree, including
+a Cartesian row scan that uses no polar sampling anywhere.
+
+Neither a rotation nor a translation alone describes it, and `a` and `b` are
+strongly anti-correlated -- the defensible statement is the Delta(r) curve, not
+either number. Shipped as rot -113.6 -> -107.1 plus dx/dy for the +5.22 px
+normal offset. Its `rot` bounds were [-119.6, -107.6], which EXCLUDED the
+measured value; they are now derived from the new axis.
+
+Together with len 132 -> 100, height 12 -> 9 and peak_at 0.62 (the ray carried
+1.8-3.0x too much light beyond r 70 and reached too far -- the reference is at
+0.29 of its peak by r 100 where the model held 0.67):
+
+    MAE 1.8861 -> 1.8822    centre-region MAE 8.015 -> 7.944
+    upper-left sector MAE 4.375 -> 3.325   (geometry alone gets it to 3.688)
+    upper-left ray, as a fraction of the reference's: 1.69 -> 1.02
+
+The lower-left ray is too SHORT and len goes 110 -> 124: bias-calibrated peak
+ratios render/reference run 1.18 / 1.07 / 0.92 / 0.33 at r 76 / 88 / 100 / 112,
+so the reference is still at half its peak where a len of 110 has gone out.
+Beyond r 118 the reference is not detected at all, so the length is bounded above
+by absence rather than by a fit.
+
+**Recorded and not applied**, three times over. The lower-left ray's axis is also
+about +4.5 degrees out with a compensating -7 px offset, but the whole correction
+is worth 3.5% of its sector error and two contaminations inflate the apparent
+drift -- `flare_flank_dl` sits on its clockwise side and reads 2.6-3.1 cv there
+against a reference ray amplitude of 5.6-9.6, so a third of what the instrument
+calls "the ray" inside r 70 is the flank. It does carry a genuine clockwise
+shoulder (positive in all six radius bands, about 3.6 sigma combined), which is
+NOT fitted: an earlier pass established that a narrow-plus-broad decomposition's
+improvement on this image is inside what an injected single Gaussian already
+yields on the noise. And the upper-left ray has no measurable asymmetry at all --
+the third independent refutation of that claim.
+
+**A precision limit that bounds every width number in this project.** The
+acceptance renderer QUANTISES `blur`. On the upper-left ray, every value from
+3.91 to 4.60 renders BIT-IDENTICALLY and the first change is at 4.75 (2 cv over
+1176 px). The value this iteration ships, 4.5309, and the value it replaced,
+3.9088, are the same artwork. So no width claim for this ray finer than about
++-0.4 px of blur is verifiable, and the optimiser's own blur step at this value
+(0.12 x 4.5 = 0.54) is comparable to the plateau -- a fraction of its blur trials
+are no-ops rather than rejections. This is a property of the renderer, not of the
+search, and is recorded rather than worked around.
+
+**One process finding, from the agent that measured this.** The baseline render
+it was given was two commits stale: `scratchpad/base/render_1024.png` recorded
+the SVG of an earlier commit, so the shared context quoted MAE 1.8978 where the
+tree measured 1.8886. It found this by checking the provenance sidecar's digest
+against the SVG -- the same mechanism this iteration repaired -- and quantified
+the damage rather than ignoring it: upper-left centres unchanged to 0.05 px,
+lower-left centres shifted 0.5-0.8 px, about a quarter of that ray's measured
+drift. Its own numbers came from renders it built from the tree, so they stand.

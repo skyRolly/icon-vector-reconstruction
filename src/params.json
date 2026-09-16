@@ -1240,7 +1240,7 @@
   },
   {
    "blue": 0.014377,
-   "blur": 3.9088,
+   "blur": 4.5309,
    "bounds": {
     "blur": [
      0.6,
@@ -1251,20 +1251,28 @@
      40.0
     ],
     "len": [
-     87.0,
-     192.0
+     60.0,
+     160.0
     ],
     "peak_at": [
      0.2,
      0.75
     ],
     "rot": [
-     -119.6,
-     -107.6
+     -113.1,
+     -101.1
     ],
     "spread": [
      1.0,
      3.0
+    ],
+    "dx": [
+     -10.0,
+     10.0
+    ],
+    "dy": [
+     -10.0,
+     10.0
     ]
    },
    "color": [
@@ -1273,14 +1281,17 @@
     48.90228
    ],
    "cyan": 0.177391,
-   "height": 12.0,
+   "height": 9.0,
    "id": "flare_ray_a",
    "kind": "ray",
-   "len": 132.0,
-   "peak_at": 0.49,
-   "rot": -113.6,
+   "len": 100.0,
+   "peak_at": 0.62,
+   "rot": -107.1,
    "spread": 1.0,
-   "white": 0.0
+   "white": 0.0,
+   "dx": -4.783,
+   "dy": 2.09,
+   "note": "the upper-left ray.  Its axis is -107.1 and not -113.6, with a +5.22 px offset along the normal carried by dx/dy: the reference's ray is NOT PARALLEL to the rendered one, and neither a rotation nor a translation alone describes it.  Over 39 estimator variants (band set x clearance x wing window x polynomial degree x centre definition) the transverse centre difference fits Delta = a + b*r with b = -3.7 to -8.9 deg (median -6.5) and a = +1.8 to +7.6 px (median +5.2); a straight line beat a pure translation in 39 of 39, median sum-of-squares ratio 0.09.  Delta itself is tight: -0.2 px at r 45, -3.7 at r 75, -7.1 at r 105, against a render whose own ridge is flat to 0.17 deg, so the background's curvature cancels.  a and b are strongly anti-correlated: the defensible statement is the Delta(r) curve, not either alone.\nlen 132 -> 100, height 12 -> 9 and peak_at 0.62 (longitudinal peak at r 62) because beyond r 70 the ray carried 1.8-3.0x too much light and reached too far: bias-calibrated peak ratios render/reference 1.03/1.27/1.82/2.15/3.00 at r 52/64/76/88/100, and the reference's normalised profile is 0.91/1.00/0.72/0.50/0.29 where the model's was 0.71/0.97/1.00/0.83/0.67.  Geometry and photometry are separable and were applied together: geometry alone takes the upper-left sector MAE from 4.375 to 3.688, the pair to 3.325, and whole-image MAE from 1.8861 to 1.8822.\nTWO THINGS THIS RAY IS NOT.  It has no measurable transverse asymmetry -- clockwise minus counter-clockwise half-width runs -0.7 to +1.3 sigma against a null built by injecting a SYMMETRIC Gaussian of the reference's own amplitude and width into a no-ray background, with no consistent sign, which is the third independent refutation of the shoulder claim.  And it does not need anisotropic blur: an SVG filter's axes are canvas axes, so for a diagonal ray that cannot express along-ray softening at all, and the reference's transverse sigma is a flat 5.2-5.5 px over r 46-82 anyway.\nBLUR IS QUANTISED HERE AND THE VALUE IS NOT MEANINGFUL TO THREE FIGURES.  In the acceptance renderer this layer's blur renders BIT-IDENTICALLY from 3.91 to 4.60 and changes first at 4.75 (max 2 cv over 1176 px).  The shipped 4.5309 and the previous 3.9088 are the same artwork.  So no width claim for this ray finer than about +-0.4 px of blur is verifiable, and the optimiser's own blur step at this value (0.12 x 4.5 = 0.54) is comparable to the plateau, which means a good fraction of its blur trials are no-ops rather than rejections"
   },
   {
    "blue": 0.083187,
@@ -1385,8 +1396,8 @@
      40.0
     ],
     "len": [
-     65.0,
-     170.0
+     79.0,
+     184.0
     ],
     "peak_at": [
      0.2,
@@ -1410,11 +1421,12 @@
    "height": 8.0,
    "id": "flare_ray_b",
    "kind": "ray",
-   "len": 110.0,
-   "peak_at": 0.6,
+   "len": 124.0,
+   "peak_at": 0.532,
    "rot": -249.7,
    "spread": 1.25,
-   "white": 0.0
+   "white": 0.0,
+   "note": "the lower-left ray.  len 110 -> 124 because it is too SHORT: bias-calibrated peak ratios render/reference are 1.18/1.07/0.92/0.33 at r 76/88/100/112, i.e. the reference is still at half its peak (4.43 cv) where a len of 110 has gone out (1.47).  124 is inside the defensible 118-128; a trial at 130 overshot the outermost band and moved the flare r<110 MAE the wrong way.  Beyond r 118 the reference is not detected at all (1.0 sigma above a matched no-ray-plus-noise null at r 110-118, -0.5 to +0.3 sigma at 118-142), so the length is bounded above by absence and not by a fit.\nRECORDED AND NOT APPLIED, twice.  Its axis is also about +4.5 deg out with a compensating -7 px offset -- a line beat a constant in 45 of 45 estimator variants -- but the whole correction is worth 3.5% of the sector error, and two contaminations inflate the apparent drift: flare_flank_dl sits on the clockwise side and its no-ray null reads 2.6-3.1 cv inside r 70 against a reference amplitude of 5.6-9.6, so a third of what the instrument calls 'the ray' there is the flank.  Amplitude ratios inside r 70 (1.34 at r 52) should not be acted on for the same reason.\nIt DOES carry a genuine clockwise shoulder: clockwise minus counter-clockwise half-width is +2.01/+2.23/+0.55/+1.21/+4.16/+5.71 px at r 52..112 against symmetric-injection nulls, positive in all six bands, about 3.6 sigma combined over the inner five.  It is NOT fitted: an earlier pass established that a narrow-plus-broad decomposition's improvement on this image is inside what an injected single Gaussian already yields on the noise.  If it is ever acted on the honest route is to re-aim and re-narrow flare_flank_dl against this statistic, not to make this layer asymmetric"
   },
   {
    "blue": 0.009833,
