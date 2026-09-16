@@ -2951,3 +2951,260 @@ correlation by 1.5x to 10x, so a sigma computed with it there is overstated by
 1.1x to 3.3x. Use the matched-null cell scatter directly and skip the noise model.
 Inside r 60 no amount of averaging buys sensitivity; the floor there is
 systematic, about 6-13 cv in R and 3-6 cv in B.
+
+## D54. What eight adversarial refutations changed, and the one defect the
+## colour basis provably cannot express
+
+Eight independent verifiers were asked to REFUTE the claims this iteration
+shipped, each required to differ from the original method in baseline, statistic,
+background model and channel treatment. Every one of them landed on artwork that
+had already shipped, so this is an audit of the release rather than of a
+proposal. Four parameters changed: one reverted because the argument that moved
+it was an artefact, two shapes replaced because a fitted law was standing in for
+a measurement, and one width refitted from a bound that had made its own minimum
+unreachable. Two published precisions were widened. And one finding turned out to
+be the largest single residual in the image and to be outside what the model can
+say.
+
+**The verifiers' own errors are recorded too.** Three of the eight measured
+against `scratchpad/base/render_1024.png`, whose sidecar names an SVG four or
+five commits old (MAE 1.8978 against the shipped 1.8806); their arithmetic was
+sound and their conclusions were about a model that no longer exists. That is
+what the render sidecar added in D50 is for, and it worked -- the staleness was
+detected by reading the provenance, not by noticing that the numbers felt wrong.
+
+### The core is not too tall, and it IS displaced -- but not where the claim put it
+
+`flare_halo`'s squash went 0.6453 -> 0.62 on the argument that "the render's core
+is too TALL", measured as an R half-width excess of 1.1-2.9 px north and south
+*from each image's own peak* against a westward match. That argument does not
+survive. Displacing the shipped render against ITSELF by (3.02 east, 0.70 north)
+reproduces 71% of the claimed aspect contrast with zero model error; once the two
+are registered, the remaining anisotropy is +1.4 to +1.9 cv at z 1.3-1.8. An
+aspect measured from each image's own peak is not an aspect measurement when the
+peaks are 3 px apart.
+
+So squash goes back to 0.6453, the value two earlier iterations of fitting
+produced. That is a REVERT on provenance, not a re-optimisation, and the evidence
+for it is weaker than the evidence against 0.62's stated reason -- which is worth
+saying plainly. Re-measured on the corrected model (spike profile fixed, halo
+re-centred) with nothing varying but squash, 0.58 / 0.62 / 0.6453 give:
+
+| statistic | 0.58 | 0.62 | 0.6453 |
+| --- | --- | --- | --- |
+| whole-image MAE | 1.87888 | 1.87817 | 1.87815 |
+| flare r<110 MAE | 6.4775 | 6.4578 | 6.4574 |
+| r<40 MAE | 9.847 | 9.656 | 9.610 |
+| west angular residual RMS, 55 ridge-masked bins | 7.110 | 6.235 | 5.734 |
+| r 20-40 red deficit, N / S, ridge-masked | -7.4 / -10.7 | -5.6 / -8.9 | -4.5 / -7.8 |
+| white-radius ratio (1.0 = reference) | 0.872 | 0.872 | 0.897 |
+| r 6-20 luminance excess, ridge-masked | +3.53 | +4.37 | +4.88 |
+| core-box MAE, x 516-548 / y 500-530 | 5.963 | 6.121 | 6.328 |
+
+Six prefer 0.6453, two prefer 0.58, and **0.62 is best at none of them** -- but
+the first two rows are a tie to four decimal places, and on the twelve structural
+ratios the split runs the other way, 0.62 closer to the reference on six and
+0.6453 on three. Nothing here decides the value. What decides it is that 0.62 was
+adopted on a measurement that turned out to be an artefact and no measurement has
+since preferred it; a parameter moved for a reason that failed goes back. The
+cost is recorded: `the bloom has not gone white` reads 0.930 of the reference at
+0.6453 against 0.941 at 0.62, moving back towards that check's 0.90 floor --
+though not past where iteration 5 sat, which was 0.925.
+
+The two statistics that still want a SMALLER squash are both core brightness
+rather than core shape, and their proper lever is `flare_halo`'s amplitude. That
+lever was swept and left alone: scaling its white to 0.92 and 0.85 halves the
+r 6-20 excess and costs whole-image MAE (+0.0009, +0.0026), the west angular RMS
+(4.11 -> 4.51 -> 5.00 in that sweep's units) and the core r<30 MAE (9.277 ->
+9.356 -> 9.723) at the same time -- the anisotropy wall again, one isotropic
+layer serving two requirements that want opposite changes.
+
+The displacement is real, and this is where the iteration's methodology earned
+its keep. The claim was that `flare.cx` should move +2.9 to +3.0 px east and
+-0.75 to -0.9 px north, and that "flare.cx maps onto the peak exactly 1:1".
+Applied to `flare.cx` that is simply wrong: it drags all fifteen flare-anchored
+layers -- the horizontal streaks, the vertical line, the four rays -- off
+structures they are registered to, and costs 0.0131 of whole-image MAE (1.8806 ->
+1.8937 on the model as it then stood) and 0.37 of flare r<110 (6.52 -> 6.90),
+while moving the high-pass centroid only 0.5 px for a 3 px anchor move. The direction and the magnitude were
+right and the VEHICLE was wrong. A ridge-masked sub-pixel translation fit says so
+directly: it wants +3.00 east / -0.75 north at r < 10 in R, +2.00 / -0.50 at
+r < 20, and +0.00 / -0.25 by r < 30. The compact peak is displaced; the bloom
+around it is not.
+
+So the correction went on `flare_halo`'s own `cx, cy` -- the layer that actually
+makes the compact core, as ablation along the core row confirms (it supplies
+86-105 cv there; `flare_halo_far`, `flare_spike`, `flare_vline` and
+`flare_wash_far` supply zero). At +3.00 east / -0.75 north nothing gets worse:
+
+| statistic | before | after |
+| --- | --- | --- |
+| whole-image MAE | 1.87836 | 1.87815 |
+| flare r<110 MAE | 6.4632 | 6.4574 |
+| core-box MAE, x 516-548 / y 500-530 | 8.087 | 6.328 |
+| r<40 MAE | 9.856 | 9.610 |
+| luminance excess at r 6-20, ridge-masked | +8.28 cv | +4.88 cv |
+| east-west asymmetry, \|dx\| 2-7 (reference +14.50) | -16.13 | +6.68 |
+| north-south asymmetry, \|dy\| 2-7 (reference -2.56) | +6.73 | -3.10 |
+
+(measured at the shipped squash with nothing else varying.) The r 6-20 row is
+the one to note: more than half of the "isotropic core over-brightness" that
+survived the aspect refutation was itself the registration error.
+
+The last two rows are the measurement that decided it, because they need no
+registration at all: the same fixed x and y in both images, so there is no
+per-image peak to get wrong. +3.00 is the largest correction that degrades nothing,
+not the best fit. MAE and the flare annulus are slightly better at +1.50 and
++2.25 (1.87796 against 1.87815), the asymmetry alone wants about +4.2 px, and
++3.75 and +4.50 keep improving the core box (6.087, 6.006) and the east-west
+match (+12.06, +16.61) while whole MAE turns (1.87849, 1.87906) -- the first of
+those already worse than no shift at all. The cost that IS paid is in one
+estimator family: `visual_regression`'s right-ray excesses read 0.540 -> 0.488
+and 0.659 -> 0.623 of the reference, because the statistic subtracts the quieter
+flank and the shift raises the background east. No ray parameter changed and the
+rays' own axial light is unchanged to 0.04 cv, so this is the instrument moving,
+not the artwork -- but it is a real reading and it is recorded rather than
+explained away.
+
+### A razor-thin line where the reference has none
+
+`flare_spike` -- line B, the narrowest of the horizontal family -- carried an
+`exp(-t/0.216)` longitudinal law, which peaks at the origin by construction. It
+therefore put screen-domain `A*k = 0.39` on its row *at the core*, where the
+reference puts 0.00-0.06. Over rows 519-520, x 517-538, the reference's R
+declines monotonically 187.3 / 182.5 / 171.0 / 162.2 at y 518/519/520/521 with no
+bump at all; the render rose to 213.2 and 208.6. That is a 31-38 cv bright bar
+drawn straight across the core, and it is the kind of thing the instrument built
+in D44 exists to show: whole-image MAE cannot see 220 pixels.
+
+At |dx| 30-80 the same line matched the reference to 1-5 cv, so the amplitude was
+right and only the shape was wrong. Measured as the screen-domain bump above the
+linear trend through y 517 and y 522, the reference's own profile is
+non-monotone on both sides and not the same on the two sides: west 0.055 / 0.168
+/ 0.184 / 0.104 / 0.050 / 0.019 / 0.015 / 0.014 / 0.007 and east 0.020 / 0.000 /
+0.092 / 0.115 / 0.113 / 0.067 / 0.032 / 0.019 / 0.002 at |dx| 3-12 / 12-20 /
+20-28 / 28-38 / 38-50 / 50-65 / 65-85 / 85-110 / 110-140, peaking near |dx| 24
+west and 35 east. Those two tables, divided by the 0.48 that converts profile to
+delivered `A*k` in this stack, are now the layer's `profile` and `profile_e`.
+Deleting the line instead is worse than either shape (row-band MAE 10.03 against
+7.78 measured and 7.84 for the exp law), which is the control that says the line
+is real and only its near-field was wrong.
+
+### A width taken from a range instead of a fit
+
+`flare_wash_far` -- the broad cyan pedestal under the horizontal line, added this
+iteration -- shipped with `sigma_y` 14.0, taken from an estimate quoted as
+"10-18 px depending on how the floor is set". A range is not a fit. Fitted over
+the layer's own footprint (|dy| <= 30, 60 <= |dx| <= 300, both sides, ridges
+masked at 22 px), sigma_y 8 / 9 / 10 / 11 / 12 / 14 gives footprint MAE 1.848 /
+1.853 / 1.864 / 1.880 / 1.903 / 1.944, whole-image MAE 1.87779 / 1.87792 /
+1.87817 / 1.87859 / 1.87920 / 1.88051 (that sweep ran before squash was reverted,
+which shifts every one of those by about +0.00002 and reorders none of them), and
+a skirt ratio (`visual_regression`'s own statistic, 1.0 = the reference) of 0.877
+/ 0.930 / 0.974 / 1.008 / 1.035 / 1.087. 10.0 beats 14.0 on all three, including the skirt, which at 14 was
+overshooting by 8.7% rather than falling short -- so the two instruments were not
+in conflict at all, and the appearance that they were came from reading a ratio's
+distance from 1.0 in only one direction.
+
+The bound was the more serious fault: `sigma_y` was bounded [8.0, 24.0] with the
+layer shipping at 14.0, so the search could not have reached the minimum. This is
+the same class of bug as `flare_spike`'s `sigma_y` bound of 1.3 against a
+measured 2.1-2.7 px FWHM, and the third time a bound has hidden a value this
+project wanted. The bound is now [4.0, 20.0].
+
+### Honest precision, twice
+
+`flare_flank_dl`'s axis was published as "-240 +- 2". Three estimators that do
+not share `wedge_report`'s binning put it at -239.6 (downsampled west-lobe MAE,
+95% [-236.2, -244.2]), at a median -238.8 over 36 screen-domain
+amplitude-marginalised template fits spanning -236.4 to -246.0, and at -243 +- 3
+by whole-image MAE. The honest bracket is -240 +- 4, and the gain over the
+previous -234 is 0.29 +- 0.18 cv of west-lobe MAE, which is 1.6 sigma. The
+direction survives; the precision did not, and the note now says so. That the
+layer belongs at all is the solid part: deleting it opens a +12.2 cv mean-RGB /
++22.9 cv blue hole at 4.0-7.4 sigma against a matched azimuthal null, flat to 4%
+across all eight 8-px JPEG phases.
+
+The same correction applies to the claim that the reference's horizontal line
+sits on a pedestal the render "largely lacks out to |dx| 260". Re-measured
+against the SHIPPED model rather than the stale one, the pedestal is carried:
+the on-line minus off-line deficit in G now runs +1.0 / +1.0 / +3.0 / +3.0 / +1.0
+cv at r 45-170 east and reverses beyond r 195, where the render is 1-2 cv
+brighter on the line than off it. What is left is not an amplitude error at all.
+It is a north-south asymmetry: over |dx| 60-110 west, above the |dy| 34-46 floor,
+the reference carries 8.95 / 12.05 / 13.47 cv at dy -28 / -22 / -16 against 0.89
+/ 5.39 / 9.65 at +28 / +22 / +16. A streak is symmetric in dy by construction; it
+has `east_gain` and no `north_gain`. That is a named gap, not a tuning target.
+
+### The defect the basis cannot express
+
+West of the LEFT arc ridge, over roughly x 430-463 and y 460-560, the render is
+up to 63 cv too dark in RED while green and blue match to within 10. Averaged
+over x 443-461, y 479-533 the reference reads R 90.92 / G 172.47 / B 183.25 and
+the render R 48.40 / G 171.12 / B 182.39: a 42.5 cv red-only deficit over about
+1650 px, which is roughly 0.02 of whole-image MAE -- an order of magnitude more
+than everything else changed this iteration put together. It is not the arc: at
+the same ridge distance on the RIGHT arc the red residual runs -3 to +7 cv at
+every station from y 340 to 700, and along the left arc itself it is zero outside
+y 460-560. It is a flare-anchored lobe of warm light sitting outside the left
+ridge at the core row.
+
+Section 34 asks whether the current model is capable of representing the
+requested structure. Here the answer is provably no, and the proof is short.
+In the screen domain the cell needs its `u` multiplied by (0.794, 0.982, 0.983),
+i.e. an addition of `A*k = (+0.206, +0.018, +0.017)` -- a colour whose G/R ratio
+is 0.087. The reddest primitive the fitted cone has is pure white, G/R = 1.0
+(D5): white is the only red-carrying primary and it carries at least as much
+green. So the red cannot be supplied without also supplying about 17 cv of green
+and blue the reference does not want.
+
+The obvious escape -- remove cyan at the same station and add white -- was
+followed to the end, and every version of it fails for the same reason: each
+mechanism that can put light here also puts light where the render is already
+right.
+
+  * Ablation gives the cell's suppliers as `arc_glow1` (+25.8 R, +21.4 G),
+    `arc_glow3` (0.0 R, +17.5 G), `arc_glow2` (0.0 R, +16.0 G), `flare_arm_w2`
+    (+2.6, +13.5), `flare_halo_far` (0.0, +6.8), `field_mid` (0.0, +5.4).
+  * Boosting `arc_glow1` to supply the red needs a factor 2.65, and its own
+    cyan then overshoots green even with BOTH pure-cyan glows deleted: the
+    green equation requires a factor 1.178 where the maximum achievable is 1.0.
+  * Re-colouring `flare_arm_w2`, the one west-only layer that reaches the cell,
+    requires a negative cyan coefficient (c' = -0.087) by the same algebra, and
+    measured directly it costs 0.025 of whole-image MAE for 26 cv of the cell.
+  * Deleting `arc_glow3` locally is the right SIZE of cyan removal -- it gets
+    green and blue within 2% of what is needed -- but its taper is a function of
+    y alone, and at the same y it also supplies 30-33 cv of green at x 400-432
+    where the residual is +1 cv. Dipping the taper breaks that.
+  * `arc_glow2`'s x-footprint west of the ridge does match the deficit, but it
+    is one path with a width, so it is symmetric across the ridge and supplies
+    14 cv east of the ridge where the residual is already zero.
+
+A half-fix was costed and REJECTED. Solving the screen-domain algebra for the
+best a pure-white lobe can do -- this is arithmetic on the cell's measured `u`,
+not a render -- the optimum is `A*k` about 0.16, which would take the cell's
+mean absolute error over the three channels from 15.1 to 10.9 cv, worth roughly
+0.007 of whole-image MAE, at the price of making green and blue 10-11 cv too
+bright over the same 1650 px: a measured red error traded for a manufactured
+white patch where the reference is cyan. Section 44's rule
+against claiming an improvement because one aggregate moved applies to the
+author of the change first.
+
+What would actually be needed is named so the next iteration does not rediscover
+it: either an arc primitive whose cross-ridge profile differs inside and outside
+(so light can be added on one side only), or per-station colour along a taper
+rather than per-station amplitude, or a fourth colour primitive with k_G < k_R.
+The first two are additions to `src/build_svg.py`; the third contradicts D5's
+whole-image fit and should not be reached for on the evidence of 1650 px.
+
+### Where the artwork ended up
+
+MAE 1.88059 -> **1.87815**, SSIM 0.974039 -> **0.974081**, flare r<110 6.522 ->
+**6.457**, r<40 9.785 -> **9.610**, core box 7.790 -> **6.328**. All 33 pipeline
+checks and all 12 structural checks pass. Five of the twelve structural ratios
+moved towards the reference (the west field, line C, the skirt, the lower-right
+ray and the white-core radius) and four moved away (the two right rays by 0.05
+and 0.10 in opposite directions, the vertical line by 0.02, the cyan fraction by
+0.01); line B moved away on purpose, because the ratio it reports includes the
+bar this iteration removed from the core. The reasons are above, and none of them
+is "the aggregate improved".
