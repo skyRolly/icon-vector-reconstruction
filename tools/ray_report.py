@@ -65,15 +65,30 @@ RIDGE_CLEAR = 30.0
 #: over the upper-left ray's amplitude, and the audit was right.
 #: `ISLAND_MARGIN` below now makes those radii report nothing instead.
 #:
-#: The right-hand pair is scanned at 45.6 and 327.8 where the layers are built at
-#: 44.9 and 328.1, and the upper-left at 113.6 where its layer is now built at
-#: 107.1 with a 5.2 px offset.  None of those is reconciled, on purpose: the
-#: scan window is +-26 px, which is +-20 degrees at r = 75, so every one of them
-#: contains its structure comfortably.  Moving a scan angle onto its layer's axis
-#: is not free either -- pointing this one at 107.1 walks the window into the
-#: left ridge and costs r 50-70, the radii at which this ray is brightest.
+#: The right-hand pair IS now scanned on the layers' own axes, 44.9 and 328.1.
+#: The 45.6 and 327.8 they were scanned at before came with a claim that the
+#: reference's peak "sits coherently at 45.6 and 327.8 degrees at every radius",
+#: and this tool's own output contradicts it: run on reference.png the
+#: upper-right `ref angle` row reads 44.0, 47.5, 45.2, 41.9, 55.1, 43.8, 31.3 --
+#: no coherent angle at all -- and the lower-right reads a mean of 328.5 with an
+#: sd of 0.8, not 327.8.  Measured properly, the reference's upper-right line
+#: lies -0.42 +- 0.28 px from the 44.9 axis over r 65-145, which excludes 45.6 at
+#: about 6 sigma.
+#:
+#: The upper-left is still scanned at 113.6 although its layer is now built at
+#: 107.1 with a 5.2 px offset, and that is deliberate: pointing the scan at
+#: 107.1 walks the window into the left ridge and costs r 50-70, the radii at
+#: which that ray is brightest, while a +-26 px window is +-20 degrees at r = 75
+#: and contains the structure comfortably either way.
+#:
+#: AN OFFSET RAY HAS NO SINGLE ANGLE.  A line displaced s from the sampling
+#: origin has an apparent direction of direction + degrees(asin(s/r)), so its
+#: angle depends on where it is measured from -- and the two files here do not
+#: even share an origin (ray_report's CORE is 1.41 px from the params flare
+#: centre).  Any ray angle quoted anywhere in this project has to name its
+#: origin to mean anything.
 RAYS = (("upper-left", 113.6), ("lower-left", 249.7),
-        ("upper-right", 45.6), ("lower-right", 327.8))
+        ("upper-right", 44.9), ("lower-right", 328.1))
 
 #: A chord-excess peak measures BRIGHTNESS only if the chord's endpoints sit off
 #: the structure.  This is the clearance, in px at the scan radius, that the

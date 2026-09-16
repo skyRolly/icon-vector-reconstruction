@@ -92,18 +92,40 @@ RAY_GEOMETRY = {
     # also about +4.5 deg out with a compensating -7 px offset, but that is worth
     # only 3.5% of the sector error and is recorded rather than applied.
     "flare_ray_b": (249.7,  7.9,  8.0, 1.25, 124.0, 0.532),  # lower-left
-    # Upper-right: axis 44.9 +- 0.4, and it ends at r = 154 (1-sigma 143-166),
-    # so len 150. An earlier 215 came from a boxcar high-pass over-reading at the
-    # ridge-mask edge by up to 78x; a continuation past r = 150 is bounded at 11%
-    # of the amplitude inside r = 120.
-    "flare_ray_e": (44.9,   4.35, 4.0, 1.30, 150.0, 0.28),   # upper-right
-    # Lower-right: axis 328.0 +- 0.8. Shipped at 328.1, the centre of that range.
-    # The remaining discrepancy is NOT an angle: the reference's line is parallel
-    # to the render's (328.18 +- 0.21 against 328.40) and offset 3.0 px, carried by
-    # the layer's own dx/dy.  height and spread are 4.85/1.90, not 4.0/1.60, because
-    # the reference is 1.3-1.8x wider and widens with radius where the render was
-    # flat; transverse FWHM 5.87 in the reference against the old 4.40.
-    "flare_ray_c": (328.1,  4.9,  4.85, 1.90, 185.0, 0.32),  # lower-right
+    # Upper-right: axis 44.9 +- 0.4.  45.6, which tools/ray_report.py scans at,
+    # is excluded at about 6 sigma: the reference's line lies -0.42 +- 0.28 px
+    # from the 44.9 axis over r 65-145 across 15 analysis choices.  It ends at
+    # r = 140 +- 15, so len 150 is right and anything at or beyond 170 is
+    # excluded; the earlier "a continuation past r 150 is bounded at 11% of the
+    # amplitude inside r 120" was too strong and the supported bound is 35-45%.
+    # fwhm 4.35 -> 10.0 and height 4.0 -> 8.0: the reference's transverse FWHM is
+    # 10.0 px (left half-width 6.0, right 4.0) against the render's 5.50, and its
+    # broad wings survive all eight matched nulls -- the same cell at theta -14
+    # and -20, and four along-ridge placements at +-200/+-300 px, all read
+    # |values| <= 0.6 cv where the ray holds 1.2-1.9 cv at |s| 4.5-6.
+    "flare_ray_e": (44.9,  10.0,  8.0, 1.30, 150.0, 0.28),   # upper-right
+    # Lower-right: direction 327.3-328.1 and NOT resolvable further.  An earlier
+    # note here said the reference's line and the render's are "PARALLEL
+    # (328.18 +- 0.21 against 328.40)"; that precision was not supported.  The
+    # two available criteria disagree inside the interval -- a transverse-position
+    # matched filter prefers 327.2-327.5, corridor pixel error prefers
+    # 327.8-328.1 -- and a residual -0.78 deg rotation is favoured only by a wide
+    # estimator (2.9 sigma) that a narrow one does not reproduce (-0.28 +- 0.34).
+    # So rot stays at 328.1 and the angle is left alone until the width is right.
+    # The 3 px dx/dy translation is CONFIRMED and must not be revisited: removing
+    # it costs +0.42 corridor MAE and pushes the position residual to
+    # +1.58 +- 0.19 px, and the two criteria bracket the true offset at
+    # 1.2 +- 0.4 px where the shipped value sits at 1.62.
+    # fwhm 4.9 -> 7.4 and height 4.85 -> 7.0 because this is a REDISTRIBUTION
+    # error, not an amplitude one: stacked over r 55-140 the reference and the
+    # render carry equal flux (49.2 against 53.1 cv.px) but the render's core is
+    # too bright and too narrow (peak 7.41 against 5.97) and lacks the skirt,
+    # which is strongest on the counter-clockwise side.  The naive narrow-template
+    # reading says the ray is 2-3x too bright at r 95-150 and should be
+    # SHORTENED; that reading is an artefact of the template and shortening makes
+    # the picture worse.  Measured extent 165 +- 20, so len 185 is at the upper
+    # edge of what the data allows and must not be increased.
+        "flare_ray_c": (328.1,  7.4,  7.0,  1.90, 185.0, 0.32),  # lower-right
 }
 #: ray name in tools/ray_report.py -> the layer that carries it
 RAY_LAYER = {"upper-left": "flare_ray_a", "lower-left": "flare_ray_b",

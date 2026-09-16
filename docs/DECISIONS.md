@@ -2766,3 +2766,97 @@ against the SVG -- the same mechanism this iteration repaired -- and quantified
 the damage rather than ignoring it: upper-left centres unchanged to 0.05 px,
 lower-left centres shifted 0.5-0.8 px, about a quarter of that ray's measured
 drift. Its own numbers came from renders it built from the tree, so they stand.
+
+## D52. The right rays are a redistribution error, and section 19's question has
+## a different answer than it expected
+
+**What the two angle numbers are.** `ray_report.RAYS` held 45.6 and 327.8;
+`measure_flare.RAY_GEOMETRY` holds 44.9 and 328.1. They are different kinds of
+number: the first pair are diagnostic sampling-window centres, the second are the
+drawn quadrilateral axes -- and the two files do not even share an origin, since
+`ray_report`'s CORE is 1.41 px from the params flare centre.
+
+The brief offers a candidate explanation to test: that `flare_ray_c`'s 3 px
+perpendicular offset, sampled by rays from the origin, produces a
+radius-dependent apparent angle that reconciles them. **It fails the arithmetic.**
+An offset s gives an apparent direction of direction + degrees(asin(s/r)), so
+3 px gives +3.44 deg at r 50, +2.29 at r 75 and +1.72 at r 100 -- a mean of +2.4
+degrees over the radii `ray_report` samples, which is EIGHT TIMES the 0.3 degree
+gap between 327.8 and 328.1. An offset separates those two numbers; it cannot
+reconcile them.
+
+What settles it is that the old values were simply wrong, and the tool that used
+them said so. Its own `ref angle` row on reference.png reads 44.0, 47.5, 45.2,
+41.9, 55.1, 43.8, 31.3 for the upper-right -- no coherent angle at all -- against
+a docstring claiming the peak "sits coherently at 45.6 and 327.8 degrees at every
+radius". Measured with a transverse matched filter, the reference's upper-right
+line lies -0.42 +- 0.28 px from the 44.9 axis over r 65-145 across 15 analysis
+choices, which excludes 45.6 at about 6 sigma. Both scan angles now sit on the
+layers' axes, and the false sentence is gone.
+
+The general statement, which is what should outlive this entry: **an offset ray
+has no single angle**, and any ray angle quoted anywhere in this project has to
+name the origin it was measured from.
+
+**Both right rays are too narrow, and neither is too dim.** This is the finding
+that a per-radius amplitude reading gets backwards.
+
+The lower-right: stacked over r 55-140 the reference and the render carry equal
+flux (49.2 against 53.1 cv.px) but the render's core is too bright and too narrow
+(peak 7.41 against 5.97, FWHM 7.25 against 7.75) and lacks the reference's skirt,
+which is strongest on the counter-clockwise side. The signed error map shows the
+shape of it directly: +2.7/+4.5/+3.3 cv at s = +1/+3/+5 for r 70-85, against
+deficits of -1.8/-2.1/-1.5 at s = +7/+9/+11 further out. A narrow-template radial
+reading instead makes the render look 2-3x too bright at r 95-150 and would have
+led to SHORTENING the ray, which makes the picture worse. height 4.85 -> 7.0 and
+the colour scaled 0.80 takes the lower-right corridor MAE from 2.0924 to 1.9882.
+
+The upper-right is 1.8x too narrow -- reference FWHM 10.0 px against the render's
+5.50, with broad wings that survive all eight matched nulls -- and badly wrong in
+hue. height 4.0 -> 8.0 with the width to match takes its corridor MAE from 2.4166
+to 2.0329.
+
+**A layer whose colour was outside the colour model.** `flare_ray_e` shipped with
+`color` = [0, 37.4, 11.2], i.e. B/G = 0.30, while its own white/cyan/blue
+coefficients imply [0, 37.4, 39.8] and B/G = 1.064. The two disagree because a
+measured hue outside the white/cyan/blue cone had been written straight into
+`color`, where the renderer reads it, while the coefficients the photometric fit
+reads and writes were left describing something else. That is a trap rather than
+a trade-off: the artwork looks one way and the next `fit_photometry` run would
+silently change it to the other.
+
+The reference's upper-right hue is B/G = 0.84 +- 0.10, which is 1.6 sigma below
+the cone floor -- so the cone is NOT broken on that evidence. The layer is moved
+to pure cyan, which is in-cone, 2.3 sigma away by ratio, and gives the best pixel
+error of the options tested. A regression check now requires every layer's stored
+colour to be reachable from its own coefficients, comparing what the RENDERER
+sees so that `flare_spike`'s deliberate above-255 encoding (which clamps to
+white, and whose coefficients say white) is not a false positive.
+
+    MAE 1.8822 -> 1.8806      centre-region MAE 7.944 -> 7.904
+    upper-right ray, as a fraction of the reference's:  0.35 -> 0.54
+    lower-right ray:                                    0.60 -> 0.66
+
+**Confirmed and left alone.** `flare_ray_c`'s 3 px translation is right and must
+not be revisited: removing it costs +0.42 corridor MAE and pushes the position
+residual to +1.58 +- 0.19 px, while the two criteria bracket the true offset at
+1.2 +- 0.4 px where the shipped value sits at 1.62. Both lengths survive --
+upper-right ends at r 140 +- 15 and lower-right at 165 +- 20, so len 150 is right
+and len 185 sits at the upper edge of what the data allows and must not grow.
+
+**Two corrections to earlier precision.** D43 described the lower-right
+reference and render lines as "PARALLEL (328.18 +- 0.21 against 328.40)". That
+was over-precise: the direction is 327.3-328.1 and not resolvable further, the
+two available criteria pick opposite ends of it, and D43's own fitted
+ds(r) = 3.72 - 0.0126 r contained a -0.72 degree slope that "parallel" papered
+over. And the upper-right note's "a continuation past r 150 is bounded at 11% of
+the amplitude inside r 120" is too strong; the supported bound is 35-45%.
+
+**Not measurable, and now recorded as such.** The right ridge costs the inner
+ends of both rays entirely -- nothing inside r 48 (lower-right) or r 62
+(upper-right) survives a 16 px clearance -- so `peak_at` 0.28 and 0.32, and any
+`onset`, are carried on faith rather than on measurement. Forcing the estimator
+inward gives a reference "profile" of 8.84, 7.23, 18.91, 14.14, 7.39 at
+r 35..55 while the ray-removed control render reads -0.41, +1.49, +1.01, +0.20,
++0.77: contamination of the same order as the scatter, and an 18.91 next to a
+7.39 is not a profile.

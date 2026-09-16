@@ -722,6 +722,36 @@ def main():
              ", ".join("%s %.2fx" % (n, r) for n, r in vbad) if vbad
              else "all within band"))
 
+    # ---- every layer's colour is reachable from its own coefficients -------- #
+    # `color` is what renders; `white`/`cyan`/`blue` are what the photometric fit
+    # reads and writes.  When they disagree the layer is a trap: the artwork
+    # looks one way and the next `fit_photometry` run silently changes it to the
+    # other.  flare_ray_e shipped exactly like that -- stored [0, 37.4, 11.2],
+    # i.e. B/G 0.30, where its own coefficients imply [0, 37.4, 39.8] and B/G
+    # 1.064 -- because a measured hue outside the white/cyan/blue cone had been
+    # written straight into `color`.  Out-of-cone is a decision, not an accident,
+    # and it has to be made where the cone is defined.
+    #
+    # The comparison is on what the RENDERER sees, so a layer encoded above 255
+    # (flare_spike is [256.9, 372.9, 455.0]) is not a violation: split_color
+    # clamps it to white and the coefficients say white.
+    import fit_photometry as _FP
+    off_cone = []
+    for L in params["layers"]:
+        c = L.get("color")
+        if c is None:
+            continue
+        want = np.clip(np.asarray(_FP.color_from_wc(
+            [L.get("white", 0.0), L.get("cyan", 0.0), L.get("blue", 0.0)]), float) * 255.0, 0, 255)
+        got = np.clip(np.asarray(c, float), 0, 255)
+        d = float(np.abs(want - got).max())
+        if d > 0.05:
+            off_cone.append("%s (%.1f cv)" % (L["id"], d))
+    check("every layer's colour is reachable from its white/cyan/blue",
+          not off_cone,
+          "%d layers; off-cone: %s" % (len(params["layers"]),
+                                       ", ".join(off_cone) or "none"))
+
     # ---- render provenance cannot authenticate a raster it does not describe #
     # The three-step case the review asks for, run for real rather than
     # asserted: render a known SVG, replace the PNG underneath its sidecar, and

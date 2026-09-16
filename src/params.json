@@ -1429,8 +1429,8 @@
    "note": "the lower-left ray.  len 110 -> 124 because it is too SHORT: bias-calibrated peak ratios render/reference are 1.18/1.07/0.92/0.33 at r 76/88/100/112, i.e. the reference is still at half its peak (4.43 cv) where a len of 110 has gone out (1.47).  124 is inside the defensible 118-128; a trial at 130 overshot the outermost band and moved the flare r<110 MAE the wrong way.  Beyond r 118 the reference is not detected at all (1.0 sigma above a matched no-ray-plus-noise null at r 110-118, -0.5 to +0.3 sigma at 118-142), so the length is bounded above by absence and not by a fit.\nRECORDED AND NOT APPLIED, twice.  Its axis is also about +4.5 deg out with a compensating -7 px offset -- a line beat a constant in 45 of 45 estimator variants -- but the whole correction is worth 3.5% of the sector error, and two contaminations inflate the apparent drift: flare_flank_dl sits on the clockwise side and its no-ray null reads 2.6-3.1 cv inside r 70 against a reference amplitude of 5.6-9.6, so a third of what the instrument calls 'the ray' there is the flank.  Amplitude ratios inside r 70 (1.34 at r 52) should not be acted on for the same reason.\nIt DOES carry a genuine clockwise shoulder: clockwise minus counter-clockwise half-width is +2.01/+2.23/+0.55/+1.21/+4.16/+5.71 px at r 52..112 against symmetric-injection nulls, positive in all six bands, about 3.6 sigma combined over the inner five.  It is NOT fitted: an earlier pass established that a narrow-plus-broad decomposition's improvement on this image is inside what an injected single Gaussian already yields on the noise.  If it is ever acted on the honest route is to re-aim and re-narrow flare_flank_dl against this statistic, not to make this layer asymmetric"
   },
   {
-   "blue": 0.009833,
-   "blur": 1.5392,
+   "blue": 0.007866,
+   "blur": 2.4063,
    "bounds": {
     "blur": [
      0.6,
@@ -1466,12 +1466,12 @@
     ]
    },
    "color": [
-    1.31157,
-    22.20304,
-    26.04407
+    1.0491,
+    17.7622,
+    20.8348
    ],
-   "cyan": 0.087156,
-   "height": 4.85,
+   "cyan": 0.069725,
+   "height": 7.0,
    "id": "flare_ray_c",
    "kind": "ray",
    "len": 185.0,
@@ -1479,7 +1479,7 @@
    "peak_at": 0.32,
    "rot": -328.1,
    "spread": 1.9,
-   "white": 0.005143,
+   "white": 0.004114,
    "dx": 1.5809,
    "dy": -2.5497
   },
@@ -1577,7 +1577,7 @@
   },
   {
    "blue": 0.0,
-   "blur": 1.4417,
+   "blur": 3.5634,
    "bounds": {
     "blur": [
      0.6,
@@ -1588,8 +1588,8 @@
      40.0
     ],
     "len": [
-     95.0,
-     215.0
+     105.0,
+     210.0
     ],
     "peak_at": [
      0.2,
@@ -1606,11 +1606,11 @@
    },
    "color": [
     0.0,
-    37.39782,
-    11.21934
+    22.3719,
+    23.7999
    ],
-   "cyan": 0.156021,
-   "height": 4.0,
+   "cyan": 0.093333,
+   "height": 8.0,
    "id": "flare_ray_e",
    "kind": "ray",
    "len": 150.0,

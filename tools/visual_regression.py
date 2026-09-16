@@ -287,14 +287,17 @@ CHECKS = (
     ("lower-left ray is present", "ray lower-left", (0.40, 2.20), 1.0,
      "a ray has been smoothed away"),
     # The band's floor is set where the CURRENT artwork sits, not where it
-    # ought to: the upper-right ray measures 0.36 of the reference and the
-    # lower-right 0.61, so these two are guarding a structure that is already
-    # known to be too weak.  That is recorded here rather than hidden in a
-    # comfortable band, and the floor's job is only to stop it getting worse.
-    ("upper-right ray is present", "ray upper-right", (0.30, 2.20), 1.0,
-     "a ray has been smoothed away (this one is already 0.36 of the reference)"),
-    ("lower-right ray is present", "ray lower-right", (0.50, 2.20), 1.0,
-     "a ray has been smoothed away (this one is already 0.61 of the reference)"),
+    # ought to: the upper-right ray measures 0.54 of the reference and the
+    # lower-right 0.66, so these two still guard a structure that is known to be
+    # too weak.  That is recorded here rather than hidden in a comfortable band,
+    # and the floor's job is only to stop it getting worse.  Both improved this
+    # iteration (from 0.36 and 0.61) by being widened rather than brightened --
+    # the error is transverse distribution, not amplitude -- and the floors moved
+    # with them.
+    ("upper-right ray is present", "ray upper-right", (0.45, 2.20), 1.0,
+     "a ray has been smoothed away (this one is already 0.54 of the reference)"),
+    ("lower-right ray is present", "ray lower-right", (0.55, 2.20), 1.0,
+     "a ray has been smoothed away (this one is already 0.66 of the reference)"),
     ("the white core is not oversized", "white radius", (0.0, 1.35), 0.5,
      "the compact white region has grown into a blob"),
     ("the bloom has not gone white", "cyan fraction", (0.90, 1.12), 0.05,
