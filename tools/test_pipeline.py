@@ -337,7 +337,8 @@ def main():
     # rejected or removed -- `arc_field` and `arc_lens` are both recorded in
     # DECISIONS as things that are deliberately not in the model, and a record
     # of a rejection is not a claim that the thing exists.
-    NOT_LAYERS = {"corner_model", "corner_r_blend", "corner_r_main",
+    NOT_LAYERS = {"frame_ring",        # a builder KIND, like arc_lens below
+                  "corner_model", "corner_r_blend", "corner_r_main",
                   "corner_blend_deg", "corner_note", "flare_dependent_layers",
                   "flare_cells", "field_grad_note", "arc_d", "arc_field",
                   "arc_lens", "arc_station", "flare_report", "field_specs",
@@ -694,6 +695,32 @@ def main():
           % (bres["banding_worst_dev"], BAND_DEV_MAX,
              bres["banding_interior_pct"], BAND_INTERIOR_MAX,
              bres["banding_ridge_pct"], BAND_RIDGE_MAX))
+
+    # ---- the recurring visual failures ------------------------------------ #
+    # Twelve structures, each compared with the reference by the same estimator
+    # on the same cells, each stated as a ratio so nothing here encodes one
+    # release's accidents.  Two of the twelve currently guard a structure that
+    # is known to be too weak rather than correct -- the right-hand rays -- and
+    # their bands say so; the check's job there is to stop it getting worse.
+    #
+    # Validated by breaking the artwork on purpose: deleting the vertical line
+    # trips it at 0.11x, deleting all four rays trips all four ray checks at
+    # 0.03-0.30x, deleting lines B and C trips both, deleting the cyan bloom
+    # trips the colour and skirt checks, and the PREVIOUS release -- with the
+    # flat-topped westward quadrilateral -- trips the west-shape check at 1.23x.
+    import visual_regression as _VR
+    vrows = _VR.report(_VR.np.asarray(Image.open(os.path.join(ROOT, "reference.png"))
+                                      .convert("RGB")).astype(np.float64),
+                       (real * 255.0).astype(np.float64))
+    vbad = [(n, ratio) for n, ratio, lo, hi, ok, _rv, _cv, _m in vrows if not ok]
+    vnm = [n for n, ratio, lo, hi, ok, _rv, _cv, _m in vrows if ratio is None]
+    check("the reference's structures are all still represented",
+          not vbad,
+          "%d checks, %d not measurable%s; %s"
+          % (len(vrows), len(vnm),
+             (" (%s)" % ", ".join(vnm)) if vnm else "",
+             ", ".join("%s %.2fx" % (n, r) for n, r in vbad) if vbad
+             else "all within band"))
 
     # ---- render provenance cannot authenticate a raster it does not describe #
     # The three-step case the review asks for, run for real rather than

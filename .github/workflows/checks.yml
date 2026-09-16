@@ -52,6 +52,23 @@ jobs:
           print("chromium status:", s)
           PY
 
+      - name: A configured but unusable browser FAILS, where an absent one skips
+        run: |
+          set +e
+          ICON_CHROMIUM=/no/such/chromium python tools/validate.py --quick > /tmp/mis.log 2>&1
+          rc=$?
+          set -e
+          echo "exit $rc"; grep -i chromium /tmp/mis.log | head -3
+          test "$rc" = "3" || { echo "expected exit 3 for a misconfigured browser"; exit 1; }
+          python - <<'PY'
+          import json
+          c = json.load(open("out/validation.json"))["chromium"]
+          assert c["status"] == "misconfigured", c
+          assert c["discovery_state"] == "misconfigured", c
+          assert c["executed"] is False, c
+          print("misconfigured browser correctly distinguished from an absent one")
+          PY
+
       - name: The committed parameters reproduce the committed SVG
         run: |
           python src/build_svg.py --params src/params.json --out /tmp/repro.svg

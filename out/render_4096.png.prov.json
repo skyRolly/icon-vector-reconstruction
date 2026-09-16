@@ -1,7 +1,7 @@
 {
- "png_sha256": "4b1455d490146980866f45a0e6dcb20c822ad09866367c9103daf6141429bedc",
+ "png_sha256": "4930952d7c3769e79e982669c99b4776dc19c02f0f2ac99b636058a10bf578ce",
  "renderer": "resvg",
- "size": 1024,
+ "size": 4096,
  "svg_path": "/home/user/icon-vector-reconstruction/reconstruction.svg",
  "svg_sha256": "54dcb07c926c71be103ed3d272c9a59e3201478fcbd0ad934edfe201ffd421b9"
 }

@@ -755,13 +755,13 @@
    "cyan": 0.0,
    "id": "flare_halo",
    "kind": "radial",
-   "note": "u = 2.757*exp(-sqrt((dx/22.7)^2+(dy/16.9)^2)) fitted over 63k px of the isolated flare.  squash was 0.6453 and is 0.58 [0.56, 0.60]: the render's core is too TALL rather than too big.  Measured from each image's own peak, the R half-width to the north and south exceeds the reference's by 1.1-2.9 px at every level from R=200 down to R=140 while the westward half-width matches within +-0.5 px (nine levels, mean -0.13, no trend).  Aspect W/N: reference 1.90 at R=200 and 2.09 at R=160, render 1.49 and 1.60.  The range is honest and not a rounding: the north and south R-excess zero-crossings are at 0.578 and 0.577, whole-image MAE is flat to 0.0016 across 0.56-0.62 and so cannot choose, and a third criterion (the S 20-40 cell) would want 0.522.  At 0.58 the north R excess at r 8-20 falls from +9.25 to +2.05 cv and the south from +5.81 to -0.97.  What this does NOT fix is the r 20-40 excess, which is a colour error and not a shape one -- see the note on flare_halo_far",
+   "note": "u = 2.757*exp(-sqrt((dx/22.7)^2+(dy/16.9)^2)) fitted over 63k px of the isolated flare.  squash was 0.6453 and is 0.62: the render's core is too TALL rather than too big.  Measured from each image's own peak, the R half-width to the north and south exceeds the reference's by 1.1-2.9 px at every level from R=200 down to R=140 while the westward half-width matches within +-0.5 px (nine levels, mean -0.13, no trend).  Aspect W/N: reference 1.90 at R=200 and 2.09 at R=160, render 1.49 and 1.60.  The range is honest and not a rounding: the north and south R-excess zero-crossings are at 0.578 and 0.577, whole-image MAE is flat to 0.0016 across 0.56-0.62 and so cannot choose, and a third criterion (the S 20-40 cell) would want 0.522.  0.58 is where the core's own aspect wants it, and 0.58 IS NOT WHAT SHIPPED, for a reason worth recording: this layer does not only set the core's aspect, it also carries the diagonal west field at r 34-46, and the two want opposite changes.  Measured on the shipped stack, tools/wedge_report.py's angular residual RMS over 19 ridge-cleared bins runs 4.41 / 4.09 / 3.76 / 3.43 cv at squash 0.58 / 0.60 / 0.62 / 0.6453 -- compressing the halo dims theta 109-139 and 223-247 by about 2.5 cv apiece -- while the core's north and south R excess at r 8-20 runs +6.7/+2.2 at 0.62 against +9.4/+4.9 at 0.6453.  Whole-image MAE is flat to 0.0012 across the whole span and cannot choose between them.  0.62 is the point where both instruments are better than the previous release (angular RMS 3.81 -> 3.76, north R excess +9.25 -> +6.67) rather than one being traded for the other.  This is the same structural problem as the colour error: one isotropic layer serving two requirements that are not isotropic.  What neither value fixes is the r 20-40 excess, which is a colour error and not a shape one -- see the note on flare_halo_far",
    "profile": {
     "kind": "exp",
     "scale": 0.2
    },
    "r": 92.41600000000001,
-   "squash": 0.58,
+   "squash": 0.62,
    "white": 1.0
   },
   {
@@ -790,12 +790,12 @@
     ]
    },
    "color": [
-    62.21,
-    255.0,
-    255.0
+    45.056,
+    203.7901,
+    213.9221
    ],
    "cy": 512.95,
-   "cyan": 0.82422,
+   "cyan": 0.66222,
    "east_gain": 1.0,
    "half_len": 320.0,
    "id": "flare_streak",
@@ -844,7 +844,7 @@
     ]
    ],
    "sigma_y": 1.6,
-   "white": 0.24397
+   "white": 0.17669
   },
   {
    "blue": 0.292845,
@@ -913,10 +913,10 @@
    },
    "color": [
     0.0,
-    9.71,
-    10.33
+    9.0031,
+    9.5778
    ],
-   "cyan": 0.04052,
+   "cyan": 0.03756,
    "dy": 17.88,
    "east_gain": 0.85,
    "half_len": 320.0,
@@ -973,8 +973,8 @@
    "blur_x": 0.0,
    "bounds": {
     "half_len": [
-     60,
-     280
+     40,
+     160
     ],
     "profile": [
      0.08,
@@ -986,21 +986,103 @@
     ]
    },
    "color": [
-    120.77,
-    120.77,
-    120.77
+    122.4,
+    122.4,
+    122.4
    ],
    "cyan": 0.0,
-   "half_len": 123.2,
+   "half_len": 62.0,
    "id": "flare_fan",
    "kind": "streak",
-   "note": "the horizontal streak has two widths: a sigma ~2.8 px spike and this broader wash (half width ~8 px at r=30, ~25 px at r=92)",
+   "note": "the horizontal wash's NEAR, WHITE half.  It was half_len 123.2 and is 62 with its profile scale rescaled by 123.2/62 so the falloff IN PIXELS is unchanged -- the scale is in units of half_len, so shortening without rescaling would have changed the shape as well as the extent.  Truncation alone improves MAE; the far field it used to cover is now flare_wash_far's, and is cyan rather than white.\nThis layer is still the only red source in the near field and must not be recoloured: recolouring it cyan at equal G opens a 15-33 cv red hole over r 12-32 (dR -22.2/-29.2/-20.7 at r 12-18/18-25/25-32) while improving r 32-78 by 4-9 cv.  A control that only ADDS a pure-cyan far wash leaves dR bit-identical at every radius, which is the direct proof that white is the only red carrier here.\nIts amplitude is 0.48 and not the 0.60 a global photometric refit chose.  The refit was run over the whole stack and then only four layers were transplanted, so its near-field budget did not survive the transplant: at 0.60 the azimuthal red residual at r 12-18 is +16.9 cv and the north/south R excess at r 8-20 is +17.1/+14.0, against +7.5 and +6.7/+2.2 at 0.48.  What does NOT change across that span is whole-image MAE (1.8861 to 1.8872) or the sum of the absolute azimuthal red residuals over r 12-55 (31.2 to 33.1 at every setting tried), because lowering this layer trades the r 12-18 excess against the r 18-32 deficit one for one.  That is the mis-distribution below, restated as a fact about the search: no scalar amplitude can fix a shape error.\nKNOWN AND NOT FIXED: its red is mis-distributed in radius even now -- too much inside r 18, 4-8 cv too little at 18-32, too much again at 32-78 -- because it is a monotone exponential from r 0 where the reference wants an annulus.  The earlier record that the near field was 'correct to +0.50 cv at r 12-25' is an average of +11.05 at r 12-18 and -3.81 at 18-25, two opposite errors, which is not the same thing",
    "profile": {
     "kind": "exp",
-    "scale": 0.22
+    "scale": 0.437161
    },
    "sigma_y": 10.85,
-   "white": 0.47359
+   "white": 0.48
+  },
+  {
+   "id": "flare_wash_far",
+   "kind": "streak",
+   "blur_x": 0.0,
+   "cy": 512.95,
+   "sigma_y": 14.0,
+   "half_len": 320.0,
+   "east_gain": 1.0,
+   "white": 0.0,
+   "cyan": 0.05611,
+   "blue": 0.0,
+   "profile": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.15,
+     0.0
+    ],
+    [
+     0.2,
+     0.95
+    ],
+    [
+     0.24,
+     1.0
+    ],
+    [
+     0.3,
+     0.55
+    ],
+    [
+     0.36,
+     0.33
+    ],
+    [
+     0.45,
+     0.23
+    ],
+    [
+     0.54,
+     0.17
+    ],
+    [
+     0.65,
+     0.13
+    ],
+    [
+     0.73,
+     0.11
+    ],
+    [
+     0.88,
+     0.06
+    ],
+    [
+     1.0,
+     0.0
+    ]
+   ],
+   "bounds": {
+    "sigma_y": [
+     8.0,
+     24.0
+    ],
+    "half_len": [
+     240.0,
+     420.0
+    ],
+    "east_gain": [
+     0.3,
+     1.8
+    ]
+   },
+   "color": [
+    0.0,
+    13.45,
+    14.31
+   ],
+   "note": "the horizontal line's BROAD component, and the missing half of it.  A transverse cut through the reference's line is two things at every distance: a narrow spike, and a wash of sigma 12-18 px that carries 70-94% of the light.  The reconstruction reproduced the wash inside |dx| ~80 and had essentially NONE beyond, which is the whole of 'too thin, too hard, isolated' -- not the core's width, which matches (reference sigma 1.3-2.8 px against the render's 1.45-1.8).  North-flank skirt fraction, three baseline annuli, reference against the old render: 0.71/0.71/0.70 vs 0.30/0.48/0.54 at |dx| 80-130, and 0.69/0.72/0.70 vs -0.38/-0.25/0.32 at 130-190, where the render's statistic is unstable precisely because its numerator is zero.  Against a matched null at the same cell displaced 110/150/190 rows: 11, 7.4 and 2.5 sigma.\nIT IS PURE CYAN because it is the BROAD component whose colour changes with distance, not the spike.  Broad-component R/G: 0.97 +- 0.09 at |dx| 18-45, then -0.03 +- 0.05 at 80-130 and -0.07 to +0.10 beyond.  The narrow spike shows no distance trend at all (0.15-0.35 everywhere) and is left alone.  The white-to-cyan transition is bracketed at |dx| 45-70 and NOT localised more finely: it rests on one 14-column east band, and whether it is a step or a ramp is unresolved.\nThe profile is tabulated because it rises to a peak near |dx| 70 and then falls slowly; no monotone law does that.  Amplitudes for this layer, flare_fan and flare_streak were fitted together -- the narrow line had been standing in for the missing wash and had to come down 28% in white when the wash arrived"
   },
   {
    "blue": 0.0616,
@@ -1103,8 +1185,8 @@
      3.0
     ],
     "south_gain": [
-     0.4,
-     1.8
+     0.35,
+     1.4
     ]
    },
    "color": [
@@ -1117,7 +1199,7 @@
    "half_len": 110.0,
    "id": "flare_vline",
    "kind": "vstreak",
-   "note": "the vertical diffraction line through the brightest point -- a real feature of the reference that the reconstruction had no trace of.  It took a channel-aware measurement to see: within ~12 px of the core G and B are CLIPPED (421 and 453 px at or above 253 in a 90x90 box, against 4 for R), so a luminance statistic there measures the clip.  In R the column high-pass A_4 reads 12.3/9.8/4.4/2.0/1.5/1.5 code values over |dy| 16-26/26-36/36-50/50-70/70-90/90-110 where the render read 2.4/0.5/0.7/0.4/-0.4/-0.2; see tools/vstreak_report.py.  Axis array x 528.9 +- 0.5, vertical to 0.3 +- 0.2 deg, FWHM 3.3-4.6 px.  It survives 4x downsampling, is flat across all eight y mod 8 JPEG phases, and the seven other block-boundary columns in the same rows read 0.0-0.6 against its 4.1, so it is light and not blocking.  The profile is TABULATED because it has a factor-3.1 step at |dy| ~33 that neither a power law nor an exponential reproduces.  Three things are deliberately absent: no broad halo (the flank at |dx| 3-8 is consistent with zero), nothing past |dy| 110 (pooled 110-240 is within 1.3 cv of zero at 95%), and nothing east of the core, where the right ridge allows only an 11.6 cv limit and the honest position is silence. The amplitude inside |dy| 16 is unconstrained -- the bloom's own curvature dominates there -- so the inner stop is continuity, not a measurement",
+   "note": "the vertical diffraction line through the brightest point -- a real feature of the reference that the reconstruction had no trace of.  It took a channel-aware measurement to see: within ~12 px of the core G and B are CLIPPED (421 and 453 px at or above 253 in a 90x90 box, against 4 for R), so a luminance statistic there measures the clip.  In R the column high-pass A_4 reads 12.3/9.8/4.4/2.0/1.5/1.5 code values over |dy| 16-26/26-36/36-50/50-70/70-90/90-110 where the render read 2.4/0.5/0.7/0.4/-0.4/-0.2; see tools/vstreak_report.py.  Axis array x 528.9 +- 0.5, vertical to 0.3 +- 0.2 deg, FWHM 3.3-4.6 px.  It survives 4x downsampling, is flat across all eight y mod 8 JPEG phases, and the seven other block-boundary columns in the same rows read 0.0-0.6 against its 4.1, so it is light and not blocking.  The profile is TABULATED because it has a factor-3.1 step at |dy| ~33 that neither a power law nor an exponential reproduces.  Three things are deliberately absent: no broad halo (the flank at |dx| 3-8 is consistent with zero), nothing past |dy| 110 (pooled 110-240 is within 1.3 cv of zero at 95%), and nothing east of the core, where the right ridge allows only an 11.6 cv limit and the honest position is silence. south_gain was 1.0 -- a DEFAULT, never a measurement, and one that could not have been searched either: `sigma_x` and `south_gain` both carried bounds here and neither name was in the optimiser's key list, so they were frozen through every run that reported optimising shapes.  The reference's line is north-dominated.  south/north of A_4 over |dy| 36-110: reference 0.44 in B and 0.63 in R, against the shipped render's 0.97 and 1.19; at 0.55 the render reads 0.45 and 0.65.  B is the channel to trust for this -- it runs 50-119 cv in these bands with nothing clipped at either end, while R is FLOOR-clipped there (20.5%, 30.5% and 19.7% exact zeros at |dy| 26-36, 36-50 and 50-70).  A block bootstrap over 8-row blocks gives B 0.52 [0.28, 0.84] with P(south >= north) = 0.004; the honest range is 0.45-0.85 and the estimators disagree systematically inside it (a narrow centre-minus-flank statistic says 0.35-0.42, A_4 says 0.52-0.63, a 4x downsample says 0.75), so 0.55 is a choice within a range and not a measurement to two figures.  The pooled statistic in tools/vstreak_report.py was blind to all of this and actively penalised the fix, which is why that tool now reports the two sides separately.  sigma_x 1.7 was re-measured at the same time and SURVIVES: the width-sensitive ratio N/A_4 puts it at 1.44-1.60 in G and B and 0.95-1.35 in the floor-clipped R, so 1.5 is marginally better supported but the difference is below the render's own resolution.  The amplitude inside |dy| 16 is unconstrained -- the bloom's own curvature dominates there -- so the inner stop is continuity, not a measurement",
    "profile": [
     [
      0.0,
@@ -1153,7 +1235,7 @@
     ]
    ],
    "sigma_x": 1.7,
-   "south_gain": 1.0,
+   "south_gain": 0.55,
    "white": 0.06258
   },
   {

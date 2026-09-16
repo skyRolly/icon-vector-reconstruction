@@ -9,6 +9,16 @@ within about 12 px of the core, G and B are CLIPPED (421 and 453 px at or above
 253 in a 90x90 box, against 4 for R), so mean(RGB) there measures the clip and
 not the light.  R is the primary channel here for that reason.
 
+BUT "R IS THE HONEST CHANNEL" IS ONLY TRUE NEAR THE CORE, and reading it as a
+general rule was a mistake worth writing down.  Out at |dy| 26-70 -- most of the
+range this report tabulates -- R is pinned against its ZERO floor instead:
+20.5%, 30.5% and 19.7% of the pixels in cols 520-538 are exactly 0 at |dy|
+26-36, 36-50 and 50-70, where G and B sit mid-range at 105-177 with nothing
+clipped at either end.  A floor-clipped channel is exactly as dishonest as a
+ceiling-clipped one.  So: R inside |dy| ~20, G and B outside it, and
+`--channel` is there to be used.  Where the three disagree by more than their
+nulls, that disagreement is the result.
+
 THE STATISTIC.  For a column x and a band of rows,
 
     A_k(x) = mean over rows of [ V(x,y) - 0.5*(V(x-k,y) + V(x+k,y)) ]
@@ -79,24 +89,52 @@ def a_k(img, ys, k, ch, axis=AXIS):
     return float(np.mean(c - 0.5 * (l + r)))
 
 
-def rows(lo, hi):
+def rows(lo, hi, side="both"):
+    """Row indices of a band, on one side of the core or pooled over both.
+
+    Pooling was the default and the only option, and it made this report blind
+    to the one defect the layer actually had.  The reference's line is
+    north-dominated -- south/north about 0.55, with the unclipped B channel
+    putting P(south >= north) at 0.004 -- and a statistic that averages the two
+    sides cannot see that at all.  Worse, it PENALISES the correction: setting
+    south_gain to 0.6 drops the pooled level and moves this report's rms error
+    from 0.37 to 0.88, so an instrument blind to an asymmetry will argue against
+    fixing it.  Both sides are now reported separately and the pooled column is
+    kept only for continuity with earlier numbers.
+    """
     up = np.arange(int(round(CORE_Y - hi)), int(round(CORE_Y - lo)))
     dn = np.arange(int(round(CORE_Y + lo)), int(round(CORE_Y + hi)))
+    if side == "north":
+        return up
+    if side == "south":
+        return dn
     return np.concatenate([up, dn])
 
 
-def band_values(img, ch):
+def band_values(img, ch, side="both"):
     """A_4 and N per band, each with the far-band baseline removed."""
-    far = rows(*FAR)
+    far = rows(*FAR, side=side)
     base4 = a_k(img, far, 4, ch)
     base2 = a_k(img, far, 2, ch)
     out = []
     for lo, hi in BANDS:
-        ys = rows(lo, hi)
+        ys = rows(lo, hi, side=side)
         v4 = a_k(img, ys, 4, ch) - base4
         v2 = a_k(img, ys, 2, ch) - base2
         out.append((lo, hi, v4, (4 * v2 - v4) / 3.0))
     return out, base4
+
+
+def asymmetry(img, ch, lo=36, hi=110):
+    """south/north ratio of A_4 over a pooled outer band.
+
+    Outside |dy| 36 because inside it the bloom's own transverse curvature
+    dominates the statistic on both sides, which is the report's standing
+    caveat and applies to the ratio as much as to the amplitude.
+    """
+    n = a_k(img, rows(lo, hi, "north"), 4, ch) - a_k(img, rows(*FAR, side="north"), 4, ch)
+    s = a_k(img, rows(lo, hi, "south"), 4, ch) - a_k(img, rows(*FAR, side="south"), 4, ch)
+    return (s / n) if abs(n) > 1e-6 else float("nan"), n, s
 
 
 def main():
@@ -107,7 +145,10 @@ def main():
     a = ap.parse_args()
     ch = {"R": 0, "G": 1, "B": 2, "L": -1}[a.channel]
     if ch == -1:
-        print("NOTE: luminance is clipped near the core; R is the honest channel.")
+        print("NOTE: luminance is ceiling-clipped within ~12 px of the core.  R is the "
+              "honest channel THERE, but R is floor-clipped (20-30% exact zeros) at "
+              "|dy| 26-70, where G and B are the honest ones.  Neither channel is "
+              "honest everywhere; run more than one.")
     runs = [("reference", load(a.reference))]
     runs += [(n, load(p)) for n, p in zip(a.pairs[0::2], a.pairs[1::2])]
 
@@ -116,20 +157,28 @@ def main():
     print("A_4 is the two-point high pass; N cancels any background quadratic "
           "in x over +-4 px.\n")
     hdr = "  %-12s" % "|dy| band" + "".join("%9s" % ("%d-%d" % b) for b in BANDS)
-    for stat_i, stat_name in ((2, "A_4"), (3, "N")):
-        print("%s   [%s]" % (hdr, stat_name))
-        base = None
-        for label, img in runs:
-            vals, off = band_values(img, ch)
-            v = [r[stat_i] for r in vals]
-            line = "  %-12s" % label + "".join("%9.2f" % x for x in v)
-            if base is None:
-                base = v
-            else:
-                line += "   rms err %.2f" % float(np.sqrt(np.mean(
-                    (np.array(v) - np.array(base)) ** 2)))
-            print(line + "    (far-band offset %+.2f)" % off)
-        print()
+    for side in ("north", "south", "both"):
+        print("=== %s ===" % side.upper())
+        for stat_i, stat_name in ((2, "A_4"), (3, "N")):
+            print("%s   [%s]" % (hdr, stat_name))
+            base = None
+            for label, img in runs:
+                vals, off = band_values(img, ch, side)
+                v = [r[stat_i] for r in vals]
+                line = "  %-12s" % label + "".join("%9.2f" % x for x in v)
+                if base is None:
+                    base = v
+                else:
+                    line += "   rms err %.2f" % float(np.sqrt(np.mean(
+                        (np.array(v) - np.array(base)) ** 2)))
+                print(line + "    (far-band offset %+.2f)" % off)
+            print()
+    print("south/north ratio of A_4 over |dy| 36-110 -- the statistic the pooled")
+    print("columns above cannot see.  The reference is north-dominated.")
+    print("  %-12s %10s %10s %10s" % ("render", "south/north", "north", "south"))
+    for label, img in runs:
+        rat, n, s = asymmetry(img, ch)
+        print("  %-12s %10.2f %10.2f %10.2f" % (label, rat, n, s))
     return 0
 
 
