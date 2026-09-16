@@ -678,10 +678,42 @@ def main():
     _blank = np.zeros((1024, 1024, 3), dtype=np.float64)
     _shapes = [_FV.crop(_blank, 10, 513, h).shape[:2] for _n, h, _z in _FV.CROPS]
     _square = all(sh == (2 * h, 2 * h) for sh, (_n, h, _z) in zip(_shapes, _FV.CROPS))
+    # ... including a centre wholly off the canvas, which used to slice real
+    # pixels off the FAR edge (numpy reads a negative endpoint from the other
+    # side) and then raise ValueError writing them outside the panel.
+    _far = []
+    for _cx, _cy in ((-1000, 513), (2500, 513), (513, -1000), (513, 2500)):
+        try:
+            _far.append(_FV.crop(_blank, _cx, _cy, 160).shape[:2] == (320, 320))
+        except Exception:                                      # noqa: BLE001
+            _far.append(False)
     check("an off-centre inspection crop stays square instead of being stretched",
-          _square,
-          "crops at cx=10 are %s for half-widths %s"
-          % (_shapes, [h for _n, h, _z in _FV.CROPS]))
+          _square and all(_far),
+          "crops at cx=10 are %s for half-widths %s; wholly off-canvas centres "
+          "return a padded square: %s"
+          % (_shapes, [h for _n, h, _z in _FV.CROPS], all(_far)))
+
+    # --require-provenance and the expectation flags are preconditions on the
+    # raster, not decorations on the JSON.  Guarded by `if a.json` they passed a
+    # Chromium render demanded to be resvg, and a render with no sidecar at all,
+    # whenever the caller did not ask for JSON.
+    import subprocess as _sp2
+    _prov_cases = []
+    for _args, _want in (
+            (["--require-provenance", "--expect-renderer", "resvg"], 1),
+            (["--require-provenance", "--expect-size", "4096"], 1),
+            (["--require-provenance", "--expect-size", "1024",
+              "--expect-renderer", "resvg"], 0)):
+        _r = _sp2.run([sys.executable, os.path.join(ROOT, "tools", "compare.py"),
+                       os.path.join(ROOT, "reference.png"),
+                       os.path.join(ROOT, "out", "render_1024_chromium.png")
+                       if _want else os.path.join(ROOT, "out", "render_1024.png")]
+                      + _args, capture_output=True, text=True, cwd=ROOT)
+        _prov_cases.append((_args[1:], _r.returncode, _want))
+    check("provenance expectations hold without --json",
+          all(rc == want for _a, rc, want in _prov_cases),
+          "; ".join("%s -> exit %d (want %d)" % (" ".join(a), rc, w)
+                    for a, rc, w in _prov_cases))
 
     check("a bound is not counted reachable because a sibling name shares its prefix",
           [n for _i, n in _pun] == ["blur"],

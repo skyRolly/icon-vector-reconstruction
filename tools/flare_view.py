@@ -131,15 +131,26 @@ def crop(a, cx, cy, half):
     identically.  The caller is told, because a padded panel is smaller than it
     looks.
     """
+    h, w = a.shape[:2]
     x0, y0 = int(round(cx)) - half, int(round(cy)) - half
     x1, y1 = x0 + 2 * half, y0 + 2 * half
-    cx0, cy0 = max(0, x0), max(0, y0)
-    cx1, cy1 = min(a.shape[1], x1), min(a.shape[0], y1)
+    # BOTH endpoints are clamped into range, not just the near one.  Clamping
+    # only the lower bound to 0 and the upper to the image size leaves a box
+    # entirely off-canvas with cx0 = 0 and a NEGATIVE cx1, and numpy reads a
+    # negative endpoint from the far edge: --cx -1000 sliced 184 real columns
+    # out of the right-hand side of the image and then tried to write them at
+    # x = 1160 of a 320-wide panel, so the sheet raised ValueError instead of
+    # drawing the empty panel the centre asks for.
+    cx0, cx1 = min(max(x0, 0), w), min(max(x1, 0), w)
+    cy0, cy1 = min(max(y0, 0), h), min(max(y1, 0), h)
     sub = a[cy0:cy1, cx0:cx1]
     if sub.shape[0] == 2 * half and sub.shape[1] == 2 * half:
         return sub
     out = np.zeros((2 * half, 2 * half) + a.shape[2:], dtype=a.dtype)
-    out[cy0 - y0:cy0 - y0 + sub.shape[0], cx0 - x0:cx0 - x0 + sub.shape[1]] = sub
+    # An empty intersection is a legal answer -- a wholly off-canvas box is all
+    # padding -- so the copy only happens when there is something to copy.
+    if sub.shape[0] and sub.shape[1]:
+        out[cy0 - y0:cy0 - y0 + sub.shape[0], cx0 - x0:cx0 - x0 + sub.shape[1]] = sub
     note = "+-%d px box at (%d, %d): %dx%d of %dx%d is off-canvas and padded" % (
         half, int(round(cx)), int(round(cy)), sub.shape[1], sub.shape[0],
         2 * half, 2 * half)

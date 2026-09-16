@@ -650,10 +650,14 @@ def main():
     comb_report(ref, rec, out)
     spoke_report(ref, rec, out)
     crops(ref, rec, a.crops)
+    # Unconditionally: the same hole compare.py had.  `--require-provenance` and
+    # the expectation flags say something about the raster being measured, so
+    # they cannot be conditional on the caller also wanting a JSON file.
+    digest = _provenance(a.render, require=a.require_provenance,
+                         expect_size=a.expect_size,
+                         expect_renderer=a.expect_renderer)
     if a.json:
-        out = dict(out, source_svg_sha256=_provenance(
-            a.render, require=a.require_provenance,
-            expect_size=a.expect_size, expect_renderer=a.expect_renderer))
+        out = dict(out, source_svg_sha256=digest)
         json.dump(out, open(a.json, "w"), indent=1)
         print("wrote %s" % a.json)
 

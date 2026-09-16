@@ -184,12 +184,17 @@ def main():
                     help="also require the sidecar to record this renderer")
     a = ap.parse_args()
     m = compare(a.reference, a.render, a.out_prefix)
+    # Unconditionally, and BEFORE any file is written.  These flags are a
+    # precondition on the render being measured, not a decoration on the JSON:
+    # guarding them with `if a.json` meant `--require-provenance` passed on a
+    # render with no sidecar at all, and `--expect-renderer resvg` passed on a
+    # Chromium raster, whenever the caller happened not to ask for JSON.  Doing
+    # it first also keeps the original property that a provenance failure leaves
+    # no metrics file behind for the README to publish.
+    digest = _provenance(a.render, require=a.require_provenance,
+                         expect_size=a.expect_size,
+                         expect_renderer=a.expect_renderer)
     if a.json:
-        # Written BEFORE the metrics file exists, so a provenance failure cannot
-        # leave a metrics file behind that the README might later publish.
-        digest = _provenance(a.render, require=a.require_provenance,
-                             expect_size=a.expect_size,
-                             expect_renderer=a.expect_renderer)
         m = dict(m, source_svg_sha256=digest)
         open(a.json, "w").write(json.dumps(m, indent=2, sort_keys=True))
     return 0
