@@ -91,7 +91,26 @@ def main():
     os.makedirs(a.outdir, exist_ok=True)
     ref = np.asarray(Image.open(a.reference).convert("RGB")).astype(np.float64)
 
-    sizes = [1024, 2048] if a.quick else [256, 512, 1024, 2048, 4096]
+    CANONICAL = [256, 512, 1024, 2048, 4096]
+    sizes = [1024, 2048] if a.quick else CANONICAL
+    # A --quick run rewrites two of the five canonical rasters and leaves the
+    # other three where the last full run put them.  Each of those keeps a
+    # sidecar that still authenticates it -- truthfully, because the PNG really
+    # did come from the SVG named in it -- so out/ ends up holding a mixture of
+    # renders of DIFFERENT SVGs, every one of them provably authentic and only
+    # two of them current.  Provenance answers "did this raster come from that
+    # SVG", not "is this raster still the one this directory is about", so the
+    # honest move is the one render.py already names: a sidecar that can no
+    # longer be vouched for is deleted rather than left to speak for a file
+    # nobody refreshed.
+    stale = [z for z in CANONICAL if z not in sizes]
+    if stale:
+        dropped = [z for z in stale
+                   if R.clear_provenance(os.path.join(a.outdir, "render_%d.png" % z))]
+        if dropped:
+            print("--quick: dropped provenance for the sizes this run did not "
+                  "render (%s); their PNGs are from an earlier run"
+                  % ", ".join(str(z) for z in dropped))
     rows = []
     for size in sizes:
         png = R.render(a.svg, size, "resvg")
@@ -158,7 +177,22 @@ def main():
                   "| %.3f | %.3f | %.0f | %.5f |"
                   % (cross["mae"], cross["rmse"], cross["max"], cross["ssim"]), ""]
     else:
-        lines += ["Not measured in this run: headless Chromium was unavailable or disabled.",
+        # This used to say "unavailable or disabled" for all three ways of not
+        # having a number, including the one where Chromium was found and its
+        # render RAISED.  The JSON and the exit status had it right and only the
+        # human-readable report lied, which is the wrong way round.
+        if chrome_failed:
+            why = ("headless Chromium was found at `%s` and its render FAILED. "
+                   "This is not a skip; see the exit status (2) and "
+                   "`out/validation.json`." % chrome_path)
+        elif a.no_chromium:
+            why = "the cross-engine check was disabled with --no-chromium."
+        elif chrome_state == "misconfigured":
+            why = ("a browser was named by an environment variable and is not "
+                   "usable -- %s.  Exit status 3." % chrome_how)
+        else:
+            why = "headless Chromium is not installed, so the optional check was skipped."
+        lines += ["Not measured in this run: " + why,
                   "The resvg rows above are unaffected.", ""]
     open(a.report, "w").write("\n".join(lines) + "\n")
     print("\n".join(lines))

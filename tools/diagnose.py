@@ -616,7 +616,7 @@ def crops(ref, rec, outdir):
 
 
 
-def _provenance(render_path, require=False):
+def _provenance(render_path, require=False, expect_size=None, expect_renderer=None):
     """The SVG digest recorded beside a render -- see tools/render.py.
 
     This was a byte-for-byte copy of compare.py's version, and both trusted the
@@ -624,7 +624,8 @@ def _provenance(render_path, require=False):
     actually on disk.  One implementation now, in the module that writes them.
     """
     import render as _R
-    return _R.read_provenance(render_path, require=require)
+    return _R.read_provenance(render_path, require=require,
+                              expect_size=expect_size, expect_renderer=expect_renderer)
 
 
 def main():
@@ -634,6 +635,10 @@ def main():
     ap.add_argument("--json", default=os.path.join(ROOT, "out", "diagnostics.json"))
     ap.add_argument("--require-provenance", action="store_true",
                     help="fail unless the render can be shown to come from a known SVG")
+    ap.add_argument("--expect-size", type=int, default=None,
+                    help="also require the sidecar to record this render size")
+    ap.add_argument("--expect-renderer", default=None,
+                    help="also require the sidecar to record this renderer")
     ap.add_argument("--crops", default=os.path.join(ROOT, "out"))
     a = ap.parse_args()
     ref, rec = load(a.reference), load(a.render)
@@ -646,7 +651,9 @@ def main():
     spoke_report(ref, rec, out)
     crops(ref, rec, a.crops)
     if a.json:
-        out = dict(out, source_svg_sha256=_provenance(a.render, require=a.require_provenance))
+        out = dict(out, source_svg_sha256=_provenance(
+            a.render, require=a.require_provenance,
+            expect_size=a.expect_size, expect_renderer=a.expect_renderer))
         json.dump(out, open(a.json, "w"), indent=1)
         print("wrote %s" % a.json)
 

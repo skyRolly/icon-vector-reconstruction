@@ -162,7 +162,7 @@ def clear_provenance(render_path):
         return False
 
 
-def read_provenance(render_path, require=False):
+def read_provenance(render_path, require=False, expect_size=None, expect_renderer=None):
     """The SVG digest recorded beside a render, VERIFIED against the raster itself.
 
     The sidecar records two digests and only one of them was ever checked.  A
@@ -180,6 +180,15 @@ def read_provenance(render_path, require=False):
     a sidecar that does not describe this file is an error, not an absence,
     because it is evidence that something has gone wrong rather than evidence
     that nothing has been recorded.
+
+    `expect_size` and `expect_renderer` are for the callers that do not want just
+    ANY authentic render: the README publishes the 1024-px resvg ACCEPTANCE
+    render, and the sidecar has recorded `size` and `renderer` all along without
+    anyone reading them.  Hashing alone does not catch this, because the wrong
+    render can be perfectly authentic -- `validate.py` writes
+    out/render_1024_chromium.png in the same directory from the same SVG, and
+    copying it over out/render_1024.png with its own sidecar would satisfy every
+    digest here while publishing Chromium's numbers as the acceptance figures.
     """
     side = provenance_path(render_path)
     if not os.path.exists(side):
@@ -202,6 +211,15 @@ def read_provenance(render_path, require=False):
             "provenance beside %s describes a different raster (sidecar png_sha256 "
             "%s..., actual %s...): the render was replaced without its sidecar"
             % (render_path, want[:12], got[:12]))
+    for field, want_v in (("size", expect_size), ("renderer", expect_renderer)):
+        if want_v is None:
+            continue
+        got_v = d.get(field)
+        if got_v != want_v:
+            raise ProvenanceError(
+                "provenance beside %s records %s=%r where %r was required: the "
+                "raster is authentic but it is not the render this caller measures"
+                % (render_path, field, got_v, want_v))
     svg = d.get("svg_sha256")
     if not svg:
         raise ProvenanceError("provenance beside %s names no SVG" % render_path)

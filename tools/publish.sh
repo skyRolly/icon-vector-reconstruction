@@ -28,9 +28,31 @@ echo "== 3. measure =="
 # must be able to PROVE the raster they measured came from the SVG rebuilt in
 # step 1.  Without it a stale out/render_1024.png with an old sidecar beside it
 # is measured and published as if it were the shipped artwork.
-python3 tools/compare.py reference.png out/render_1024.png --out-prefix out/diff --json out/metrics.json --require-provenance
-python3 tools/diagnose.py out/render_1024.png --json out/diagnostics.json --require-provenance
+# --expect-size/--expect-renderer: hashing proves the raster came from this SVG,
+# not that it is the RIGHT raster.  validate.py writes a Chromium render of the
+# same SVG into the same directory with its own valid sidecar, so without these
+# two the README could publish Chromium's numbers as the acceptance figures.
+python3 tools/compare.py reference.png out/render_1024.png --out-prefix out/diff --json out/metrics.json --require-provenance --expect-size 1024 --expect-renderer resvg
+python3 tools/diagnose.py out/render_1024.png --json out/diagnostics.json --require-provenance --expect-size 1024 --expect-renderer resvg
+# The cross-engine check is documented as OPTIONAL, so it must not be able to
+# stop a release -- but it must not be able to hide either, which is why
+# validate.py grew distinct exit codes in the first place.  Both halves are kept:
+# 2 (a found browser failed) and 3 (a configured browser is unusable) are
+# reported loudly and do not abort; every other nonzero status is a failure of
+# the resvg rows, which are the report, and still stops the cycle.
+set +e
 python3 tools/validate.py
+validate_status=$?
+set -e
+if [ "$validate_status" = 2 ] || [ "$validate_status" = 3 ]; then
+    echo "!! validate.py exited $validate_status: the OPTIONAL cross-engine check did"
+    echo "!! not run.  out/validation.{md,json} say why, and the README will omit the"
+    echo "!! cross-engine line rather than publish a number nothing measured."
+    echo "!! The resvg rows -- which are the report -- are unaffected; continuing."
+elif [ "$validate_status" != 0 ]; then
+    echo "FAIL: validate.py exited $validate_status" >&2
+    exit "$validate_status"
+fi
 python3 tools/make_previews.py out/render_1024.png
 
 echo "== 4. regression checks =="

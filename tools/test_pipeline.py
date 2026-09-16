@@ -628,14 +628,18 @@ def main():
     # measurement had shortened.
     import measure_flare as MFL
     drift = []
-    for lid, (th, fwhm, h, sp, ln, pk) in MFL.RAY_GEOMETRY.items():
+    for lid, (th, fwhm, h, sp, ln, pk, dx, dy) in MFL.RAY_GEOMETRY.items():
         L = next((x for x in params["layers"] if x["id"] == lid), None)
         if L is None:
             drift.append("%s missing from params" % lid); continue
         for name, want, got in (("rot", -th, L.get("rot")), ("height", h, L.get("height")),
                                 ("blur", round(MFL.blur_for(fwhm, h), 4), L.get("blur")),
                                 ("spread", sp, L.get("spread")), ("len", ln, L.get("len")),
-                                ("peak_at", pk, L.get("peak_at"))):
+                                ("peak_at", pk, L.get("peak_at")),
+                                # absent dx/dy mean zero to the builder, so the
+                                # preset and the params agree when both say "no
+                                # offset" in their own way
+                                ("dx", dx, L.get("dx", 0.0)), ("dy", dy, L.get("dy", 0.0))):
             if got is None or abs(float(want) - float(got)) > 1e-6:
                 drift.append("%s/%s preset %.4g vs shipped %s" % (lid, name, want, got))
     check("the ray geometry preset matches the shipped params",
@@ -719,13 +723,33 @@ def main():
                                       .convert("RGB")).astype(np.float64),
                        (real * 255.0).astype(np.float64))
     vbad = [(n, ratio) for n, ratio, lo, hi, ok, _rv, _cv, _m in vrows if not ok]
-    vnm = [n for n, ratio, lo, hi, ok, _rv, _cv, _m in vrows if ratio is None]
+    # `ratio is None` alone no longer means "skipped": a structure the reference
+    # has and the render does not also comes back None, and it is a FAILURE.
+    # Only the ok ones are genuine skips, and a failing row may carry no ratio
+    # to format.
+    vnm = [n for n, ratio, lo, hi, ok, _rv, _cv, _m in vrows if ratio is None and ok]
+    # A structure the reference HAS and the render does NOT must fail, not be
+    # waved through as unmeasurable: two of these checks read None on the
+    # candidate side precisely when the structure is gone, and both used to
+    # report "NOT MEASURABLE" and pass.  An all-black candidate is the cleanest
+    # statement of that -- every structure is absent by construction.
+    _black = np.zeros((1024, 1024, 3), dtype=np.float64)
+    _brows = _VR.report(_VR.np.asarray(Image.open(os.path.join(ROOT, "reference.png"))
+                                       .convert("RGB")).astype(np.float64), _black)
+    _bfail = sum(1 for _n, _r, _lo, _hi, _ok, _rv, _cv, _m in _brows if not _ok)
+    _bnone_pass = [n for n, r, _lo, _hi, ok, _rv, _cv, _m in _brows if r is None and ok]
+    check("a structure the render has lost cannot pass as unmeasurable",
+          _bfail >= 10 and not _bnone_pass,
+          "an all-black candidate fails %d of %d checks; skipped-as-unmeasurable: %s"
+          % (_bfail, len(_brows), ", ".join(_bnone_pass) if _bnone_pass else "none"))
+
     check("the reference's structures are all still represented",
           not vbad,
           "%d checks, %d not measurable%s; %s"
           % (len(vrows), len(vnm),
              (" (%s)" % ", ".join(vnm)) if vnm else "",
-             ", ".join("%s %.2fx" % (n, r) for n, r in vbad) if vbad
+             ", ".join("%s %s" % (n, "MISSING" if r is None else "%.2fx" % r)
+                       for n, r in vbad) if vbad
              else "all within band"))
 
     # ---- every layer's colour is reachable from its own coefficients -------- #
@@ -794,11 +818,32 @@ def main():
             step4 = False
         except _R.ProvenanceError:
             step4 = True
+        # step 5: an AUTHENTIC raster can still be the wrong one.  validate.py
+        # writes a Chromium render of this same SVG into the same directory with
+        # a sidecar of its own, so "came from this SVG" does not mean "is the
+        # 1024 resvg acceptance render" -- copying one over the other satisfies
+        # every digest.  The size and renderer have been in the sidecar all
+        # along; the acceptance callers now read them.
+        open(_png, "wb").write(_data)
+        _R.write_provenance(_png, _svg, _data, 64, "chromium")
+        step5 = _R.read_provenance(_png, require=True) == _R.sha256_file(_svg)
+        try:
+            _R.read_provenance(_png, require=True, expect_renderer="resvg")
+            step6 = False
+        except _R.ProvenanceError:
+            step6 = True
+        try:
+            _R.read_provenance(_png, require=True, expect_size=1024)
+            step7 = False
+        except _R.ProvenanceError:
+            step7 = True
     check("a render sidecar cannot authenticate a PNG it does not describe",
-          step1 and step2 and step3 and step4,
+          step1 and step2 and step3 and step4 and step5 and step6 and step7,
           "valid render accepted: %s; replaced PNG rejected: %s; "
-          "absent provenance optional: %s; absent provenance required-fails: %s"
-          % (step1, step2, step3, step4))
+          "absent provenance optional: %s; absent provenance required-fails: %s; "
+          "authentic-but-wrong-engine accepted without the expectation: %s, "
+          "rejected with it: %s; wrong size rejected: %s"
+          % (step1, step2, step3, step4, step5, step6, step7))
 
     # ---- the vertical streak's own two numbers actually move the render ---- #
     # Reachability (check 4b) says a spec exists; this says the spec DOES

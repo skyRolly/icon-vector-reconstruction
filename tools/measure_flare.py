@@ -71,6 +71,15 @@ import ray_report as RR  # noqa: E402
 #: disagree by 1.2-1.7 px and no axis here is defined to better than about a
 #: degree. The values below are the centre of the supported range, not a claim
 #: of precision.
+#: dx, dy are part of this table because the table is the geometry OF RECORD and
+#: they are geometry: `flare_ray_a` carries (-4.783, +2.090) and `flare_ray_c`
+#: (+1.581, -2.550), which are the measured offsets of those rays' origins from
+#: the flare centre.  They were held only in `src/params.json`, so --geometry
+#: could not recreate them and `test_pipeline`'s drift check could not police
+#: them -- the check asserted six numbers per ray and silently ignored the two
+#: that place it.  Zero means "on the flare centre", and a zero is written by
+#: REMOVING the key rather than setting it, so the params stay as small as the
+#: model is.
 RAY_GEOMETRY = {
     # Upper-left: the reference's ray is NOT parallel to the rendered one.  Over
     # 39 estimator variants the transverse centre difference fits
@@ -83,7 +92,7 @@ RAY_GEOMETRY = {
     # because beyond r 70 the ray carried 1.8-3.0x too much light and reached too
     # far: the reference is at 0.29 of its peak by r 100 where the model held
     # 0.67.  peak_at 0.62 keeps the longitudinal peak at r = 62.
-    "flare_ray_a": (107.1, 12.3,  9.0, 1.00, 100.0, 0.62),   # upper-left
+    "flare_ray_a": (107.1, 12.3,  9.0, 1.00, 100.0, 0.62, -4.783, 2.09),   # upper-left
     # Lower-left: too SHORT.  Bias-calibrated peak ratios render/reference run
     # 1.18/1.07/0.92/0.33 at r 76/88/100/112 -- the reference is still at half its
     # peak where a len of 110 has gone out.  124 is inside the defensible 118-128;
@@ -91,7 +100,7 @@ RAY_GEOMETRY = {
     # way.  peak_at 0.532 keeps the longitudinal peak near r = 66.  Its angle is
     # also about +4.5 deg out with a compensating -7 px offset, but that is worth
     # only 3.5% of the sector error and is recorded rather than applied.
-    "flare_ray_b": (249.7,  7.9,  8.0, 1.25, 124.0, 0.532),  # lower-left
+    "flare_ray_b": (249.7,  7.9,  8.0, 1.25, 124.0, 0.532, 0.0, 0.0),  # lower-left
     # Upper-right: axis 44.9 +- 0.4.  45.6, which tools/ray_report.py scans at,
     # is excluded at about 6 sigma: the reference's line lies -0.42 +- 0.28 px
     # from the 44.9 axis over r 65-145 across 15 analysis choices.  It ends at
@@ -103,7 +112,7 @@ RAY_GEOMETRY = {
     # broad wings survive all eight matched nulls -- the same cell at theta -14
     # and -20, and four along-ridge placements at +-200/+-300 px, all read
     # |values| <= 0.6 cv where the ray holds 1.2-1.9 cv at |s| 4.5-6.
-    "flare_ray_e": (44.9,  10.0,  8.0, 1.30, 150.0, 0.28),   # upper-right
+    "flare_ray_e": (44.9,  10.0,  8.0, 1.30, 150.0, 0.28, 0.0, 0.0),   # upper-right
     # Lower-right: direction 327.3-328.1 and NOT resolvable further.  An earlier
     # note here said the reference's line and the render's are "PARALLEL
     # (328.18 +- 0.21 against 328.40)"; that precision was not supported.  The
@@ -125,7 +134,7 @@ RAY_GEOMETRY = {
     # SHORTENED; that reading is an artefact of the template and shortening makes
     # the picture worse.  Measured extent 165 +- 20, so len 185 is at the upper
     # edge of what the data allows and must not be increased.
-        "flare_ray_c": (328.1,  7.4,  7.0,  1.90, 185.0, 0.32),  # lower-right
+        "flare_ray_c": (328.1,  7.4,  7.0,  1.90, 185.0, 0.32, 1.5809, -2.5497),  # lower-right
 }
 #: ray name in tools/ray_report.py -> the layer that carries it
 RAY_LAYER = {"upper-left": "flare_ray_a", "lower-left": "flare_ray_b",
@@ -164,10 +173,15 @@ def blur_for(fwhm, h):
 
 def apply_geometry(params):
     by_id = {L["id"]: L for L in params["layers"]}
-    for lid, (th, fwhm, h, sp, ln, pk) in RAY_GEOMETRY.items():
+    for lid, (th, fwhm, h, sp, ln, pk, dx, dy) in RAY_GEOMETRY.items():
         L = by_id[lid]
         sb = blur_for(fwhm, h)
         L.update(rot=-th, height=h, blur=round(sb, 4), spread=sp, len=ln, peak_at=pk)
+        for key, val in (("dx", dx), ("dy", dy)):
+            if val:
+                L[key] = val
+            else:
+                L.pop(key, None)
         b = L.setdefault("bounds", {})
         # The right-hand rays are 3.9 and 4.6 px across and no (h >= 6,
         # blur >= 2) pair can make either: blur 2 alone is 4.7 px of FWHM.

@@ -89,7 +89,7 @@ def _mean(a, m, floor=40):
 
 
 def _ratio(rec_v, ref_v, lo, hi, floor):
-    """The render's statistic as a fraction of the reference's, or None.
+    """The render's statistic as a fraction of the reference's -- three outcomes.
 
     `floor` is the smallest reference value this statistic can be trusted at.
     Below it the ratio is two noise numbers divided by each other and will swing
@@ -98,10 +98,28 @@ def _ratio(rec_v, ref_v, lo, hi, floor):
     ridge deletes most of that annulus, and dividing by it produced a confident
     "4.13x" out of nothing.  A check whose reference signal is below its own
     floor has nothing to test and says so.
+
+    The two ways a statistic can come back None are NOT the same thing, and
+    collapsing them is how a suite built to catch vanished structure let
+    vanished structure through.  A None on the REFERENCE side means the source
+    image cannot establish the structure, so there is nothing to hold the render
+    to: skip, and that is a pass.  A None on the RENDER side, when the reference
+    is measurable, means the opposite -- every candidate-side gate here
+    (`near - base < 1.0` in `line_skirt`, the `_mean` population floors) goes
+    false precisely BECAUSE the structure is not there.  Measured: against an
+    all-black candidate, `west_flatness` and `line_skirt` both returned None and
+    both were reported "NOT MEASURABLE", so 8 of 12 checks failed where 10
+    should have.  That is now a failure, and the caller is told which kind it is
+    rather than being handed a None to format as a number.
+
+    Returns (ratio, lo, hi, measurable).  `ratio` is None in both unmeasurable
+    cases; `measurable` is what separates them.
     """
-    if rec_v is None or ref_v is None or abs(ref_v) < floor:
-        return None, lo, hi
-    return rec_v / ref_v, lo, hi
+    if ref_v is None or abs(ref_v) < floor:
+        return None, lo, hi, True
+    if rec_v is None:
+        return None, lo, hi, False
+    return rec_v / ref_v, lo, hi, True
 
 
 # --------------------------------------------------------------------------- #
@@ -302,17 +320,23 @@ CHECKS = (
     ("lower-left ray is present", "ray lower-left", (0.40, 2.20), 1.0,
      "a ray has been smoothed away"),
     # The band's floor is set where the CURRENT artwork sits, not where it
-    # ought to: the upper-right ray measures 0.54 of the reference and the
-    # lower-right 0.66, so these two still guard a structure that is known to be
-    # too weak.  That is recorded here rather than hidden in a comfortable band,
-    # and the floor's job is only to stop it getting worse.  Both improved this
-    # iteration (from 0.36 and 0.61) by being widened rather than brightened --
-    # the error is transverse distribution, not amplitude -- and the floors moved
-    # with them.
+    # ought to: on the shipped render the upper-right ray measures 0.49 of the
+    # reference and the lower-right 0.76, so these two still guard a structure
+    # that is known to be too weak.  That is recorded here rather than hidden in
+    # a comfortable band, and the floor's job is only to stop it getting worse.
+    # Both were 0.36 and 0.61 two iterations ago and were improved by being
+    # widened rather than brightened -- the error is transverse distribution, not
+    # amplitude.  The numbers moved again afterwards and these comments did not,
+    # which is why they now name the reading they were written against: the
+    # upper-right lost 0.05 to re-centring flare_halo (the statistic subtracts
+    # the quieter flank, and the shift raises the background east) while no ray
+    # parameter changed, and the lower-right gained 0.10 from the same pass.
+    # The floors are deliberately NOT retightened onto 0.49/0.76 -- 0.45 leaves
+    # the upper-right only 0.04 of margin as it is.
     ("upper-right ray is present", "ray upper-right", (0.45, 2.20), 1.0,
-     "a ray has been smoothed away (this one is already 0.54 of the reference)"),
+     "a ray has been smoothed away (this one is already 0.49 of the reference)"),
     ("lower-right ray is present", "ray lower-right", (0.55, 2.20), 1.0,
-     "a ray has been smoothed away (this one is already 0.66 of the reference)"),
+     "a ray has been smoothed away (this one is already 0.76 of the reference)"),
     ("the white core is not oversized", "white radius", (0.0, 1.35), 0.5,
      "the compact white region has grown into a blob"),
     ("the bloom has not gone white", "cyan fraction", (0.90, 1.12), 0.05,
@@ -335,12 +359,18 @@ def statistics(a):
 
 
 def report(ref, rec):
-    """[(name, ratio, lo, hi, ok, ref_value, rec_value, meaning), ...]."""
+    """[(name, ratio, lo, hi, ok, ref_value, rec_value, meaning), ...].
+
+    `ratio is None and ok` is a genuine skip: the reference cannot establish the
+    structure.  `ratio is None and not ok` is the structure being absent from the
+    render while the reference has it.  Both leave `ratio` unformattable, so a
+    caller printing failures must handle None.
+    """
     sref, srec = statistics(ref), statistics(rec)
     rows = []
     for name, key, (lo, hi), floor, meaning in CHECKS:
-        ratio, lo, hi = _ratio(srec.get(key), sref.get(key), lo, hi, floor)
-        ok = True if ratio is None else (lo <= ratio <= hi)
+        ratio, lo, hi, measurable = _ratio(srec.get(key), sref.get(key), lo, hi, floor)
+        ok = measurable if ratio is None else (lo <= ratio <= hi)
         rows.append((name, ratio, lo, hi, ok, sref.get(key), srec.get(key), meaning))
     return rows
 
@@ -356,9 +386,11 @@ def main():
     print("%-38s %9s %9s %16s  %s" % ("structure", "reference", "render", "render/ref", ""))
     for name, ratio, lo, hi, ok, rv, cv, _meaning in rows:
         if ratio is None:
-            print("%-38s %9s %9s %16s  NOT MEASURABLE"
+            bad += not ok
+            print("%-38s %9s %9s %16s  %s"
                   % (name, "%.4g" % rv if rv is not None else "-",
-                     "%.4g" % cv if cv is not None else "-", "-"))
+                     "%.4g" % cv if cv is not None else "-", "-",
+                     "NOT MEASURABLE" if ok else "MISSING FROM RENDER"))
             continue
         bad += not ok
         print("%-38s %9.4g %9.4g %8.3f [%.2f,%.2f]  %s"

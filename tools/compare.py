@@ -157,7 +157,7 @@ def compare(ref_path, rec_path, out_prefix=None, quiet=False):
 
 
 
-def _provenance(render_path, require=False):
+def _provenance(render_path, require=False, expect_size=None, expect_renderer=None):
     """The SVG digest recorded beside a render, so a report names its own input.
 
     Defined in tools/render.py and shared, rather than copied here and into
@@ -166,7 +166,8 @@ def _provenance(render_path, require=False):
     before believing what the sidecar says about it -- was missing from both.
     """
     import render as _R
-    return _R.read_provenance(render_path, require=require)
+    return _R.read_provenance(render_path, require=require,
+                              expect_size=expect_size, expect_renderer=expect_renderer)
 
 
 def main():
@@ -177,12 +178,18 @@ def main():
     ap.add_argument("--json", default=None)
     ap.add_argument("--require-provenance", action="store_true",
                     help="fail unless the render can be shown to come from a known SVG")
+    ap.add_argument("--expect-size", type=int, default=None,
+                    help="also require the sidecar to record this render size")
+    ap.add_argument("--expect-renderer", default=None,
+                    help="also require the sidecar to record this renderer")
     a = ap.parse_args()
     m = compare(a.reference, a.render, a.out_prefix)
     if a.json:
         # Written BEFORE the metrics file exists, so a provenance failure cannot
         # leave a metrics file behind that the README might later publish.
-        digest = _provenance(a.render, require=a.require_provenance)
+        digest = _provenance(a.render, require=a.require_provenance,
+                             expect_size=a.expect_size,
+                             expect_renderer=a.expect_renderer)
         m = dict(m, source_svg_sha256=digest)
         open(a.json, "w").write(json.dumps(m, indent=2, sort_keys=True))
     return 0

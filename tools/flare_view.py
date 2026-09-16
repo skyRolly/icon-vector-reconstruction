@@ -56,8 +56,37 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 from regions import FLARE_CORE  # noqa: E402
 
-FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-FONT_B = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+#: Label fonts.  These were two hard-coded Debian paths, which is a host
+#: assumption this project does not otherwise make: the documented requirement
+#: is Python plus Pillow and numpy, and neither macOS nor a minimal Linux image
+#: ships DejaVu at that path.  Each name is tried in turn and Pillow's built-in
+#: bitmap font is the floor, so the sheet renders everywhere -- smaller and
+#: uglier without a TrueType face, but a diagnostic that refuses to draw is
+#: worse than one drawn in the default font.
+FONT_CANDIDATES = (
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/TTF/DejaVuSans.ttf",
+    "/Library/Fonts/Arial.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+)
+FONT_B_CANDIDATES = (
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+    "/Library/Fonts/Arial Bold.ttf",
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+)
+
+
+def _font(size, bold=False):
+    """A TrueType face at `size` if the host has one, else Pillow's default."""
+    for path in (FONT_B_CANDIDATES if bold else FONT_CANDIDATES):
+        try:
+            return ImageFont.truetype(path, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
 
 #: (name, half-width in source px, panel size in output px).  The panel size
 #: divided by 2*half is the enlargement, so these are 1.4x, 3.4x and 9.1x.
@@ -163,7 +192,16 @@ def build_row(ref, rec, view, size, gains):
                   (grey(128 + highpass(lc) * ge), "reconstruction high-pass x%g" % ge)]
     else:
         cr, cc = chroma(ref, 3.0), chroma(rec, 3.0)
-        d = (cc - cr).mean(2)
+        # NOT (cc - cr).mean(2), which this used to be and which is identically
+        # zero: `chroma` subtracts each pixel's own channel mean, so the three
+        # deviations it returns sum to zero by construction, and so does their
+        # difference.  Averaging that over channels gave float noise and a black
+        # panel for every pair, however differently coloured -- a cyan pixel
+        # against a grey one produced 0.000e+00.  What the label promises is
+        # "more colour", which is a MAGNITUDE question: how far each pixel's
+        # chroma sits from neutral.
+        d = (np.linalg.norm(cc - 128.0, axis=2)
+             - np.linalg.norm(cr - 128.0, axis=2))
         panels = [(cr, "reference chroma x3"),
                   (cc, "reconstruction chroma x3"),
                   (np.abs(cc - cr) * ga, "|difference| x%g" % ga),
@@ -191,9 +229,9 @@ def sheet(ref_path, rec_path, out_path, cx, cy, labels=("reference", "reconstruc
     if ref_full.shape != rec_full.shape:
         raise SystemExit("images differ in size: %s vs %s -- alignment would be a lie"
                          % (ref_full.shape, rec_full.shape))
-    f_head = ImageFont.truetype(FONT_B, 21)
-    f_row = ImageFont.truetype(FONT_B, 16)
-    f_lab = ImageFont.truetype(FONT, 13)
+    f_head = _font(21, bold=True)
+    f_row = _font(16, bold=True)
+    f_lab = _font(13)
     pad, gap = 16, 8
     head_h, row_h, lab_h = 34, 26, 19
 
@@ -270,7 +308,14 @@ def main():
         ref, rec = a.images[0], a.images[1]
         labels = ("A", "B")
     if a.labels:
-        labels = tuple(s.strip() for s in a.labels.split(","))[:2]
+        # [:2] silently produced a ONE-element tuple for a one-item value, and
+        # sheet() indexes labels[1]: the option aborted with IndexError deep in
+        # drawing instead of being rejected here.
+        parts = tuple(s.strip() for s in a.labels.split(","))
+        if len(parts) != 2 or not all(parts):
+            ap.error("--labels needs exactly two non-empty comma-separated "
+                     "names, e.g. --labels \"previous,candidate\"")
+        labels = parts
     sheet(ref, rec, a.out, a.cx, a.cy, labels)
     return 0
 
