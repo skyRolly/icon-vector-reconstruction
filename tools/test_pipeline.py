@@ -594,7 +594,13 @@ def main():
     # which is every shape, taper, geometry and field stage of optimize_all.sh.
     comb_at = {}
     for st in (1, 2, 3, 4):
-        shp = (1024 // st, 1024 // st, 3)
+        # The grid the OPTIMISER builds, which is what this check is about.
+        # `1024 // st` is not it: Objective.evaluate decimates by point-sampling
+        # with [::st, ::st], so at stride 3 it gets len(range(0, 1024, 3)) = 342
+        # rows where 1024 // 3 is 341.  One row changes the count, and the 49
+        # this check used to publish for stride 3 is really 45.
+        n = len(range(0, 1024, st))
+        shp = (n, n, 3)
         comb_at[st] = sum(1 for c in regions.flare_cells(shp) if c[0] == "comb")
     full = comb_at[1]
     check("the flare comb cells survive stride 3 and stride 4",

@@ -2667,7 +2667,7 @@ nonexistent path -> 3, non-executable file -> 3, executable that exits nonzero
 -> 2.
 
 Verified as already correct, with the evidence rather than by assumption: comb
-cells survive stride 3 and 4 (51/53/49/45, every |dx| band represented, so a
+cells survive stride 3 and 4 (51/53/45/45, every |dx| band represented, so a
 subsampled shape search can still see the lower horizontal structures); flare
 calibration that exhausts its round budget returns nonzero and reports NOT
 converged; isolation rejects orderings its algebra cannot express; the
@@ -2860,3 +2860,94 @@ inward gives a reference "profile" of 8.84, 7.23, 18.91, 14.14, 7.39 at
 r 35..55 while the ray-removed control render reads -0.41, +1.49, +1.01, +0.20,
 +0.77: contamination of the same order as the scatter, and an 18.91 next to a
 7.39 is not a profile.
+
+## D53. Chroma, multi-scale, and the two audits: what the last four dimensions
+## added, including one finding this record nearly dismissed by mistake
+
+**There is no global saturation defect, and the sign flip that made earlier
+claims unreliable has an explanation.** Across every convention tried the
+whole-canvas chroma difference is within +-2.5%, and at matched luminance all
+three measures agree the render is slightly MORE chromatic. The flip that D42
+recorded as irreducible is not between colour spaces: it is between ABSOLUTE
+chroma (C*ab, max-min) and RELATIVE chroma (S, C*/L*), and it appears wherever
+the render's luminance is also wrong. Conditioning on luminance removes it. In
+this model's own cone basis the question has no ambiguity at all, because R is
+white-only and so dWhite = dR exactly.
+
+**The flare's colour error is an azimuthal quadrupole, not two radial shells.**
+North and south of the core the render is too white; east and west it is too
+cyan, at overlapping radii. The radial-only sign flips D42 reported are an
+artefact of the ridge mask admitting different sectors at different radii. This
+does not change D46's conclusion -- one isotropic layer cannot serve four
+directions that want opposite corrections -- but it names the shape of the fix:
+a white carrier whose profile runs along the east-west axis, not a recolouring.
+
+**A finding this record nearly dismissed, and the reason it did not.** The
+concave, lobe-facing flank of BOTH curves carries too much white primary at
+essentially correct luminance. The first check of that claim read -4.09 cv, the
+opposite sign, and would have refuted it. That check was wrong: its cell did not
+exclude the flare, where the render is too DARK in R, and the flare's own error
+swamped the curve's. Excluding r < 200 the same cell reads **+5.38 on the left
+arc and +3.27 on the right**, against -0.00 and -0.54 on the centre-facing side,
+which reproduces the independent measurement.
+
+It is recorded rather than applied. Taking `arc_glow1` from white 0.37683 to
+0.28 with cyan raised to 0.41 improves both the target (lobe dR +4.33 -> +2.79)
+and the curve-band MAE (2.964 -> 2.938) and costs **0.0106 of whole-image MAE** --
+a regression an order of magnitude larger than the gains this iteration shipped.
+And the 5.38-against-3.27 asymmetry means no single symmetric value can correct
+both arcs; honouring it needs the layer split per arc. Same structural fault as
+the halo, in a different place.
+
+**Nothing in the flare is a vectorised JPEG artifact.** A five-scale persistence
+test (native, gaussian 1, gaussian 2, 2x, 4x) over every flare structure the
+model has returns a negative result: every structure significant at native
+resolution is also significant, with the same sign and comparable amplitude, at
+all five scales. No thin ray should be removed on artifact grounds. The
+reference's 8x8 grid is real, un-shifted, 0.65-1.10 cv, with no 16-px MCU
+superperiod and no detectable chroma-subsampling footprint.
+
+**But one piece of the model IS built on a clipping artifact.**
+`flare_vline`'s tabulated factor-3.1 step at |dy| ~33 is not a feature of the
+light: it is R's ZERO floor, 20-30% occupied over exactly those bands. In the two
+unclipped channels the reference's line RISES across that boundary and peaks at
+|dy| 36-70 -- precisely where the table puts its collapse -- and the model's
+non-monotone tail bump at |dy| 80-100 is absent from the reference altogether.
+The table is wrong in SHAPE, and the layer note now says so instead of offering
+the step as the reason for tabulating. It is not retuned here because doing it
+properly means refitting against G and B outside |dy| 26 and against R inside it,
+with `south_gain` re-checked afterwards since the two are entangled.
+
+**A correction to this iteration's own published numbers.** The comb-cell counts
+were measured on a grid the optimiser never builds: `1024 // st` is 341 rows at
+stride 3 where `Objective.evaluate` point-samples `[::3, ::3]` and gets 342. The
+real counts are **51 / 53 / 45 / 45**, not 51/53/49/45. The conclusion is
+unchanged -- the comb survives every stride the pipeline uses, with every |dx|
+band represented -- but a check that measures a grid nothing uses is not a check,
+and the figure is corrected here and in the source.
+
+**Reported and not acted on**, each with the reason:
+
+  * `tools/regions.py` maps a subsampled grid as if each sample were a box centre
+    while `optimize.py` point-samples, a constant +1.5 px disagreement at stride 4.
+    It is a weight-ASSIGNMENT error, not a residual misalignment: it changes which
+    reference rows a comb cell owns, not where anything is drawn.
+  * `measure_flare` does not converge on the shipped parameters -- the upper-right
+    ray's measured peak settles into a period-2 oscillation straddling the
+    tolerance band, so the tool exits 1 and its own advice to raise `--rounds`
+    does not help. The convergence SEMANTICS are correct (that was the thing
+    under review, and it passes); chasing the tolerance would be fitting the
+    instrument's own discontinuity.
+  * A weak east-only inner extension of line C, and an azimuthal colour split at
+    r 30-65 that is an annulus with an east notch rather than a set of rays. Both
+    are single-dimension findings with no independent confirmation.
+
+**The evidence bar, stated once for the next iteration.** A cell mean counts as
+evidence when it exceeds three times the robust scatter of the SAME cell at
+matched-null positions at the SAME radius, and holds to within a factor of 1.5 at
+both 2x and 4x downsample. The shared constant "tau ~ 8 px^2 per independent
+sample" reproduces only in the far field: inside r 100 it understates the
+correlation by 1.5x to 10x, so a sigma computed with it there is overstated by
+1.1x to 3.3x. Use the matched-null cell scatter directly and skip the noise model.
+Inside r 60 no amount of averaging buys sensitivity; the floor there is
+systematic, about 6-13 cv in R and 3-6 cv in B.
