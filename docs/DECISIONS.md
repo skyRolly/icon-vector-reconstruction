@@ -3209,9 +3209,9 @@ whole-image fit and should not be reached for on the evidence of 1650 px.
 ### Where the artwork ended up
 
 MAE 1.88059 -> **1.87815**, SSIM 0.974039 -> **0.974081**, flare r<110 6.522 ->
-**6.457**, r<40 9.785 -> **9.610**, core box 7.790 -> **6.328**. All 40 pipeline
+**6.457**, r<40 9.785 -> **9.610**, core box 7.790 -> **6.328**. All 42 pipeline
 checks and all 12 structural checks pass -- 33 at the end of the iteration's
-own work, and seven more added by the review rounds recorded in D55 and
+own work, and nine more added by the review rounds recorded in D55, D56 and
 above. Five of the twelve structural ratios
 moved towards the reference (the west field, line C, the skirt, the lower-right
 ray and the white-core radius) and four moved away (the two right rays by 0.05
@@ -3276,3 +3276,59 @@ layer and watching it be named.
 The general rule, since this is the fourth bound-or-reachability fault in this
 project: **an audit that cannot see a class of fault should say so in a form
 that fails, not in a docstring.**
+
+## D56. The third answer to `--quick`, and two tools that accepted what they ignored
+
+Three review rounds have now asked the same question about `validate.py --quick`:
+it rewrites two of the five canonical rasters, so `out/` can hold renders of
+different SVG generations, every one of them provably authentic.
+
+The first answer **deleted** the three sidecars it did not rewrite. That is
+worse than the problem: it turns a tracked artefact that can be verified into
+one that cannot, and it makes a diagnostic run mutate files nobody asked it to
+touch. Reverted.
+
+The second answer recorded `rendered_sizes` in the report and the JSON and
+called the rest stale. Better, but it has two faults. It hands the problem back
+to the consumer -- you have to know what `rendered_sizes` means to avoid mixing
+generations -- and **"left from an earlier run" was an assumption.** A raster
+this run did not write is stale only if the SVG has moved since. If it has not,
+it is exactly as current as the two just rendered, and calling it stale is as
+wrong as calling it fresh.
+
+The third answer checks. `carried_rasters()` reads each untouched canonical
+raster's sidecar, which authenticates the PNG, and compares the `svg_sha256` it
+records with the SVG this run validated. Four outcomes, each carrying its
+evidence into `validation.md` and `validation.json`:
+
+| | meaning |
+|---|---|
+| `current` | same SVG as this run -- safe to read beside the table |
+| `stale` | authentic, and from a different SVG generation |
+| `unverifiable` | a sidecar that does not describe the file beside it |
+| `absent` | no raster there at all |
+
+Nothing on disk is touched, which was the first answer's whole failing. All four
+outcomes are exercised as a check, including `unverifiable`, which is produced
+by appending four bytes to a render and leaving its sidecar alone.
+
+This is the same move as D55 one layer down, and worth stating as a rule: **when
+a report cannot be sure of something, the fix is to measure it, not to annotate
+it.** `rendered_sizes` was an annotation. `carried_rasters` is a measurement.
+
+### Two tools that accepted arguments they ignored
+
+`flare_view.py` draws a two-column sheet. Given three or more images it took
+`images[0:2]`, drew the first two and exited 0 -- so `flare_view.py a.png b.png
+c.png` produced a wrong sheet that looks exactly like a right one, and `c.png`
+never had to exist. Verified by passing a path that did not: exit 0, sheet
+written, no complaint. It is now an `ap.error`, for the same reason `--labels`
+became one: an argument the tool cannot honour is an error at parse time, not
+silence at draw time.
+
+And the CI workflow's header still described the two-outcome exit scheme that
+D50 replaced -- "it exits 2 only in the second case" -- while the job's own
+steps had been asserting exit 3 for a misconfigured browser since. The comment
+was the last place the old model survived. Corrected, and the steps that assert
+the codes are named in it, so the two cannot drift apart again without the job
+failing.

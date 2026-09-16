@@ -344,12 +344,21 @@ def main():
     ap.add_argument("--cx", type=float, default=FLARE_CORE[0])
     ap.add_argument("--cy", type=float, default=FLARE_CORE[1])
     a = ap.parse_args()
+    # The sheet is a two-column comparison by construction, so a third path is
+    # not a wider comparison -- it is a mistake.  Taking images[0:2] accepted it
+    # and reported success, which meant `flare_view.py a.png b.png c.png` drew a
+    # and b and said nothing about c: a wrong sheet that looks like a right one.
+    # Rejected here for the same reason --labels is: an argument the tool cannot
+    # honour is an error at parse time, not silence at draw time.
     if len(a.images) == 1:
         ref, rec = a.reference, a.images[0]
         labels = ("reference", "reconstruction")
-    else:
-        ref, rec = a.images[0], a.images[1]
+    elif len(a.images) == 2:
+        ref, rec = a.images
         labels = ("A", "B")
+    else:
+        ap.error("provide one render (compared against the reference) or exactly "
+                 "two images to compare; got %d" % len(a.images))
     if a.labels:
         # [:2] silently produced a ONE-element tuple for a one-item value, and
         # sheet() indexes labels[1]: the option aborted with IndexError deep in

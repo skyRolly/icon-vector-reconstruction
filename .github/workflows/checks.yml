@@ -9,8 +9,13 @@
 #
 # Chromium is deliberately NOT installed.  Cross-engine validation is a
 # cross-check, not the acceptance renderer, and `tools/validate.py`
-# distinguishes an intentional skip from a configured Chromium that fails: it
-# exits 2 only in the second case, so this job proves the skip path works.
+# distinguishes three outcomes rather than two: exit 0 for a genuine skip (no
+# browser anywhere, or --no-chromium), exit 2 when a browser WAS found and
+# failed to execute, and exit 3 when one was explicitly configured and is not
+# usable -- a broken configuration is not an absent optional dependency.  This
+# job proves the skip path and, by pointing $ICON_CHROMIUM at nothing, the
+# misconfiguration path; the steps below assert those codes, so this comment
+# and the gate cannot drift apart again without the job failing.
 name: checks
 
 on:

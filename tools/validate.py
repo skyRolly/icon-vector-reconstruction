@@ -78,6 +78,50 @@ def _sha256(path):
     return h.hexdigest()
 
 
+def carried_rasters(outdir, sizes, svg_digest):
+    """Classify the canonical rasters a run did NOT write, one row each.
+
+    A `--quick` run rewrites two of the five canonical rasters.  The first
+    attempt at this problem DELETED the other three sidecars, which is worse
+    than the problem: it turns a tracked artefact that can be verified into one
+    that cannot, and it makes a diagnostic run mutate files nobody asked it to
+    touch.  The second attempt reported which sizes the run had rendered and
+    called the rest stale -- but "left from an earlier run" was still an
+    assumption.  If the SVG has not moved since, those three are exactly as
+    current as the two just rendered, and a consumer who has to know what
+    `rendered_sizes` means in order to avoid mixing generations has been handed
+    the problem rather than an answer.
+
+    So each one is checked: its sidecar authenticates the PNG (which is what
+    `read_provenance` is for), and the svg_sha256 it records is compared with
+    the SVG this run validated.  Four outcomes, and each names its evidence:
+
+      current       same SVG as this run -- safe to read beside the table
+      stale         authentic, and from a different SVG generation
+      unverifiable  a sidecar that does not describe the file beside it
+      absent        no raster there at all
+
+    Nothing on disk is touched.  Returns a list of (size, generation, evidence).
+    """
+    out = []
+    for z in sizes:
+        png_z = os.path.join(outdir, "render_%d.png" % z)
+        if not os.path.exists(png_z):
+            out.append((z, "absent", "no raster in %s" % outdir))
+            continue
+        try:
+            recorded = R.read_provenance(png_z, require=True)
+        except R.ProvenanceError as exc:                       # noqa: PERF203
+            out.append((z, "unverifiable", str(exc)))
+            continue
+        if recorded == svg_digest:
+            out.append((z, "current", "same SVG as this run"))
+        else:
+            out.append((z, "stale", "records svg_sha256 %s..., this run's SVG is "
+                                    "%s..." % (recorded[:12], svg_digest[:12])))
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--svg", default=os.path.join(ROOT, "reconstruction.svg"))
@@ -93,24 +137,19 @@ def main():
 
     CANONICAL = [256, 512, 1024, 2048, 4096]
     sizes = [1024, 2048] if a.quick else CANONICAL
-    # A --quick run rewrites two of the five canonical rasters and leaves the
-    # other three where the last full run put them, each with a sidecar that
-    # still authenticates it truthfully -- the PNG really did come from the SVG
-    # named in it.  So out/ can hold renders of DIFFERENT SVGs, every one of them
-    # provably authentic and only two of them current.
-    #
-    # The first attempt at this DELETED those sidecars, which is worse: it turns
-    # a tracked artefact that can be verified into one that cannot, and it means
-    # a diagnostic run mutates files it was never asked to touch.  Provenance
-    # answers "did this raster come from that SVG", and each of those answers is
-    # still correct.  What was missing is the other question -- "which of these
-    # did THIS run produce" -- so the run records the sizes it rendered, in the
-    # report and in the JSON, and changes nothing on disk that it did not write.
-    stale = [z for z in CANONICAL if z not in sizes]
-    if stale:
-        print("--quick: rendered %s; %s are left from an earlier run and this "
-              "run's report covers only what it rendered"
-              % (", ".join(str(z) for z in sizes), ", ".join(str(z) for z in stale)))
+    # A --quick run rewrites two of these five and leaves the rest where the last
+    # run put them, so out/ can hold renders of DIFFERENT SVGs, every one of them
+    # provably authentic and not all of them current.  carried_rasters() says
+    # which is which, per file and with its evidence; its docstring has the two
+    # worse answers this replaced.
+    svg_digest = _sha256(a.svg)
+    carried = carried_rasters(a.outdir, [z for z in CANONICAL if z not in sizes],
+                              svg_digest)
+    stale = [z for z, st, _d in carried if st != "current"]
+    if carried:
+        print("--quick: rendered %s.  The other canonical rasters: %s"
+              % (", ".join(str(z) for z in sizes),
+                 "; ".join("%d %s" % (z, st) for z, st, _d in carried)))
     rows = []
     for size in sizes:
         png = R.render(a.svg, size, "resvg")
@@ -171,12 +210,18 @@ def main():
     for eng, size, note, m in rows:
         lines.append("| %s | %d | %s | %.3f | %.3f | %.0f | %.3f | %.4f | %.2f |"
                      % (eng, size, note, m["mae"], m["rmse"], m["max"], m["mae_gamma"], m["ssim"], m["pct_gt8"]))
-    if stale:
+    if carried:
         lines += ["",
-                  "This was a `--quick` run: it rendered %s.  The %s rasters in "
-                  "`out/` are from an earlier run and are not described by the "
-                  "table above." % (", ".join(str(z) for z in sizes),
-                                    ", ".join(str(z) for z in stale))]
+                  "This was a `--quick` run: it rendered %s.  The other canonical "
+                  "rasters in `out/` are not described by the table above, and each "
+                  "was checked rather than assumed stale:"
+                  % ", ".join(str(z) for z in sizes),
+                  "", "| raster | generation | evidence |", "|---|---|---|"]
+        lines += ["| `render_%d.png` | %s | %s |" % (z, st, d) for z, st, d in carried]
+        lines += ["",
+                  "`current` means its sidecar records the same SVG this run "
+                  "validated, so it may be read alongside the table; anything else "
+                  "may not."]
     lines += ["", "## Cross-engine agreement at 1024 (resvg vs Chromium)", ""]
     if cross:
         lines += ["| MAE | RMSE | max | SSIM |", "|---|---|---|---|",
@@ -227,12 +272,14 @@ def main():
               else "misconfigured" if chrome_state == "misconfigured"
               else "skipped (unavailable)")
     json.dump({"rendered_sizes": sizes, "quick": bool(a.quick),
+               "carried_rasters": [{"size": z, "generation": st, "evidence": d}
+                                   for z, st, d in carried],
                "rows": [{"engine": e, "size": s, "note": n, **m} for e, s, n, m in rows],
                "cross_engine": cross,
                "chromium": {"status": status, "path": chrome_path,
                             "found_via": chrome_how, "discovery_state": chrome_state,
                             "executed": cross is not None},
-               "svg_sha256": _sha256(a.svg),
+               "svg_sha256": svg_digest,
                "reference_sha256": _sha256(a.reference)},
               open(os.path.join(a.outdir, "validation.json"), "w"), indent=1)
     if chrome_failed:

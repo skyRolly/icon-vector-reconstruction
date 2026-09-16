@@ -780,6 +780,7 @@ def main():
     # `diagnose`'s three crops on disk -- indistinguishable from the output of a
     # run that had succeeded, and with a nonzero exit status that nothing
     # downstream was obliged to look at.
+    import render as _R
     import shutil as _sh
     import tempfile as _tf0
     _leak = []
@@ -809,6 +810,51 @@ def main():
                              % (_tool, _r.returncode, ", ".join(_left)))
         finally:
             _sh.rmtree(_d, ignore_errors=True)
+    # The inspection sheet is a two-column comparison by construction, so a
+    # third path is not a wider comparison, it is a mistake.  images[0:2] drew
+    # the first two and reported success: a wrong sheet that looks like a right
+    # one, and the third file never even had to exist.
+    _arity = []
+    for _n, _want in ((1, 0), (2, 0), (3, 2), (4, 2)):
+        _r = _sp2.run([sys.executable, os.path.join(ROOT, "tools", "flare_view.py")]
+                      + [os.path.join(ROOT, "out", "render_1024.png")] * _n
+                      + ["--out", os.path.join(_tf0.gettempdir(), "_fv_arity.png")],
+                      capture_output=True, text=True, cwd=ROOT)
+        _arity.append((_n, _r.returncode, _want))
+    check("the inspection sheet rejects more images than it can draw",
+          all(rc == w for _n, rc, w in _arity),
+          "; ".join("%d image(s) -> exit %d (want %d)" % t for t in _arity))
+
+    # A raster a --quick run did not write is stale only if the SVG moved since.
+    # Reporting `rendered_sizes` and leaving the reader to infer the rest put the
+    # problem back on the consumer; each carried raster is classified instead.
+    import validate as _V
+    _cls = []
+    _d = _tf0.mkdtemp()
+    try:
+        _svg2 = os.path.join(_d, "s.svg")
+        open(_svg2, "w").write('<svg xmlns="http://www.w3.org/2000/svg" '
+                               'viewBox="0 0 8 8"><rect width="8" height="8" '
+                               'fill="#345"/></svg>')
+        _dig = _V._sha256(_svg2)
+        _p256 = os.path.join(_d, "render_256.png")
+        _b = _R.render(_svg2, 64, "resvg")
+        open(_p256, "wb").write(_b)
+        _R.write_provenance(_p256, _svg2, _b, 64, "resvg")
+        _cls.append(("same SVG", _V.carried_rasters(_d, [256], _dig)[0][1], "current"))
+        _cls.append(("SVG moved on",
+                     _V.carried_rasters(_d, [256], "0" * 64)[0][1], "stale"))
+        _cls.append(("no raster",
+                     _V.carried_rasters(_d, [512], _dig)[0][1], "absent"))
+        open(_p256, "ab").write(b"junk")
+        _cls.append(("sidecar describes other bytes",
+                     _V.carried_rasters(_d, [256], _dig)[0][1], "unverifiable"))
+    finally:
+        _sh.rmtree(_d, ignore_errors=True)
+    check("a quick run says which carried rasters are current, not which it rendered",
+          all(got == want for _w, got, want in _cls),
+          "; ".join("%s -> %s (want %s)" % t for t in _cls))
+
     check("a render rejected on provenance leaves no report artefacts behind",
           not _leak, "; ".join(_leak) if _leak
           else "compare and diagnose both refuse before writing anything")
@@ -970,7 +1016,6 @@ def main():
     # sidecar's `svg_sha256` was read without ever hashing the PNG -- so every
     # downstream report went on attributing its numbers to an SVG that had not
     # produced the raster being measured.
-    import render as _R
     import tempfile as _tf
     with _tf.TemporaryDirectory() as _td:
         _svg = os.path.join(_td, "a.svg")
