@@ -133,15 +133,24 @@ def west_flatness(a):
 # 2. the vertical diffraction structure must stay present
 # --------------------------------------------------------------------------- #
 def vertical_amplitude(a):
-    """Column high-pass amplitude of the vertical line, in R, over |dy| 16-50.
+    """Column high-pass amplitude of the vertical line, in R, NORTH of the core.
 
     R because G and B are clipped within ~12 px of the core, which is what hid
     this structure for four iterations: through mean(RGB) it is nearly invisible.
     N = (4*A_2 - A_4)/3 cancels any background quadratic in x over +-4 px.
+
+    NORTH ONLY, and the first version of this pooled both sides -- which is the
+    very fault that had just been found in tools/vstreak_report.py and fixed
+    there.  The reference's line is north-dominated (south/north 0.44 in B, 0.63
+    in R), so correcting the model's south_gain from 1.0 to 0.55 LOWERS a pooled
+    statistic and a pooled check would have read that correction as a 12% loss of
+    structure.  A guard that cannot see an asymmetry will argue against fixing
+    one; writing this check before fixing the tool would have baked the same
+    blindness into the regression suite.
     """
     _dx, dy, _r, _th, dmin = geometry(a.shape)
     R = a[..., 0]
-    rows = (np.abs(dy[:, 0]) >= 16) & (np.abs(dy[:, 0]) < 50)
+    rows = (dy[:, 0] <= -16) & (dy[:, 0] > -50)
     x0 = int(round(CORE[0]))
     out = []
     for k in (2, 4):
@@ -275,6 +284,12 @@ CHECKS = (
      "the west field's transverse profile is the wrong shape: above the band it "
      "has gone FLAT, which is what a wide quadrilateral looks like and what "
      "reads as a triangular region; below it the west structure has gone"),
+    # 0.58 of the reference on the current artwork, and that is NOT read as a
+    # deficit: re-compressing test renders at q 88-96 moves this statistic by
+    # x1.17-1.27 in R, which is the same size as the shortfall, so the line's
+    # absolute amplitude is not recoverable from this image.  The band is set
+    # around where it sits, and the ratio between the two SIDES -- which is
+    # immune to that systematic -- is what the artwork was actually fitted to.
     ("the vertical diffraction is present", "vertical", (0.45, 2.20), 0.8,
      "the vertical line through the core has faded or been over-driven"),
     ("line A is present", "lineA", (0.45, 2.00), 1.0, "the core-row line has faded"),
