@@ -793,23 +793,42 @@ def main():
         _R.write_provenance(_fchr, _fsvg, _fb, 64, "chromium")
         _fnone = os.path.join(_d, "bare.png")          # no sidecar at all
         open(_fnone, "wb").write(_fb)
-        for _png, _args, _want in (
-                (_fchr, ["--require-provenance", "--expect-renderer", "resvg"], 1),
-                (_fres, ["--require-provenance", "--expect-size", "4096"], 1),
-                (_fnone, ["--require-provenance"], 1),
-                (_fres, ["--require-provenance", "--expect-size", "64",
-                         "--expect-renderer", "resvg"], 0)):
+        _froot = os.path.join(_d, "root.png")          # sidecar is `[]`
+        open(_froot, "wb").write(_fb)
+        open(_R.provenance_path(_froot), "w").write("[]")
+        for _what, _png, _args, _want in (
+                ("chromium render demanded to be resvg", _fchr,
+                 ["--require-provenance", "--expect-renderer", "resvg"], 1),
+                ("64-px render demanded to be 4096", _fres,
+                 ["--require-provenance", "--expect-size", "4096"], 1),
+                ("no sidecar, provenance required", _fnone,
+                 ["--require-provenance"], 1),
+                # Each expectation implies --require-provenance: it is a claim
+                # about a field that exists only in a sidecar, so a render
+                # without one cannot satisfy it.  These three exited 0.
+                ("no sidecar, --expect-renderer alone", _fnone,
+                 ["--expect-renderer", "resvg"], 1),
+                ("no sidecar, --expect-size alone", _fnone,
+                 ["--expect-size", "64"], 1),
+                ("no sidecar, --expect-svg alone", _fnone,
+                 ["--expect-svg", _fsvg], 1),
+                # And a sidecar whose JSON root is not an object records no
+                # fields at all; it used to raise AttributeError out of the
+                # ProvenanceError contract.
+                ("sidecar is the JSON array []", _froot,
+                 ["--require-provenance"], 1),
+                ("the render it says it is", _fres,
+                 ["--require-provenance", "--expect-size", "64",
+                  "--expect-renderer", "resvg"], 0)):
             _r = _sp2.run([sys.executable, os.path.join(ROOT, "tools", "compare.py"),
                            _fref, _png] + _args,
                           capture_output=True, text=True, cwd=ROOT)
-            _prov_cases.append((_args[1:] or ["(sidecar absent)"],
-                                _r.returncode, _want))
+            _prov_cases.append((_what, _r.returncode, _want))
     finally:
         _sh.rmtree(_d, ignore_errors=True)
     check("provenance expectations hold without --json",
           all(rc == want for _a, rc, want in _prov_cases),
-          "; ".join("%s -> exit %d (want %d)" % (" ".join(a), rc, w)
-                    for a, rc, w in _prov_cases))
+          "; ".join("%s -> exit %d (want %d)" % t for t in _prov_cases))
 
     # And the shipped artefacts as artefacts, which is the question the check
     # above used to answer by accident.  Only these three rasters are tracked --
@@ -947,6 +966,19 @@ def main():
                 _got = "raised %s" % type(exc).__name__
             _cls.append(("malformed %s=%r" % next(iter(_bad.items())),
                          _got, "unverifiable"))
+
+        # A root that is not an object records no fields at all, so it never
+        # reached the shape check above -- `.get` raised AttributeError first,
+        # and this classifier, which catches only ProvenanceError, went down
+        # with it and produced no report.
+        for _n, _root in ((2, "[]"), (1024, "null"), (2048, '"x"'), (4096, "7")):
+            _sh.copyfile(_p64, os.path.join(_d, "render_%d.png" % _n))
+            open(os.path.join(_d, "render_%d.png.prov.json" % _n), "w").write(_root)
+            try:
+                _got = _V.carried_rasters(_d, [_n], _dig)[0][1]
+            except Exception as exc:                           # noqa: BLE001
+                _got = "raised %s" % type(exc).__name__
+            _cls.append(("JSON root %s" % _root, _got, "unverifiable"))
 
         open(_p64, "ab").write(b"junk")
         _cls.append(("sidecar describes other bytes",
@@ -1209,7 +1241,40 @@ def main():
         # and the raster alone is still accepted, because staleness is opt-in:
         # an ad-hoc render of a scratch SVG is legitimate
         step10 = _R.read_provenance(_png, require=True) is not None
-    _steps = (step1, step2, step3, step4, step5, step6, step7, step8, step9, step10)
+        # step 11: an expectation is a REQUIREMENT.  `require` alone gated the
+        # absent-sidecar return, so expect_size/renderer/svg WITHOUT
+        # --require-provenance were silently not run on a render that had no
+        # sidecar to run them against: compare.py exited 0 and published metrics
+        # for unverified bytes, having been asked for proof of the opposite.
+        _R.clear_provenance(_png)
+        step11 = []
+        for _kw in ({"expect_size": 64}, {"expect_renderer": "resvg"},
+                    {"expect_svg": _svg}, {"expect_size": 64, "expect_svg": _svg}):
+            try:
+                _R.read_provenance(_png, **_kw)
+                step11.append(False)
+            except _R.ProvenanceError:
+                step11.append(True)
+        step11 = all(step11)
+        # ... and with nothing asked of it, an absent sidecar is still an absence
+        step12 = _R.read_provenance(_png) is None
+        # step 13: parsing says the file is JSON, not that it is a sidecar.
+        # Four roots parse and none of them records a field, and each used to
+        # reach `.get` and raise AttributeError -- past the contract, and past
+        # the callers, that the digest-shape check exists to protect.
+        step13 = []
+        for _root in ("[]", "null", '"x"', "3", "true"):
+            open(_R.provenance_path(_png), "w").write(_root)
+            try:
+                _R.read_provenance(_png, require=True)
+                step13.append(False)
+            except _R.ProvenanceError:
+                step13.append(True)
+            except Exception:                                  # noqa: BLE001
+                step13.append(False)
+        step13 = all(step13)
+    _steps = (step1, step2, step3, step4, step5, step6, step7, step8, step9,
+              step10, step11, step12, step13)
     check("a render sidecar cannot authenticate a PNG it does not describe",
           all(_steps),
           "valid render accepted: %s; replaced PNG rejected: %s; "
@@ -1217,7 +1282,9 @@ def main():
           "authentic-but-wrong-engine accepted without the expectation: %s, "
           "rejected with it: %s; wrong size rejected: %s; "
           "matching SVG accepted: %s; authentic-but-stale SVG rejected: %s; "
-          "staleness stays opt-in: %s" % _steps)
+          "staleness stays opt-in: %s; an expectation without a sidecar is an "
+          "error: %s; asking nothing still is not: %s; a JSON root that is not "
+          "an object is a ProvenanceError: %s" % _steps)
 
     # ---- the vertical streak's own two numbers actually move the render ---- #
     # Reachability (check 4b) says a spec exists; this says the spec DOES

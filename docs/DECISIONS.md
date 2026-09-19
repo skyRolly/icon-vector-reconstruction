@@ -3461,3 +3461,85 @@ contradict the optional-check policy confirmed two paragraphs above.
 
 44 pipeline checks and 12 structural checks pass. No artwork changed: every
 artefact regenerates byte-identically.
+
+## D58. An expectation that was never a requirement, and a sidecar that was
+## never an object
+
+Two more in the provenance reader, both in code D57 had just touched, and both
+the same shape as D57's three: a check that ran only when something unrelated
+happened to be true.
+
+### An expectation is a requirement
+
+`read_provenance` returns None for an absent sidecar when `require` is false.
+That is right -- provenance is optional for an ad-hoc render. But `require`
+alone gated that return, and the three `expect_*` arguments are claims about
+fields that exist ONLY in a sidecar. So a caller could ask for proof and be
+told nothing:
+
+    python3 tools/compare.py reference.png bare.png --expect-renderer resvg
+    exit 0
+
+It asked to be shown the raster came from resvg; it got metrics for unverified
+bytes and a success code. Not a yes and not a no, which is the one answer a
+precondition must never give. `tools/diagnose.py` had it identically, and both
+were confirmed at the CLI before the fix. The D57 round wired `--expect-*`
+through both tools without noticing the flags could be passed on their own.
+
+The confirming run did the damage itself, which is the clearest statement of
+the cost: `diagnose.py <scratch>.png --expect-size 4096` on a copy with no
+sidecar exited 0, wrote the tracked `out/diagnostics.json` from that
+unverified raster, and recorded `"source_svg_sha256": null` where the published
+artefact names the SVG it measured. A published diagnostic that cannot say
+which SVG produced it is exactly the failure the sidecar exists to prevent, and
+the flag asking for that guarantee is what let it through.
+
+Asking for an expectation is asking for the sidecar, so any non-None
+expectation now requires one however `require` was left. The error names what
+was asked rather than just what is missing:
+
+    no provenance beside bare.png: it cannot be shown to have come from any
+    particular SVG, let alone to satisfy expect_renderer='resvg'
+
+With nothing asked of it an absent sidecar is still an absence -- that is the
+case that had to keep working, and it is checked. Both CLIs now say `(implies
+--require-provenance)` in `--help`, because a flag whose behaviour depends on
+another flag being present is worth one clause.
+
+### A sidecar that was never an object
+
+D57 added a shape check for the two digest FIELDS. It did not check the shape
+of the thing they are fields of. `json.load` establishes that the file is JSON,
+not that it is a sidecar, and `[]`, `null`, `"x"`, `3` and `true` all parse:
+
+    AttributeError: 'list' object has no attribute 'get'
+
+raised from `_digest_field`'s own `d.get(field)` -- straight past the
+`ProvenanceError` contract, and past the `carried_rasters` classifier, that
+D57's field check was added to protect. `validate.py --quick` aborted with no
+report at all where its answer is a row reading `unverifiable`. The root is
+checked immediately after parsing now, and the message names the JSON type it
+found rather than the Python one.
+
+Twice in two rounds a malformed sidecar has escaped by being malformed one
+level further out, so the lesson is the narrow one rather than a grand one:
+**a check on a value is not a check on its container.** Five non-object roots
+are exercised through `read_provenance`, four more through `carried_rasters`,
+and one through `compare.py`.
+
+### The two questions, unchanged
+
+Both were raised and answered in D57 and neither has moved. `--quick`'s
+provenance-aware output is D56's deliberate answer, not an accident of it:
+every carried raster is classified per file with its evidence in stdout,
+`validation.md` and `validation.json`. As of D57 that classification cannot be
+fooled by a renamed file, and as of this entry not by a sidecar that is not an
+object either. The right-ray floors are presence gates, and
+`visual_regression.py`'s module docstring says so under PRESENCE, NOT FIDELITY
+-- naming the 0.49 and 0.76 readings they guard, and pointing at
+`out/metrics.json` and `tools/diagnose.py` for the fidelity question they do
+not answer.
+
+44 pipeline checks and 12 structural checks pass; this round added cases to
+three existing checks rather than new ones. No artwork changed: every artefact
+regenerates byte-identically.

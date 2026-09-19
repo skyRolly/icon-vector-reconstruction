@@ -218,11 +218,14 @@ def read_provenance(render_path, require=False, expect_size=None,
     So the PNG is hashed and compared with `png_sha256` first.  Only if that
     matches is `svg_sha256` returned, and it is then a statement about content.
 
-    `require=False` returns None when there is no sidecar at all: provenance is
-    optional for an ad-hoc render.  It is never optional once a sidecar exists --
-    a sidecar that does not describe this file is an error, not an absence,
-    because it is evidence that something has gone wrong rather than evidence
-    that nothing has been recorded.
+    `require=False` returns None when there is no sidecar at all AND nothing was
+    asked of it: provenance is optional for an ad-hoc render.  Passing any
+    `expect_*` is itself a requirement -- those fields exist only in a sidecar,
+    so asking for one is asking for the sidecar -- and an absent sidecar is then
+    an error however `require` was left.  Provenance is never optional once a
+    sidecar exists either: a sidecar that does not describe this file is an
+    error, not an absence, because it is evidence that something has gone wrong
+    rather than evidence that nothing has been recorded.
 
     `expect_size` and `expect_renderer` are for the callers that do not want just
     ANY authentic render: the README publishes the 1024-px resvg ACCEPTANCE
@@ -245,14 +248,40 @@ def read_provenance(render_path, require=False, expect_size=None,
     """
     side = provenance_path(render_path)
     if not os.path.exists(side):
-        if require:
+        # An expectation is a REQUIREMENT, not a filter applied to whatever
+        # sidecar happens to be there.  `require` alone used to gate this
+        # return, so `--expect-renderer resvg` on a render with no sidecar at
+        # all exited 0 and published metrics for unverified bytes: the caller
+        # asked for proof the raster came from resvg and was told nothing, which
+        # is the one answer that is neither a yes nor a no.  Every expectation
+        # is a claim about a field that exists only in a sidecar, so asking for
+        # one is asking for the sidecar.
+        asked = ["%s=%r" % (n, v) for n, v in (("expect_size", expect_size),
+                                               ("expect_renderer", expect_renderer),
+                                               ("expect_svg", expect_svg))
+                 if v is not None]
+        if require or asked:
+            detail = (", let alone to satisfy %s" % " and ".join(asked)) if asked else ""
             raise ProvenanceError("no provenance beside %s: it cannot be shown to "
-                                  "have come from any particular SVG" % render_path)
+                                  "have come from any particular SVG%s"
+                                  % (render_path, detail))
         return None
     try:
         d = json.load(open(side))
     except Exception as exc:                               # noqa: BLE001
         raise ProvenanceError("provenance beside %s is unreadable: %s" % (render_path, exc))
+    # Parsing says the file is JSON, not that it is a sidecar.  `[]`, `null`,
+    # `3` and `"x"` all parse, and each then reached `.get` and raised
+    # AttributeError -- out of the same contract, and past the same callers,
+    # that the digest-shape check was added to protect.  A root that is not an
+    # object records no fields at all, so it proves nothing.
+    if not isinstance(d, dict):
+        kind = {list: "an array", str: "a string", bool: "a boolean",
+                int: "a number", float: "a number",
+                type(None): "null"}.get(type(d), type(d).__name__)
+        raise ProvenanceError(
+            "provenance beside %s is not a sidecar: its JSON root is %s, not an "
+            "object, so it records no digests at all" % (render_path, kind))
     want = _digest_field(d, "png_sha256", render_path,
                          "provenance beside %s records no png_sha256, so it "
                          "describes a filename rather than a file")

@@ -638,13 +638,19 @@ def main():
     ap.add_argument("--json", default=os.path.join(ROOT, "out", "diagnostics.json"))
     ap.add_argument("--require-provenance", action="store_true",
                     help="fail unless the render can be shown to come from a known SVG")
+    # Each of these implies --require-provenance: they are claims about fields
+    # that exist only in a sidecar, so a render without one cannot satisfy them
+    # and must not be reported as though it had.
     ap.add_argument("--expect-size", type=int, default=None,
-                    help="also require the sidecar to record this render size")
+                    help="require the sidecar to record this render size "
+                         "(implies --require-provenance)")
     ap.add_argument("--expect-renderer", default=None,
-                    help="also require the sidecar to record this renderer")
+                    help="require the sidecar to record this renderer "
+                         "(implies --require-provenance)")
     ap.add_argument("--expect-svg", default=None,
-                    help="also require this SVG to still hash to the recorded "
-                         "svg_sha256, which is what proves the render is not stale")
+                    help="require this SVG to still hash to the recorded "
+                         "svg_sha256, which is what proves the render is not "
+                         "stale (implies --require-provenance)")
     ap.add_argument("--crops", default=os.path.join(ROOT, "out"))
     a = ap.parse_args()
     # First, before anything is loaded, printed or written -- the same hole
