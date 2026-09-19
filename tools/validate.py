@@ -14,6 +14,17 @@ Checks three different things, which are easy to confuse:
 
     python3 tools/validate.py                 # full sweep -> out/validation.md
     python3 tools/validate.py --quick
+
+Exit status is part of the interface, because the cross-engine check is
+OPTIONAL and "optional" has been used to swallow real failures:
+
+    0   the cross-engine check ran, or was genuinely skipped (nothing
+        configured and nothing found, or --no-chromium)
+    2   a usable Chromium was found and its render raised
+    3   $ICON_CHROMIUM (or $CHROME_PATH / $CHROMIUM_PATH) names a browser that
+        is not usable -- a broken configuration, not a missing dependency
+
+See the STATUS SEMANTICS comment in main() for the full table.
 """
 from __future__ import annotations
 
@@ -67,6 +78,62 @@ def _sha256(path):
     return h.hexdigest()
 
 
+def carried_rasters(outdir, sizes, svg_digest):
+    """Classify the canonical rasters a run did NOT write, one row each.
+
+    A `--quick` run rewrites two of the five canonical rasters.  The first
+    attempt at this problem DELETED the other three sidecars, which is worse
+    than the problem: it turns a tracked artefact that can be verified into one
+    that cannot, and it makes a diagnostic run mutate files nobody asked it to
+    touch.  The second attempt reported which sizes the run had rendered and
+    called the rest stale -- but "left from an earlier run" was still an
+    assumption.  If the SVG has not moved since, those three are exactly as
+    current as the two just rendered, and a consumer who has to know what
+    `rendered_sizes` means in order to avoid mixing generations has been handed
+    the problem rather than an answer.
+
+    So each one is checked: its sidecar authenticates the PNG (which is what
+    `read_provenance` is for), and the svg_sha256 it records is compared with
+    the SVG this run validated.  Four outcomes, and each names its evidence:
+
+      current       same SVG as this run -- safe to read beside the table
+      stale         authentic, and from a different SVG generation
+      unverifiable  a sidecar that does not describe the file beside it, or
+                    describes a render other than the one this NAME promises
+      absent        no raster there at all
+
+    Nothing on disk is touched.  Returns a list of (size, generation, evidence).
+    """
+    out = []
+    for z in sizes:
+        png_z = os.path.join(outdir, "render_%d.png" % z)
+        if not os.path.exists(png_z):
+            out.append((z, "absent", "no raster in %s" % outdir))
+            continue
+        try:
+            # expect_size/expect_renderer, because `render_%d.png` is a CLAIM
+            # about resolution and engine and the sidecar has recorded both all
+            # along.  Authenticating the bytes alone accepted an authentic
+            # raster carried under the wrong name: copy render_1024.png and its
+            # sidecar to render_256.png and every digest still matches, so the
+            # row said `current` for a file four times the resolution the table
+            # attributes to it -- and a consumer told it may read that raster
+            # beside the others then mixes generations of a different kind.
+            # These five names are written by this tool and by nothing else, at
+            # one size each and always by resvg, so both fields are required.
+            recorded = R.read_provenance(png_z, require=True, expect_size=z,
+                                         expect_renderer="resvg")
+        except R.ProvenanceError as exc:                       # noqa: PERF203
+            out.append((z, "unverifiable", str(exc)))
+            continue
+        if recorded == svg_digest:
+            out.append((z, "current", "same SVG as this run"))
+        else:
+            out.append((z, "stale", "records svg_sha256 %s..., this run's SVG is "
+                                    "%s..." % (recorded[:12], svg_digest[:12])))
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--svg", default=os.path.join(ROOT, "reconstruction.svg"))
@@ -80,11 +147,31 @@ def main():
     os.makedirs(a.outdir, exist_ok=True)
     ref = np.asarray(Image.open(a.reference).convert("RGB")).astype(np.float64)
 
-    sizes = [1024, 2048] if a.quick else [256, 512, 1024, 2048, 4096]
+    CANONICAL = [256, 512, 1024, 2048, 4096]
+    sizes = [1024, 2048] if a.quick else CANONICAL
+    # A --quick run rewrites two of these five and leaves the rest where the last
+    # run put them, so out/ can hold renders of DIFFERENT SVGs, every one of them
+    # provably authentic and not all of them current.  carried_rasters() says
+    # which is which, per file and with its evidence; its docstring has the two
+    # worse answers this replaced.
+    svg_digest = _sha256(a.svg)
+    carried = carried_rasters(a.outdir, [z for z in CANONICAL if z not in sizes],
+                              svg_digest)
+    if carried:
+        print("--quick: rendered %s.  The other canonical rasters: %s"
+              % (", ".join(str(z) for z in sizes),
+                 "; ".join("%d %s" % (z, st) for z, st, _d in carried)))
     rows = []
     for size in sizes:
         png = R.render(a.svg, size, "resvg")
-        open(os.path.join(a.outdir, "render_%d.png" % size), "wb").write(png)
+        # This writes out/render_1024.png -- the SAME canonical raster that
+        # tools/render.py produced a step earlier in the publish cycle -- so it
+        # must describe what it wrote.  Writing the bytes and leaving the older
+        # sidecar in place is exactly the stale-provenance failure: the sidecar
+        # would then be a statement about a file that no longer exists.
+        out_png = os.path.join(a.outdir, "render_%d.png" % size)
+        open(out_png, "wb").write(png)
+        R.write_provenance(out_png, a.svg, png, size, "resvg")
         arr = to_array(png)
         if size >= 1024:
             rec = box_down(arr, 1024) if size > 1024 else arr
@@ -102,29 +189,29 @@ def main():
     # only the documented requirements can run this.
     cross = None
     chrome_failed = False
-    chrome_path, chrome_how = R.chromium_source()
+    chrome_path, chrome_how, chrome_state = R.chromium_status()
     want_chrome = not a.no_chromium and chrome_path is not None
     if want_chrome:
-        print("chromium: %s  (found via %s)" % (chrome_path, chrome_how))
+        print("chromium: %s  (found via %s, %s)" % (chrome_path, chrome_how, chrome_state))
     if want_chrome:
         try:
             png = R.render(a.svg, 1024, "chromium")
-            open(os.path.join(a.outdir, "render_1024_chromium.png"), "wb").write(png)
+            out_png = os.path.join(a.outdir, "render_1024_chromium.png")
+            open(out_png, "wb").write(png)
+            R.write_provenance(out_png, a.svg, png, 1024, "chromium")
             chrome = to_array(png)
             rows.append(("chromium", 1024, "native", metrics(ref, chrome)))
             cross = metrics(to_array(R.render(a.svg, 1024, "resvg")), chrome)
         except Exception as exc:                      # noqa: BLE001
-            # A CONFIGURED Chromium that fails is not the same thing as an absent
-            # one, and treating them alike let a broken cross-engine check pass
-            # for a successful validation. The three outcomes are now
-            # distinguishable in the exit status: 0 ran or was deliberately
-            # skipped, 2 was available and failed.
             print("chromium render FAILED (%s) -- it was found at %s, so this is "
                   "not a skip" % (exc, chrome_path))
             want_chrome = False
             chrome_failed = True
     elif not a.no_chromium:
-        print("cross-engine check SKIPPED -- %s" % chrome_how)
+        if chrome_state == "misconfigured":
+            print("chromium MISCONFIGURED -- %s" % chrome_how)
+        else:
+            print("cross-engine check SKIPPED -- %s" % chrome_how)
 
     lines = ["# Validation report", "",
              "Fidelity of `reconstruction.svg` against `reference.png`, plus",
@@ -134,29 +221,87 @@ def main():
     for eng, size, note, m in rows:
         lines.append("| %s | %d | %s | %.3f | %.3f | %.0f | %.3f | %.4f | %.2f |"
                      % (eng, size, note, m["mae"], m["rmse"], m["max"], m["mae_gamma"], m["ssim"], m["pct_gt8"]))
+    if carried:
+        lines += ["",
+                  "This was a `--quick` run: it rendered %s.  The other canonical "
+                  "rasters in `out/` are not described by the table above, and each "
+                  "was checked rather than assumed stale:"
+                  % ", ".join(str(z) for z in sizes),
+                  "", "| raster | generation | evidence |", "|---|---|---|"]
+        lines += ["| `render_%d.png` | %s | %s |" % (z, st, d) for z, st, d in carried]
+        lines += ["",
+                  "`current` means its sidecar records the same SVG this run "
+                  "validated, so it may be read alongside the table; anything else "
+                  "may not."]
     lines += ["", "## Cross-engine agreement at 1024 (resvg vs Chromium)", ""]
     if cross:
         lines += ["| MAE | RMSE | max | SSIM |", "|---|---|---|---|",
                   "| %.3f | %.3f | %.0f | %.5f |"
                   % (cross["mae"], cross["rmse"], cross["max"], cross["ssim"]), ""]
     else:
-        lines += ["Not measured in this run: headless Chromium was unavailable or disabled.",
+        # This used to say "unavailable or disabled" for all three ways of not
+        # having a number, including the one where Chromium was found and its
+        # render RAISED.  The JSON and the exit status had it right and only the
+        # human-readable report lied, which is the wrong way round.
+        if chrome_failed:
+            why = ("headless Chromium was found at `%s` and its render FAILED. "
+                   "This is not a skip; see the exit status (2) and "
+                   "`out/validation.json`." % chrome_path)
+        elif a.no_chromium:
+            why = "the cross-engine check was disabled with --no-chromium."
+        elif chrome_state == "misconfigured":
+            why = ("a browser was named by an environment variable and is not "
+                   "usable -- %s.  Exit status 3." % chrome_how)
+        else:
+            why = "headless Chromium is not installed, so the optional check was skipped."
+        lines += ["Not measured in this run: " + why,
                   "The resvg rows above are unaffected.", ""]
     open(a.report, "w").write("\n".join(lines) + "\n")
     print("\n".join(lines))
+    # STATUS SEMANTICS.  Five outcomes, four exit codes; the point of spelling
+    # them out is that three of them used to be one.
+    #
+    #   status            exit   meaning
+    #   ----------------  ----   ---------------------------------------------
+    #   ran                 0    Chromium was found and the comparison was made
+    #   skipped            (0)   two spellings, both genuine non-events:
+    #     (--no-chromium)   0      the caller asked for it not to run
+    #     (unavailable)     0      nothing configured and nothing found, so the
+    #                              optional dependency is simply not installed
+    #   misconfigured       3    an environment variable NAMES a browser and
+    #                            that browser is not usable.  Somebody asked
+    #                            for a specific binary and did not get it, so
+    #                            this is a broken setup and not a skip -- which
+    #                            is the distinction the old code did not make.
+    #   failed              2    a usable binary was found and the render raised
+    #
+    # 3 is deliberately distinct from 2: "your configuration points at nothing"
+    # and "the browser you configured crashed" need different fixes.
     status = ("failed" if chrome_failed
               else "ran" if cross is not None
               else "skipped (--no-chromium)" if a.no_chromium
+              else "misconfigured" if chrome_state == "misconfigured"
               else "skipped (unavailable)")
-    json.dump({"rows": [{"engine": e, "size": s, "note": n, **m} for e, s, n, m in rows],
+    json.dump({"rendered_sizes": sizes, "quick": bool(a.quick),
+               "carried_rasters": [{"size": z, "generation": st, "evidence": d}
+                                   for z, st, d in carried],
+               "rows": [{"engine": e, "size": s, "note": n, **m} for e, s, n, m in rows],
                "cross_engine": cross,
-               "chromium": {"status": status, "path": chrome_path, "found_via": chrome_how},
-               "svg_sha256": _sha256(a.svg),
+               "chromium": {"status": status, "path": chrome_path,
+                            "found_via": chrome_how, "discovery_state": chrome_state,
+                            "executed": cross is not None},
+               "svg_sha256": svg_digest,
                "reference_sha256": _sha256(a.reference)},
               open(os.path.join(a.outdir, "validation.json"), "w"), indent=1)
     if chrome_failed:
         print("\nvalidation EXIT 2: chromium was available at %s and failed" % chrome_path)
         return 2
+    if status == "misconfigured":
+        print("\nvalidation EXIT 3: %s.  An explicitly configured browser that is not "
+              "usable is a broken configuration, not an absent optional dependency; "
+              "unset the variable to skip the cross-engine check deliberately, or pass "
+              "--no-chromium." % chrome_how)
+        return 3
     return 0
 
 

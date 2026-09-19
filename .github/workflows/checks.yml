@@ -9,8 +9,13 @@
 #
 # Chromium is deliberately NOT installed.  Cross-engine validation is a
 # cross-check, not the acceptance renderer, and `tools/validate.py`
-# distinguishes an intentional skip from a configured Chromium that fails: it
-# exits 2 only in the second case, so this job proves the skip path works.
+# distinguishes three outcomes rather than two: exit 0 for a genuine skip (no
+# browser anywhere, or --no-chromium), exit 2 when a browser WAS found and
+# failed to execute, and exit 3 when one was explicitly configured and is not
+# usable -- a broken configuration is not an absent optional dependency.  This
+# job proves the skip path and, by pointing $ICON_CHROMIUM at nothing, the
+# misconfiguration path; the steps below assert those codes, so this comment
+# and the gate cannot drift apart again without the job failing.
 name: checks
 
 on:
@@ -50,6 +55,23 @@ jobs:
           s = json.load(open("out/validation.json"))["chromium"]["status"]
           assert s.startswith("skipped"), s
           print("chromium status:", s)
+          PY
+
+      - name: A configured but unusable browser FAILS, where an absent one skips
+        run: |
+          set +e
+          ICON_CHROMIUM=/no/such/chromium python tools/validate.py --quick > /tmp/mis.log 2>&1
+          rc=$?
+          set -e
+          echo "exit $rc"; grep -i chromium /tmp/mis.log | head -3
+          test "$rc" = "3" || { echo "expected exit 3 for a misconfigured browser"; exit 1; }
+          python - <<'PY'
+          import json
+          c = json.load(open("out/validation.json"))["chromium"]
+          assert c["status"] == "misconfigured", c
+          assert c["discovery_state"] == "misconfigured", c
+          assert c["executed"] is False, c
+          print("misconfigured browser correctly distinguished from an absent one")
           PY
 
       - name: The committed parameters reproduce the committed SVG

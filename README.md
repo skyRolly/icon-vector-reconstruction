@@ -9,8 +9,8 @@ rounded-square frame — as a hand-built, parametric SVG.
 | ![reference](out/side_reference.png) | ![reconstruction](out/side_reconstruction.png) | ![difference](out/side_diff.png) |
 
 <!-- DELIVERABLE:START -->
-**Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 34 named
-layers, 77 KB, no embedded bitmap and no traced outlines. Every mark is a
+**Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 35 named
+layers, 79 KB, no embedded bitmap and no traced outlines. Every mark is a
 primitive driven by a named parameter in
 [`src/params.json`](src/params.json): one path for the frame, two cubic-Bézier
 paths for the luminous curves (reused, offset and clipped, by every glow
@@ -25,15 +25,15 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 
 | metric | value | for scale |
 |---|---|---|
-| mean absolute error | **1.898** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 4.093 | |
-| MAE on a 1/2.2 display curve | 5.468 | weights the dark background as the eye does; black scores 59.7 |
-| SSIM (luminance) | **0.9739** | black scores 0.142 |
+| mean absolute error | **1.878** / 255 | a flat black canvas scores 17.89 |
+| RMSE | 4.052 | |
+| MAE on a 1/2.2 display curve | 5.448 | weights the dark background as the eye does; black scores 59.7 |
+| SSIM (luminance) | **0.9741** | black scores 0.142 |
 | worst single-channel error | 110 | |
-| pixels off by more than 2 / 8 / 24 | 34.6% / 5.1% / 0.8% | |
-| mean bias | -0.265 | |
+| pixels off by more than 2 / 8 / 24 | 34.4% / 5.0% / 0.8% | |
+| mean bias | -0.248 | |
 
-Per region (MAE): frame band 2.50, centre 90 px 8.36, bright pixels 9.51, dark background 1.40, everything else 1.66.
+Per region (MAE): frame band 2.50, centre 90 px 7.86, bright pixels 9.51, dark background 1.39, everything else 1.65.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -44,16 +44,16 @@ The two regions a whole-image average cannot police, from
 
 | targeted measurement | value |
 |---|---|
-| MAE within 110 px of the central light | 6.85 |
-| worst ring of the flare's radial profile | +5.0 code values at r = 12-20 |
-| curve glow, rms relative error over 21 signed-distance bins | 3.9% |
+| MAE within 110 px of the central light | 6.46 |
+| worst ring of the flare's radial profile | -4.6 code values at r = 30-45 |
+| curve glow, rms relative error over 21 signed-distance bins | 4.0% |
 | the same, resolved along the curve (71 cells) | 5.7% |
 | light in the four interior corners, rms relative error | 5.0% |
 | worst single bin of that profile | -11.8% at s = 9..14 px |
-| left lobe, MAE more than 25 px from the ridge | 1.37 (bias -0.17) |
-| right lobe, MAE more than 25 px from the ridge | 1.33 (bias -0.16) |
+| left lobe, MAE more than 25 px from the ridge | 1.36 (bias -0.17) |
+| right lobe, MAE more than 25 px from the ridge | 1.31 (bias -0.11) |
 
-Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.667 (SSIM 0.9556); see `out/validation.md` for the resolution sweep.
+Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.680 (SSIM 0.9555); see `out/validation.md` for the resolution sweep.
 <!-- METRICS:END -->
 
 ## What is in here
@@ -78,11 +78,13 @@ tools/chroma_report.py   colour by distance from a curve ridge, where the palene
 tools/measure_flare.py   sets the rays' and flanks' amplitudes from those measurements
 tools/wedge_report.py    angular modulation west of the flare, where a regional mean is blind
 tools/arm_report.py      the horizontal arms, scored against a matched null along the ridge
-tools/vstreak_report.py  the vertical line through the core, in R, where luminance is clipped
+tools/vstreak_report.py  the vertical line through the core, north and south reported apart
 tools/fan_report.py      whether the westward fan is too bright or too long -- different faults
 tools/line_shape.py      the long line's transverse spread and colour, rather than its height
 tools/line_report.py     the three horizontal lines' amplitudes, ridges masked
 tools/compare_sheet.py   reference | render | signed difference, by region and by scale
+tools/flare_view.py      the flare in RGB, luminance and chroma at three scales, side by side
+tools/visual_regression.py  the twelve recurring visual failures, as ratios to the reference
 tools/publish.sh         the one command that produces a reviewable release
 tools/regions.py         the measured anchors and region geometry both of those share
 tools/test_pipeline.py   regression checks that keep optimisation results meaningful

@@ -128,13 +128,104 @@ def main():
           "out of range: %s" % bad)
 
     # ---- 4. nested and anisotropic parameters are not silently omitted ---- #
-    fpaths = {s["path"] for s in O.field_specs(params)}
-    radial_canvas = [(i, L) for i, L in enumerate(params["layers"])
-                     if isinstance(L.get("paint"), dict) and L["paint"].get("kind") == "radial"
-                     and L["kind"] in ("canvas", "field_radial", "radial")]
-    missing = [L["id"] for i, L in radial_canvas if "layers/%d/paint/cx" % i not in fpaths]
+    # Against the UNION of the four spec builders, and over EVERY layer that
+    # carries a radial paint.  Both widenings were needed and each hid a real
+    # gap.  Restricting the builder to `field_specs` and the layers to kinds
+    # canvas/field_radial/radial passed while `frame_rim` -- a `frame_ring`
+    # whose paint is positioned rather than concentric -- had a centre that no
+    # builder emitted at all, so it was frozen under every --spec including
+    # `all`.  A check that is narrower than the thing it guards will pass
+    # precisely because the gap is outside it.
+    allspecs = (O.layer_specs(params) + O.taper_specs(params)
+                + O.geometry_specs(params) + O.field_specs(params))
+    apaths = {sp["path"] for sp in allspecs}
+    radial_paints = [(i, L) for i, L in enumerate(params["layers"])
+                     if isinstance(L.get("paint"), dict) and L["paint"].get("kind") == "radial"]
+    missing = [L["id"] for i, L in radial_paints
+               if any("layers/%d/paint/%s" % (i, k) not in apaths
+                      for k in ("cx", "cy") if k in L["paint"])]
     check("radial gradient centres stored under paint/ are optimisable", not missing,
-          "missing: %s" % missing)
+          "%d radial paints, missing: %s" % (len(radial_paints), missing or "none"))
+
+    # ---- 4b. a declared bound must be reachable by some spec --------------- #
+    # The failure this exists for is silent by construction: a parameter gets a
+    # carefully measured `bounds` entry, its name is not in `layer_specs`' key
+    # list, and every subsequent report says the shapes were optimised while it
+    # never moved.  `flare_vline.sigma_x` and `flare_vline.south_gain` -- the
+    # vertical streak's width and its north/south balance -- shipped that way
+    # for a release.  Checking the two names would not have helped; checking
+    # that NO bound is unreachable does.
+    unreachable, invalid = O.verify_searchable(params, allspecs)
+    check("every bound declared in params.json is reachable by some spec",
+          not unreachable,
+          "%d bounded parameters; unreachable: %s"
+          % (sum(len(L.get("bounds", {})) for L in params["layers"]),
+             ", ".join("%s/%s" % u for u in unreachable) or "none"))
+    # verify_searchable() audits `bounds` against emitted specs, so a numeric
+    # field that carries no bound is invisible to it: it can stay frozen without
+    # ever being reported.  That gap cannot be closed by flagging every unbounded
+    # number -- 470 of the model's 609 numeric leaves are unbounded on purpose,
+    # so a report of all of them reports nothing.  What CAN be pinned is the
+    # inventory: every unbounded number today belongs to one of twelve kinds,
+    # each searched by a different mechanism or measured rather than fitted.  A
+    # new unbounded field in a NEW kind is the case worth catching, and this
+    # fires on it.  `paint/x1..y2` is the one kind that is neither -- eight
+    # canvas gradient extents, frozen, and measured at +-40 px they are worth at
+    # most 0.0005 of MAE, which is why they are recorded (D55) and not searched.
+    _KNOWN_UNBOUNDED = {
+        "white": "photometric fit", "cyan": "photometric fit",
+        "blue": "photometric fit", "color": "derived from the coefficients",
+        "profile": "tabulated from the reference",
+        "profile_e": "tabulated from the reference",
+        "paint/profile": "tabulated from the reference",
+        "paint/stops": "tabulated from the reference",
+        "paint/x1": "frozen canvas gradient extent (D55)",
+        "paint/x2": "frozen canvas gradient extent (D55)",
+        "paint/y1": "frozen canvas gradient extent (D55)",
+        "paint/y2": "frozen canvas gradient extent (D55)",
+    }
+
+    def _numeric_leaves(node, prefix):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                for q in _numeric_leaves(v, prefix + "/" + k):
+                    yield q
+        elif isinstance(node, list):
+            for j, v in enumerate(node):
+                for q in _numeric_leaves(v, prefix + "/" + str(j)):
+                    yield q
+        elif isinstance(node, (int, float)) and not isinstance(node, bool):
+            yield prefix
+
+    _spec_paths = {sp["path"] for sp in allspecs}
+    _kinds, _n_unbounded, _n_total = {}, 0, 0
+    for _i, _L in enumerate(params["layers"]):
+        for _p in _numeric_leaves(_L, "layers/%d" % _i):
+            if "/bounds/" in _p:
+                continue
+            _n_total += 1
+            if _p in _spec_paths:
+                continue
+            _n_unbounded += 1
+            _f = [x for x in _p.split("layers/%d/" % _i, 1)[-1].split("/")
+                  if not x.isdigit()]
+            _k = "/".join(_f[:2]) if _f[0] == "paint" else _f[0]
+            _kinds[_k] = _kinds.get(_k, 0) + 1
+    _novel = sorted(k for k in _kinds if k not in _KNOWN_UNBOUNDED)
+    check("every number outside the search space is one of the kinds known to be",
+          not _novel,
+          "%d of %d numeric leaves carry no bound, in %d known kinds (%s); "
+          "unaccounted: %s"
+          % (_n_unbounded, _n_total, len(_kinds),
+             ", ".join("%s %d" % (k, _kinds[k]) for k in sorted(_kinds)),
+             ", ".join(_novel) or "none"))
+
+    # and the guard is not vacuous: a truncated key list must be caught
+    trunc = O.layer_specs(params, keys=("width", "blur", "r"))
+    caught, _ = O.verify_searchable(params, trunc + O.taper_specs(params)
+                                    + O.geometry_specs(params) + O.field_specs(params))
+    check("the reachability guard detects a key list that has fallen behind",
+          len(caught) > 5, "a 3-key spec list leaves %d bounds unreachable" % len(caught))
 
     # A list-valued parameter must yield one spec per component, each with its
     # own interval.  The shipped artwork happens to state the streak's
@@ -305,7 +396,8 @@ def main():
     # rejected or removed -- `arc_field` and `arc_lens` are both recorded in
     # DECISIONS as things that are deliberately not in the model, and a record
     # of a rejection is not a claim that the thing exists.
-    NOT_LAYERS = {"corner_model", "corner_r_blend", "corner_r_main",
+    NOT_LAYERS = {"frame_ring",        # a builder KIND, like arc_lens below
+                  "corner_model", "corner_r_blend", "corner_r_main",
                   "corner_blend_deg", "corner_note", "flare_dependent_layers",
                   "flare_cells", "field_grad_note", "arc_d", "arc_field",
                   "arc_lens", "arc_station", "flare_report", "field_specs",
@@ -314,7 +406,11 @@ def main():
                   # record what was tested and rejected, which is not a claim
                   # that they are in the model (docs/DECISIONS.md D22)
                   "arc_glow1c", "flare_sat2", "flare_ray_up", "flare_ray_dn",
-                  "flare_ray_dl", "lobe_field_left", "lobe_field_right"}
+                  "flare_ray_dl", "lobe_field_left", "lobe_field_right",
+                  # removed in this iteration and named in the record OF its
+                  # removal: a flat-topped quadrilateral standing in for the
+                  # broad west lobe, replaced by `flare_arm_w2`
+                  "flare_ray_d"}
     import re as _re
     named, missing = set(), {}
     for doc in ("README.md", os.path.join("docs", "METHOD.md"),
@@ -557,7 +653,13 @@ def main():
     # which is every shape, taper, geometry and field stage of optimize_all.sh.
     comb_at = {}
     for st in (1, 2, 3, 4):
-        shp = (1024 // st, 1024 // st, 3)
+        # The grid the OPTIMISER builds, which is what this check is about.
+        # `1024 // st` is not it: Objective.evaluate decimates by point-sampling
+        # with [::st, ::st], so at stride 3 it gets len(range(0, 1024, 3)) = 342
+        # rows where 1024 // 3 is 341.  One row changes the count, and the 49
+        # this check used to publish for stride 3 is really 45.
+        n = len(range(0, 1024, st))
+        shp = (n, n, 3)
         comb_at[st] = sum(1 for c in regions.flare_cells(shp) if c[0] == "comb")
     full = comb_at[1]
     check("the flare comb cells survive stride 3 and stride 4",
@@ -585,16 +687,349 @@ def main():
     # measurement had shortened.
     import measure_flare as MFL
     drift = []
-    for lid, (th, fwhm, h, sp, ln, pk) in MFL.RAY_GEOMETRY.items():
+    for lid, (th, fwhm, h, sp, ln, pk, dx, dy) in MFL.RAY_GEOMETRY.items():
         L = next((x for x in params["layers"] if x["id"] == lid), None)
         if L is None:
             drift.append("%s missing from params" % lid); continue
         for name, want, got in (("rot", -th, L.get("rot")), ("height", h, L.get("height")),
                                 ("blur", round(MFL.blur_for(fwhm, h), 4), L.get("blur")),
                                 ("spread", sp, L.get("spread")), ("len", ln, L.get("len")),
-                                ("peak_at", pk, L.get("peak_at"))):
+                                ("peak_at", pk, L.get("peak_at")),
+                                # absent dx/dy mean zero to the builder, so the
+                                # preset and the params agree when both say "no
+                                # offset" in their own way
+                                ("dx", dx, L.get("dx", 0.0)), ("dy", dy, L.get("dy", 0.0))):
             if got is None or abs(float(want) - float(got)) > 1e-6:
                 drift.append("%s/%s preset %.4g vs shipped %s" % (lid, name, want, got))
+    # The FLANKS template is the other half of --geometry's promise: it INSERTS
+    # a flank that has been deleted, so a stale entry silently ships a different
+    # model.  It did -- rot -234.0 against the measured and committed -240.0 --
+    # and no calibration afterwards can move a rotation.  Colour is excluded on
+    # purpose: the photometric fit rewrites it by design, so asserting it would
+    # fire on every legitimate refit.
+    fdrift = []
+    for tpl in MFL.FLANKS:
+        L = next((x for x in params["layers"] if x["id"] == tpl["id"]), None)
+        if L is None:
+            fdrift.append("%s missing from params" % tpl["id"]); continue
+        for name in ("kind", "rot", "height", "spread", "len", "peak_at", "blur"):
+            want, got = tpl.get(name), L.get(name)
+            same = (want == got if isinstance(want, str)
+                    else got is not None and abs(float(want) - float(got)) <= 1e-6)
+            if not same:
+                fdrift.append("%s/%s template %s vs shipped %s" % (tpl["id"], name, want, got))
+    # A bound is only "reachable" if a spec targets THAT parameter.  Raw prefix
+    # matching let a sibling stand in for it -- a blur_x spec satisfied an
+    # unreachable blur bound, and profile_e satisfied profile -- so the guard
+    # reported a clean search space while the parameter was frozen, which is the
+    # one thing it exists to catch.
+    _probe = {"layers": [{"id": "probe", "kind": "streak", "blur_x": 2.0,
+                          "sigma_y": 3.0, "half_len": 100.0,
+                          "bounds": {"blur": [1.0, 9.0], "blur_x": [0.0, 6.0]},
+                          "color": [0, 0, 0], "white": 0.0, "cyan": 0.0, "blue": 0.0}],
+              "flare": {"cx": 530.0, "cy": 513.0}, "tapers": {}, "geometry": {},
+              "frame": {}, "canvas": 1024}
+    _pun, _ = O.verify_searchable(_probe)
+    # The inspection sheet must not change a feature's aspect ratio.  A centre
+    # within `half` of an edge used to return a short crop that enlarge() then
+    # squashed into a square: --cx 10 gave a 320x170 box shown at 450x450.
+    import flare_view as _FV
+    _blank = np.zeros((1024, 1024, 3), dtype=np.float64)
+    _shapes = [_FV.crop(_blank, 10, 513, h).shape[:2] for _n, h, _z in _FV.CROPS]
+    _square = all(sh == (2 * h, 2 * h) for sh, (_n, h, _z) in zip(_shapes, _FV.CROPS))
+    # ... including a centre wholly off the canvas, which used to slice real
+    # pixels off the FAR edge (numpy reads a negative endpoint from the other
+    # side) and then raise ValueError writing them outside the panel.
+    _far = []
+    for _cx, _cy in ((-1000, 513), (2500, 513), (513, -1000), (513, 2500)):
+        try:
+            _far.append(_FV.crop(_blank, _cx, _cy, 160).shape[:2] == (320, 320))
+        except Exception:                                      # noqa: BLE001
+            _far.append(False)
+    check("an off-centre inspection crop stays square instead of being stretched",
+          _square and all(_far),
+          "crops at cx=10 are %s for half-widths %s; wholly off-canvas centres "
+          "return a padded square: %s"
+          % (_shapes, [h for _n, h, _z in _FV.CROPS], all(_far)))
+
+    # --require-provenance and the expectation flags are preconditions on the
+    # raster, not decorations on the JSON.  Guarded by `if a.json` they passed a
+    # Chromium render demanded to be resvg, and a render with no sidecar at all,
+    # whenever the caller did not ask for JSON.
+    #
+    # The fixtures are BUILT here rather than read out of out/.  Pointing this
+    # at the committed rasters made a check about compare.py's preconditions
+    # depend on which artefacts happen to be on disk: out/render_512.png and its
+    # two larger siblings are .gitignored, so a check that reached for one of
+    # those would go red on a fresh clone with nothing wrong in the source it
+    # exists to test, and a run of validate.py --no-chromium leaves the Chromium
+    # raster describing an older SVG.  Whether the shipped artefacts are sound
+    # is a separate question with its own check below, which can then say so in
+    # those words instead of surfacing as a confusing failure here.
+    import subprocess as _sp2
+    import render as _R
+    import shutil as _sh
+    import tempfile as _tf0
+    _prov_cases = []
+    _d = _tf0.mkdtemp()
+    try:
+        _fsvg = os.path.join(_d, "fixture.svg")
+        open(_fsvg, "w").write('<svg xmlns="http://www.w3.org/2000/svg" '
+                               'viewBox="0 0 8 8"><rect width="8" height="8" '
+                               'fill="#345"/></svg>')
+        _fb = _R.render(_fsvg, 64, "resvg")
+        _fref = os.path.join(_d, "ref.png")
+        open(_fref, "wb").write(_fb)
+        # The same authentic bytes twice, described honestly both times.  What
+        # separates them is the RENDERER the sidecar records, which is exactly
+        # the confusion --expect-renderer exists to catch: validate.py writes a
+        # Chromium render of the same SVG into the same directory, and it hashes
+        # just as well as the acceptance raster.
+        _fres = os.path.join(_d, "resvg.png")
+        open(_fres, "wb").write(_fb)
+        _R.write_provenance(_fres, _fsvg, _fb, 64, "resvg")
+        _fchr = os.path.join(_d, "chromium.png")
+        open(_fchr, "wb").write(_fb)
+        _R.write_provenance(_fchr, _fsvg, _fb, 64, "chromium")
+        _fnone = os.path.join(_d, "bare.png")          # no sidecar at all
+        open(_fnone, "wb").write(_fb)
+        _froot = os.path.join(_d, "root.png")          # sidecar is `[]`
+        open(_froot, "wb").write(_fb)
+        open(_R.provenance_path(_froot), "w").write("[]")
+        for _what, _png, _args, _want in (
+                ("chromium render demanded to be resvg", _fchr,
+                 ["--require-provenance", "--expect-renderer", "resvg"], 1),
+                ("64-px render demanded to be 4096", _fres,
+                 ["--require-provenance", "--expect-size", "4096"], 1),
+                ("no sidecar, provenance required", _fnone,
+                 ["--require-provenance"], 1),
+                # Each expectation implies --require-provenance: it is a claim
+                # about a field that exists only in a sidecar, so a render
+                # without one cannot satisfy it.  These three exited 0.
+                ("no sidecar, --expect-renderer alone", _fnone,
+                 ["--expect-renderer", "resvg"], 1),
+                ("no sidecar, --expect-size alone", _fnone,
+                 ["--expect-size", "64"], 1),
+                ("no sidecar, --expect-svg alone", _fnone,
+                 ["--expect-svg", _fsvg], 1),
+                # And a sidecar whose JSON root is not an object records no
+                # fields at all; it used to raise AttributeError out of the
+                # ProvenanceError contract.
+                ("sidecar is the JSON array []", _froot,
+                 ["--require-provenance"], 1),
+                ("the render it says it is", _fres,
+                 ["--require-provenance", "--expect-size", "64",
+                  "--expect-renderer", "resvg"], 0)):
+            _r = _sp2.run([sys.executable, os.path.join(ROOT, "tools", "compare.py"),
+                           _fref, _png] + _args,
+                          capture_output=True, text=True, cwd=ROOT)
+            _prov_cases.append((_what, _r.returncode, _want))
+    finally:
+        _sh.rmtree(_d, ignore_errors=True)
+    check("provenance expectations hold without --json",
+          all(rc == want for _a, rc, want in _prov_cases),
+          "; ".join("%s -> exit %d (want %d)" % t for t in _prov_cases))
+
+    # And the shipped artefacts as artefacts, which is the question the check
+    # above used to answer by accident.  Only these three rasters are tracked --
+    # 512/2048/4096 are .gitignored and regenerated by validate.py -- so only
+    # these three can be asserted to exist.  `expect_svg` is required of the two
+    # resvg renders because publish.sh rebuilds both on every release; it is NOT
+    # required of the Chromium one, because the cross-engine check is documented
+    # as optional and a release made without a browser legitimately leaves that
+    # raster describing the previous SVG.  out/validation.json is where whether
+    # it ran is recorded.
+    _shipped = []
+    for _name, _size, _eng, _current in (
+            ("render_256.png", 256, "resvg", True),
+            ("render_1024.png", 1024, "resvg", True),
+            ("render_1024_chromium.png", 1024, "chromium", False)):
+        _p = os.path.join(ROOT, "out", _name)
+        if not os.path.exists(_p):
+            _shipped.append("%s is missing" % _name)
+            continue
+        try:
+            _R.read_provenance(
+                _p, require=True, expect_size=_size, expect_renderer=_eng,
+                expect_svg=os.path.join(ROOT, "reconstruction.svg") if _current else None)
+        except _R.ProvenanceError as exc:
+            _shipped.append("%s: %s" % (_name, exc))
+    check("every tracked render is authentic and named what it actually is",
+          not _shipped,
+          "; ".join(_shipped) if _shipped
+          else "render_256, render_1024 (both current with reconstruction.svg) "
+               "and render_1024_chromium each hash to their own sidecar")
+
+    # A precondition that runs after the side effects it is meant to prevent is
+    # not a precondition.  Both tools used to measure first and validate after,
+    # so a rejected raster still left `compare`'s three visualisations and
+    # `diagnose`'s three crops on disk -- indistinguishable from the output of a
+    # run that had succeeded, and with a nonzero exit status that nothing
+    # downstream was obliged to look at.
+    _leak = []
+    for _tool, _mk in (("compare.py",
+                        lambda d: [os.path.join(ROOT, "reference.png"),
+                                   os.path.join(d, "r.png"),
+                                   "--out-prefix", os.path.join(d, "diff"),
+                                   "--json", os.path.join(d, "m.json"),
+                                   "--require-provenance"]),
+                       ("diagnose.py",
+                        lambda d: [os.path.join(d, "r.png"),
+                                   "--reference", os.path.join(ROOT, "reference.png"),
+                                   "--crops", d,
+                                   "--json", os.path.join(d, "d.json"),
+                                   "--require-provenance"])):
+        _d = _tf0.mkdtemp()
+        try:
+            _sh.copyfile(os.path.join(ROOT, "out", "render_1024.png"),
+                         os.path.join(_d, "r.png"))
+            _r = _sp2.run([sys.executable, os.path.join(ROOT, "tools", _tool)] + _mk(_d),
+                          capture_output=True, text=True, cwd=ROOT)
+            _left = sorted(f for f in os.listdir(_d) if f != "r.png")
+            if _r.returncode == 0:
+                _leak.append("%s accepted a render with no sidecar" % _tool)
+            elif _left:
+                _leak.append("%s exited %d but left %s"
+                             % (_tool, _r.returncode, ", ".join(_left)))
+        finally:
+            _sh.rmtree(_d, ignore_errors=True)
+    # The inspection sheet is a two-column comparison by construction, so a
+    # third path is not a wider comparison, it is a mistake.  images[0:2] drew
+    # the first two and reported success: a wrong sheet that looks like a right
+    # one, and the third file never even had to exist.
+    _arity = []
+    for _n, _want in ((1, 0), (2, 0), (3, 2), (4, 2)):
+        _r = _sp2.run([sys.executable, os.path.join(ROOT, "tools", "flare_view.py")]
+                      + [os.path.join(ROOT, "out", "render_1024.png")] * _n
+                      + ["--out", os.path.join(_tf0.gettempdir(), "_fv_arity.png")],
+                      capture_output=True, text=True, cwd=ROOT)
+        _arity.append((_n, _r.returncode, _want))
+    check("the inspection sheet rejects more images than it can draw",
+          all(rc == w for _n, rc, w in _arity),
+          "; ".join("%d image(s) -> exit %d (want %d)" % t for t in _arity))
+
+    # A raster a --quick run did not write is stale only if the SVG moved since.
+    # Reporting `rendered_sizes` and leaving the reader to infer the rest put the
+    # problem back on the consumer; each carried raster is classified instead.
+    import json as _js
+    import validate as _V
+    _cls = []
+    _d = _tf0.mkdtemp()
+    try:
+        _svg2 = os.path.join(_d, "s.svg")
+        open(_svg2, "w").write('<svg xmlns="http://www.w3.org/2000/svg" '
+                               'viewBox="0 0 8 8"><rect width="8" height="8" '
+                               'fill="#345"/></svg>')
+        _dig = _V._sha256(_svg2)
+        _p64 = os.path.join(_d, "render_64.png")
+        _b = _R.render(_svg2, 64, "resvg")
+        open(_p64, "wb").write(_b)
+        _R.write_provenance(_p64, _svg2, _b, 64, "resvg")
+        _cls.append(("same SVG", _V.carried_rasters(_d, [64], _dig)[0][1], "current"))
+        _cls.append(("SVG moved on",
+                     _V.carried_rasters(_d, [64], "0" * 64)[0][1], "stale"))
+        _cls.append(("no raster",
+                     _V.carried_rasters(_d, [512], _dig)[0][1], "absent"))
+
+        # An authentic raster carried under the WRONG canonical name.  The
+        # sidecar's digests both match -- it describes these bytes and this SVG
+        # -- so hashing alone called it `current`, and a consumer told it may be
+        # read beside the table got a raster of one resolution under the name of
+        # another.  `render_%d.png` is a claim about size and engine, and the
+        # sidecar has recorded both all along.
+        _sh.copyfile(_p64, os.path.join(_d, "render_128.png"))
+        _sh.copyfile(_p64 + ".prov.json",
+                     os.path.join(_d, "render_128.png.prov.json"))
+        _cls.append(("authentic, wrong name",
+                     _V.carried_rasters(_d, [128], _dig)[0][1], "unverifiable"))
+        _sh.copyfile(_p64, os.path.join(_d, "render_256.png"))
+        _side = _js.load(open(_p64 + ".prov.json"))
+        _js.dump(dict(_side, size=256, renderer="chromium"),
+                 open(os.path.join(_d, "render_256.png.prov.json"), "w"))
+        _cls.append(("authentic, wrong engine",
+                     _V.carried_rasters(_d, [256], _dig)[0][1], "unverifiable"))
+
+        # A sidecar is arbitrary JSON, and a digest field that is not a string
+        # used to escape every check here: `png_sha256: 1` reached the mismatch
+        # message, which slices it, and raised TypeError out of a classifier
+        # whose entire job is to answer `unverifiable` instead of crashing.  A
+        # list was quieter still -- it slices, and got formatted into the
+        # evidence column as if it were a measurement.
+        for _n, _bad in ((32, {"png_sha256": 1}), (16, {"png_sha256": ["x"]}),
+                         (8, {"svg_sha256": ["nope"]}), (4, {"png_sha256": "abc"})):
+            _sh.copyfile(_p64, os.path.join(_d, "render_%d.png" % _n))
+            _js.dump(dict(_side, size=_n, **_bad),
+                     open(os.path.join(_d, "render_%d.png.prov.json" % _n), "w"))
+            try:
+                _got = _V.carried_rasters(_d, [_n], _dig)[0][1]
+            except Exception as exc:                           # noqa: BLE001
+                _got = "raised %s" % type(exc).__name__
+            _cls.append(("malformed %s=%r" % next(iter(_bad.items())),
+                         _got, "unverifiable"))
+
+        # A root that is not an object records no fields at all, so it never
+        # reached the shape check above -- `.get` raised AttributeError first,
+        # and this classifier, which catches only ProvenanceError, went down
+        # with it and produced no report.
+        for _n, _root in ((2, "[]"), (1024, "null"), (2048, '"x"'), (4096, "7")):
+            _sh.copyfile(_p64, os.path.join(_d, "render_%d.png" % _n))
+            open(os.path.join(_d, "render_%d.png.prov.json" % _n), "w").write(_root)
+            try:
+                _got = _V.carried_rasters(_d, [_n], _dig)[0][1]
+            except Exception as exc:                           # noqa: BLE001
+                _got = "raised %s" % type(exc).__name__
+            _cls.append(("JSON root %s" % _root, _got, "unverifiable"))
+
+        open(_p64, "ab").write(b"junk")
+        _cls.append(("sidecar describes other bytes",
+                     _V.carried_rasters(_d, [64], _dig)[0][1], "unverifiable"))
+    finally:
+        _sh.rmtree(_d, ignore_errors=True)
+    check("a quick run says which carried rasters are current, not which it rendered",
+          all(got == want for _w, got, want in _cls),
+          "; ".join("%s -> %s (want %s)" % t for t in _cls))
+
+    # --labels renames the two INPUTS, and four of the six panels in every view
+    # name an input: the enhancement pair at the end of each row does too.  Only
+    # the first two were substituted, so an A/B sheet labelled its plain panels
+    # previous/candidate and the gamma, high-pass and chroma views of the same
+    # two images reference/reconstruction.  And the substitution is one pass:
+    # chained str.replace re-scanned its own output, so two names sharing a word
+    # -- which is how most people spell an A/B pair -- corrupted each other.
+    import flare_view as _FV
+    _lab = []
+    for _view in ("RGB", "LUM", "CHROMA"):
+        _z = np.zeros((64, 64, 3))
+        for _j, (_im, _l) in enumerate(_FV.build_row(_z, _z, _view, 64, (1.0, 1.0, 1.0))):
+            _t = _FV.relabel(_l, ("previous", "candidate"))
+            if "reference" in _t or "reconstruction" in _t:
+                _lab.append("%s panel %d stayed %r" % (_view, _j, _t))
+    _chain = _FV.relabel("reference", ("reconstruction_a", "reconstruction_b"))
+    _ident = all(_FV.relabel(_l, ("reference", "reconstruction")) == _l
+                 for _view in ("RGB", "LUM", "CHROMA")
+                 for _im, _l in _FV.build_row(np.zeros((64, 64, 3)),
+                                              np.zeros((64, 64, 3)), _view, 64,
+                                              (1.0, 1.0, 1.0)))
+    check("--labels renames every panel that names an input, in one pass",
+          not _lab and _chain == "reconstruction_a" and _ident,
+          "; ".join(_lab) if _lab
+          else "18 panels renamed; overlapping names give %r; the default pair is "
+               "a no-op: %s" % (_chain, _ident))
+
+    check("a render rejected on provenance leaves no report artefacts behind",
+          not _leak, "; ".join(_leak) if _leak
+          else "compare and diagnose both refuse before writing anything")
+
+    check("a bound is not counted reachable because a sibling name shares its prefix",
+          [n for _i, n in _pun] == ["blur"],
+          "a layer with bounds.blur but only blur_x emitted reports unreachable %s"
+          % (_pun or "nothing"))
+
+    check("the flank insertion template matches the shipped flanks",
+          not fdrift,
+          "; ".join(fdrift) if fdrift
+          else "all %d flank layers agree on every structural field" % len(MFL.FLANKS))
+
     check("the ray geometry preset matches the shipped params",
           not drift, "; ".join(drift) if drift else "all %d ray layers agree" % len(MFL.RAY_GEOMETRY))
 
@@ -658,6 +1093,226 @@ def main():
           % (bres["banding_worst_dev"], BAND_DEV_MAX,
              bres["banding_interior_pct"], BAND_INTERIOR_MAX,
              bres["banding_ridge_pct"], BAND_RIDGE_MAX))
+
+    # ---- the recurring visual failures ------------------------------------ #
+    # Twelve structures, each compared with the reference by the same estimator
+    # on the same cells, each stated as a ratio so nothing here encodes one
+    # release's accidents.  Two of the twelve currently guard a structure that
+    # is known to be too weak rather than correct -- the right-hand rays -- and
+    # their bands say so; the check's job there is to stop it getting worse.
+    #
+    # Validated by breaking the artwork on purpose: deleting the vertical line
+    # trips it at 0.11x, deleting all four rays trips all four ray checks at
+    # 0.03-0.30x, deleting lines B and C trips both, deleting the cyan bloom
+    # trips the colour and skirt checks, and the PREVIOUS release -- with the
+    # flat-topped westward quadrilateral -- trips the west-shape check at 1.23x.
+    import visual_regression as _VR
+    vrows = _VR.report(_VR.np.asarray(Image.open(os.path.join(ROOT, "reference.png"))
+                                      .convert("RGB")).astype(np.float64),
+                       (real * 255.0).astype(np.float64))
+    vbad = [(n, ratio) for n, ratio, lo, hi, ok, _rv, _cv, _m in vrows if not ok]
+    # `ratio is None` alone no longer means "skipped": a structure the reference
+    # has and the render does not also comes back None, and it is a FAILURE.
+    # Only the ok ones are genuine skips, and a failing row may carry no ratio
+    # to format.
+    vnm = [n for n, ratio, lo, hi, ok, _rv, _cv, _m in vrows if ratio is None and ok]
+    # A structure the reference HAS and the render does NOT must fail, not be
+    # waved through as unmeasurable: two of these checks read None on the
+    # candidate side precisely when the structure is gone, and both used to
+    # report "NOT MEASURABLE" and pass.  An all-black candidate is the cleanest
+    # statement of that -- every structure is absent by construction.
+    _black = np.zeros((1024, 1024, 3), dtype=np.float64)
+    _brows = _VR.report(_VR.np.asarray(Image.open(os.path.join(ROOT, "reference.png"))
+                                       .convert("RGB")).astype(np.float64), _black)
+    _bfail = sum(1 for _n, _r, _lo, _hi, _ok, _rv, _cv, _m in _brows if not _ok)
+    _bnone_pass = [n for n, r, _lo, _hi, ok, _rv, _cv, _m in _brows if r is None and ok]
+    check("a structure the render has lost cannot pass as unmeasurable",
+          _bfail >= 10 and not _bnone_pass,
+          "an all-black candidate fails %d of %d checks; skipped-as-unmeasurable: %s"
+          % (_bfail, len(_brows), ", ".join(_bnone_pass) if _bnone_pass else "none"))
+
+    check("the reference's structures are all still represented",
+          not vbad,
+          "%d checks, %d not measurable%s; %s"
+          % (len(vrows), len(vnm),
+             (" (%s)" % ", ".join(vnm)) if vnm else "",
+             ", ".join("%s %s" % (n, "MISSING" if r is None else "%.2fx" % r)
+                       for n, r in vbad) if vbad
+             else "all within band"))
+
+    # ---- every layer's colour is reachable from its own coefficients -------- #
+    # `color` is what renders; `white`/`cyan`/`blue` are what the photometric fit
+    # reads and writes.  When they disagree the layer is a trap: the artwork
+    # looks one way and the next `fit_photometry` run silently changes it to the
+    # other.  flare_ray_e shipped exactly like that -- stored [0, 37.4, 11.2],
+    # i.e. B/G 0.30, where its own coefficients imply [0, 37.4, 39.8] and B/G
+    # 1.064 -- because a measured hue outside the white/cyan/blue cone had been
+    # written straight into `color`.  Out-of-cone is a decision, not an accident,
+    # and it has to be made where the cone is defined.
+    #
+    # The comparison is on what the RENDERER sees, so a layer encoded above 255
+    # (flare_spike is [256.9, 372.9, 455.0]) is not a violation: split_color
+    # clamps it to white and the coefficients say white.
+    import fit_photometry as _FP
+    off_cone = []
+    for L in params["layers"]:
+        c = L.get("color")
+        if c is None:
+            continue
+        want = np.clip(np.asarray(_FP.color_from_wc(
+            [L.get("white", 0.0), L.get("cyan", 0.0), L.get("blue", 0.0)]), float) * 255.0, 0, 255)
+        got = np.clip(np.asarray(c, float), 0, 255)
+        d = float(np.abs(want - got).max())
+        if d > 0.05:
+            off_cone.append("%s (%.1f cv)" % (L["id"], d))
+    check("every layer's colour is reachable from its white/cyan/blue",
+          not off_cone,
+          "%d layers; off-cone: %s" % (len(params["layers"]),
+                                       ", ".join(off_cone) or "none"))
+
+    # ---- render provenance cannot authenticate a raster it does not describe #
+    # The three-step case the review asks for, run for real rather than
+    # asserted: render a known SVG, replace the PNG underneath its sidecar, and
+    # require that validation FAILS.  Before the fix it passed, because the
+    # sidecar's `svg_sha256` was read without ever hashing the PNG -- so every
+    # downstream report went on attributing its numbers to an SVG that had not
+    # produced the raster being measured.
+    import tempfile as _tf
+    with _tf.TemporaryDirectory() as _td:
+        _svg = os.path.join(_td, "a.svg")
+        open(_svg, "w").write(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8">'
+            '<rect width="8" height="8" fill="#123"/></svg>')
+        _png = os.path.join(_td, "a.png")
+        _data = _R.render(_svg, 64, "resvg")
+        open(_png, "wb").write(_data)
+        _R.write_provenance(_png, _svg, _data, 64, "resvg")
+        step1 = _R.read_provenance(_png, require=True) == _R.sha256_file(_svg)
+        # step 2: different bytes, same filename, sidecar untouched
+        open(_png, "wb").write(bytearray(b ^ 0x01 if i == 40 else b
+                                         for i, b in enumerate(_data)))
+        try:
+            _R.read_provenance(_png, require=True)
+            step2 = False
+        except _R.ProvenanceError:
+            step2 = True
+        # step 3: a missing sidecar is an absence when optional and an error
+        # when required -- the two are not the same and must not collapse
+        _R.clear_provenance(_png)
+        step3 = _R.read_provenance(_png, require=False) is None
+        try:
+            _R.read_provenance(_png, require=True)
+            step4 = False
+        except _R.ProvenanceError:
+            step4 = True
+        # step 5: an AUTHENTIC raster can still be the wrong one.  validate.py
+        # writes a Chromium render of this same SVG into the same directory with
+        # a sidecar of its own, so "came from this SVG" does not mean "is the
+        # 1024 resvg acceptance render" -- copying one over the other satisfies
+        # every digest.  The size and renderer have been in the sidecar all
+        # along; the acceptance callers now read them.
+        open(_png, "wb").write(_data)
+        _R.write_provenance(_png, _svg, _data, 64, "chromium")
+        step5 = _R.read_provenance(_png, require=True) == _R.sha256_file(_svg)
+        try:
+            _R.read_provenance(_png, require=True, expect_renderer="resvg")
+            step6 = False
+        except _R.ProvenanceError:
+            step6 = True
+        try:
+            _R.read_provenance(_png, require=True, expect_size=1024)
+            step7 = False
+        except _R.ProvenanceError:
+            step7 = True
+        # step 8: everything above authenticates the RASTER.  `svg_sha256` was
+        # still a recorded claim about a file nobody re-read, so a render that
+        # is authentic AND stale -- its SVG rebuilt since -- passed every check
+        # here.  That is not hypothetical: three of this iteration's eight
+        # verifiers measured a model four commits old.  `expect_svg` re-hashes
+        # the SVG the caller believes it is measuring.
+        step8 = _R.read_provenance(_png, require=True, expect_svg=_svg) \
+            == _R.sha256_file(_svg)
+        open(_svg, "a").write("<!-- the SVG moves on without the render -->")
+        try:
+            _R.read_provenance(_png, require=True, expect_svg=_svg)
+            step9 = False
+        except _R.ProvenanceError:
+            step9 = True
+        # and the raster alone is still accepted, because staleness is opt-in:
+        # an ad-hoc render of a scratch SVG is legitimate
+        step10 = _R.read_provenance(_png, require=True) is not None
+        # step 11: an expectation is a REQUIREMENT.  `require` alone gated the
+        # absent-sidecar return, so expect_size/renderer/svg WITHOUT
+        # --require-provenance were silently not run on a render that had no
+        # sidecar to run them against: compare.py exited 0 and published metrics
+        # for unverified bytes, having been asked for proof of the opposite.
+        _R.clear_provenance(_png)
+        step11 = []
+        for _kw in ({"expect_size": 64}, {"expect_renderer": "resvg"},
+                    {"expect_svg": _svg}, {"expect_size": 64, "expect_svg": _svg}):
+            try:
+                _R.read_provenance(_png, **_kw)
+                step11.append(False)
+            except _R.ProvenanceError:
+                step11.append(True)
+        step11 = all(step11)
+        # ... and with nothing asked of it, an absent sidecar is still an absence
+        step12 = _R.read_provenance(_png) is None
+        # step 13: parsing says the file is JSON, not that it is a sidecar.
+        # Four roots parse and none of them records a field, and each used to
+        # reach `.get` and raise AttributeError -- past the contract, and past
+        # the callers, that the digest-shape check exists to protect.
+        step13 = []
+        for _root in ("[]", "null", '"x"', "3", "true"):
+            open(_R.provenance_path(_png), "w").write(_root)
+            try:
+                _R.read_provenance(_png, require=True)
+                step13.append(False)
+            except _R.ProvenanceError:
+                step13.append(True)
+            except Exception:                                  # noqa: BLE001
+                step13.append(False)
+        step13 = all(step13)
+    _steps = (step1, step2, step3, step4, step5, step6, step7, step8, step9,
+              step10, step11, step12, step13)
+    check("a render sidecar cannot authenticate a PNG it does not describe",
+          all(_steps),
+          "valid render accepted: %s; replaced PNG rejected: %s; "
+          "absent provenance optional: %s; absent provenance required-fails: %s; "
+          "authentic-but-wrong-engine accepted without the expectation: %s, "
+          "rejected with it: %s; wrong size rejected: %s; "
+          "matching SVG accepted: %s; authentic-but-stale SVG rejected: %s; "
+          "staleness stays opt-in: %s; an expectation without a sidecar is an "
+          "error: %s; asking nothing still is not: %s; a JSON root that is not "
+          "an object is a ProvenanceError: %s" % _steps)
+
+    # ---- the vertical streak's own two numbers actually move the render ---- #
+    # Reachability (check 4b) says a spec exists; this says the spec DOES
+    # something.  A parameter can be emitted, bounded and searched and still be
+    # inert if the builder ignores it, which would leave the same silence with
+    # more machinery behind it.
+    vl = next((L for L in params["layers"] if L.get("kind") == "vstreak"), None)
+    if vl is not None:
+        import copy as _copy
+        base_img = obj.basis(params, vl["id"])
+        moves = {}
+        for key, delta in (("sigma_x", 1.4), ("south_gain", 0.5)):
+            trial = _copy.deepcopy(params)
+            tl = next(L for L in trial["layers"] if L["id"] == vl["id"])
+            tl[key] = float(tl[key]) + delta
+            moves[key] = float(np.abs(obj.basis(trial, vl["id"]) - base_img).max())
+        check("the vertical streak's width and north/south balance change the render",
+              all(v > 0.004 for v in moves.values()),
+              "max basis delta " + ", ".join("%s %+.1f -> %.4f" % (k, d, moves[k])
+                                             for k, d in (("sigma_x", 1.4),
+                                                          ("south_gain", 0.5))))
+        spaths = {sp["path"] for sp in O.layer_specs(params)}
+        i_vl = [L["id"] for L in params["layers"]].index(vl["id"])
+        check("the vertical streak's width and north/south balance are searched",
+              all("layers/%d/%s" % (i_vl, k) in spaths
+                  for k in ("sigma_x", "south_gain")),
+              "specs present: %s" % sorted(q.rsplit("/", 1)[1] for q in spaths
+                                           if q.startswith("layers/%d/" % i_vl)))
 
     print()
     if FAIL:

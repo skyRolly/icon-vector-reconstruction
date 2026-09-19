@@ -28,6 +28,8 @@ import sys
 import numpy as np
 from PIL import Image
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 
 def load(p, size=None):
     im = Image.open(p).convert("RGB")
@@ -155,16 +157,20 @@ def compare(ref_path, rec_path, out_prefix=None, quiet=False):
 
 
 
-def _provenance(render_path):
-    """The SVG digest recorded beside a render, so a report names its own input."""
-    import json as _json
-    side = str(render_path) + ".prov.json"
-    if os.path.exists(side):
-        try:
-            return _json.load(open(side)).get("svg_sha256")
-        except Exception:                                  # noqa: BLE001
-            return None
-    return None
+def _provenance(render_path, require=False, expect_size=None,
+                expect_renderer=None, expect_svg=None):
+    """The SVG digest recorded beside a render, so a report names its own input.
+
+    Defined in tools/render.py and shared, rather than copied here and into
+    diagnose.py as it was: two copies of a check are two chances for one of them
+    to skip the part that matters, and the part that matters -- hashing the PNG
+    before believing what the sidecar says about it -- was missing from both.
+    """
+    import render as _R
+    return _R.read_provenance(render_path, require=require,
+                              expect_size=expect_size,
+                              expect_renderer=expect_renderer,
+                              expect_svg=expect_svg)
 
 
 def main():
@@ -173,10 +179,39 @@ def main():
     ap.add_argument("render")
     ap.add_argument("--out-prefix", default=None)
     ap.add_argument("--json", default=None)
+    ap.add_argument("--require-provenance", action="store_true",
+                    help="fail unless the render can be shown to come from a known SVG")
+    # Each of these implies --require-provenance: they are claims about fields
+    # that exist only in a sidecar, so a render without one cannot satisfy them
+    # and must not be reported as though it had.
+    ap.add_argument("--expect-size", type=int, default=None,
+                    help="require the sidecar to record this render size "
+                         "(implies --require-provenance)")
+    ap.add_argument("--expect-renderer", default=None,
+                    help="require the sidecar to record this renderer "
+                         "(implies --require-provenance)")
+    ap.add_argument("--expect-svg", default=None,
+                    help="require this SVG to still hash to the recorded "
+                         "svg_sha256, which is what proves the render is not "
+                         "stale (implies --require-provenance)")
     a = ap.parse_args()
+    # First, before the images are loaded and before anything at all is written.
+    # These flags are a precondition on the render being measured, not a
+    # decoration on the output, and this is the second time that distinction has
+    # had to be made here.  Guarding them with `if a.json` meant
+    # `--require-provenance` passed on a render with no sidecar whenever the
+    # caller happened not to ask for JSON; running them after compare() meant a
+    # rejected raster still left `_diff.png`, `_signed.png` and `_sbs.png` on
+    # disk, with nothing about those files to say the run that made them failed.
+    # A check that runs after the side effects it is meant to prevent is not a
+    # check.  A rejected render now produces no artefacts of any kind.
+    digest = _provenance(a.render, require=a.require_provenance,
+                         expect_size=a.expect_size,
+                         expect_renderer=a.expect_renderer,
+                         expect_svg=a.expect_svg)
     m = compare(a.reference, a.render, a.out_prefix)
     if a.json:
-        m = dict(m, source_svg_sha256=_provenance(a.render))
+        m = dict(m, source_svg_sha256=digest)
         open(a.json, "w").write(json.dumps(m, indent=2, sort_keys=True))
     return 0
 

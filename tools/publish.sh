@@ -24,10 +24,49 @@ echo "== 2. render =="
 python3 tools/render.py reconstruction.svg out/render_1024.png
 
 echo "== 3. measure =="
-python3 tools/compare.py reference.png out/render_1024.png --out-prefix out/diff --json out/metrics.json
-python3 tools/diagnose.py out/render_1024.png --json out/diagnostics.json
+# --require-provenance: these two write the JSON the README publishes, so they
+# must be able to PROVE the raster they measured came from the SVG rebuilt in
+# step 1.  Without it a stale out/render_1024.png with an old sidecar beside it
+# is measured and published as if it were the shipped artwork.
+# --expect-size/--expect-renderer: hashing proves the raster came from this SVG,
+# not that it is the RIGHT raster.  validate.py writes a Chromium render of the
+# same SVG into the same directory with its own valid sidecar, so without these
+# two the README could publish Chromium's numbers as the acceptance figures.
+# --expect-svg: and all of that authenticates the RASTER.  The recorded
+# svg_sha256 was still only a claim about a file nobody re-read, so a render
+# that is perfectly authentic and four commits stale passed everything above --
+# which is exactly how three of this iteration's verifiers came to measure a
+# model that no longer existed.  This re-hashes reconstruction.svg and requires
+# it to still be the SVG the sidecar names.
+python3 tools/compare.py reference.png out/render_1024.png --out-prefix out/diff --json out/metrics.json --require-provenance --expect-size 1024 --expect-renderer resvg --expect-svg reconstruction.svg
+python3 tools/diagnose.py out/render_1024.png --json out/diagnostics.json --require-provenance --expect-size 1024 --expect-renderer resvg --expect-svg reconstruction.svg
+# The cross-engine check is documented as OPTIONAL, so it must not be able to
+# stop a release -- but it must not be able to hide either, which is why
+# validate.py grew distinct exit codes in the first place.  Both halves are kept:
+# 2 (a found browser failed) and 3 (a configured browser is unusable) are
+# reported loudly and do not abort; every other nonzero status is a failure of
+# the resvg rows, which are the report, and still stops the cycle.
+set +e
 python3 tools/validate.py
+validate_status=$?
+set -e
+cross_engine_ran=yes
+if [ "$validate_status" = 2 ] || [ "$validate_status" = 3 ]; then
+    cross_engine_ran=no
+    echo "!! validate.py exited $validate_status: the OPTIONAL cross-engine check did"
+    echo "!! not run.  out/validation.{md,json} say why, and the README will omit the"
+    echo "!! cross-engine line rather than publish a number nothing measured."
+    echo "!! The resvg rows -- which are the report -- are unaffected; continuing,"
+    echo "!! and the final line of this run will say the check was not made."
+elif [ "$validate_status" != 0 ]; then
+    echo "FAIL: validate.py exited $validate_status" >&2
+    exit "$validate_status"
+fi
 python3 tools/make_previews.py out/render_1024.png
+# The flare inspection sheet is the instrument the acceptance decision rests on,
+# so the documented release command has to produce it: a reviewer who runs this
+# should not have to know the tool exists to see what it shows.
+python3 tools/flare_view.py out/render_1024.png --out out/flare_view.png
 
 echo "== 4. regression checks =="
 python3 -u tools/test_pipeline.py
@@ -52,4 +91,12 @@ else
     diff "$tmp/a.txt" "$tmp/b.txt" | head -20 >&2 || true
     exit 1
 fi
-echo "PUBLISH OK"
+if [ "$cross_engine_ran" = yes ]; then
+    echo "PUBLISH OK"
+else
+    # Not blocking the release and not calling it clean either: a reviewer
+    # reading only the last line must not be told a check ran when it did not.
+    echo "PUBLISH OK -- EXCEPT the optional cross-engine check, which did not run"
+    echo "(validate.py exited $validate_status; see out/validation.md).  Every"
+    echo "resvg number published here was measured."
+fi

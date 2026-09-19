@@ -2257,3 +2257,1289 @@ explanation, not a measurement. Until the two are made to agree at a common
 clearance with a common statistic, changing the upper-left ray's amplitude would
 be picking the instrument that gives the answer one wants, and the ray is left
 alone.
+
+## D44. The instrument first: what a chroma row and a nearest-neighbour zoom
+## showed that six iterations of metrics had not
+
+The brief for this iteration opens by observing that repeated passes reported
+the same visual errors while the numbers moved, and asks for the comparison
+method to be changed before any further artwork change. That is the right
+diagnosis, and the reason is specific rather than general: **every structure
+under dispute is worth less than 0.01 of whole-image MAE.** The flare is 5% of
+the canvas, its rays are a few code values on a background of tens, and the
+optimiser will trade all of them for a hundredth of a code value somewhere
+else. A whole-image metric is not a weak instrument here; it is an instrument
+pointed at a different question.
+
+`tools/flare_view.py` is the answer to section 4. One crop, three
+decompositions, three scales, reference and reconstruction side by side with
+both differences. Three of its choices are load-bearing:
+
+  * **Enlargement is nearest-neighbour.** A smooth upscale invents a gradient
+    between two pixels, and "is the centre a compact core with detail or a
+    diffuse blob" is exactly the question a smooth upscale answers wrongly.
+  * **Every gain is printed in its panel label.** A difference panel with an
+    unstated multiplier is an argument, not evidence.
+  * **Differences are computed at native resolution and enlarged afterwards.**
+    The reverse order hides a one-pixel misalignment, which is the most common
+    real defect in this artwork.
+
+The row that earned its place is CHROMA: `rgb` minus its own mean, so any grey
+at any brightness is neutral and colour alone remains. On the shipped artwork
+it showed at once that **the reference's low-chroma core is not round** -- it is
+extended west and vertically, where the render's is a circle. That is a
+statement about shape that no chroma ratio had produced in six iterations,
+because a ratio of two bright numbers is not a picture.
+
+The first thing the instrument was pointed at was section 2's question, and it
+answered it: rendering `reconstruction.svg` from eight commits spanning two
+iterations gives MAE 1.8978 (head) through 1.9373 (iteration-4 final), with the
+head best on every regional metric. No rollback is warranted. But the same table
+carries a warning that set this iteration's agenda: **`core r<30` MAE sits at
+9.12-9.24 in ALL EIGHT candidates.** Two entire iterations of parameter work had
+not moved the core at all, which is section 34's question asked by the data
+rather than by a reviewer: if the issue survives several iterations, is the
+model capable of representing the structure?
+
+## D45. The westward triangle: the shape was wrong and the light was not
+
+Section 5 names the false triangular region as the primary visual target and
+instructs that it be removed rather than reduced. Two things had to be
+established before acting, and they pointed in opposite directions.
+
+**The shape is indefensible.** `flare_ray_d` was a `ray`-kind quadrilateral --
+half-width 15 px at the core growing to 115 px at r 155, filled with a
+longitudinal gradient and blurred by 4 px. Isolating the layer and rendering it
+alone shows a hard-edged trapezoid; there is no ambiguity in the picture.
+Measured against a render with every west layer removed, it supplies **48-51
+screen units at every dy from -40 to +46** at |dx| 84-104 -- flat to 3% across
+an 86 px span -- where the reference wants a peak of 157 at dy -5 falling to
+60-88 at the edges. At dy 90-130 the reference wants 0 +- 1 unit and the quad
+supplied up to 7.
+
+**The light is real, flare-anchored, and needed.** Deleting the layer opens 2-8
+cv holes across theta 145-220 at r 96-170, at 4.5 to 25 sigma under three
+independent null families; `fan_report` goes from S 0.113 / STEP -0.209 to
+-3.577 / -2.635 against a null sd of 0.72. Swept along the left ridge, the
+reference's excess over the render peaks at the flare's own row (-23.8 cv at
+10-25 px beyond the ridge), falls to -13 cv at +-40 px and is within 2 cv of
+zero at +-60 px: it decays away from the flare, so it belongs to the flare and
+not to the curve.
+
+**Confirmed on the shipped replacement, which is the number that was missing
+here.** The -3.577 / -2.635 above is the BARE deletion, and quoting only that
+leaves the entry unable to say whether the band put the light back. Run on all
+three models, `fan_report` reads S 0.113 / STEP -0.209 for the pre-change
+baseline (identical to the iteration-5 release), -3.577 / -2.635 for the bare
+deletion, and **-0.128 / -0.488 for what shipped** -- 0.3 sigma from the
+baseline against a null sd of 0.72, where the deletion sits at 5.1 and 3.4
+sigma. The straight edges went and the light did not.
+
+So the light stays and the straight edges go. `flare_arm_w2` is a west-only
+streak with a Gaussian cross-section, sigma 46, centred 6 px above the core's
+row, carrying the measured longitudinal profile (144 screen units at |dx| 86,
+69 at 102, 35 at 119, 17 at 138, 10 at 159).
+
+    MAE            1.8978 -> 1.8892      centre-region MAE  8.355 -> 8.018
+    SSIM          0.97390 -> 0.97394     flare r<110        6.852 -> 6.631
+    west field      3.015 -> 2.898       far west r 96-170  2.617 -> 2.328
+    bloom beyond the left ridge   -11.10 -> -4.84 cv
+    fan_report S / STEP  0.11/-0.21 -> -0.30/-0.63   (null sd 0.73)
+
+**The alternative that measured better was rejected, and the cost is recorded.**
+Keeping the quad and adding a separate bloom layer gives MAE 1.8865 against
+1.8892 -- better by 0.003. It was not taken, because it improves an aggregate
+while leaving in place the artefact that is the named target. That is precisely
+the trade section 2 forbids ("do not let a new optimization replace a visually
+better candidate merely because it improves one aggregate metric"), and the
+0.003 is stated here rather than buried.
+
+**Where the brief's premise does not survive.** "The reference does not contain
+this broad triangular region" is too strong. At r 110-150 the reference's
+angular profile west of the core is a smooth filled bowl: over twelve analysis
+settings per radius it shows no interior minimum in theta 203-232 at any of
+r 100 through 150. A filled westward region IS supported there. What is not
+supported is a flat top and a straight edge. The angular minima that do exist
+are real but shallow -- confined to r 34-52, median depth 0.8-1.3 cv against a
+matched-null spread of 1.0-2.5 -- and the render's largest errors near them are
+on the SLOPES (+5.9 cv at theta 151, +6.6 at 205) rather than in the minima
+themselves (+0.9 at 139, +2.5 at 217). "The render fills in the minima"
+mis-describes the defect, and an earlier record of 91%/84% minimum stability
+against a render at 0% should read 76%/46% against a render that shows the
+upper minimum in 62% of settings, displaced about 10 degrees.
+
+**What is not measurable, and is not claimed.** About a quarter of this layer's
+light falls within 20 px of the left ridge -- the annulus r 48-88 due west
+clears a 20 px mask in only 6.9% of its pixels, and the old layer's longitudinal
+peak at r 70 sat where the clearance is 4.5 px. Neither the old amplitude there
+nor the new one is measured; both are extrapolations held to what keeps
+`fan_report` at zero. If a human sees a false triangle in that annulus,
+reference.png cannot confirm or refute it.
+
+`flare_flank_dl` is re-aimed from -234 to -240 +- 2 in the same pass: the light
+the reference wants over a render without that layer peaks at theta 230-240 with
+a half-max half-width of 17 degrees, where the layer supplied a flatter
+distribution with too much at 210-222 and too little at 228-240. `flare_flank_ul`
+is left alone and recorded as NOT MEASURABLE -- its entire contribution is
+0.06-1.21 cv against a matched-null spread of 1.0-2.5 cv in the same cells, and
+where it sits the render is already too dim, so removing it would deepen a
+deficit rather than remove an excess.
+
+## D46. The core is too tall, not too large -- and its colour error is not
+## reachable from here
+
+Section 8 asserts that the central core is "a broad white mass surrounded by
+excessive white feathering". Measured, **that premise is half wrong**, and
+saying so is more useful than acting on it.
+
+The truly-white region (min(R,G,B) above a threshold, equivalent radius) is
+ref/render 2.39/2.39 px at 240, 3.83/3.52 at 230, and larger in the render by
+only 1.0-1.3 px at 180-220. The 245->200 transition width -- "feathering" made
+quantitative -- differs by a median of +0.1 px over 30 combinations of sector,
+mean-versus-median and clearance, i.e. consistent with zero. Inside r 8 the two
+are indistinguishable. Reducing the peak or sharpening the flare, both of which
+the brief separately forbids, also both make MAE worse.
+
+What IS wrong is the aspect ratio. From each image's own peak, the render's R
+half-width north and south exceeds the reference's by 1.1-2.9 px at every level
+from R=200 down to R=140, while the westward half-width matches within +-0.5 px
+over nine levels with no trend. Reference W/N is 1.90 at R=200 and 2.09 at
+R=160; the render's is 1.49 and 1.60. `flare_halo`'s squash goes 0.6453 -> **0.62**, and
+the difference between that and the 0.58 the core's own aspect asks for is the
+whole of this entry's interest.
+
+The core alone wants 0.56-0.60: the north and south R-excess zero-crossings sit
+at 0.578 and 0.577, and at 0.58 the north R excess at r 8-20 falls from +9.25 to
++2.05 cv and the south from +5.81 to -0.97. Whole-image MAE is flat to 0.0016
+across 0.56-0.62 and cannot arbitrate. **But this layer does not only set the
+core's aspect -- it also carries the diagonal west field at r 34-46, and the two
+want opposite changes.** `wedge_report`'s angular residual RMS over 19
+ridge-cleared bins runs 4.41 / 4.09 / 3.76 / 3.43 cv at squash 0.58 / 0.60 /
+0.62 / 0.6453: compressing the halo dims theta 109-139 and 223-247 by about
+2.5 cv apiece. Shipping 0.58 would have bought a 1-3 px core aspect at the price
+of a 0.8 cv rise in the angular RMS of the very region section 5 names as the
+primary target.
+
+0.62 is the point at which BOTH instruments beat the previous release rather
+than one being traded for the other: angular RMS 3.81 -> 3.76, north R excess at
+r 8-20 +9.25 -> +6.67. This is the same structural fault as the colour error
+below -- one isotropic layer serving two requirements that are not isotropic --
+and it was found only because the west work and the core work were measured
+against each other instead of separately.
+
+**The colour error, measured and deliberately not fixed.** Beyond r 20 the
+render carries too much white primary and too little cyan at nearly constant
+luminance: north at r 20-40, dR +12.3 with dG -4.8 and dB -6.4, against a
+36-placement matched null at z = +27, where the luminance difference is +0.4 and
+sees almost none of it. This is the measurable part of the standing
+under-saturation complaint, and it is LOCAL to r 20-55 rather than global --
+which is why whole-image chroma statistics have missed it repeatedly, and why
+D42's "no global saturation defect" was right about the global and silent about
+this.
+
+Three attempts establish that the model cannot express the correction:
+
+  * both halo layers are already at maximum amplitude (white 1.0, cyan 1.0), so
+    the only levers are geometric. A 9-point sweep of the pair's e-folding
+    leaves the shipped values the MAE optimum; the best chroma cell improves the
+    colour statistic from 5.73 to 4.99 and costs 0.053 of MAE;
+  * a NEW mid-radius cyan halo, four geometries over r 48-75, buys a tenth of
+    the defect for 0.0035 of MAE and 0.10 of flare-region MAE;
+  * both fail for the same reason. The error is ANISOTROPIC -- the same annulus
+    that is too white north and south is too DIM in red due west (dR -6.9 at
+    r 20-40) -- and every colour carrier at that radius is isotropic.
+
+The fix is an angular colour decomposition: white moved out of the isotropic
+halo into a horizontal carrier with the cyan raised to hold the luminance,
+fitted against per-direction per-radius colour cells. That is a rebuild of the
+bloom's colour basis, it is a fit rather than a parameter change, and it is
+recorded with its three failed routes so the next pass starts from the negative
+results instead of repeating them.
+
+**A documentation defect fixed in the same pass.** `flare.note` claimed the
+flare block's cx,cy agreed with two measured positions of the reference's
+brightest point. They do not and have not. The compact peak sits 2.4-3.4 px east
+and 0.6-1.1 px north of cx,cy by the estimators that use R or a sub-pixel
+translation fit, while the broad bloom's centroid agrees to within 0.2-0.7 px --
+and the disagreement between the two is itself the finding: the PEAK is
+displaced and the BLOOM is not. cx,cy is left alone, because moving it drags all
+fifteen flare-anchored layers and costs 0.009 MAE; correcting the peak alone
+needs a displaced compact layer, which is not built.
+
+## D47. The horizontal line: it was never the core's width, it was the missing
+## broad half
+
+Section 12 says the line is "too white, thin, hard, isolated" and proposes
+splitting the horizontal wash into a near white component and a far cyan one.
+The proposal is **supported, with one correction that matters**: it is the BROAD
+component whose colour changes with distance, not the narrow spike.
+
+A transverse cut through the reference's line is two things at every distance: a
+narrow spike, and a wash of sigma 12-18 px that carries **70-94% of the light**.
+The reconstruction reproduced the wash inside |dx| ~80 and had essentially none
+beyond. North-flank skirt fraction over three baseline annuli, reference against
+the old render: 0.71/0.71/0.70 vs 0.30/0.48/0.54 at |dx| 80-130, and
+0.69/0.72/0.70 vs -0.38/-0.25/0.32 at 130-190 -- where the render's statistic is
+unstable precisely because its numerator is zero. Against a matched null at the
+same cell displaced 110/150/190 rows: 11, 7.4 and 2.5 sigma.
+
+**The narrow core's width was never the problem.** Reference sigma 1.32-2.81 px
+against the render's 1.45-1.79 -- indistinguishable. What made the line read as
+hard and isolated was the absence of the thing around it.
+
+Colour, broad component only, with the narrow spike's shape held fixed:
+R/G 0.97 +- 0.09 at |dx| 18-45, then -0.03 +- 0.05 at 80-130 and -0.07 to +0.10
+beyond. The narrow spike shows no distance trend at all (0.15-0.35 everywhere)
+and is left alone. The white-to-cyan transition is bracketed at |dx| 45-70 and
+NOT localised more finely -- it rests on one 14-column east band -- and whether
+it is a step or a ramp is unresolved.
+
+Shipped: `flare_fan` truncated from half_len 123.2 to 62 with its profile scale
+rescaled by 123.2/62 so the falloff IN PIXELS is unchanged (the scale is in
+units of half_len, so shortening without rescaling would have changed the shape
+as well as the extent); a new pure-cyan `flare_wash_far` at sigma_y 14,
+half_len 320, with a tabulated non-monotone profile; and the three affected
+amplitudes refitted together. The narrow line had been standing in for the
+missing wash and came down 28% in white when the wash arrived.
+
+    MAE  1.8886 -> 1.8860      SSIM 0.97394 -> 0.97399
+    line band MAE 3.983 -> 3.800
+    skirt fraction, as a fraction of the reference's:  0.635 -> 1.083
+
+**D41 is confirmed and sharpened.** `flare_fan` is still the only near-field red
+source: recolouring it cyan at equal G opens a 15-33 cv red hole over r 12-32,
+and a control that only ADDS a pure-cyan far wash leaves dR bit-identical at
+every radius, which is the direct proof. But D41's "correct to +0.50 cv at
+r 12-25" is an average of +11.05 at r 12-18 and -3.81 at 18-25 -- two opposite
+errors, the same pattern D42 found elsewhere -- so the near field is not right,
+its red is mis-distributed in radius, and no monotone exponential from r 0 can
+carry an annulus. That is recorded in the layer note and not fixed here.
+
+**An instrument was correcting away the thing it was used to detect.**
+`tools/line_shape.py` takes its baseline from rows at |dy| 22-26, and a sigma-15
+wash is still at 0.28 of peak at dy 24 -- so most of the missing component was
+being subtracted from both images before the comparison. Re-running the same sum
+under five baseline annuli at |dx| 130-190 gives reference/render ratios of 2.5x
+to 6x under every choice and never near 1, against the 1.0 the narrow annulus
+reported. The standing claim that the line's total light agrees within 10% holds
+only inside |dx| ~100; beyond that the render was missing 55-100% of it.
+
+**The hierarchy is confirmed unchanged**: three lines at dy 0, +6.75 to +7.28
+and +16.7 to +18.9, no fourth line, and no north counterpart anywhere (amplitude
+-0.027 to +0.005 in all eleven windows). Line A also sags about 1 px between
+|dx| 50 and 240 on both sides, survives 2x downsampling, and cannot be an
+8-px-grid artefact because the windows span 4-6 blocks; it is not acted on,
+because a rect with a blur cannot bow and a sub-pixel bow is not worth a new
+primitive while a 2-6x amplitude error is open.
+
+## D48. The vertical line was symmetric because nothing could see that it should
+## not be
+
+`flare_vline` shipped with `south_gain` at exactly 1.0. That is a default, not a
+measurement, and there are three separate reasons it went unexamined for a
+release -- which together are a better description of how this kind of error
+survives than any one of them alone.
+
+  1. **It could not be searched.** `sigma_x` and `south_gain` both carried
+     carefully chosen `bounds` in params.json, and neither name was in
+     `layer_specs`' key list. So `--spec shapes` and `--spec all` both left them
+     frozen while every log said the shapes had been optimised.
+  2. **The report could not see it.** `tools/vstreak_report.py` pooled north and
+     south into one band mean. An asymmetry is invisible to that statistic by
+     construction.
+  3. **The report would have argued against the fix.** Because the pooled mean
+     drops when one side is dimmed, setting south_gain to 0.6 moves that report's
+     rms error from 0.37 to 0.88. An instrument blind to an asymmetry does not
+     merely fail to find it; it actively defends the symmetric version.
+
+The reference's line is north-dominated. south/north of A_4 over |dy| 36-110:
+**reference 0.44 in B and 0.63 in R, against the shipped render's 0.97 and
+1.19**; at south_gain 0.55 the render reads 0.45 and 0.65. A block bootstrap
+over 8-row blocks gives B 0.52 [0.28, 0.84] with P(south >= north) = 0.004. The
+honest range is 0.45-0.85 and the estimators disagree systematically inside it
+(a narrow centre-minus-flank statistic says 0.35-0.42, A_4 says 0.52-0.63, a 4x
+downsample says 0.75), so 0.55 is a choice within a range, not a measurement to
+two figures.
+
+The change is MAE-neutral to four decimal places. That is the point: a
+whole-image metric cannot see it at all, and it is still wrong.
+
+**A methodological correction that inverts a rule this project has been using.**
+"R is the honest channel near the core" is true within about 12 px, where G and
+B clip high. It is FALSE at |dy| 26-70, where R is pinned against its ZERO floor
+-- 20.5%, 30.5% and 19.7% exact zeros at |dy| 26-36, 36-50 and 50-70, while G
+and B sit mid-range at 105-177 with nothing clipped at either end. A
+floor-clipped channel is exactly as dishonest as a ceiling-clipped one, and the
+vertical line's tabulated inner profile was measured in R over precisely the
+bands where R is on its floor. That profile is therefore left alone and marked
+as unvalidated rather than "measured": the three channels disagree about the
+required amplitude there by factors of 2-6 and contradict each other in SIGN in
+three of six bands.
+
+`sigma_x` 1.7 was re-measured at the same time and survives: the width-sensitive
+ratio N/A_4, calibrated by rendering the same layer at five nominal widths, puts
+it at 1.44-1.60 in G and B and 0.95-1.35 in the floor-clipped R. 1.55 is
+marginally better supported; the difference is below the render's own resolution
+and was not taken.
+
+## D49. A regression suite for the failures that keep coming back
+
+Seven structures have each been reported wrong, fixed, and reported wrong again.
+None of them is worth 0.01 of whole-image MAE. That is not a weakness of the
+metric, it is arithmetic: the flare is 5% of the canvas and its rays are a few
+code values on a background of tens, so an optimiser will trade every one of
+them for a hundredth of a code value somewhere else and the aggregate will
+improve. `tools/visual_regression.py` exists because a guard that is not
+explicitly about these structures will not protect them.
+
+Every check is a RATIO TO THE REFERENCE measured by the same estimator on the
+same cells, never a threshold on the render: a hard-coded pixel count would
+encode one release's accidents, and on an image with real JPEG blocking it would
+encode some of the compression as well. The bands are wide on purpose. These are
+presence tests, not accuracy tests, and the failure they exist to catch is a
+structure quietly going to zero.
+
+**The statistic that was wrong twice, and why it is worth recording.** The ray
+checks began as "the axis against two windows 14-26 degrees either side". Two of
+the four came out NEGATIVE for the REFERENCE -- the lower-left ray sits 10
+degrees from the lower-left flank's peak and the upper-left sits inside its own
+flank, so the "background" window held another structure. A ratio of two
+negative numbers is not a presence test. The second attempt used the annulus
+median, and that failed differently: this field is strongly anisotropic, the
+horizontal axis is far brighter than the diagonals, and the median then sits
+ABOVE the left rays so both images read negative again. What works is the
+QUIETER of the two flanking windows -- a neighbour raises one side, so the
+smaller of the two is whichever side is actually empty.
+
+**A check that cannot see its structure must not claim the structure is gone.**
+Two guards enforce that. Each check declares a floor below which the REFERENCE's
+own statistic is not trustworthy, and reports NOT MEASURABLE rather than a
+ratio: the lower-right ray reads -0.18 in the reference at r 55-105, because the
+right ridge deletes most of that annulus, and dividing by it produced a
+confident "4.13x" out of nothing. And each ray's radii were chosen by deleting
+all four rays and asking how much of the number disappeared -- at a common
+r 55-105 the upper-right figure moved by 5%, i.e. the check was reading the
+right arc's glow. At the shipped radii the ray's own share is 98 / 82 / 80 / 92
+per cent.
+
+Validated by breaking the artwork on purpose. Deleting the vertical line trips
+it at 0.11x; deleting all four rays trips all four ray checks at 0.03-0.30x;
+deleting lines B and C trips both; deleting the cyan bloom trips the colour and
+skirt checks; and the PREVIOUS release -- with the flat-topped westward
+quadrilateral -- trips the west-shape check at 1.23x.
+
+**Two of the twelve currently guard a structure that is known to be wrong rather
+than right, and their bands say so.** The upper-right ray measures 0.36 of the
+reference and the lower-right 0.61. Setting a comfortable band would have hidden
+that; the floors are instead set where the artwork actually sits, and the
+deficit is written into the check's own description so it cannot be mistaken for
+a pass on the merits.
+
+## D50. What the optimiser could not reach, and what a sidecar could not prove
+
+Four correctness defects, each of which had the same shape: a check existed, it
+passed, and it was narrower than the thing it was guarding.
+
+**`layer_specs` emitted neither `sigma_x` nor `south_gain`.** Covered in D48.
+The fix is not the two names -- adding two names would leave the next
+parameter to be found the same way. `verify_searchable()` now reports every
+bound declared in params.json that no spec can reach, the regression suite
+fails if the list is non-empty, and a second check proves the guard is not
+vacuous by truncating the key list and requiring that it notices.
+
+**`frame_rim`'s radial paint centre was reachable by no spec builder at all.**
+The existing check looked only at `field_specs` and only at three layer kinds;
+`frame_rim` is a `frame_ring`, so it fell outside the check and its centre was
+frozen under every `--spec`. The check now tests every radial paint against the
+union of all four builders. `exterior_corner`, the other radial paint, was
+already reachable -- the gap was one layer, not two, and the first version of
+this entry said two.
+
+**A render sidecar recorded two digests and only one was ever read.** Replacing
+out/render_1024.png with different bytes while leaving the sidecar in place left
+`compare.py` and `diagnose.py` still attributing their numbers to the SVG named
+there -- verified by doing it. Both had their own copy of the same function and
+both copies skipped the same step, which is the ordinary fate of a check that
+exists twice. `read_provenance` now hashes the raster before believing anything
+the sidecar says about it, there is one implementation, `validate.py` describes
+the rasters it writes (it overwrites the same canonical filename a step later in
+the publish cycle), and publish requires provenance for the two JSON files the
+README publishes. The three-step case is in the regression suite and fails
+without the fix.
+
+**An explicitly configured but unusable `$ICON_CHROMIUM` was a successful
+skip.** "Optional" had been allowed to swallow a broken configuration. Discovery
+now returns one of four states -- configured, discovered, misconfigured, absent
+-- and validation exits 3 on a misconfiguration, 2 on an execution failure, 0 on
+a genuine skip. All four were run rather than reasoned about: unset -> 0,
+nonexistent path -> 3, non-executable file -> 3, executable that exits nonzero
+-> 2.
+
+Verified as already correct, with the evidence rather than by assumption: comb
+cells survive stride 3 and 4 (51/53/45/45, every |dx| band represented, so a
+subsampled shape search can still see the lower horizontal structures); flare
+calibration that exhausts its round budget returns nonzero and reports NOT
+converged; isolation rejects orderings its algebra cannot express; the
+profile-weight cache is keyed on the target rather than on its luminance sum;
+and geometry trials are re-baselined with equal colour freedom.
+
+## D51. The left rays: an instrument conflict resolved, and two rays that are
+## not parallel to their own model
+
+D43 left an unresolved disagreement: `tools/ray_report.py` at 30 px clearance and
+an integrated-flux audit at 16 px disagreed about the SIGN of the upper-left
+ray's amplitude error at r 90-100. It is resolved, and the resolution is a
+property of the instrument rather than of the artwork.
+
+**A chord-excess peak measures brightness only if the chord's endpoints are off
+the structure.** At 30 px clearance the cleared angular island around the
+upper-left ray reaches only s = +5.8 / +4.2 / +3.0 px at r = 90 / 95 / 100 while
+extending to -31 / -35 / -38 on the other side, so the chord's positive endpoint
+lands ON the ray. The decisive test used no reference data at all: take the
+render's own ray field (render minus a render with the layer deleted), rotate it
+by 5 degrees about the flare centre -- total flux ratio 1.0000, peak 18.13
+against 18.33 -- and put it back on the same background. The report's peak moves
+from 2.64 to 9.11 at r = 90 and from 0.59 to 7.69 at r = 100. **A factor of 3.5
+to 13 from position alone, with the light unchanged.** The audit was right.
+
+`ISLAND_MARGIN` now makes such a radius report nothing. With the biased cells
+gone the two images agree where they used to differ: reference mean peak 10.14
+cv against the render's 9.34, where the unguarded report read 8.08 against 6.83.
+
+This also answers section 19's question about `RAY_GEOMETRY` and
+`ray_report.RAYS` carrying different angles. They are different quantities and
+should not be reconciled by copying one into the other: `RAY_GEOMETRY` holds the
+layers' geometric axes, `RAYS` holds SCAN angles that only have to put the
+structure inside a +-26 px window, and the `ref angle` row reports where a
+(biased) peak lands inside that window -- a third thing again. Pointing the
+upper-left scan at its layer's new axis was tried and rejected: it walks the
+window into the left ridge and costs r 50-70, the radii at which that ray is
+brightest.
+
+**Neither left ray is parallel to its rendered counterpart.** For the upper-left
+ray, the transverse centre difference fits Delta = a + b*r with b = -3.7 to -8.9
+degrees (median -6.5) and a = +1.8 to +7.6 px (median +5.2) over 39 estimator
+variants; a straight line beat a pure translation in 39 of 39, median
+sum-of-squares ratio 0.09. Delta is -0.2 px at r 45, -3.7 at r 75 and -7.1 at
+r 105, against a render whose own ridge is flat to 0.17 degrees, so the
+background's curvature cancels. Three independent cross-checks agree, including
+a Cartesian row scan that uses no polar sampling anywhere.
+
+Neither a rotation nor a translation alone describes it, and `a` and `b` are
+strongly anti-correlated -- the defensible statement is the Delta(r) curve, not
+either number. Shipped as rot -113.6 -> -107.1 plus dx/dy for the +5.22 px
+normal offset. Its `rot` bounds were [-119.6, -107.6], which EXCLUDED the
+measured value; they are now derived from the new axis.
+
+Together with len 132 -> 100, height 12 -> 9 and peak_at 0.62 (the ray carried
+1.8-3.0x too much light beyond r 70 and reached too far -- the reference is at
+0.29 of its peak by r 100 where the model held 0.67):
+
+    MAE 1.8861 -> 1.8822    centre-region MAE 8.015 -> 7.944
+    upper-left sector MAE 4.375 -> 3.325   (geometry alone gets it to 3.688)
+    upper-left ray, as a fraction of the reference's: 1.69 -> 1.02
+
+The lower-left ray is too SHORT and len goes 110 -> 124: bias-calibrated peak
+ratios render/reference run 1.18 / 1.07 / 0.92 / 0.33 at r 76 / 88 / 100 / 112,
+so the reference is still at half its peak where a len of 110 has gone out.
+Beyond r 118 the reference is not detected at all, so the length is bounded above
+by absence rather than by a fit.
+
+**Recorded and not applied**, three times over. The lower-left ray's axis is also
+about +4.5 degrees out with a compensating -7 px offset, but the whole correction
+is worth 3.5% of its sector error and two contaminations inflate the apparent
+drift -- `flare_flank_dl` sits on its clockwise side and reads 2.6-3.1 cv there
+against a reference ray amplitude of 5.6-9.6, so a third of what the instrument
+calls "the ray" inside r 70 is the flank. It does carry a genuine clockwise
+shoulder (positive in all six radius bands, about 3.6 sigma combined), which is
+NOT fitted: an earlier pass established that a narrow-plus-broad decomposition's
+improvement on this image is inside what an injected single Gaussian already
+yields on the noise. And the upper-left ray has no measurable asymmetry at all --
+the third independent refutation of that claim.
+
+**A precision limit that bounds every width number in this project.** The
+acceptance renderer QUANTISES `blur`. On the upper-left ray, every value from
+3.91 to 4.60 renders BIT-IDENTICALLY and the first change is at 4.75 (2 cv over
+1176 px). The value this iteration ships, 4.5309, and the value it replaced,
+3.9088, are the same artwork. So no width claim for this ray finer than about
++-0.4 px of blur is verifiable, and the optimiser's own blur step at this value
+(0.12 x 4.5 = 0.54) is comparable to the plateau -- a fraction of its blur trials
+are no-ops rather than rejections. This is a property of the renderer, not of the
+search, and is recorded rather than worked around.
+
+**One process finding, from the agent that measured this.** The baseline render
+it was given was two commits stale: `scratchpad/base/render_1024.png` recorded
+the SVG of an earlier commit, so the shared context quoted MAE 1.8978 where the
+tree measured 1.8886. It found this by checking the provenance sidecar's digest
+against the SVG -- the same mechanism this iteration repaired -- and quantified
+the damage rather than ignoring it: upper-left centres unchanged to 0.05 px,
+lower-left centres shifted 0.5-0.8 px, about a quarter of that ray's measured
+drift. Its own numbers came from renders it built from the tree, so they stand.
+
+## D52. The right rays are a redistribution error, and section 19's question has
+## a different answer than it expected
+
+**What the two angle numbers are.** `ray_report.RAYS` held 45.6 and 327.8;
+`measure_flare.RAY_GEOMETRY` holds 44.9 and 328.1. They are different kinds of
+number: the first pair are diagnostic sampling-window centres, the second are the
+drawn quadrilateral axes -- and the two files do not even share an origin, since
+`ray_report`'s CORE is 1.41 px from the params flare centre.
+
+The brief offers a candidate explanation to test: that `flare_ray_c`'s 3 px
+perpendicular offset, sampled by rays from the origin, produces a
+radius-dependent apparent angle that reconciles them. **It fails the arithmetic.**
+An offset s gives an apparent direction of direction + degrees(asin(s/r)), so
+3 px gives +3.44 deg at r 50, +2.29 at r 75 and +1.72 at r 100 -- a mean of +2.4
+degrees over the radii `ray_report` samples, which is EIGHT TIMES the 0.3 degree
+gap between 327.8 and 328.1. An offset separates those two numbers; it cannot
+reconcile them.
+
+What settles it is that the old values were simply wrong, and the tool that used
+them said so. Its own `ref angle` row on reference.png reads 44.0, 47.5, 45.2,
+41.9, 55.1, 43.8, 31.3 for the upper-right -- no coherent angle at all -- against
+a docstring claiming the peak "sits coherently at 45.6 and 327.8 degrees at every
+radius". Measured with a transverse matched filter, the reference's upper-right
+line lies -0.42 +- 0.28 px from the 44.9 axis over r 65-145 across 15 analysis
+choices, which excludes 45.6 at about 6 sigma. Both scan angles now sit on the
+layers' axes, and the false sentence is gone.
+
+The general statement, which is what should outlive this entry: **an offset ray
+has no single angle**, and any ray angle quoted anywhere in this project has to
+name the origin it was measured from.
+
+**Both right rays are too narrow, and neither is too dim.** This is the finding
+that a per-radius amplitude reading gets backwards.
+
+The lower-right: stacked over r 55-140 the reference and the render carry equal
+flux (49.2 against 53.1 cv.px) but the render's core is too bright and too narrow
+(peak 7.41 against 5.97, FWHM 7.25 against 7.75) and lacks the reference's skirt,
+which is strongest on the counter-clockwise side. The signed error map shows the
+shape of it directly: +2.7/+4.5/+3.3 cv at s = +1/+3/+5 for r 70-85, against
+deficits of -1.8/-2.1/-1.5 at s = +7/+9/+11 further out. A narrow-template radial
+reading instead makes the render look 2-3x too bright at r 95-150 and would have
+led to SHORTENING the ray, which makes the picture worse. height 4.85 -> 7.0 and
+the colour scaled 0.80 takes the lower-right corridor MAE from 2.0924 to 1.9882.
+
+The upper-right is 1.8x too narrow -- reference FWHM 10.0 px against the render's
+5.50, with broad wings that survive all eight matched nulls -- and badly wrong in
+hue. height 4.0 -> 8.0 with the width to match takes its corridor MAE from 2.4166
+to 2.0329.
+
+**A layer whose colour was outside the colour model.** `flare_ray_e` shipped with
+`color` = [0, 37.4, 11.2], i.e. B/G = 0.30, while its own white/cyan/blue
+coefficients imply [0, 37.4, 39.8] and B/G = 1.064. The two disagree because a
+measured hue outside the white/cyan/blue cone had been written straight into
+`color`, where the renderer reads it, while the coefficients the photometric fit
+reads and writes were left describing something else. That is a trap rather than
+a trade-off: the artwork looks one way and the next `fit_photometry` run would
+silently change it to the other.
+
+The reference's upper-right hue is B/G = 0.84 +- 0.10, which is 1.6 sigma below
+the cone floor -- so the cone is NOT broken on that evidence. The layer is moved
+to pure cyan, which is in-cone, 2.3 sigma away by ratio, and gives the best pixel
+error of the options tested. A regression check now requires every layer's stored
+colour to be reachable from its own coefficients, comparing what the RENDERER
+sees so that `flare_spike`'s deliberate above-255 encoding (which clamps to
+white, and whose coefficients say white) is not a false positive.
+
+    MAE 1.8822 -> 1.8806      centre-region MAE 7.944 -> 7.904
+    upper-right ray, as a fraction of the reference's:  0.35 -> 0.54
+    lower-right ray:                                    0.60 -> 0.66
+
+**Confirmed and left alone.** `flare_ray_c`'s 3 px translation is right and must
+not be revisited: removing it costs +0.42 corridor MAE and pushes the position
+residual to +1.58 +- 0.19 px, while the two criteria bracket the true offset at
+1.2 +- 0.4 px where the shipped value sits at 1.62. Both lengths survive --
+upper-right ends at r 140 +- 15 and lower-right at 165 +- 20, so len 150 is right
+and len 185 sits at the upper edge of what the data allows and must not grow.
+
+**Two corrections to earlier precision.** D43 described the lower-right
+reference and render lines as "PARALLEL (328.18 +- 0.21 against 328.40)". That
+was over-precise: the direction is 327.3-328.1 and not resolvable further, the
+two available criteria pick opposite ends of it, and D43's own fitted
+ds(r) = 3.72 - 0.0126 r contained a -0.72 degree slope that "parallel" papered
+over. And the upper-right note's "a continuation past r 150 is bounded at 11% of
+the amplitude inside r 120" is too strong; the supported bound is 35-45%.
+
+**Not measurable, and now recorded as such.** The right ridge costs the inner
+ends of both rays entirely -- nothing inside r 48 (lower-right) or r 62
+(upper-right) survives a 16 px clearance -- so `peak_at` 0.28 and 0.32, and any
+`onset`, are carried on faith rather than on measurement. Forcing the estimator
+inward gives a reference "profile" of 8.84, 7.23, 18.91, 14.14, 7.39 at
+r 35..55 while the ray-removed control render reads -0.41, +1.49, +1.01, +0.20,
++0.77: contamination of the same order as the scatter, and an 18.91 next to a
+7.39 is not a profile.
+
+## D53. Chroma, multi-scale, and the two audits: what the last four dimensions
+## added, including one finding this record nearly dismissed by mistake
+
+**There is no global saturation defect, and the sign flip that made earlier
+claims unreliable has an explanation.** Across every convention tried the
+whole-canvas chroma difference is within +-2.5%, and at matched luminance all
+three measures agree the render is slightly MORE chromatic. The flip that D42
+recorded as irreducible is not between colour spaces: it is between ABSOLUTE
+chroma (C*ab, max-min) and RELATIVE chroma (S, C*/L*), and it appears wherever
+the render's luminance is also wrong. Conditioning on luminance removes it. In
+this model's own cone basis the question has no ambiguity at all, because R is
+white-only and so dWhite = dR exactly.
+
+**The flare's colour error is an azimuthal quadrupole, not two radial shells.**
+North and south of the core the render is too white; east and west it is too
+cyan, at overlapping radii. The radial-only sign flips D42 reported are an
+artefact of the ridge mask admitting different sectors at different radii. This
+does not change D46's conclusion -- one isotropic layer cannot serve four
+directions that want opposite corrections -- but it names the shape of the fix:
+a white carrier whose profile runs along the east-west axis, not a recolouring.
+
+**A finding this record nearly dismissed, and the reason it did not.** The
+concave, lobe-facing flank of BOTH curves carries too much white primary at
+essentially correct luminance. The first check of that claim read -4.09 cv, the
+opposite sign, and would have refuted it. That check was wrong: its cell did not
+exclude the flare, where the render is too DARK in R, and the flare's own error
+swamped the curve's. Excluding r < 200 the same cell reads **+5.38 on the left
+arc and +3.27 on the right**, against -0.00 and -0.54 on the centre-facing side,
+which reproduces the independent measurement.
+
+It is recorded rather than applied. Taking `arc_glow1` from white 0.37683 to
+0.28 with cyan raised to 0.41 improves both the target (lobe dR +4.33 -> +2.79)
+and the curve-band MAE (2.964 -> 2.938) and costs **0.0106 of whole-image MAE** --
+a regression an order of magnitude larger than the gains this iteration shipped.
+And the 5.38-against-3.27 asymmetry means no single symmetric value can correct
+both arcs; honouring it needs the layer split per arc. Same structural fault as
+the halo, in a different place.
+
+**Nothing in the flare is a vectorised JPEG artifact.** A five-scale persistence
+test (native, gaussian 1, gaussian 2, 2x, 4x) over every flare structure the
+model has returns a negative result: every structure significant at native
+resolution is also significant, with the same sign and comparable amplitude, at
+all five scales. No thin ray should be removed on artifact grounds. The
+reference's 8x8 grid is real, un-shifted, 0.65-1.10 cv, with no 16-px MCU
+superperiod and no detectable chroma-subsampling footprint.
+
+**But one piece of the model IS built on a clipping artifact.**
+`flare_vline`'s tabulated factor-3.1 step at |dy| ~33 is not a feature of the
+light: it is R's ZERO floor, 20-30% occupied over exactly those bands. In the two
+unclipped channels the reference's line RISES across that boundary and peaks at
+|dy| 36-70 -- precisely where the table puts its collapse -- and the model's
+non-monotone tail bump at |dy| 80-100 is absent from the reference altogether.
+The table is wrong in SHAPE, and the layer note now says so instead of offering
+the step as the reason for tabulating. It is not retuned here because doing it
+properly means refitting against G and B outside |dy| 26 and against R inside it,
+with `south_gain` re-checked afterwards since the two are entangled.
+
+**A correction to this iteration's own published numbers.** The comb-cell counts
+were measured on a grid the optimiser never builds: `1024 // st` is 341 rows at
+stride 3 where `Objective.evaluate` point-samples `[::3, ::3]` and gets 342. The
+real counts are **51 / 53 / 45 / 45**, not 51/53/49/45. The conclusion is
+unchanged -- the comb survives every stride the pipeline uses, with every |dx|
+band represented -- but a check that measures a grid nothing uses is not a check,
+and the figure is corrected here and in the source.
+
+**Reported and not acted on**, each with the reason:
+
+  * `tools/regions.py` maps a subsampled grid as if each sample were a box centre
+    while `optimize.py` point-samples, a constant +1.5 px disagreement at stride 4.
+    It is a weight-ASSIGNMENT error, not a residual misalignment: it changes which
+    reference rows a comb cell owns, not where anything is drawn.
+  * `measure_flare` does not converge on the shipped parameters -- the upper-right
+    ray's measured peak settles into a period-2 oscillation straddling the
+    tolerance band, so the tool exits 1 and its own advice to raise `--rounds`
+    does not help. The convergence SEMANTICS are correct (that was the thing
+    under review, and it passes); chasing the tolerance would be fitting the
+    instrument's own discontinuity.
+  * A weak east-only inner extension of line C, and an azimuthal colour split at
+    r 30-65 that is an annulus with an east notch rather than a set of rays. Both
+    are single-dimension findings with no independent confirmation.
+
+**The evidence bar, stated once for the next iteration.** A cell mean counts as
+evidence when it exceeds three times the robust scatter of the SAME cell at
+matched-null positions at the SAME radius, and holds to within a factor of 1.5 at
+both 2x and 4x downsample. The shared constant "tau ~ 8 px^2 per independent
+sample" reproduces only in the far field: inside r 100 it understates the
+correlation by 1.5x to 10x, so a sigma computed with it there is overstated by
+1.1x to 3.3x. Use the matched-null cell scatter directly and skip the noise model.
+Inside r 60 no amount of averaging buys sensitivity; the floor there is
+systematic, about 6-13 cv in R and 3-6 cv in B.
+
+## D54. What eight adversarial refutations changed, and the one defect the
+## colour basis provably cannot express
+
+Eight independent verifiers were asked to REFUTE the claims this iteration
+shipped, each required to differ from the original method in baseline, statistic,
+background model and channel treatment. Every one of them landed on artwork that
+had already shipped, so this is an audit of the release rather than of a
+proposal. Four parameters changed: one reverted because the argument that moved
+it was an artefact, two shapes replaced because a fitted law was standing in for
+a measurement, and one width refitted from a bound that had made its own minimum
+unreachable. Two published precisions were widened. And one finding turned out to
+be the largest single residual in the image and to be outside what the model can
+say.
+
+**The verifiers' own errors are recorded too.** Three of the eight measured
+against `scratchpad/base/render_1024.png`, whose sidecar names an SVG four or
+five commits old (MAE 1.8978 against the shipped 1.8806); their arithmetic was
+sound and their conclusions were about a model that no longer exists. That is
+what the render sidecar added in D50 is for, and it worked -- the staleness was
+detected by reading the provenance, not by noticing that the numbers felt wrong.
+
+### The core is not too tall, and it IS displaced -- but not where the claim put it
+
+`flare_halo`'s squash went 0.6453 -> 0.62 on the argument that "the render's core
+is too TALL", measured as an R half-width excess of 1.1-2.9 px north and south
+*from each image's own peak* against a westward match. That argument does not
+survive. Displacing the shipped render against ITSELF by (3.02 east, 0.70 north)
+reproduces 71% of the claimed aspect contrast with zero model error; once the two
+are registered, the remaining anisotropy is +1.4 to +1.9 cv at z 1.3-1.8. An
+aspect measured from each image's own peak is not an aspect measurement when the
+peaks are 3 px apart.
+
+So squash goes back to 0.6453, the value two earlier iterations of fitting
+produced. That is a REVERT on provenance, not a re-optimisation, and the evidence
+for it is weaker than the evidence against 0.62's stated reason -- which is worth
+saying plainly. Re-measured on the corrected model (spike profile fixed, halo
+re-centred) with nothing varying but squash, 0.58 / 0.62 / 0.6453 give:
+
+| statistic | 0.58 | 0.62 | 0.6453 |
+| --- | --- | --- | --- |
+| whole-image MAE | 1.87888 | 1.87817 | 1.87815 |
+| flare r<110 MAE | 6.4775 | 6.4578 | 6.4574 |
+| r<40 MAE | 9.847 | 9.656 | 9.610 |
+| west angular residual RMS, 55 ridge-masked bins | 7.110 | 6.235 | 5.734 |
+| r 20-40 red deficit, N / S, ridge-masked | -7.4 / -10.7 | -5.6 / -8.9 | -4.5 / -7.8 |
+| white-radius ratio (1.0 = reference) | 0.872 | 0.872 | 0.897 |
+| r 6-20 luminance excess, ridge-masked | +3.53 | +4.37 | +4.88 |
+| core-box MAE, x 516-548 / y 500-530 | 5.963 | 6.121 | 6.328 |
+
+Six prefer 0.6453, two prefer 0.58, and **0.62 is best at none of them** -- but
+the first two rows are a tie to four decimal places, and on the twelve structural
+ratios the split runs the other way, 0.62 closer to the reference on six and
+0.6453 on three. Nothing here decides the value. What decides it is that 0.62 was
+adopted on a measurement that turned out to be an artefact and no measurement has
+since preferred it; a parameter moved for a reason that failed goes back. The
+cost is recorded: `the bloom has not gone white` reads 0.930 of the reference at
+0.6453 against 0.941 at 0.62, moving back towards that check's 0.90 floor --
+though not past where iteration 5 sat, which was 0.925.
+
+The two statistics that still want a SMALLER squash are both core brightness
+rather than core shape, and their proper lever is `flare_halo`'s amplitude. That
+lever was swept and left alone: scaling its white to 0.92 and 0.85 halves the
+r 6-20 excess and costs whole-image MAE (+0.0009, +0.0026), the west angular RMS
+(4.11 -> 4.51 -> 5.00 in that sweep's units) and the core r<30 MAE (9.277 ->
+9.356 -> 9.723) at the same time -- the anisotropy wall again, one isotropic
+layer serving two requirements that want opposite changes.
+
+The displacement is real, and this is where the iteration's methodology earned
+its keep. The claim was that `flare.cx` should move +2.9 to +3.0 px east and
+-0.75 to -0.9 px north, and that "flare.cx maps onto the peak exactly 1:1".
+Applied to `flare.cx` that is simply wrong: it drags all fifteen flare-anchored
+layers -- the horizontal streaks, the vertical line, the four rays -- off
+structures they are registered to, and costs 0.0131 of whole-image MAE (1.8806 ->
+1.8937 on the model as it then stood) and 0.37 of flare r<110 (6.52 -> 6.90),
+while moving the high-pass centroid only 0.5 px for a 3 px anchor move. The direction and the magnitude were
+right and the VEHICLE was wrong. A ridge-masked sub-pixel translation fit says so
+directly: it wants +3.00 east / -0.75 north at r < 10 in R, +2.00 / -0.50 at
+r < 20, and +0.00 / -0.25 by r < 30. The compact peak is displaced; the bloom
+around it is not.
+
+So the correction went on `flare_halo`'s own `cx, cy` -- the layer that actually
+makes the compact core, as ablation along the core row confirms (it supplies
+86-105 cv there; `flare_halo_far`, `flare_spike`, `flare_vline` and
+`flare_wash_far` supply zero). At +3.00 east / -0.75 north nothing gets worse:
+
+| statistic | before | after |
+| --- | --- | --- |
+| whole-image MAE | 1.87836 | 1.87815 |
+| flare r<110 MAE | 6.4632 | 6.4574 |
+| core-box MAE, x 516-548 / y 500-530 | 8.087 | 6.328 |
+| r<40 MAE | 9.856 | 9.610 |
+| luminance excess at r 6-20, ridge-masked | +8.28 cv | +4.88 cv |
+| east-west asymmetry, \|dx\| 2-7 (reference +14.50) | -16.13 | +6.68 |
+| north-south asymmetry, \|dy\| 2-7 (reference -2.56) | +6.73 | -3.10 |
+
+(measured at the shipped squash with nothing else varying.) The r 6-20 row is
+the one to note: more than half of the "isotropic core over-brightness" that
+survived the aspect refutation was itself the registration error.
+
+The last two rows are the measurement that decided it, because they need no
+registration at all: the same fixed x and y in both images, so there is no
+per-image peak to get wrong. +3.00 is the largest correction that degrades nothing,
+not the best fit. MAE and the flare annulus are slightly better at +1.50 and
++2.25 (1.87796 against 1.87815), the asymmetry alone wants about +4.2 px, and
++3.75 and +4.50 keep improving the core box (6.087, 6.006) and the east-west
+match (+12.06, +16.61) while whole MAE turns (1.87849, 1.87906) -- the first of
+those already worse than no shift at all. The cost that IS paid is in one
+estimator family: `visual_regression`'s right-ray excesses read 0.540 -> 0.488
+and 0.659 -> 0.623 of the reference, because the statistic subtracts the quieter
+flank and the shift raises the background east. No ray parameter changed and the
+rays' own axial light is unchanged to 0.04 cv, so this is the instrument moving,
+not the artwork -- but it is a real reading and it is recorded rather than
+explained away.
+
+### A razor-thin line where the reference has none
+
+`flare_spike` -- line B, the narrowest of the horizontal family -- carried an
+`exp(-t/0.216)` longitudinal law, which peaks at the origin by construction. It
+therefore put screen-domain `A*k = 0.39` on its row *at the core*, where the
+reference puts 0.00-0.06. Over rows 519-520, x 517-538, the reference's R
+declines monotonically 187.3 / 182.5 / 171.0 / 162.2 at y 518/519/520/521 with no
+bump at all; the render rose to 213.2 and 208.6. That is a 31-38 cv bright bar
+drawn straight across the core, and it is the kind of thing the instrument built
+in D44 exists to show: whole-image MAE cannot see 220 pixels.
+
+At |dx| 30-80 the same line matched the reference to 1-5 cv, so the amplitude was
+right and only the shape was wrong. Measured as the screen-domain bump above the
+linear trend through y 517 and y 522, the reference's own profile is
+non-monotone on both sides and not the same on the two sides: west 0.055 / 0.168
+/ 0.184 / 0.104 / 0.050 / 0.019 / 0.015 / 0.014 / 0.007 and east 0.020 / 0.000 /
+0.092 / 0.115 / 0.113 / 0.067 / 0.032 / 0.019 / 0.002 at |dx| 3-12 / 12-20 /
+20-28 / 28-38 / 38-50 / 50-65 / 65-85 / 85-110 / 110-140, peaking near |dx| 24
+west and 35 east. Those two tables, divided by the 0.48 that converts profile to
+delivered `A*k` in this stack, are now the layer's `profile` and `profile_e`.
+Deleting the line instead is worse than either shape (row-band MAE 10.03 against
+7.78 measured and 7.84 for the exp law), which is the control that says the line
+is real and only its near-field was wrong.
+
+### A width taken from a range instead of a fit
+
+`flare_wash_far` -- the broad cyan pedestal under the horizontal line, added this
+iteration -- shipped with `sigma_y` 14.0, taken from an estimate quoted as
+"10-18 px depending on how the floor is set". A range is not a fit. Fitted over
+the layer's own footprint (|dy| <= 30, 60 <= |dx| <= 300, both sides, ridges
+masked at 22 px), sigma_y 8 / 9 / 10 / 11 / 12 / 14 gives footprint MAE 1.848 /
+1.853 / 1.864 / 1.880 / 1.903 / 1.944, whole-image MAE 1.87779 / 1.87792 /
+1.87817 / 1.87859 / 1.87920 / 1.88051 (that sweep ran before squash was reverted,
+which shifts every one of those by about +0.00002 and reorders none of them), and
+a skirt ratio (`visual_regression`'s own statistic, 1.0 = the reference) of 0.877
+/ 0.930 / 0.974 / 1.008 / 1.035 / 1.087. 10.0 beats 14.0 on all three, including the skirt, which at 14 was
+overshooting by 8.7% rather than falling short -- so the two instruments were not
+in conflict at all, and the appearance that they were came from reading a ratio's
+distance from 1.0 in only one direction.
+
+The bound was the more serious fault: `sigma_y` was bounded [8.0, 24.0] with the
+layer shipping at 14.0, so the search could not have reached the minimum. This is
+the same class of bug as `flare_spike`'s `sigma_y` bound of 1.3 against a
+measured 2.1-2.7 px FWHM, and the third time a bound has hidden a value this
+project wanted. The bound is now [4.0, 20.0].
+
+### Honest precision, twice
+
+`flare_flank_dl`'s axis was published as "-240 +- 2". Three estimators that do
+not share `wedge_report`'s binning put it at -239.6 (downsampled west-lobe MAE,
+95% [-236.2, -244.2]), at a median -238.8 over 36 screen-domain
+amplitude-marginalised template fits spanning -236.4 to -246.0, and at -243 +- 3
+by whole-image MAE. The honest bracket is -240 +- 4, and the gain over the
+previous -234 is 0.29 +- 0.18 cv of west-lobe MAE, which is 1.6 sigma. The
+direction survives; the precision did not, and the note now says so. That the
+layer belongs at all is the solid part: deleting it opens a +12.2 cv mean-RGB /
++22.9 cv blue hole at 4.0-7.4 sigma against a matched azimuthal null, flat to 4%
+across all eight 8-px JPEG phases.
+
+The same correction applies to the claim that the reference's horizontal line
+sits on a pedestal the render "largely lacks out to |dx| 260". Re-measured
+against the SHIPPED model rather than the stale one, the pedestal is carried:
+the on-line minus off-line deficit in G now runs +1.0 / +1.0 / +3.0 / +3.0 / +1.0
+cv at r 45-170 east and reverses beyond r 195, where the render is 1-2 cv
+brighter on the line than off it. What is left is not an amplitude error at all.
+It is a north-south asymmetry: over |dx| 60-110 west, above the |dy| 34-46 floor,
+the reference carries 8.95 / 12.05 / 13.47 cv at dy -28 / -22 / -16 against 0.89
+/ 5.39 / 9.65 at +28 / +22 / +16. A streak is symmetric in dy by construction; it
+has `east_gain` and no `north_gain`. That is a named gap, not a tuning target.
+
+### The defect the basis cannot express
+
+West of the LEFT arc ridge, over roughly x 430-463 and y 460-560, the render is
+up to 63 cv too dark in RED while green and blue match to within 10. Averaged
+over x 443-461, y 479-533 the reference reads R 90.92 / G 172.47 / B 183.25 and
+the render R 48.40 / G 171.12 / B 182.39: a 42.5 cv red-only deficit over about
+1650 px, which is roughly 0.02 of whole-image MAE -- an order of magnitude more
+than everything else changed this iteration put together. It is not the arc: at
+the same ridge distance on the RIGHT arc the red residual runs -3 to +7 cv at
+every station from y 340 to 700, and along the left arc itself it is zero outside
+y 460-560. It is a flare-anchored lobe of warm light sitting outside the left
+ridge at the core row.
+
+Section 34 asks whether the current model is capable of representing the
+requested structure. Here the answer is provably no, and the proof is short.
+In the screen domain the cell needs its `u` multiplied by (0.794, 0.982, 0.983),
+i.e. an addition of `A*k = (+0.206, +0.018, +0.017)` -- a colour whose G/R ratio
+is 0.087. The reddest primitive the fitted cone has is pure white, G/R = 1.0
+(D5): white is the only red-carrying primary and it carries at least as much
+green. So the red cannot be supplied without also supplying about 17 cv of green
+and blue the reference does not want.
+
+The obvious escape -- remove cyan at the same station and add white -- was
+followed to the end, and every version of it fails for the same reason: each
+mechanism that can put light here also puts light where the render is already
+right.
+
+  * Ablation gives the cell's suppliers as `arc_glow1` (+25.8 R, +21.4 G),
+    `arc_glow3` (0.0 R, +17.5 G), `arc_glow2` (0.0 R, +16.0 G), `flare_arm_w2`
+    (+2.6, +13.5), `flare_halo_far` (0.0, +6.8), `field_mid` (0.0, +5.4).
+  * Boosting `arc_glow1` to supply the red needs a factor 2.65, and its own
+    cyan then overshoots green even with BOTH pure-cyan glows deleted: the
+    green equation requires a factor 1.178 where the maximum achievable is 1.0.
+  * Re-colouring `flare_arm_w2`, the one west-only layer that reaches the cell,
+    requires a negative cyan coefficient (c' = -0.087) by the same algebra, and
+    measured directly it costs 0.025 of whole-image MAE for 26 cv of the cell.
+  * Deleting `arc_glow3` locally is the right SIZE of cyan removal -- it gets
+    green and blue within 2% of what is needed -- but its taper is a function of
+    y alone, and at the same y it also supplies 30-33 cv of green at x 400-432
+    where the residual is +1 cv. Dipping the taper breaks that.
+  * `arc_glow2`'s x-footprint west of the ridge does match the deficit, but it
+    is one path with a width, so it is symmetric across the ridge and supplies
+    14 cv east of the ridge where the residual is already zero.
+
+A half-fix was costed and REJECTED. Solving the screen-domain algebra for the
+best a pure-white lobe can do -- this is arithmetic on the cell's measured `u`,
+not a render -- the optimum is `A*k` about 0.16, which would take the cell's
+mean absolute error over the three channels from 15.1 to 10.9 cv, worth roughly
+0.007 of whole-image MAE, at the price of making green and blue 10-11 cv too
+bright over the same 1650 px: a measured red error traded for a manufactured
+white patch where the reference is cyan. Section 44's rule
+against claiming an improvement because one aggregate moved applies to the
+author of the change first.
+
+What would actually be needed is named so the next iteration does not rediscover
+it: either an arc primitive whose cross-ridge profile differs inside and outside
+(so light can be added on one side only), or per-station colour along a taper
+rather than per-station amplitude, or a fourth colour primitive with k_G < k_R.
+The first two are additions to `src/build_svg.py`; the third contradicts D5's
+whole-image fit and should not be reached for on the evidence of 1650 px.
+
+### Where the artwork ended up
+
+MAE 1.88059 -> **1.87815**, SSIM 0.974039 -> **0.974081**, flare r<110 6.522 ->
+**6.457**, r<40 9.785 -> **9.610**, core box 7.790 -> **6.328**. All 44 pipeline
+checks and all 12 structural checks pass -- 33 at the end of the iteration's
+own work, and eleven more added by the review rounds recorded in D55, D56, D57
+and above. Five of the twelve structural ratios
+moved towards the reference (the west field, line C, the skirt, the lower-right
+ray and the white-core radius) and four moved away (the two right rays by 0.05
+and 0.10 in opposite directions, the vertical line by 0.02, the cyan fraction by
+0.01); line B moved away on purpose, because the ratio it reports includes the
+bar this iteration removed from the core. The reasons are above, and none of them
+is "the aggregate improved".
+
+## D55. The audit's own blind spot, measured instead of disclaimed
+
+`verify_searchable()` compares `bounds` entries against emitted specs. A review
+raised the obvious limit: a numeric field that carries no bound is invisible to
+it, so a parameter can stay frozen for a release without ever appearing in the
+audit's result -- which is the same failure `flare_vline.sigma_x` shipped with,
+one level further out.
+
+The limit is real. The first instinct -- report every unbounded number -- was
+tried and is worthless: **470 of the artwork's 609 numeric leaves carry no
+bound.** A report that names three quarters of the model names nothing, and
+nothing in the data distinguishes "deliberately fixed" from "should have been
+searched and was forgotten".
+
+What is checkable is the inventory. Every one of those 470 falls into exactly
+twelve kinds:
+
+| kind | leaves | why it carries no bound |
+|---|---|---|
+| `white`, `cyan`, `blue` | 105 | fitted photometrically, not searched |
+| `color` | 105 | derived from those coefficients (D5), and checked against them |
+| `profile`, `profile_e` | 202 | tabulated off the reference |
+| `paint/profile`, `paint/stops` | 50 | tabulated off the reference |
+| `paint/x1`, `x2`, `y1`, `y2` | 8 | frozen canvas gradient extents -- see below |
+
+Eight of the twelve are searched by a different mechanism or measured rather
+than fitted. The other four are the genuine instance of the reviewed class: eight
+linear-gradient extents on `field_vert` and `exterior_top`, with no bound, no
+spec and no mechanism behind them. `field_vert`'s `y1 = 34.4` / `y2 = 991.7` are
+plainly fitted numbers that have not moved since.
+
+**They stay frozen, and the reason is a measurement rather than a preference.**
+Rendered at +-10 and +-40 px on each:
+
+| | -40 | -10 | +10 | +40 |
+|---|---|---|---|---|
+| `field_vert.paint.y1` (34.4) | -0.00008 | -0.00003 | +0.00012 | +0.00010 |
+| `field_vert.paint.y2` (991.7) | **-0.00051** | -0.00024 | +0.00006 | -0.00007 |
+
+against a baseline of 1.87815. The best of the eight sweeps is worth 0.0005 of
+MAE -- an order of magnitude below anything this iteration shipped, and below
+the 0.003 variant that was rejected in D45 for improving an aggregate. Adding
+them to the search space would also widen it after every published number here
+was measured against the current one, for a return inside the noise. Recorded,
+not taken.
+
+The part that is not a preference is the guard. `test_pipeline.py` now pins the
+inventory: the twelve kinds are declared with their reason, and a numeric field
+appearing in a **new** kind fails the check. That is the case `verify_searchable`
+structurally cannot see, so it is caught one level up instead of passing
+silently. Verified not vacuous by adding an unbounded `falloff_exponent` to a
+layer and watching it be named.
+
+The general rule, since this is the fourth bound-or-reachability fault in this
+project: **an audit that cannot see a class of fault should say so in a form
+that fails, not in a docstring.**
+
+## D56. The third answer to `--quick`, and two tools that accepted what they ignored
+
+Three review rounds have now asked the same question about `validate.py --quick`:
+it rewrites two of the five canonical rasters, so `out/` can hold renders of
+different SVG generations, every one of them provably authentic.
+
+The first answer **deleted** the three sidecars it did not rewrite. That is
+worse than the problem: it turns a tracked artefact that can be verified into
+one that cannot, and it makes a diagnostic run mutate files nobody asked it to
+touch. Reverted.
+
+The second answer recorded `rendered_sizes` in the report and the JSON and
+called the rest stale. Better, but it has two faults. It hands the problem back
+to the consumer -- you have to know what `rendered_sizes` means to avoid mixing
+generations -- and **"left from an earlier run" was an assumption.** A raster
+this run did not write is stale only if the SVG has moved since. If it has not,
+it is exactly as current as the two just rendered, and calling it stale is as
+wrong as calling it fresh.
+
+The third answer checks. `carried_rasters()` reads each untouched canonical
+raster's sidecar, which authenticates the PNG, and compares the `svg_sha256` it
+records with the SVG this run validated. Four outcomes, each carrying its
+evidence into `validation.md` and `validation.json`:
+
+| | meaning |
+|---|---|
+| `current` | same SVG as this run -- safe to read beside the table |
+| `stale` | authentic, and from a different SVG generation |
+| `unverifiable` | a sidecar that does not describe the file beside it |
+| `absent` | no raster there at all |
+
+Nothing on disk is touched, which was the first answer's whole failing. All four
+outcomes are exercised as a check, including `unverifiable`, which is produced
+by appending four bytes to a render and leaving its sidecar alone.
+
+This is the same move as D55 one layer down, and worth stating as a rule: **when
+a report cannot be sure of something, the fix is to measure it, not to annotate
+it.** `rendered_sizes` was an annotation. `carried_rasters` is a measurement.
+
+### Two tools that accepted arguments they ignored
+
+`flare_view.py` draws a two-column sheet. Given three or more images it took
+`images[0:2]`, drew the first two and exited 0 -- so `flare_view.py a.png b.png
+c.png` produced a wrong sheet that looks exactly like a right one, and `c.png`
+never had to exist. Verified by passing a path that did not: exit 0, sheet
+written, no complaint. It is now an `ap.error`, for the same reason `--labels`
+became one: an argument the tool cannot honour is an error at parse time, not
+silence at draw time.
+
+And the CI workflow's header still described the two-outcome exit scheme that
+D50 replaced -- "it exits 2 only in the second case" -- while the job's own
+steps had been asserting exit 3 for a misconfigured browser since. The comment
+was the last place the old model survived. Corrected, and the steps that assert
+the codes are named in it, so the two cannot drift apart again without the job
+failing.
+
+## D57. What a digest does not prove, and a label that renamed half a sheet
+
+Three defects, all of them in the verification machinery rather than the
+artwork, and all three of the same shape: a check that was satisfied by
+something adjacent to what it was supposed to establish.
+
+### An authentic raster under the wrong name
+
+`carried_rasters()` (D56) classifies the canonical rasters a `--quick` run did
+not rewrite. It authenticated each one by hashing the PNG against its sidecar's
+`png_sha256` and comparing the recorded `svg_sha256` with this run's SVG. Both
+digests are about CONTENT, and the thing that was never checked is the only
+part of the row that is not: the filename.
+
+`render_256.png` is a claim -- 256 px, rendered by resvg -- and the sidecar has
+recorded `size` and `renderer` since D50 without this caller reading either. So
+copy `out/render_1024.png` and its sidecar to `render_256.png` and every digest
+still matches: the file is authentic, the SVG is current, and the row said
+
+    | `render_256.png` | current | same SVG as this run |
+
+for a raster four times the resolution the table attributes to it. `current`
+means "safe to read beside the table", so the one classification whose whole
+purpose is to stop a consumer mixing generations handed it a different mix
+instead. Verified by doing exactly that copy; the row read `current`.
+
+`read_provenance` has taken `expect_size` and `expect_renderer` all along and
+`publish.sh` passes both for the acceptance render. They are passed here now,
+and the wrong-size raster comes back `unverifiable` with the mismatch named:
+*records size=1024 where 256 was required*. The five canonical names are
+written by `validate.py` and by nothing else, at one size each and always by
+resvg, so there is no legitimate raster these expectations reject.
+
+### A digest that is not a digest
+
+A sidecar is arbitrary JSON. `read_provenance` tested its two digest fields for
+truthiness and nothing else, and then used them: `want[:12]` in the mismatch
+message, and `recorded[:12]` in `carried_rasters`' evidence column.
+
+    "png_sha256": 1      ->  TypeError: 'int' object is not subscriptable
+    "png_sha256": ["x"]  ->  slices quietly; formats into the evidence as ['x']
+
+The first raised out of a function whose entire contract is that a sidecar it
+cannot believe raises `ProvenanceError` -- so `validate.py --quick`, whose
+answer for this is `unverifiable`, aborted instead of reporting. The second is
+worse for being quiet: a list slices without complaint, so a malformed sidecar
+was formatted into the report as though it were a measurement.
+
+Shape is now checked where the value is READ rather than where it is formatted.
+64 lowercase hex characters is what `hashlib` emits and what every sidecar this
+repository writes contains; anything else is a malformed sidecar, and a
+malformed sidecar proves nothing about the raster, which is a `ProvenanceError`
+like every other sidecar that proves nothing. Four malformed shapes -- an int, a
+list, a short string and a non-hex string -- are exercised as checks, on both
+fields, and each comes back `unverifiable`.
+
+### Half a sheet renamed
+
+`flare_view.py --labels "previous,candidate"` renames the two inputs. It
+substituted only panels 0 and 1, on the assumption that they are the only ones
+naming an input. Four of the six do: every view's last two panels are the
+enhancement pair -- `reference gamma 1/2.5`, `reconstruction high-pass x4`,
+`reference chroma x9`. A full sheet is 9 rows of 6, so 18 of its 54 panels kept
+`reference`/`reconstruction` while the plain panels above them said
+`previous`/`candidate` -- two names for the same image, in the same column, on
+the instrument the acceptance decision rests on.
+
+The substitution was also chained, and `str.replace` re-scans its own output:
+
+    --labels "reconstruction_a,reconstruction_b"   reference -> reconstruction_b_a
+
+The first replace writes `reconstruction_a` and the second finds the
+`reconstruction` inside it. Two names sharing a word is not exotic; it is how
+most people spell an A/B pair. `relabel()` scans the label once and takes the
+first match at each position, so neither name can be rewritten by the other, and
+the default pair is a verified no-op.
+
+### The four questions, and the one that was a defect
+
+Four further observations were raised as questions rather than bugs. Three were
+already the documented policy and are confirmed here, with where each is
+written down. The fourth was real.
+
+**Does a browser failure block a release?** No, deliberately, and it cannot hide
+either: `publish.sh` treats exit 2 and 3 as non-blocking because the
+cross-engine check is documented as optional, and prints `PUBLISH OK -- EXCEPT
+the optional cross-engine check, which did not run` rather than `PUBLISH OK`.
+`update_readme.py` emits the cross-engine sentence only when
+`validation.json`'s `cross_engine` is non-null, so the README omits the line
+rather than publishing a number nothing measured. A reviewer reading only the
+last line of a release is not told a check ran when it did not.
+
+**Does `--quick` require provenance-aware consumers?** Yes -- that is D56's
+answer, not an accident of it. A quick run leaves rasters of several
+generations in one directory, and rather than annotate that fact it measures
+it: every carried raster is classified per file with its evidence, in stdout,
+in `validation.md` and in `validation.json`. As of this entry the
+classification also can no longer be fooled by a renamed file.
+
+**Are the right-ray floors fidelity checks?** No, and
+`visual_regression.py`'s module docstring says so under the heading PRESENCE,
+NOT FIDELITY: the bands are gates against a structure disappearing, several
+floors sit where the current artwork sits rather than where agreement would be,
+the two right rays pass at 0.49 and 0.76 of the reference, and fidelity is what
+`out/metrics.json` and `tools/diagnose.py` report. A green run means nothing has
+vanished, not that the render agrees with the reference.
+
+**Do the tests depend on committed artefacts?** They did, and that was a real
+defect. The check for `compare.py`'s preconditions ran against
+`out/render_1024.png` and `out/render_1024_chromium.png`, which makes a
+statement about source behaviour depend on which artefacts happen to be on
+disk: `out/render_512.png` and its two larger siblings are `.gitignored`, so a
+check reaching for one of those would go red on a fresh clone with nothing wrong
+in the code it exists to test. It now builds its own 64-px fixtures -- the same
+bytes described once as resvg and once as chromium, plus one with no sidecar at
+all -- and tests the same four preconditions without touching `out/`.
+
+Whether the shipped artefacts are sound is a separate question, so it is now a
+separate check that says so in those words: the three TRACKED rasters each hash
+to their own sidecar and are named what they actually are, and the two resvg
+renders must additionally be current with `reconstruction.svg`. The Chromium
+render is deliberately not required to be current -- a release made without a
+browser legitimately leaves it describing the previous SVG, and
+`validation.json` is where whether it ran is recorded. Making it a gate would
+contradict the optional-check policy confirmed two paragraphs above.
+
+44 pipeline checks and 12 structural checks pass. No artwork changed: every
+artefact regenerates byte-identically.
+
+## D58. An expectation that was never a requirement, and a sidecar that was
+## never an object
+
+Two more in the provenance reader, both in code D57 had just touched, and both
+the same shape as D57's three: a check that ran only when something unrelated
+happened to be true.
+
+### An expectation is a requirement
+
+`read_provenance` returns None for an absent sidecar when `require` is false.
+That is right -- provenance is optional for an ad-hoc render. But `require`
+alone gated that return, and the three `expect_*` arguments are claims about
+fields that exist ONLY in a sidecar. So a caller could ask for proof and be
+told nothing:
+
+    python3 tools/compare.py reference.png bare.png --expect-renderer resvg
+    exit 0
+
+It asked to be shown the raster came from resvg; it got metrics for unverified
+bytes and a success code. Not a yes and not a no, which is the one answer a
+precondition must never give. `tools/diagnose.py` had it identically, and both
+were confirmed at the CLI before the fix. The D57 round wired `--expect-*`
+through both tools without noticing the flags could be passed on their own.
+
+The confirming run did the damage itself, which is the clearest statement of
+the cost: `diagnose.py <scratch>.png --expect-size 4096` on a copy with no
+sidecar exited 0, wrote the tracked `out/diagnostics.json` from that
+unverified raster, and recorded `"source_svg_sha256": null` where the published
+artefact names the SVG it measured. A published diagnostic that cannot say
+which SVG produced it is exactly the failure the sidecar exists to prevent, and
+the flag asking for that guarantee is what let it through.
+
+Asking for an expectation is asking for the sidecar, so any non-None
+expectation now requires one however `require` was left. The error names what
+was asked rather than just what is missing:
+
+    no provenance beside bare.png: it cannot be shown to have come from any
+    particular SVG, let alone to satisfy expect_renderer='resvg'
+
+With nothing asked of it an absent sidecar is still an absence -- that is the
+case that had to keep working, and it is checked. Both CLIs now say `(implies
+--require-provenance)` in `--help`, because a flag whose behaviour depends on
+another flag being present is worth one clause.
+
+### A sidecar that was never an object
+
+D57 added a shape check for the two digest FIELDS. It did not check the shape
+of the thing they are fields of. `json.load` establishes that the file is JSON,
+not that it is a sidecar, and `[]`, `null`, `"x"`, `3` and `true` all parse:
+
+    AttributeError: 'list' object has no attribute 'get'
+
+raised from `_digest_field`'s own `d.get(field)` -- straight past the
+`ProvenanceError` contract, and past the `carried_rasters` classifier, that
+D57's field check was added to protect. `validate.py --quick` aborted with no
+report at all where its answer is a row reading `unverifiable`. The root is
+checked immediately after parsing now, and the message names the JSON type it
+found rather than the Python one.
+
+Twice in two rounds a malformed sidecar has escaped by being malformed one
+level further out, so the lesson is the narrow one rather than a grand one:
+**a check on a value is not a check on its container.** Five non-object roots
+are exercised through `read_provenance`, four more through `carried_rasters`,
+and one through `compare.py`.
+
+### The two questions, unchanged
+
+Both were raised and answered in D57 and neither has moved. `--quick`'s
+provenance-aware output is D56's deliberate answer, not an accident of it:
+every carried raster is classified per file with its evidence in stdout,
+`validation.md` and `validation.json`. As of D57 that classification cannot be
+fooled by a renamed file, and as of this entry not by a sidecar that is not an
+object either. The right-ray floors are presence gates, and
+`visual_regression.py`'s module docstring says so under PRESENCE, NOT FIDELITY
+-- naming the 0.49 and 0.76 readings they guard, and pointing at
+`out/metrics.json` and `tools/diagnose.py` for the fidelity question they do
+not answer.
+
+44 pipeline checks and 12 structural checks pass; this round added cases to
+three existing checks rather than new ones. No artwork changed: every artefact
+regenerates byte-identically.

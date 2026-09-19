@@ -616,16 +616,19 @@ def crops(ref, rec, outdir):
 
 
 
-def _provenance(render_path):
-    """The SVG digest recorded beside a render, so a report names its own input."""
-    import json as _json
-    side = str(render_path) + ".prov.json"
-    if os.path.exists(side):
-        try:
-            return _json.load(open(side)).get("svg_sha256")
-        except Exception:                                  # noqa: BLE001
-            return None
-    return None
+def _provenance(render_path, require=False, expect_size=None,
+                expect_renderer=None, expect_svg=None):
+    """The SVG digest recorded beside a render -- see tools/render.py.
+
+    This was a byte-for-byte copy of compare.py's version, and both trusted the
+    sidecar's `svg_sha256` without checking that the sidecar described the PNG
+    actually on disk.  One implementation now, in the module that writes them.
+    """
+    import render as _R
+    return _R.read_provenance(render_path, require=require,
+                              expect_size=expect_size,
+                              expect_renderer=expect_renderer,
+                              expect_svg=expect_svg)
 
 
 def main():
@@ -633,8 +636,34 @@ def main():
     ap.add_argument("render", nargs="?", default=os.path.join(ROOT, "out", "render_1024.png"))
     ap.add_argument("--reference", default=os.path.join(ROOT, "reference.png"))
     ap.add_argument("--json", default=os.path.join(ROOT, "out", "diagnostics.json"))
+    ap.add_argument("--require-provenance", action="store_true",
+                    help="fail unless the render can be shown to come from a known SVG")
+    # Each of these implies --require-provenance: they are claims about fields
+    # that exist only in a sidecar, so a render without one cannot satisfy them
+    # and must not be reported as though it had.
+    ap.add_argument("--expect-size", type=int, default=None,
+                    help="require the sidecar to record this render size "
+                         "(implies --require-provenance)")
+    ap.add_argument("--expect-renderer", default=None,
+                    help="require the sidecar to record this renderer "
+                         "(implies --require-provenance)")
+    ap.add_argument("--expect-svg", default=None,
+                    help="require this SVG to still hash to the recorded "
+                         "svg_sha256, which is what proves the render is not "
+                         "stale (implies --require-provenance)")
     ap.add_argument("--crops", default=os.path.join(ROOT, "out"))
     a = ap.parse_args()
+    # First, before anything is loaded, printed or written -- the same hole
+    # compare.py had, in both of its forms.  `--require-provenance` and the
+    # expectation flags say something about the raster being measured, so they
+    # can be conditional neither on the caller also wanting a JSON file nor on
+    # the reports having already run: crops() writes diag_flare.png and the two
+    # lobe crops, and a rejected raster used to leave all three behind, looking
+    # exactly like the output of a run that had succeeded.
+    digest = _provenance(a.render, require=a.require_provenance,
+                         expect_size=a.expect_size,
+                         expect_renderer=a.expect_renderer,
+                         expect_svg=a.expect_svg)
     ref, rec = load(a.reference), load(a.render)
     out = {"render": os.path.relpath(a.render, ROOT)}
     flare_report(ref, rec, out)
@@ -645,7 +674,7 @@ def main():
     spoke_report(ref, rec, out)
     crops(ref, rec, a.crops)
     if a.json:
-        out = dict(out, source_svg_sha256=_provenance(a.render))
+        out = dict(out, source_svg_sha256=digest)
         json.dump(out, open(a.json, "w"), indent=1)
         print("wrote %s" % a.json)
 
