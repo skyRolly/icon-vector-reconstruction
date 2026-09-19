@@ -669,7 +669,7 @@
    "note": "MEASURED AND NOT ACTED ON -- the concave (lobe-facing) flank of both curves carries too much WHITE primary at essentially correct luminance, which is the measurable part of the standing 'pale' complaint at the curves.  In the 3-12 px band, excluding the flare (r > 200) and clipped pixels, dWhite = dR reads +5.38 on the left arc and +3.27 on the right, against -0.00 and -0.54 on the centre-facing side.  Reducing this layer's white from 0.37683 to 0.28 with cyan raised to 0.41 does improve both the target (lobe dR +4.33 -> +2.79) and the curve-band MAE (2.964 -> 2.938), and costs 0.0106 of whole-image MAE, which is a real regression elsewhere and an order of magnitude larger than the gains this iteration shipped.  The reason one symmetric layer cannot do it is in the numbers: the error is 5.38 against 3.27, a 1.6:1 left/right asymmetry, so any single value under-corrects one arc and over-corrects the other.  Honouring it needs this layer split per arc, which the `arc` primitive already supports.  Recorded here with the three tested values so the next pass starts from the measurement rather than from the complaint.\nA NOTE ON HOW THIS WAS NEARLY DISMISSED: the first check of it used a cell that did not exclude the flare, where the render is too DARK in R, and read -4.09 -- the opposite sign.  The finding is real; the quick refutation was the thing that was wrong."
   },
   {
-   "blue": 0.0433,
+   "blue": 0.027279,
    "blur": 2.408,
    "bounds": {
     "blur": [
@@ -687,15 +687,15 @@
    },
    "color": [
     0.0,
-    56.55,
-    71.2
+    35.63,
+    44.86
    ],
-   "cyan": 0.23592,
+   "cyan": 0.14863,
    "id": "arc_glow1b",
    "inset": -6.0,
    "kind": "arc",
-   "note": "the 9-14 px band on the convex side ran 12-17% too dark with nothing narrow enough to fill it: arc_glow1 is inset into the lobe and reaches only 0.10 of its peak there, and arc_glow2b is four times too wide",
-   "taper": "glow1",
+   "note": "the 9-14 px band on the convex side ran 12-17% too dark with nothing narrow enough to fill it: arc_glow1 is inset into the lobe and reaches only 0.10 of its peak there, and arc_glow2b is four times too wide.  AND IT THEN BORROWED THE WRONG ALONG-CURVE PROFILE.  It was created to carry the convex side and given `arc_glow1`'s taper, which is the CONCAVE side's -- a curve that peaks where the arcs pass closest to the flare.  Measured in the taper's own coordinate, the convex band d 5-14 wanted the opposite: it was 7-10 cv too dark at y 160-280 and 720-840, at the arcs' ends, and 3-9 cv too BRIGHT at y 440-640 where the borrowed taper puts its maximum.  Solving for the coverage the band actually needs gives 70-100 units flat from y 200 to y 840, against the 27 -> 135 -> 17 the borrowed taper delivered: the convex side has essentially no along-curve taper over the arc body.  Hence its own `glow1b` ramp -- flat between y 220 and 830 with shoulders to zero at 87 and 945 -- and the amplitude down to 0.63 of what it was, since a flat profile at the old peak value would be far too much everywhere.  That is why raising this layer alone never worked: its taper concentrated it where it was already in excess, so the corridor gain was paid for in the flare.  Cross-curve error at d 5.5-13.5 goes from -11.3, -9.5, -7.6, -6.1, -5.1, -4.2, -3.5, -2.2, -1.0 cv to -2.7, -1.0, +0.2, +0.5, +0.1, -0.6, -1.2, -0.8, -0.4.  Its inset, width and blur were re-searched after the taper changed and all three were already at the optimum.",
+   "taper": "glow1b",
    "white": 0.0,
    "width": 7.92
   },
@@ -2646,6 +2646,15 @@
    ],
    "scale": 0.96,
    "y_offset": -13.309600000000003
+  },
+  "glow1b": {
+   "kind": "ramp",
+   "p0": 0.8,
+   "p1": 0.8,
+   "y0": 87.0,
+   "y1": 220.0,
+   "y2": 830.0,
+   "y3": 945.0
   },
   "glow2": {
    "gamma": 1.12,

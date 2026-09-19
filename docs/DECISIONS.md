@@ -3686,3 +3686,105 @@ reverted this work on the next run; the unbounded-kind inventory had to learn
 full publish cycle passes end to end, `src/params.json` reproduces
 `reconstruction.svg` byte for byte, and cross-engine agreement is unchanged at
 MAE 2.680 / SSIM 0.95546.
+
+## D60. A layer that carried one side of the curve and the other side's profile
+
+D59 measured the arc corridor's convex-side deficit -- about 10 cv too dark at
+d = +5..+12 on both arcs, in every along-curve band -- established that it was
+neither a displacement nor an amplitude oversight, and left it. It said the
+correction had to be localised along the curve. This is that pass, and the cause
+turned out to be sharper than "needs a taper".
+
+### The profile was not merely wrong, it was inverted
+
+`arc_glow1b` exists to carry the **convex** side: it is inset -6 and peaks at
+d = +5.5. It was given `arc_glow1`'s taper, which is the **concave** side's --
+and that curve peaks where the arcs pass closest to the flare, because that is
+where the concave lobe is brightest.
+
+Measured in the taper's own coordinate, image y, the convex band d 5-14 wants
+the opposite:
+
+    y        160   200   240   280   ...   640   680   720   760   800   840
+    err     -7.1  -8.3  -7.7  -3.9   ...  +0.6  -1.1  -4.8  -8.5  -9.7  -9.3
+    cov     22.9  26.6  27.6  47.7   ...  87.1  76.0  59.2  45.3  34.2  16.7
+
+The render is 7-10 cv too dark at the arcs' ends and, at y 440-640, 3-9 cv too
+BRIGHT -- exactly where the borrowed taper puts its maximum. Solving for the
+coverage the band actually needs gives **70-100 units, flat, from y 200 to
+y 840**, against the 27 -> 135 -> 17 the borrowed taper delivers. The convex side
+of these curves has essentially no along-curve taper over the arc body.
+
+That also explains the failure recorded in D59: raising this layer's amplitude
+alone fixed the corridor and spent the gain in the flare. It was not a trade
+between two regions that both wanted light. The layer's taper was concentrating
+it precisely where it was already in excess.
+
+The fix is a `ramp` taper of its own -- flat between y 220 and 830, shoulders to
+zero at 87 and 945 -- with the amplitude at 0.63 of what it was, since a flat
+profile held at the old peak value would be far too much everywhere. Its inset,
+width and blur were re-searched afterwards and all three were already at the
+optimum, so the taper was the whole of it.
+
+    cross-curve error at d = 5.5 .. 13.5, cv
+    before   -11.3  -9.5  -7.6  -6.1  -5.1  -4.2  -3.5  -2.2  -1.0
+    after     -2.7  -1.0  +0.2  +0.5  +0.1  -0.6  -1.2  -0.8  -0.4
+
+### Why this is believed
+
+It is a larger move than anything in the last several iterations -- 0.035 of
+whole-image MAE, where D52 moved 0.0016 -- so it was checked the ways a
+rasterisation artefact would fail.
+
+**It holds at every resolution.** MAE at 256 / 512 / 1024 / 2048 / 4096 goes
+1.718 -> 1.685, 1.797 -> 1.758, 1.878 -> 1.842, 1.872 -> 1.837, 1.875 -> 1.841.
+A gain that existed only in the 1024 raster would not survive the downsampled
+4096.
+
+**It holds in the other engine.** Cross-engine agreement is 2.679 against 2.680,
+and Chromium's own MAE improves 3.148 -> 3.126.
+
+**It is visible.** On a crop of the left arc's southern body the broad blue band
+on the convex flank -- the render too dark, over 10 px of the corridor -- is gone
+from the signed difference, leaving the narrow edge dipole and the reference's
+grain. Crop MAE 3.527 -> 3.086, bias -1.70 -> -1.08.
+
+**No structure was lost.** All twelve structural checks pass with every ray,
+line and core statistic unchanged to three decimals; only `the bloom has not
+gone white` moves, 0.929 -> 0.928.
+
+### Left alone, with the reason
+
+**The concave side** is still 2-4 cv too bright at d = -9..-15 and 1-2 cv too
+dark at d = -5..-7. Every lever was tried -- `arc_glow1`'s width and blur,
+`arc_glow3`'s amplitude and inset -- and the shipped value is the MAE optimum in
+all four; the sharpest, `arc_glow1`'s width, costs 0.018 of MAE at -20% and 0.025
+at +22%. The concave stack is tightly balanced and moving it needs a joint refit,
+not a one-parameter nudge.
+
+**`arc_glow2b` looks about 4% too bright** -- at 0.96 both whole-image MAE and
+the weighted objective improve. It is not taken, because the two disagree about
+how much: MAE is best near 0.96 while the weighted objective keeps falling to
+0.85 and beyond, where MAE is clearly worse. A photometric amplitude where the
+two objectives point in different directions is a refit's job, not a hand-tuned
+one, and picking the value that suits the published metric is the failure this
+record has named before.
+
+**The edge dipole at d = +2.5 / -3.5** is untouched and is not this layer's to
+fix: it is the core stroke's sub-pixel edge placement, and it is what remains in
+the crop above.
+
+### What the numbers did
+
+    MAE            1.8766 -> 1.8416        centre-region MAE  7.770 -> 7.641
+    RMSE           4.0487 -> 3.9741        SSIM             0.97409 -> 0.97443
+    bright-region MAE   9.502 -> 9.359     mean bias        -0.241 -> -0.185
+    pixels off by > 8   4.92% -> 4.52%     off by > 24      0.778% -> 0.729%
+    convex corridor MAE  4.013 -> 2.423    flare r<110       6.417 -> 6.308
+
+`edge_iou` moves 0.6922 -> 0.6912, the one statistic that does not improve.
+
+44 pipeline checks and 12 structural checks pass. The new taper's six numbers
+are all inside `taper_specs`' bounds and reachable by `--spec tapers`, so the
+next search can move them; the full publish cycle passes end to end and
+`src/params.json` reproduces `reconstruction.svg` byte for byte.
