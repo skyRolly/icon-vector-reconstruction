@@ -3209,10 +3209,10 @@ whole-image fit and should not be reached for on the evidence of 1650 px.
 ### Where the artwork ended up
 
 MAE 1.88059 -> **1.87815**, SSIM 0.974039 -> **0.974081**, flare r<110 6.522 ->
-**6.457**, r<40 9.785 -> **9.610**, core box 7.790 -> **6.328**. All 42 pipeline
+**6.457**, r<40 9.785 -> **9.610**, core box 7.790 -> **6.328**. All 44 pipeline
 checks and all 12 structural checks pass -- 33 at the end of the iteration's
-own work, and nine more added by the review rounds recorded in D55, D56 and
-above. Five of the twelve structural ratios
+own work, and eleven more added by the review rounds recorded in D55, D56, D57
+and above. Five of the twelve structural ratios
 moved towards the reference (the west field, line C, the skirt, the lower-right
 ray and the white-core radius) and four moved away (the two right rays by 0.05
 and 0.10 in opposite directions, the vertical line by 0.02, the cyan fraction by
@@ -3332,3 +3332,132 @@ steps had been asserting exit 3 for a misconfigured browser since. The comment
 was the last place the old model survived. Corrected, and the steps that assert
 the codes are named in it, so the two cannot drift apart again without the job
 failing.
+
+## D57. What a digest does not prove, and a label that renamed half a sheet
+
+Three defects, all of them in the verification machinery rather than the
+artwork, and all three of the same shape: a check that was satisfied by
+something adjacent to what it was supposed to establish.
+
+### An authentic raster under the wrong name
+
+`carried_rasters()` (D56) classifies the canonical rasters a `--quick` run did
+not rewrite. It authenticated each one by hashing the PNG against its sidecar's
+`png_sha256` and comparing the recorded `svg_sha256` with this run's SVG. Both
+digests are about CONTENT, and the thing that was never checked is the only
+part of the row that is not: the filename.
+
+`render_256.png` is a claim -- 256 px, rendered by resvg -- and the sidecar has
+recorded `size` and `renderer` since D50 without this caller reading either. So
+copy `out/render_1024.png` and its sidecar to `render_256.png` and every digest
+still matches: the file is authentic, the SVG is current, and the row said
+
+    | `render_256.png` | current | same SVG as this run |
+
+for a raster four times the resolution the table attributes to it. `current`
+means "safe to read beside the table", so the one classification whose whole
+purpose is to stop a consumer mixing generations handed it a different mix
+instead. Verified by doing exactly that copy; the row read `current`.
+
+`read_provenance` has taken `expect_size` and `expect_renderer` all along and
+`publish.sh` passes both for the acceptance render. They are passed here now,
+and the wrong-size raster comes back `unverifiable` with the mismatch named:
+*records size=1024 where 256 was required*. The five canonical names are
+written by `validate.py` and by nothing else, at one size each and always by
+resvg, so there is no legitimate raster these expectations reject.
+
+### A digest that is not a digest
+
+A sidecar is arbitrary JSON. `read_provenance` tested its two digest fields for
+truthiness and nothing else, and then used them: `want[:12]` in the mismatch
+message, and `recorded[:12]` in `carried_rasters`' evidence column.
+
+    "png_sha256": 1      ->  TypeError: 'int' object is not subscriptable
+    "png_sha256": ["x"]  ->  slices quietly; formats into the evidence as ['x']
+
+The first raised out of a function whose entire contract is that a sidecar it
+cannot believe raises `ProvenanceError` -- so `validate.py --quick`, whose
+answer for this is `unverifiable`, aborted instead of reporting. The second is
+worse for being quiet: a list slices without complaint, so a malformed sidecar
+was formatted into the report as though it were a measurement.
+
+Shape is now checked where the value is READ rather than where it is formatted.
+64 lowercase hex characters is what `hashlib` emits and what every sidecar this
+repository writes contains; anything else is a malformed sidecar, and a
+malformed sidecar proves nothing about the raster, which is a `ProvenanceError`
+like every other sidecar that proves nothing. Four malformed shapes -- an int, a
+list, a short string and a non-hex string -- are exercised as checks, on both
+fields, and each comes back `unverifiable`.
+
+### Half a sheet renamed
+
+`flare_view.py --labels "previous,candidate"` renames the two inputs. It
+substituted only panels 0 and 1, on the assumption that they are the only ones
+naming an input. Four of the six do: every view's last two panels are the
+enhancement pair -- `reference gamma 1/2.5`, `reconstruction high-pass x4`,
+`reference chroma x9`. A full sheet is 9 rows of 6, so 18 of its 54 panels kept
+`reference`/`reconstruction` while the plain panels above them said
+`previous`/`candidate` -- two names for the same image, in the same column, on
+the instrument the acceptance decision rests on.
+
+The substitution was also chained, and `str.replace` re-scans its own output:
+
+    --labels "reconstruction_a,reconstruction_b"   reference -> reconstruction_b_a
+
+The first replace writes `reconstruction_a` and the second finds the
+`reconstruction` inside it. Two names sharing a word is not exotic; it is how
+most people spell an A/B pair. `relabel()` scans the label once and takes the
+first match at each position, so neither name can be rewritten by the other, and
+the default pair is a verified no-op.
+
+### The four questions, and the one that was a defect
+
+Four further observations were raised as questions rather than bugs. Three were
+already the documented policy and are confirmed here, with where each is
+written down. The fourth was real.
+
+**Does a browser failure block a release?** No, deliberately, and it cannot hide
+either: `publish.sh` treats exit 2 and 3 as non-blocking because the
+cross-engine check is documented as optional, and prints `PUBLISH OK -- EXCEPT
+the optional cross-engine check, which did not run` rather than `PUBLISH OK`.
+`update_readme.py` emits the cross-engine sentence only when
+`validation.json`'s `cross_engine` is non-null, so the README omits the line
+rather than publishing a number nothing measured. A reviewer reading only the
+last line of a release is not told a check ran when it did not.
+
+**Does `--quick` require provenance-aware consumers?** Yes -- that is D56's
+answer, not an accident of it. A quick run leaves rasters of several
+generations in one directory, and rather than annotate that fact it measures
+it: every carried raster is classified per file with its evidence, in stdout,
+in `validation.md` and in `validation.json`. As of this entry the
+classification also can no longer be fooled by a renamed file.
+
+**Are the right-ray floors fidelity checks?** No, and
+`visual_regression.py`'s module docstring says so under the heading PRESENCE,
+NOT FIDELITY: the bands are gates against a structure disappearing, several
+floors sit where the current artwork sits rather than where agreement would be,
+the two right rays pass at 0.49 and 0.76 of the reference, and fidelity is what
+`out/metrics.json` and `tools/diagnose.py` report. A green run means nothing has
+vanished, not that the render agrees with the reference.
+
+**Do the tests depend on committed artefacts?** They did, and that was a real
+defect. The check for `compare.py`'s preconditions ran against
+`out/render_1024.png` and `out/render_1024_chromium.png`, which makes a
+statement about source behaviour depend on which artefacts happen to be on
+disk: `out/render_512.png` and its two larger siblings are `.gitignored`, so a
+check reaching for one of those would go red on a fresh clone with nothing wrong
+in the code it exists to test. It now builds its own 64-px fixtures -- the same
+bytes described once as resvg and once as chromium, plus one with no sidecar at
+all -- and tests the same four preconditions without touching `out/`.
+
+Whether the shipped artefacts are sound is a separate question, so it is now a
+separate check that says so in those words: the three TRACKED rasters each hash
+to their own sidecar and are named what they actually are, and the two resvg
+renders must additionally be current with `reconstruction.svg`. The Chromium
+render is deliberately not required to be current -- a release made without a
+browser legitimately leaves it describing the previous SVG, and
+`validation.json` is where whether it ran is recorded. Making it a gate would
+contradict the optional-check policy confirmed two paragraphs above.
+
+44 pipeline checks and 12 structural checks pass. No artwork changed: every
+artefact regenerates byte-identically.

@@ -214,6 +214,37 @@ def tone(a, gamma=2.5):
     return 255.0 * np.clip(a / 255.0, 0, 1) ** (1.0 / gamma)
 
 
+def relabel(lab, labels):
+    """A panel label with the caller's two names in place of the built-in ones.
+
+    Two bugs, one line.  The substitution used to be applied only to panels 0
+    and 1, on the assumption that they are the only ones naming an input -- but
+    four of the six do: every view's last two panels are the enhancement pair
+    ("reference gamma 1/2.5", "reconstruction high-pass x4", "reference chroma
+    x9").  With --labels "previous,candidate" a sheet therefore called its first
+    two panels previous/candidate and the enhanced views of the SAME two images
+    reference/reconstruction, which is precisely the A/B comparison the option
+    exists for and precisely the wrong answer.
+
+    And the substitution is made in ONE pass.  Chained str.replace re-scans its
+    own output, so --labels "reconstruction_a,reconstruction_b" wrote
+    "reconstruction_a" for "reference" and the second replace then found the
+    "reconstruction" inside it: "reconstruction_b_a".  Two names sharing a word
+    is ordinary in an A/B run -- it is how most people spell one.
+    """
+    out, i = [], 0
+    while i < len(lab):
+        for word, name in (("reference", labels[0]), ("reconstruction", labels[1])):
+            if lab.startswith(word, i):
+                out.append(name)
+                i += len(word)
+                break
+        else:
+            out.append(lab[i])
+            i += 1
+    return "".join(out)
+
+
 def build_row(ref, rec, view, size, gains):
     """Six panels: reference, reconstruction, |diff|, signed diff, and two
     view-specific enhancements.  Returns [(image, label), ...]."""
@@ -314,9 +345,7 @@ def sheet(ref_path, rec_path, out_path, cx, cy, labels=("reference", "reconstruc
         for j, (im, lab) in enumerate(panels):
             sheet_im.paste(im, (x, y))
             dr.rectangle([x, y, x + im.size[0] - 1, y + im.size[1] - 1], outline=(70, 70, 80))
-            name = labels[0] if j == 0 else (labels[1] if j == 1 else None)
-            text = lab if name is None else lab.replace("reference", labels[0]).replace(
-                "reconstruction", labels[1])
+            text = relabel(lab, labels)
             dr.text((x + 2, y + im.size[1] + 3), text, font=f_lab, fill=(190, 190, 200))
             x += im.size[0] + gap
         y += panels[0][0].size[1] + lab_h + gap * 2

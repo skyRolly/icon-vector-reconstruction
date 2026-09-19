@@ -130,6 +130,40 @@ class ProvenanceError(Exception):
     """A render cannot be shown to have come from the SVG its sidecar names."""
 
 
+#: What hashlib.sha256().hexdigest() emits, and what every sidecar this
+#: repository writes contains.
+_HEXDIGITS = frozenset("0123456789abcdef")
+
+
+def _digest_field(d, field, render_path, absent):
+    """One sha-256 field of a sidecar, checked for SHAPE before it is used.
+
+    A sidecar is arbitrary JSON and only emptiness was ever tested here, so a
+    `png_sha256` of `1` passed, compared unequal to the real digest, and then
+    hit `want[:12]` in the very message that exists to REPORT that difference:
+    TypeError, raised out of a function whose whole contract is that a sidecar
+    it cannot believe raises ProvenanceError.  Callers written to classify
+    rather than crash -- `validate.py`'s carried_rasters, whose answer for this
+    is `unverifiable` -- went down with it.  A list is worse because it is
+    quiet: it slices without complaining and gets formatted into the evidence
+    as `['nope']`, so a malformed sidecar reads as a measurement.
+
+    Shape is therefore checked where the value is read rather than where it is
+    formatted.  Anything that is not 64 lowercase hex characters is a malformed
+    sidecar, which proves nothing about the raster and so is a ProvenanceError
+    like every other sidecar that proves nothing.
+    """
+    v = d.get(field)
+    if not v:
+        raise ProvenanceError(absent % render_path)
+    if not isinstance(v, str) or len(v) != 64 or set(v) - _HEXDIGITS:
+        raise ProvenanceError(
+            "provenance beside %s records %s=%r, which is not a sha-256 digest: "
+            "the sidecar is malformed, so it proves nothing about this file"
+            % (render_path, field, v))
+    return v
+
+
 def provenance_path(render_path):
     return str(render_path) + ".prov.json"
 
@@ -219,11 +253,9 @@ def read_provenance(render_path, require=False, expect_size=None,
         d = json.load(open(side))
     except Exception as exc:                               # noqa: BLE001
         raise ProvenanceError("provenance beside %s is unreadable: %s" % (render_path, exc))
-    want = d.get("png_sha256")
-    if not want:
-        raise ProvenanceError(
-            "provenance beside %s records no png_sha256, so it describes a filename "
-            "rather than a file" % render_path)
+    want = _digest_field(d, "png_sha256", render_path,
+                         "provenance beside %s records no png_sha256, so it "
+                         "describes a filename rather than a file")
     got = sha256_file(render_path)
     if got != want:
         raise ProvenanceError(
@@ -239,9 +271,8 @@ def read_provenance(render_path, require=False, expect_size=None,
                 "provenance beside %s records %s=%r where %r was required: the "
                 "raster is authentic but it is not the render this caller measures"
                 % (render_path, field, got_v, want_v))
-    svg = d.get("svg_sha256")
-    if not svg:
-        raise ProvenanceError("provenance beside %s names no SVG" % render_path)
+    svg = _digest_field(d, "svg_sha256", render_path,
+                        "provenance beside %s names no SVG")
     if expect_svg is not None:
         if not os.path.exists(expect_svg):
             raise ProvenanceError(

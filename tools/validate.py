@@ -98,7 +98,8 @@ def carried_rasters(outdir, sizes, svg_digest):
 
       current       same SVG as this run -- safe to read beside the table
       stale         authentic, and from a different SVG generation
-      unverifiable  a sidecar that does not describe the file beside it
+      unverifiable  a sidecar that does not describe the file beside it, or
+                    describes a render other than the one this NAME promises
       absent        no raster there at all
 
     Nothing on disk is touched.  Returns a list of (size, generation, evidence).
@@ -110,7 +111,18 @@ def carried_rasters(outdir, sizes, svg_digest):
             out.append((z, "absent", "no raster in %s" % outdir))
             continue
         try:
-            recorded = R.read_provenance(png_z, require=True)
+            # expect_size/expect_renderer, because `render_%d.png` is a CLAIM
+            # about resolution and engine and the sidecar has recorded both all
+            # along.  Authenticating the bytes alone accepted an authentic
+            # raster carried under the wrong name: copy render_1024.png and its
+            # sidecar to render_256.png and every digest still matches, so the
+            # row said `current` for a file four times the resolution the table
+            # attributes to it -- and a consumer told it may read that raster
+            # beside the others then mixes generations of a different kind.
+            # These five names are written by this tool and by nothing else, at
+            # one size each and always by resvg, so both fields are required.
+            recorded = R.read_provenance(png_z, require=True, expect_size=z,
+                                         expect_renderer="resvg")
         except R.ProvenanceError as exc:                       # noqa: PERF203
             out.append((z, "unverifiable", str(exc)))
             continue
@@ -145,7 +157,6 @@ def main():
     svg_digest = _sha256(a.svg)
     carried = carried_rasters(a.outdir, [z for z in CANONICAL if z not in sizes],
                               svg_digest)
-    stale = [z for z, st, _d in carried if st != "current"]
     if carried:
         print("--quick: rendered %s.  The other canonical rasters: %s"
               % (", ".join(str(z) for z in sizes),
