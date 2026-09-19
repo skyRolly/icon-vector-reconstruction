@@ -3543,3 +3543,146 @@ not answer.
 44 pipeline checks and 12 structural checks pass; this round added cases to
 three existing checks rather than new ones. No artwork changed: every artefact
 regenerates byte-identically.
+
+## D59. A ray that was the right brightness and the wrong shape, and a line
+## whose two halves were never the same shape
+
+### Where the residual actually is
+
+Before changing anything, the whole-image residual was binned by flare radius,
+by angular sector, by distance to the nearer luminous curve and on a free 64 px
+grid, and each bin was asked the only question that matters for choosing work:
+how much whole-image MAE would a perfect correction along that coordinate
+recover. Most of it is not recoverable at all. Splitting the residual into a
+smooth part and a grain part at sigma 4 gives rms 1.775 smooth against 2.859
+grain over the whole image, so a model that nailed every structure coarser than
+4 px would take the residual rms from 3.54 to 2.86 and no further. The
+reference's dark background is quantised to integers with visible contour bands
+-- a flat interior patch is a field of 4s with a 3/4 contour running through it
+-- and no vector model removes that.
+
+Against that ceiling the levers rank: a perfect along-curve correction of the
+arc corridor is worth 0.0177 of MAE, a vertical gradient over the exterior
+0.0077, one over the interior field 0.0072, a per-ring correction of the flare
+0.0026. The two largest single blocks of error are the arc corridor within 12 px
+of either curve (16.4% of the total absolute error) and the flare's inner rings.
+
+**A refit is not a free improvement, and this is worth knowing before reaching
+for one.** Re-running `fit_photometry` on the shipped parameters moves several
+layers and reports an analytic composite MAE of 1.8387 against the shipped
+1.8782 -- and the real resvg render of what it wants measures **1.9177**. The
+analytic compositing model and the renderer disagree by more than the entire
+improvement on offer, in the wrong direction. The shipped photometry is better
+than what the fitter would replace it with, so "just refit" is a regression and
+every amplitude below was checked against the real renderer instead.
+
+### The upper-right ray: the amplitude was right and the shape was wrong
+
+`flare_ray_e` shipped at height 8 and read 0.491 of the reference on the
+presence gate -- the deficit D52 raised from 0.35 and that D57's floors were
+written around. Measured across the axis over r 55-95, with the corridor's own
+ramp removed, the reference carries a plateau of 8-10 cv from s = -6 to s = +20
+and the model covered s = -4..+6 and was at half by s = +10: 2-4 cv short over a
+12 px band, which is a SHAPE deficit and not a dim one.
+
+Four numbers change together -- height 8 -> 26, spread 1.30 -> 1.00, len 150 ->
+143, and a 5.4 px offset along the ray's own normal -- and the ablation is the
+result worth recording: **each of the four applied alone is worse than the value
+it replaces**, on whole-image MAE, on the weighted objective, on flare-region
+MAE and on the pooled transverse error alike. Widening without the offset
+over-fills the clockwise flank; offsetting without the widening moves a
+too-narrow ray off the structure. Together they take the pooled transverse error
+over r 35-150 from 2.55 to 2.04 and the gate from 0.491 to 0.712.
+
+The offset is measured, not fitted loosely: scanning it gives a parabolic
+minimum at 5.37 px with everything between 4 and 6 px within 2% of the minimum,
+and MAE, the weighted objective, flare-region MAE and the transverse error all
+minimise in the same place.
+
+**It does not contradict D52's line position, and that had to be checked.** D52
+measured the reference's upper-right line at -0.42 +- 0.28 px from the 44.9
+axis; a quad displaced 5.4 px looks like a flat contradiction. It is not,
+because the offset displaces a broad low-amplitude slab and not the ridge:
+measured identically on both images, the composite ridge moves +0.7 px over
+r 65-125, inside the scatter. An offset structure and an offset ridge are
+different claims -- which is D52's own general statement, applied to itself.
+
+`len` moves to 143, the lower edge of the fitted 1-sigma band 143-166 that the
+endpoint fit cannot distinguish from 150. It is chosen by the pixel evidence
+inside that band, not against it. Notably it does the job that a `spread` below
+1.0 would have done: the data that looked like it wanted a converging ray --
+outside the model's cone, which requires the far end to be at least as wide as
+the near -- is equally well explained by a shorter one, which is inside it.
+
+**The amplitude was already right.** Refitting this layer's colour for the new
+geometry prefers cyan 0.0933 unchanged over 0.79x and 1.15x of it. The extra
+flux the wider quad delivers at the same colour is exactly what was missing,
+which is the cleanest statement that the error was geometric.
+
+**And the FWHM this layer was specified by is not a measurable quantity.** The
+preset stored 10.0 px as the reference's transverse FWHM. With the corridor's
+ramp fitted out, the reference reads 10.55, 15.06 and 1.41 px over the adjacent
+20 px bands at r 55-75, 75-95 and 95-115: the stored number was one band's
+answer presented as the ray's width. `RAY_GEOMETRY` now carries the width that
+inverts back to the fitted blur and says in its comment that this is what it is.
+
+### The vertical line's south was never a scaled copy of its north
+
+`flare_vline` carried a single `south_gain` of 0.55, which can only say that the
+southern half is a constant fraction of the northern. It is not. By A_4 in R and
+G the reference's southern line is BRIGHTER than its northern one inside
+|dy| 36 -- 14.05 and 11.35 over the 16-26 and 26-36 bands against 10.57 and 8.26
+north -- and DIMMER outside it, 3.01 and 1.42 against 5.74 and 2.66. The render's
+southern inner line read 9.42 and 6.23, short by 4.6 and 5.1 cv, and both of
+`vstreak_report`'s estimators agreed: southern band error 2.86 rms against the
+north's 1.10.
+
+The `vstreak` primitive has carried a separate `profile_s` all along and this
+layer never used it. The southern falloff is now its own table; `south_gain`
+moves to 1.0 and stays as a residual scale. Southern band error 2.86 -> 1.22,
+for +0.02% of the weighted objective and +0.0001 of whole-image MAE. The
+innermost southern stop sits at opacity 1.0 because that is where it clamps:
+1.0, 1.15 and 1.30 render identically, which is worth writing down so the next
+pass does not read the value as a fitted optimum.
+
+### Measured, and deliberately not changed
+
+**The vertical line's north has the same kind of error in the other direction**
+-- too bright at |dy| 16-36 (A_4 12.31 and 9.79 against 10.57 and 8.26) and too
+dim at 36-70 (4.50 and 2.14 against 5.74 and 2.66). Correcting it improves every
+band, 1.76 -> 1.16 rms, AND LOWERS `visual_regression`'s reading from 0.561 to
+about 0.55, because that check pools |dy| 16-50 and the pooled number is
+flattered by the inner excess. Moving the artwork and the guard that watches it
+in the same step is the exact hazard that check's own docstring records about
+its own predecessor. The north is left where it is and the gate's docstring now
+names its blind spot; splitting it per band comes first.
+
+**The arc corridor's convex-side shelf.** Both curves are about 10 cv too dark
+at d = +5..+12 and about 3 cv too bright at d = -9..-15, consistently in all
+four along-curve bands and on both arcs. It is not a displacement -- fitting a
+shift and a gain per band leaves 65-99% of the residual in the arc body, and the
+shifts are tiny (mean -0.05 px, |max| 0.34). It is not an amplitude oversight
+either: the layer basis shows the render has an 11 cv step where the core's edge
+dies at d = +4.5 and the reference decays smoothly through it. Raising
+`arc_glow1b`, the only layer covering that band, fixes the corridor and spends
+the gain in the flare, because that layer runs the full length of the arc
+including where it passes within 14 px of the core -- so the correction has to
+be localised along the curve, which is what tapers are for. Measured and left
+for its own pass.
+
+### What the numbers did
+
+    MAE            1.8782 -> 1.8766        centre-region MAE  7.857 -> 7.770
+    RMSE           4.0523 -> 4.0487        SSIM             0.97408 -> 0.97409
+    upper-right ray, as a fraction of the reference's:   0.491 -> 0.712
+    upper-right pooled transverse error, r 35-150:        2.55 -> 2.04
+    vertical line, southern band error:                   2.86 -> 1.22
+
+44 pipeline checks and 12 structural checks pass. Three checks had to be brought
+along and each one earned its place: the geometry preset in `measure_flare.py`
+is the table that `--geometry` WRITES, so a stale entry would have silently
+reverted this work on the next run; the unbounded-kind inventory had to learn
+`profile_s`; and the tracked rasters were stale the moment the SVG changed. The
+full publish cycle passes end to end, `src/params.json` reproduces
+`reconstruction.svg` byte for byte, and cross-engine agreement is unchanged at
+MAE 2.680 / SSIM 0.95546.

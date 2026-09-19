@@ -1286,7 +1286,7 @@
    "half_len": 110.0,
    "id": "flare_vline",
    "kind": "vstreak",
-   "note": "the vertical diffraction line through the brightest point -- a real feature of the reference that the reconstruction had no trace of.  It took a channel-aware measurement to see: within ~12 px of the core G and B are CLIPPED (421 and 453 px at or above 253 in a 90x90 box, against 4 for R), so a luminance statistic there measures the clip.  In R the column high-pass A_4 reads 12.3/9.8/4.4/2.0/1.5/1.5 code values over |dy| 16-26/26-36/36-50/50-70/70-90/90-110 where the render read 2.4/0.5/0.7/0.4/-0.4/-0.2; see tools/vstreak_report.py.  Axis array x 528.9 +- 0.5, vertical to 0.3 +- 0.2 deg, FWHM 3.3-4.6 px.  It survives 4x downsampling, is flat across all eight y mod 8 JPEG phases, and the seven other block-boundary columns in the same rows read 0.0-0.6 against its 4.1, so it is light and not blocking.  The profile is TABULATED, and its factor-3.1 step at |dy| ~33 IS NOT A FEATURE OF THE LIGHT: it is an artefact of R's ZERO floor, which is 20-30% occupied over exactly those bands.  In the two unclipped channels the reference's line RISES across that boundary and peaks at |dy| 36-70 -- where this table puts its collapse -- and the model's non-monotone tail bump at |dy| 80-100 is absent from the reference altogether.  The table is therefore WRONG in shape and is left alone only because correcting it means refitting against G and B outside |dy| 26 and against R inside it, with south_gain re-checked afterwards because the two are entangled.  What was originally offered as the reason for tabulating rather than fitting a law.  Three things are deliberately absent: no broad halo (the flank at |dx| 3-8 is consistent with zero), nothing past |dy| 110 (pooled 110-240 is within 1.3 cv of zero at 95%), and nothing east of the core, where the right ridge allows only an 11.6 cv limit and the honest position is silence. south_gain was 1.0 -- a DEFAULT, never a measurement, and one that could not have been searched either: `sigma_x` and `south_gain` both carried bounds here and neither name was in the optimiser's key list, so they were frozen through every run that reported optimising shapes.  The reference's line is north-dominated.  south/north of A_4 over |dy| 36-110: reference 0.44 in B and 0.63 in R, against the shipped render's 0.97 and 1.19; at 0.55 the render reads 0.45 and 0.65.  B is the channel to trust for this -- it runs 50-119 cv in these bands with nothing clipped at either end, while R is FLOOR-clipped there (20.5%, 30.5% and 19.7% exact zeros at |dy| 26-36, 36-50 and 50-70).  A block bootstrap over 8-row blocks gives B 0.52 [0.28, 0.84] with P(south >= north) = 0.004; the honest range is 0.45-0.85 and the estimators disagree systematically inside it (a narrow centre-minus-flank statistic says 0.35-0.42, A_4 says 0.52-0.63, a 4x downsample says 0.75), so 0.55 is a choice within a range and not a measurement to two figures.  The pooled statistic in tools/vstreak_report.py was blind to all of this and actively penalised the fix, which is why that tool now reports the two sides separately.  sigma_x 1.7 was re-measured at the same time and SURVIVES: the width-sensitive ratio N/A_4 puts it at 1.44-1.60 in G and B and 0.95-1.35 in the floor-clipped R, so 1.5 is marginally better supported but the difference is below the render's own resolution.  The amplitude inside |dy| 16 is unconstrained -- the bloom's own curvature dominates there -- so the inner stop is continuity, not a measurement",
+   "note": "the vertical diffraction line through the brightest point -- a real feature of the reference that the reconstruction had no trace of.  It took a channel-aware measurement to see: within ~12 px of the core G and B are CLIPPED (421 and 453 px at or above 253 in a 90x90 box, against 4 for R), so a luminance statistic there measures the clip.  In R the column high-pass A_4 reads 12.3/9.8/4.4/2.0/1.5/1.5 code values over |dy| 16-26/26-36/36-50/50-70/70-90/90-110 where the render read 2.4/0.5/0.7/0.4/-0.4/-0.2; see tools/vstreak_report.py.  Axis array x 528.9 +- 0.5, vertical to 0.3 +- 0.2 deg, FWHM 3.3-4.6 px.  It survives 4x downsampling, is flat across all eight y mod 8 JPEG phases, and the seven other block-boundary columns in the same rows read 0.0-0.6 against its 4.1, so it is light and not blocking.  The profile is TABULATED, and its factor-3.1 step at |dy| ~33 IS NOT A FEATURE OF THE LIGHT: it is an artefact of R's ZERO floor, which is 20-30% occupied over exactly those bands.  In the two unclipped channels the reference's line RISES across that boundary and peaks at |dy| 36-70 -- where this table puts its collapse -- and the model's non-monotone tail bump at |dy| 80-100 is absent from the reference altogether.  The table is therefore WRONG in shape and is left alone only because correcting it means refitting against G and B outside |dy| 26 and against R inside it, with south_gain re-checked afterwards because the two are entangled.  What was originally offered as the reason for tabulating rather than fitting a law.  Three things are deliberately absent: no broad halo (the flank at |dx| 3-8 is consistent with zero), nothing past |dy| 110 (pooled 110-240 is within 1.3 cv of zero at 95%), and nothing east of the core, where the right ridge allows only an 11.6 cv limit and the honest position is silence. south_gain was 1.0 -- a DEFAULT, never a measurement, and one that could not have been searched either: `sigma_x` and `south_gain` both carried bounds here and neither name was in the optimiser's key list, so they were frozen through every run that reported optimising shapes.  The reference's line is north-dominated.  south/north of A_4 over |dy| 36-110: reference 0.44 in B and 0.63 in R, against the shipped render's 0.97 and 1.19; at 0.55 the render reads 0.45 and 0.65.  B is the channel to trust for this -- it runs 50-119 cv in these bands with nothing clipped at either end, while R is FLOOR-clipped there (20.5%, 30.5% and 19.7% exact zeros at |dy| 26-36, 36-50 and 50-70).  A block bootstrap over 8-row blocks gives B 0.52 [0.28, 0.84] with P(south >= north) = 0.004; the honest range is 0.45-0.85 and the estimators disagree systematically inside it (a narrow centre-minus-flank statistic says 0.35-0.42, A_4 says 0.52-0.63, a 4x downsample says 0.75), so 0.55 is a choice within a range and not a measurement to two figures.  The pooled statistic in tools/vstreak_report.py was blind to all of this and actively penalised the fix, which is why that tool now reports the two sides separately.  sigma_x 1.7 was re-measured at the same time and SURVIVES: the width-sensitive ratio N/A_4 puts it at 1.44-1.60 in G and B and 0.95-1.35 in the floor-clipped R, so 1.5 is marginally better supported but the difference is below the render's own resolution.  The amplitude inside |dy| 16 is unconstrained -- the bloom's own curvature dominates there -- so the inner stop is continuity, not a measurement  THE SOUTH IS NOT A CONSTANT FRACTION OF THE NORTH, which is all a single south_gain can say.  By A_4 in R and G (tools/vstreak_report.py) the reference's southern line is BRIGHTER than its northern one inside |dy| 36 -- 14.05 and 11.35 over the 16-26 and 26-36 bands against 10.57 and 8.26 north -- and DIMMER outside it, 3.01 and 1.42 over 36-50 and 50-70 against 5.74 and 2.66.  At south_gain 0.55 the render's southern inner line read 9.42 and 6.23, i.e. 4.6 and 5.1 cv short, and both estimators agreed: the southern band error was 2.86 rms against the north's 1.10.  The `vstreak` primitive has carried a separate `profile_s` all along and this layer never used it; the southern falloff is now its own table, south_gain moves 0.55 -> 1.0 and stays as a residual scale on it.  Southern A_4 and N rms error 2.86 -> 1.22, for +0.02% of the weighted objective and +0.0001 of whole-image MAE.  The innermost southern stop sits at opacity 1.0 because that is where it clamps: 1.0, 1.15 and 1.30 render identically.  MEASURED AND DELIBERATELY NOT FIXED: the north has the same kind of shape error in the other direction, too bright at |dy| 16-36 (A_4 12.31 and 9.79 against the reference's 10.57 and 8.26) and too dim at 36-70 (4.50 and 2.14 against 5.74 and 2.66).  Correcting it takes the band-resolved northern error 1.76 -> 1.16 rms AND LOWERS visual_regression's `vertical_amplitude` from 0.561 to about 0.55, because that check pools |dy| 16-50 and the pooled number is flattered by the inner excess.  Moving the artwork and the guard that watches it in one step is the exact hazard that check's own docstring records, so the north is left where it is until the gate is made band-resolved.",
    "profile": [
     [
      0.0,
@@ -1321,8 +1321,42 @@
      0.0
     ]
    ],
+   "profile_s": [
+    [
+     0.0,
+     1.0
+    ],
+    [
+     0.191,
+     1.0
+    ],
+    [
+     0.282,
+     0.65
+    ],
+    [
+     0.391,
+     0.14245
+    ],
+    [
+     0.545,
+     0.05885
+    ],
+    [
+     0.727,
+     0.07645
+    ],
+    [
+     0.909,
+     0.0847
+    ],
+    [
+     1.0,
+     0.0
+    ]
+   ],
    "sigma_x": 1.7,
-   "south_gain": 0.55,
+   "south_gain": 1.0,
    "white": 0.06258
   },
   {
@@ -1670,6 +1704,14 @@
      0.6,
      10.0
     ],
+    "dx": [
+     -6.0,
+     6.0
+    ],
+    "dy": [
+     -6.0,
+     6.0
+    ],
     "height": [
      3.0,
      40.0
@@ -1697,14 +1739,16 @@
     23.7999
    ],
    "cyan": 0.093333,
-   "height": 8.0,
+   "dx": -3.8117,
+   "dy": -3.825,
+   "height": 26.0,
    "id": "flare_ray_e",
    "kind": "ray",
-   "len": 150.0,
-   "note": "upper-right ray.  Axis 44.90 +- 0.37 deg, not 45.6.  It ends at r = 154 (1-sigma 143-166) by a linear-taper fit against a matched null, and a continuation past r = 150 is bounded at 11% of the amplitude inside r = 120, so the len = 215 an earlier pass used is excluded at about 2.7 sigma",
+   "len": 143.0,
+   "note": "upper-right ray.  Axis 44.90 +- 0.37 deg, not 45.6, measured FROM THE FLARE CENTRE -- which is not where this ray's line passes, see dx/dy.  It ends at r = 154 (1-sigma 143-166) by a linear-taper fit against a matched null, so the len = 215 an earlier pass used is excluded at about 2.7 sigma; len sits at 143, the lower edge of that band, which the endpoint fit does not distinguish from 150 and the pixel evidence prefers (pooled transverse error over r 35-150 2.13 -> 2.04, and the r 95-150 bands recover most of what the widening costs them).  An earlier version of this note claimed a continuation past r = 150 is bounded at 11% of the amplitude inside r = 120; D52 found that too strong and the supported bound is 35-45%.  THE SHAPE WAS THE ERROR, NOT THE AMPLITUDE.  Above its own surround at r 55-95 the reference carries a plateau of 8-10 cv from s = -6 to s = +20 across the axis, and the height 8 quad this shipped with covered only s = -4..+6 and was at half by s = +10 -- 2-4 cv short over a 12 px band.  Refitting the colour for the new geometry does not want a different amplitude (cyan 0.0933 beats 0.79x and 1.15x of it on pooled transverse error and on whole-image MAE), so the extra flux the wider quad delivers is exactly what was missing.  The four numbers are a JOINT correction and each one alone is worse than what it replaced: height 8 -> 26, spread 1.3 -> 1.0, len 150 -> 143, and a 5.4 px perpendicular offset, the last being a parabolic minimum at 5.37 px with everything inside 4-6 px within 2% of it.  Widening without the offset over-fills the clockwise flank and offsetting without the widening moves a too-narrow ray off the structure.  The offset does NOT contradict D52's matched-filter reading that the reference's line lies -0.42 +- 0.28 px from the 44.9 axis: it displaces a broad, low-amplitude slab, not the ridge, and measured the same way on both images the composite ridge moves +0.7 px over r 65-125, inside the scatter.  Held-out check: the parameters were chosen on the pooled corridor and the r 55-75 band, which is not where the gain is largest, improves 3.82 -> 1.89",
    "peak_at": 0.28,
    "rot": -44.9,
-   "spread": 1.3,
+   "spread": 1.0,
    "white": 0.0
   },
   {
