@@ -164,9 +164,9 @@ def main():
     # verify_searchable() audits `bounds` against emitted specs, so a numeric
     # field that carries no bound is invisible to it: it can stay frozen without
     # ever being reported.  That gap cannot be closed by flagging every unbounded
-    # number -- 470 of the model's 609 numeric leaves are unbounded on purpose,
+    # number -- 486 of the model's 627 numeric leaves are unbounded on purpose,
     # so a report of all of them reports nothing.  What CAN be pinned is the
-    # inventory: every unbounded number today belongs to one of twelve kinds,
+    # inventory: every unbounded number today belongs to one of thirteen kinds,
     # each searched by a different mechanism or measured rather than fitted.  A
     # new unbounded field in a NEW kind is the case worth catching, and this
     # fires on it.  `paint/x1..y2` is the one kind that is neither -- eight
@@ -177,6 +177,7 @@ def main():
         "blue": "photometric fit", "color": "derived from the coefficients",
         "profile": "tabulated from the reference",
         "profile_e": "tabulated from the reference",
+        "profile_s": "tabulated from the reference",
         "paint/profile": "tabulated from the reference",
         "paint/stops": "tabulated from the reference",
         "paint/x1": "frozen canvas gradient extent (D55)",
