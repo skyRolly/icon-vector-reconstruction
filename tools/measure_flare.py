@@ -104,15 +104,32 @@ RAY_GEOMETRY = {
     # Upper-right: axis 44.9 +- 0.4.  45.6, which tools/ray_report.py scans at,
     # is excluded at about 6 sigma: the reference's line lies -0.42 +- 0.28 px
     # from the 44.9 axis over r 65-145 across 15 analysis choices.  It ends at
-    # r = 140 +- 15, so len 150 is right and anything at or beyond 170 is
-    # excluded; the earlier "a continuation past r 150 is bounded at 11% of the
-    # amplitude inside r 120" was too strong and the supported bound is 35-45%.
-    # fwhm 4.35 -> 10.0 and height 4.0 -> 8.0: the reference's transverse FWHM is
-    # 10.0 px (left half-width 6.0, right 4.0) against the render's 5.50, and its
-    # broad wings survive all eight matched nulls -- the same cell at theta -14
-    # and -20, and four along-ridge placements at +-200/+-300 px, all read
-    # |values| <= 0.6 cv where the ray holds 1.2-1.9 cv at |s| 4.5-6.
-    "flare_ray_e": (44.9,  10.0,  8.0, 1.30, 150.0, 0.28, 0.0, 0.0),   # upper-right
+    # r = 140 +- 15; the earlier "a continuation past r 150 is bounded at 11% of
+    # the amplitude inside r 120" was too strong and the supported bound is
+    # 35-45%.
+    #
+    # THE FWHM HERE IS NOT A MEASUREMENT, and saying so is the point of this
+    # comment.  A half-maximum is not a stable quantity in this corridor: with
+    # the corridor's own ramp fitted out and removed, the reference reads 10.55,
+    # 15.06 and 1.41 px over the adjacent 20 px bands at r 55-75, 75-95 and
+    # 95-115, so the "10.0 px" an earlier pass stored was one band's answer
+    # presented as the ray's width.  What IS well determined is the pair
+    # (height, blur) against the whole corridor, and 19.5665 is simply the total
+    # width that `blur_for` inverts back to the fitted blur of 3.5634.
+    #
+    # height 8 -> 26, spread 1.30 -> 1.00, len 150 -> 143 and a 5.4 px normal
+    # offset are a JOINT correction: each one alone is worse than what it
+    # replaced, on whole-image MAE, on the weighted objective, on flare-region
+    # MAE and on the pooled transverse error over r 35-150 (2.55 -> 2.04) alike.
+    # Widening without the offset over-fills the clockwise flank; offsetting
+    # without widening moves a too-narrow ray off the structure.  The offset is a
+    # parabolic minimum at 5.37 px with everything in 4-6 px within 2% of it, and
+    # it does not contradict the -0.42 +- 0.28 px line position above, because it
+    # displaces a broad slab rather than the ridge: measured identically on both
+    # images the composite ridge moves +0.7 px over r 65-125.  len sits at the
+    # lower edge of the fitted 1-sigma band 143-166, which the endpoint fit does
+    # not distinguish from 150.
+    "flare_ray_e": (44.9, 19.5665, 26.0, 1.00, 143.0, 0.28, -3.8117, -3.825),  # upper-right
     # Lower-right: direction 327.3-328.1 and NOT resolvable further.  An earlier
     # note here said the reference's line and the render's are "PARALLEL
     # (328.18 +- 0.21 against 328.40)"; that precision was not supported.  The

@@ -177,6 +177,17 @@ def vertical_amplitude(a):
     structure.  A guard that cannot see an asymmetry will argue against fixing
     one; writing this check before fixing the tool would have baked the same
     blindness into the regression suite.
+
+    AND THIS CHECK NOW HAS THE SAME BLINDNESS ONE LEVEL DOWN, which is recorded
+    here rather than quietly lived with.  It pools |dy| 16-50, and across that
+    span the render is too BRIGHT inside 36 and too DIM outside it -- A_4 12.31
+    and 9.79 against the reference's 10.57 and 8.26 over 16-26 and 26-36, then
+    4.50 and 2.14 against 5.74 and 2.66 over 36-50 and 50-70.  The two errors
+    partly cancel, so the pooled ratio of 0.561 is flattered by the inner excess:
+    correcting the northern falloff improves every band (tools/vstreak_report.py
+    rms 1.76 -> 1.16) and LOWERS this number to about 0.55.  Until this is split
+    per band, a fall here is not by itself evidence that the line got weaker, and
+    `flare_vline`'s note says why its north was left alone.
     """
     _dx, dy, _r, _th, dmin = geometry(a.shape)
     R = a[..., 0]

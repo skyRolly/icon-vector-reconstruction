@@ -5,16 +5,16 @@ cross-engine and cross-resolution behaviour.
 
 | engine | render size | comparison | MAE | RMSE | max | MAE(gamma) | SSIM | %px>8 |
 |---|---|---|---|---|---|---|---|---|
-| resvg | 256 | reference downsampled to 256 | 1.718 | 3.224 | 67 | 4.925 | 0.9814 | 5.28 |
-| resvg | 512 | reference downsampled to 512 | 1.799 | 3.648 | 90 | 5.185 | 0.9780 | 5.03 |
-| resvg | 1024 | native | 1.878 | 4.052 | 110 | 5.448 | 0.9741 | 4.95 |
-| resvg | 2048 | downsampled 2048->1024 | 1.873 | 4.035 | 104 | 5.440 | 0.9744 | 5.09 |
-| resvg | 4096 | downsampled 4096->1024 | 1.877 | 4.013 | 98 | 5.443 | 0.9744 | 5.20 |
-| chromium | 1024 | native | 3.146 | 4.868 | 136 | 9.747 | 0.9437 | 7.20 |
+| resvg | 256 | reference downsampled to 256 | 1.685 | 3.133 | 67 | 4.887 | 0.9815 | 4.84 |
+| resvg | 512 | reference downsampled to 512 | 1.758 | 3.542 | 90 | 5.139 | 0.9784 | 4.56 |
+| resvg | 1024 | native | 1.842 | 3.974 | 110 | 5.406 | 0.9744 | 4.52 |
+| resvg | 2048 | downsampled 2048->1024 | 1.837 | 3.957 | 104 | 5.398 | 0.9747 | 4.66 |
+| resvg | 4096 | downsampled 4096->1024 | 1.841 | 3.943 | 98 | 5.403 | 0.9747 | 4.77 |
+| chromium | 1024 | native | 3.126 | 4.828 | 136 | 9.728 | 0.9439 | 7.05 |
 
 ## Cross-engine agreement at 1024 (resvg vs Chromium)
 
 | MAE | RMSE | max | SSIM |
 |---|---|---|---|
-| 2.680 | 3.220 | 44 | 0.95546 |
+| 2.679 | 3.211 | 44 | 0.95549 |
 
