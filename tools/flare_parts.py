@@ -15,6 +15,13 @@ does the same for the positional images: each must be the 1024-px resvg render
 of the SVG given for it.  Without `--svg` the images are taken as given (an
 ad-hoc comparison of scratch renders), and the sheet says so in its header.
 
+Every sheet is written with a provenance sidecar, `<out>.prov.json`: the
+digest of the sheet itself and, per column, the label, the SVG digest and the
+render digest it was drawn from, plus the reference's digest and the baseline
+manifest.  `sheet_problems()` reads it back and says why a sheet no longer
+describes the artefacts beside it -- tools/test_pipeline.py fails the release
+if the published sheet is stale (D63).
+
 `flare_view.py` decomposes one crop several ways; this answers the question a
 review of a flare change actually asks -- "for each part of the flare, did the
 change move it towards the reference or away?" -- so every named part gets the
@@ -152,9 +159,86 @@ def baseline_input(d):
     return os.path.join(d, "render_1024.png"), svg, man.get("label", "baseline")
 
 
+SHEET_FORMAT = "flare_parts/1"
+
+
+def write_sheet_provenance(out_path, columns, verified, baseline=None):
+    """Record what a sheet was drawn from, by content, beside the sheet.
+
+    `columns` is [(label, image path, svg path or None)], reference first.  The
+    sheet's own digest goes in too, for the same reason a render sidecar holds
+    the PNG's: without it the record describes a filename, and a filename can be
+    overwritten by anything.
+    """
+    import render as _R
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    rel = lambda q: os.path.relpath(os.path.abspath(q), root) if q else None  # noqa: E731
+    rec = {
+        "format": SHEET_FORMAT,
+        "sheet_sha256": _R.sha256_file(out_path),
+        "verified": bool(verified),
+        "columns": [{"label": lab, "image": rel(img), "image_sha256": _R.sha256_file(img),
+                     "svg": rel(svg), "svg_sha256": _R.sha256_file(svg) if svg else None}
+                    for lab, img, svg in columns],
+        "baseline": baseline,
+    }
+    with open(out_path + ".prov.json", "w") as fh:
+        json.dump(rec, fh, indent=1, sort_keys=True)
+        fh.write("\n")
+    return rec
+
+
+def sheet_problems(sheet_path, current_svg, baseline_dir=None, reference=None):
+    """Why the sheet at `sheet_path` does not describe these artefacts ([] if it does).
+
+    It must exist with its sidecar; the sheet's bytes must be the ones the
+    sidecar describes; it must have been drawn from verified inputs; its last
+    column must be `current_svg` as it is NOW; with `baseline_dir`, its first
+    rendered column must be that baseline's SVG and match its manifest; and the
+    reference column must be the reference as it is now.
+    """
+    import render as _R
+    out = []
+    side = sheet_path + ".prov.json"
+    if not os.path.exists(sheet_path):
+        return ["%s does not exist" % sheet_path]
+    try:
+        rec = json.load(open(side))
+    except (OSError, ValueError) as exc:
+        return ["%s has no readable provenance (%s)" % (sheet_path, exc)]
+    if not isinstance(rec, dict) or rec.get("format") != SHEET_FORMAT:
+        return ["%s's provenance is not a %s record" % (sheet_path, SHEET_FORMAT)]
+    if rec.get("sheet_sha256") != _R.sha256_file(sheet_path):
+        out.append("%s is not the sheet its provenance describes" % sheet_path)
+    if not rec.get("verified"):
+        out.append("%s was drawn from unverified inputs" % sheet_path)
+    cols = rec.get("columns") or []
+    if len(cols) < 2:
+        return out + ["%s records %d columns" % (sheet_path, len(cols))]
+    cur = _R.sha256_file(current_svg)
+    if cols[-1].get("svg_sha256") != cur:
+        out.append("%s's last column was drawn from SVG %s..., but %s is now %s...: the sheet "
+                   "is stale" % (sheet_path, str(cols[-1].get("svg_sha256"))[:12], current_svg, cur[:12]))
+    if reference is not None and cols[0].get("image_sha256") != _R.sha256_file(reference):
+        out.append("%s's reference column is not %s" % (sheet_path, reference))
+    if baseline_dir is not None:
+        try:
+            man = json.load(open(os.path.join(baseline_dir, "manifest.json")))
+        except (OSError, ValueError) as exc:
+            return out + ["baseline manifest unreadable: %s" % exc]
+        bsvg = os.path.join(baseline_dir, man.get("svg", "reconstruction.svg"))
+        want = man.get("svg_sha256")
+        if not os.path.exists(bsvg) or _R.sha256_file(bsvg) != want:
+            out.append("the baseline SVG no longer matches its manifest")
+        if cols[1].get("svg_sha256") != want:
+            out.append("%s's first compared column is not the documented baseline (%s...)"
+                       % (sheet_path, str(want)[:12]))
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("images", nargs="+", help="1-3 renders to compare, in column order")
+    ap.add_argument("images", nargs="*", help="1-3 renders to compare, in column order")
     ap.add_argument("--reference", default=os.path.join(ROOT, "reference.png"))
     ap.add_argument("--labels", default=None, help="comma-separated, one per image")
     ap.add_argument("--svg", nargs="+", default=None,
@@ -165,7 +249,23 @@ def main():
     ap.add_argument("--out", default=os.path.join(ROOT, "out", "flare_parts.png"))
     ap.add_argument("--split", action="store_true",
                     help="also write one image per part next to --out")
+    ap.add_argument("--verify", action="store_true",
+                    help="draw nothing: check that the sheet at --out (and its provenance) "
+                         "describes --svg as it is now and the --baseline; exit 1 if not")
     a = ap.parse_args()
+    if a.verify:
+        if not a.svg or len(a.svg) != 1:
+            print("flare_parts: --verify needs exactly one --svg (the current release)", file=sys.stderr)
+            return 2
+        problems = sheet_problems(a.out, a.svg[0], a.baseline, a.reference)
+        for msg in problems:
+            print("flare_parts: %s" % msg, file=sys.stderr)
+        if not problems:
+            print("%s describes %s and %s" % (a.out, a.svg[0], a.baseline or "no baseline"))
+        return 1 if problems else 0
+    if not a.images:
+        print("flare_parts: give 1-3 renders to compare (or --verify)", file=sys.stderr)
+        return 2
     paths = list(a.images)
     labels = a.labels.split(",") if a.labels else ["image %d" % (i + 1) for i in range(len(paths))]
     svgs = list(a.svg) if a.svg else [None] * len(paths)
@@ -205,7 +305,12 @@ def main():
         out.paste(s, (0, y))
         y += s.height + 10
     out.save(a.out)
-    print("wrote %s (%dx%d)" % (a.out, out.width, out.height))
+    base_rec = None
+    if a.baseline:
+        base_rec = json.load(open(os.path.join(a.baseline, "manifest.json")))
+    write_sheet_provenance(a.out, [("reference", a.reference, None)]
+                           + list(zip(labels[1:], paths, svgs)), verified, base_rec)
+    print("wrote %s (%dx%d) and its provenance" % (a.out, out.width, out.height))
     if a.split:
         stem, ext = os.path.splitext(a.out)
         for n, s in sheets:

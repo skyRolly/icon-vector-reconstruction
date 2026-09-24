@@ -76,6 +76,12 @@ python3 tools/flare_view.py out/render_1024.png --out out/flare_view.png
 python3 tools/render.py out/baseline/reconstruction.svg out/baseline/render_1024.png
 python3 tools/flare_parts.py out/render_1024.png --svg reconstruction.svg \
     --baseline out/baseline --labels "this release" --out out/flare_parts.png
+# ...and prove it: the sheet's provenance sidecar names every input by digest,
+# and this refuses the release if the sheet does not describe the SVG rebuilt
+# in step 1 and the documented baseline (D63).  test_pipeline repeats the check
+# on the committed tree, so a sheet left stale by a hand-run release fails CI.
+python3 tools/flare_parts.py --verify --svg reconstruction.svg --baseline out/baseline \
+    --out out/flare_parts.png
 
 echo "== 4. regression checks =="
 python3 -u tools/test_pipeline.py

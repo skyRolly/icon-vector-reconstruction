@@ -846,6 +846,10 @@ class Builder:
             # pass did, and reverted -- over-corrects inside r 70 and
             # under-corrects beyond r 150, because a rotation gives a CONSTANT
             # angular offset and the measured one is constant in PIXELS.
+            # Since D63 every ray of record pins its origin with its own
+            # `cx`/`cy` (its measured foot, tools/measure_flare.py) and carries
+            # no dx/dy: an origin relative to the flare centre moved with the
+            # optimiser's search of that centre.  dx/dy remain an offset on top.
             cx = L.get("cx", fl["cx"]) + float(L.get("dx", 0.0))
             cy = L.get("cy", fl["cy"]) + float(L.get("dy", 0.0))
             ln, h, pk = L["len"], L["height"], L.get("peak_at", 0.3)

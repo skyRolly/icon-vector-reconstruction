@@ -551,6 +551,19 @@ def merge_specs(specs):
     return [by_path[k] for k in order]
 
 
+def ray_profile_ok(params, path):
+    """False if `path` is a ray's longitudinal stop and its current value is one
+    the builder would clamp (tools/measure_flare.py profile_problems)."""
+    parts = path.split("/")
+    if len(parts) != 3 or parts[0] != "layers" or parts[2] not in ("onset", "peak_at", "tail", "len"):
+        return True
+    L = params["layers"][int(parts[1])]
+    if L.get("kind") != "ray":
+        return True
+    import measure_flare as MFL
+    return not MFL.profile_problems(L["id"], L)
+
+
 def sweep(obj, params, specs, log=print, accept_tol=2e-7):
     """One pass over `specs`, accepting a move only when the geometry is better.
 
@@ -614,6 +627,16 @@ def sweep(obj, params, specs, log=print, accept_tol=2e-7):
                 if not (sp["lo"] <= v <= sp["hi"]):
                     continue
                 set_path(params, sp["path"], v)
+                if not ray_profile_ok(params, sp["path"]):
+                    # onset, peak_at and tail are searched as independent
+                    # intervals, but the builder clamps the onset to 0.95 of
+                    # the peak and the 0.42 stop to the ray's end.  A trial past
+                    # either clamp renders exactly like the clamp, so it cannot
+                    # win on the image -- and if it tied, it would write a
+                    # value that is never drawn, which is how flare_ray_b came
+                    # to hold an onset after its own peak (D63).  Skip it.
+                    set_path(params, sp["path"], v0)
+                    continue
                 obj.invalidate(sp["affects"])
                 sse, mae, Kt = obj.evaluate(params, free=free)
                 if sse < best_sse - accept_tol:

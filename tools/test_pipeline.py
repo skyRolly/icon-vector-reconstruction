@@ -696,21 +696,13 @@ def main():
     import measure_flare as MFL
     import copy as _cp
     import contextlib as _clf, io as _iof
-    drift = []
-    for lid, g in MFL.RAY_GEOMETRY.items():
-        L = next((x for x in params["layers"] if x["id"] == lid), None)
-        if L is None:
-            drift.append("%s missing from params" % lid); continue
-        for k in MFL.GEOMETRY_KEYS:
-            want, got = g.get(k), L.get(k)
-            if (want is None) != (got is None) or (
-                    want is not None and abs(float(want) - float(got)) > 1e-9):
-                drift.append("%s/%s preset %s vs shipped %s" % (lid, k, want, got))
+    import build_svg as _BS
+    drift = ["%s/%s record %s vs shipped %s" % t for t in MFL.drift(params)]
     gprob = MFL.geometry_problems(params)
-    # Perturb every geometry key of every ray, rebuild, and require the layer to
-    # come back EXACTLY -- including keys that were absent (an onset the preset
-    # says a ray does not have must be removed again) -- with its bounds dict
-    # untouched.
+    # Perturb every key of the contract on every ray -- GEOMETRY_KEYS is every
+    # key the builder reads for a ray, including the ones the record says must
+    # be ABSENT (an offset or an onset a search added has to be removed again)
+    # -- rebuild, and require the layer to come back EXACTLY, bounds included.
     gfail, gcount = [], 0
     for lid in MFL.RAY_GEOMETRY:
         orig = next(x for x in params["layers"] if x["id"] == lid)
@@ -724,14 +716,33 @@ def main():
             gcount += 1
             if L != orig:
                 gfail.append("%s/%s not restored" % (lid, k))
-    # And the rebuild must not widen a search space: flare_ray_b's rotation
-    # window is +-3 deg around its measured line, not the generic +-6.
-    _b = next(x for x in params["layers"] if x["id"] == "flare_ray_b")
+    # The rays' positions are ABSOLUTE (D63).  The geometry stage of the
+    # optimiser searches the flare centre +-30 px; until D63 every ray was an
+    # offset from it, so moving the centre moved all of them off their measured
+    # lines and --geometry, which wrote the same offsets back, could not undo it.
+    # Moving the centre must now leave every ray's coverage exactly as it was,
+    # and a rebuild must find nothing to repair.
+    _moved = _cp.deepcopy(params)
+    _moved["flare"]["cx"] = float(_moved["flare"]["cx"]) + 3.0
+    _moved["flare"]["cy"] = float(_moved["flare"]["cy"]) - 3.0
+    _dep = [x for x in _BS.flare_dependent_layers(_moved) if x in MFL.RAY_GEOMETRY]
+    if _dep:
+        gfail.append("rays still anchored to the flare centre: %s" % ", ".join(_dep))
+    _rk = [lid for lid in MFL.RAY_GEOMETRY
+           if MFL.basis_key(_moved, lid) != MFL.basis_key(params, lid)]
+    if _rk:
+        gfail.append("moving the flare centre moved %s" % ", ".join(_rk))
+    if MFL.drift(_moved):
+        gfail.append("--geometry would 'repair' rays after a flare-centre move: %s" % MFL.drift(_moved)[:2])
+    # And the rebuild must not widen, narrow or otherwise touch any search
+    # space: flare_ray_b's rotation window is +-3 deg around its measured line,
+    # not the generic +-6 it was once rewritten to -- and so on for every ray.
     _t = _cp.deepcopy(params)
     with _clf.redirect_stdout(_iof.StringIO()):
         MFL.apply_geometry(_t)
-    if next(x for x in _t["layers"] if x["id"] == "flare_ray_b").get("bounds") != _b.get("bounds"):
-        gfail.append("flare_ray_b's bounds were rewritten by --geometry")
+    for _L0, _L1 in zip(params["layers"], _t["layers"]):
+        if _L0.get("kind") == "ray" and _L0.get("bounds") != _L1.get("bounds"):
+            gfail.append("%s's bounds were rewritten by --geometry" % _L0["id"])
     # A canonical value outside a layer's own search bounds is refused, since
     # the optimiser would clip it on its first trial.
     _t = _cp.deepcopy(params)
@@ -1082,9 +1093,70 @@ def main():
           "every canonical value lies inside the layer's search bounds" % len(MFL.RAY_GEOMETRY))
 
     check("--geometry restores every displaced ray and leaves its bounds alone",
-          not gfail, "; ".join(gfail[:6]) if gfail else "%d perturbations of %d rays restored "
-          "exactly; bounds untouched; an out-of-bounds canonical value refused"
-          % (gcount, len(MFL.RAY_GEOMETRY)))
+          not gfail, "; ".join(gfail[:6]) if gfail else "%d perturbations of %d rays over all "
+          "%d contract keys restored exactly; a 3 px flare-centre move moves no ray; no ray's "
+          "bounds touched; an out-of-bounds canonical value refused"
+          % (gcount, len(MFL.RAY_GEOMETRY), len(MFL.GEOMETRY_KEYS)))
+
+    # ---- 6f2. every stored onset and tail is one the builder draws -------- #
+
+    # The builder clamps a ray's onset to 0.95 x peak_at and its 0.42 stop to
+    # 0.999 of its length.  D62's record held flare_ray_b at onset 0.4463,
+    # peak_at 0.4011 -- an onset after its own peak -- which rendered as 0.381,
+    # and nothing noticed: the table described a ray that was never drawn and
+    # a search moving the onset above the clamp changed nothing.  So: the
+    # record and the shipped layers have no clamped value; the builder writes
+    # flare_ray_b's onset as stored; moving it inside its valid range changes
+    # the render, while two values past the clamp render identically (the
+    # failure itself); and a record holding the D62 values is refused.
+    _onset = []
+    _bg = MFL.RAY_GEOMETRY["flare_ray_b"]
+    if _bg["onset"] > MFL.ONSET_CLAMP * _bg["peak_at"]:
+        _onset.append("flare_ray_b's recorded onset is past the clamp")
+    _clamped = [m for lid, g in MFL.RAY_GEOMETRY.items() for m in MFL.profile_problems(lid, g)]
+    _clamped += [m for L in params["layers"] if L.get("kind") == "ray"
+                 for m in MFL.profile_problems(L["id"], L)]
+    _onset += _clamped
+    import re as _re2
+    _svg = _BS.build(params)
+    _gm = _re2.search(r'<linearGradient id="g_flare_ray_b"[^>]*>(.*?)</linearGradient>', _svg)
+    _offs = [float(v) for v in _re2.findall(r'offset="([0-9.]+)"', _gm.group(1))] if _gm else []
+    if len(_offs) != 6 or abs(_offs[1] - _bg["onset"]) > 1e-4 or abs(_offs[3] - _bg["peak_at"]) > 1e-4:
+        _onset.append("the builder did not draw flare_ray_b's stored onset/peak (stops %s)" % _offs)
+
+    def _ray_cov(P, **kw):
+        Q = _cp.deepcopy(P)
+        Lb = next(x for x in Q["layers"] if x["id"] == "flare_ray_b")
+        Lb.update(kw)
+        return FP.render_array(_BS.build(Q, basis="flare_ray_b"))[..., 0].astype(np.float64)
+    _c0 = _ray_cov(params)
+    _inside = [float(np.abs(_ray_cov(params, onset=_bg["onset"] + d) - _c0).max()) for d in (-0.03, 0.03)]
+    if min(_inside) < 0.01:
+        _onset.append("moving the onset inside its valid range did not change the render (%s)" % _inside)
+    _past = float(np.abs(_ray_cov(params, onset=0.95 * _bg["peak_at"] + 0.01)
+                         - _ray_cov(params, onset=0.95 * _bg["peak_at"] + 0.05)).max())
+    if _past != 0.0:
+        _onset.append("two onsets past the clamp rendered differently (%g): the clamp is not where "
+                      "the validator thinks it is" % _past)
+    _saved = MFL.RAY_GEOMETRY["flare_ray_b"]
+    try:
+        MFL.RAY_GEOMETRY["flare_ray_b"] = dict(_saved, onset=0.4463, peak_at=0.4011)
+        if not any("onset" in m for m in MFL.geometry_problems(params)):
+            _onset.append("a record holding the D62 onset/peak is not reported")
+        try:
+            with _clf.redirect_stdout(_iof.StringIO()):
+                MFL.apply_geometry(_cp.deepcopy(params))
+            _onset.append("--geometry applied a record whose onset the builder would clamp")
+        except SystemExit:
+            pass
+    finally:
+        MFL.RAY_GEOMETRY["flare_ray_b"] = _saved
+    check("every stored onset and tail is one the builder draws",
+          not _onset, "; ".join(_onset[:4]) if _onset else
+          "no clamped onset or tail in the record or the shipped rays; flare_ray_b's onset %.4f is "
+          "drawn as stored; +-0.03 inside its range moves the render by %.3f / %.3f, two values "
+          "past the clamp render identically; the D62 record (onset after peak) is refused"
+          % (_bg["onset"], _inside[0], _inside[1]))
 
     # ---- 6g. flare calibration: profile-aware, segment-aware, verified ---- #
 
@@ -1183,11 +1255,45 @@ def main():
                         % (r.returncode, "reported NOT converged" if "NOT converged" in r.stdout
                            else "reported success", "" if moved else "NOT "))
 
+        # (f) a STALE stack: until D63 a supplied stack was reused whenever the
+        #     layer names matched, so a caller that reshaped a ray and then
+        #     calibrated was solved on the old ray's coverage.  Reshape one ray
+        #     (names unchanged), calibrate with the old stack, and require that
+        #     exactly that layer was re-rendered and that the result equals a
+        #     fresh stack's; then change only a colour and require no re-render.
+        _st = _cp.copy(_stack)
+        _st.A, _st.keys = _stack.A.copy(), list(_stack.keys)
+        _geo = json.loads(json.dumps(params))
+        next(x for x in _geo["layers"] if x["id"] == "flare_ray_c")["len"] = 150.0
+        pg = os.path.join(_td, "reshaped.json")
+        json.dump(_geo, open(pg, "w"), indent=1)
+        _r0 = _st.renders
+        _ws, _cs = MFL.calibrate(pg, _ref, rounds=0, verbose=False, lines=_lines, stack=_st)
+        _geo_renders = _st.renders - _r0
+        _wf, _cf = MFL.calibrate(pg, _ref, rounds=0, verbose=False, lines=_lines, stack=None)
+        _same = max(abs(_cs[k] - _cf[k]) for k in _cf)
+        _col = _scaled(_geo, {"flare_ray_c": 1.3})
+        pc2 = os.path.join(_td, "recoloured.json")
+        json.dump(_col, open(pc2, "w"), indent=1)
+        _r1 = _st.renders
+        _wc2, _cc2 = MFL.calibrate(pc2, _ref, rounds=0, verbose=False, lines=_lines, stack=_st)
+        _col_renders = _st.renders - _r1
+        _wf2, _cf2 = MFL.calibrate(pc2, _ref, rounds=0, verbose=False, lines=_lines, stack=None)
+        _same2 = max(abs(_cc2[k] - _cf2[k]) for k in _cf2)
+        _wrongbox = not _st.matches(_geo, (0, 10, 0, 10))
+        cal["stale"] = (_geo_renders == 1 and _same < 1e-9 and _col_renders == 0 and _same2 < 1e-9
+                        and _wrongbox,
+                        "a reshaped ray re-rendered %d layer(s) of the stale stack and matched a fresh "
+                        "stack to %.1e; a colour-only change re-rendered %d and matched to %.1e; a "
+                        "stack for another crop is not reused: %s"
+                        % (_geo_renders, _same, _col_renders, _same2, _wrongbox))
+
     check("the shipped rays are calibrated to their measured profiles", *cal["shipped"])
     check("calibrating one segment does not drag the other", *cal["segmented"])
     check("a two-segment ray is calibrated jointly", *cal["joint"])
     check("a calibrated file rebuilds to the calibrated profiles", *cal["rebuild"])
     check("flare calibration that does not converge returns nonzero", *cal["fails"])
+    check("a calibration stack whose geometry is stale is refreshed, not reused", *cal["stale"])
 
     # ---- 6h. the global fits hold the calibrated rays ---------------------- #
 
@@ -1268,6 +1374,20 @@ def main():
                      capture_output=True, text=True, cwd=ROOT)
         if _r.returncode != 0:
             _diag.append("flare_parts refused the shipped release: %s" % _r.stderr.strip()[:160])
+        # ... and it says what it was drawn from, so a stale sheet is caught.
+        import flare_parts as _FPT
+        _sheet = os.path.join(_td3, "sheet.png")
+        _fresh = _FPT.sheet_problems(_sheet, os.path.join(ROOT, "reconstruction.svg"), _bd,
+                                     os.path.join(ROOT, "reference.png"))
+        if _fresh:
+            _diag.append("a sheet drawn just now reads as stale: %s" % _fresh[0])
+        if not _FPT.sheet_problems(_sheet, os.path.join(_bd, "reconstruction.svg"), _bd):
+            _diag.append("a sheet checked against a different SVG was not reported stale")
+        _sh2.copy(_sheet, _sheet + ".t.png")
+        _sh2.copy(_sheet + ".prov.json", _sheet + ".t.png.prov.json")
+        open(_sheet + ".t.png", "ab").write(b"\0")
+        if not _FPT.sheet_problems(_sheet + ".t.png", os.path.join(ROOT, "reconstruction.svg"), _bd):
+            _diag.append("a sheet whose bytes changed was not caught")
         _man = json.load(open(os.path.join(_bd, "manifest.json")))
         _man["svg_sha256"] = "0" * 64
         json.dump(_man, open(os.path.join(_bd, "manifest.json"), "w"))
@@ -1278,7 +1398,20 @@ def main():
     check("the diagnostics refuse inputs they cannot read",
           not _diag, "; ".join(_diag) if _diag else
           "ray_lines, visual_regression and flare_parts exit 2 on a 512-px image; no sample "
-          "outside the canvas; the before/after sheet verifies its baseline and its release")
+          "outside the canvas; the before/after sheet verifies its baseline and its release, and "
+          "its provenance catches a stale or altered sheet")
+
+    # The published sheet is a release artefact (tools/publish.sh regenerates
+    # it); a release whose sheet was drawn from anything but this SVG and the
+    # documented baseline is not a release (D63).
+    import flare_parts as _FPT2
+    _pub = _FPT2.sheet_problems(os.path.join(ROOT, "out", "flare_parts.png"),
+                                os.path.join(ROOT, "reconstruction.svg"),
+                                os.path.join(ROOT, "out", "baseline"),
+                                os.path.join(ROOT, "reference.png"))
+    check("the published before/after sheet is this release's", not _pub,
+          "; ".join(_pub) if _pub else "out/flare_parts.png was drawn from verified renders of "
+          "reconstruction.svg and the documented baseline, and is byte-for-byte that sheet")
 
     # ---- 7. the lobe banding has not come back ---------------------------- #
 

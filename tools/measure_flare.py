@@ -61,17 +61,40 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(ROOT, "src"))
 import ray_lines as RL  # noqa: E402
 
-#: The geometry keys of a `ray` layer, in the builder's terms.  `rot` is the
-#: SVG rotation (the direction is -rot, degrees counter-clockwise from east);
-#: `dx`/`dy` put the ray's ORIGIN relative to the flare centre -- the ray runs
-#: from there along its direction; `len` is its length from the origin; `onset`,
-#: `peak_at` and `tail` place the longitudinal profile as fractions of `len` (0
-#: before `onset`, 1.0 at `peak_at`, 0.42 at peak_at + tail, 0 at the end);
-#: `height` is the near-end width, `spread` the far end's width as a multiple of
-#: it, and `blur` the Gaussian softening of both.  None means "absent from the
-#: layer": the builder's default (0 for dx/dy/onset, 0.35 for tail) applies,
-#: and the key is removed so the params stay as small as the model is.
-GEOMETRY_KEYS = ("rot", "dx", "dy", "len", "onset", "peak_at", "tail", "height", "spread", "blur")
+#: The geometry keys of a `ray` layer: EVERY key the builder reads to place and
+#: shape one (src/build_svg.py, kind "ray").  `rot` is the SVG rotation (the
+#: direction is -rot, degrees counter-clockwise from east).  `cx`/`cy` are the
+#: ray's ORIGIN in canvas coordinates -- the ray runs from there along its
+#: direction -- and `dx`/`dy` are an offset added to it; the builder falls back
+#: to the flare centre for a missing `cx`/`cy`.  `len` is the length from the
+#: origin; `onset`, `peak_at` and `tail` place the longitudinal profile as
+#: fractions of `len` (0 before `onset`, 1.0 at `peak_at`, 0.42 at peak_at +
+#: tail, 0 at the end); `height` is the near-end width, `spread` the far end's
+#: width as a multiple of it, and `blur` the Gaussian softening of both.  None
+#: means "absent from the layer": the builder's default (0 for dx/dy/onset,
+#: 0.35 for tail) applies, and the key is removed so the params stay as small
+#: as the model is.
+#:
+#: POSITION IS ABSOLUTE (D63).  Every ray's origin of record is its measured
+#: foot in canvas pixels, pinned with `cx`/`cy`, and `dx`/`dy` are absent.
+#: Until D63 the rays stored dx/dy relative to `flare.cx/cy`, and the
+#: optimiser's geometry stage searches the flare centre +-30 px: a search that
+#: moved the centre moved all thirteen rays off their measured lines, and
+#: `--geometry` then restored the RELATIVE offsets, so it could not bring them
+#: back.  The lines were measured in canvas coordinates (tools/ray_lines.py
+#: LINES), several of them do not pass through the core at all, and a ray
+#: pinned to its own origin is not in `build_svg.flare_dependent_layers`, so the
+#: flare-centre search no longer touches it.
+GEOMETRY_KEYS = ("rot", "cx", "cy", "dx", "dy", "len", "onset", "peak_at", "tail",
+                 "height", "spread", "blur")
+
+#: What the builder does to a ray's longitudinal stops (src/build_svg.py): the
+#: onset is clamped to ONSET_CLAMP * peak_at and the 0.42 stop to TAIL_CLAMP of
+#: `len`.  A value past either clamp renders as the clamp, so a table holding
+#: it records a geometry nobody sees; geometry_problems() reports it.
+ONSET_CLAMP = 0.95
+TAIL_CLAMP = 0.999
+DEFAULT_TAIL = 0.35
 
 #: THE GEOMETRY OF RECORD, for every ray layer in the model.  `--geometry`
 #: writes it into the params, so a stale entry silently reverts shipped work --
@@ -96,16 +119,29 @@ RAY_GEOMETRY = {
     # Delta = a + b*r with b = -3.7 to -8.9 deg and a = +1.8 to +7.6 px; a and b
     # are strongly anti-correlated, so the defensible statement is the Delta(r)
     # curve, not either alone.  The rotation is here and the +5.22 px normal
-    # offset is dx/dy.  height 12 -> 9 because beyond r 70 the ray carried
+    # offset is in its origin.  height 12 -> 9 because beyond r 70 the ray carried
     # 1.8-3.0x too much light (D38).  Its LONGITUDINAL profile is D62's: the
     # reference peaks at r ~60 (G 22.7), is 0.42 of that by r ~90 and fades
     # slowly to ~0 by r ~125 (G 7.0 / 5.3 / 3.7 / 1.9 at r 92-116); the old
     # len 100 with the fixed 0.35 fade dropped from 0.42 to nothing between
     # r 97 and 100.  Fitted to the line-following amplitudes with the
     # reference's own templates: peak 54 px, 0.42-point 89 px, end 148 px.
-    "flare_ray_a": dict(rot=-107.1, dx=-4.783, dy=2.09,
+    "flare_ray_a": dict(rot=-107.1, cx=525.167, cy=516.42, dx=None, dy=None,
                         len=148.0, onset=None, peak_at=0.3649, tail=0.2365,
                         height=9.0, spread=1.0, blur=4.5309),
+    # The white NORTH-WEST arm of the core (D63): the inner part of the
+    # upper-left light, white where the ray itself is cyan.  The reference is
+    # whiter than the model in a radial blob at 110-120 deg, r 13-27 (R -19 to
+    # -25 against the reference, G and B -9 to -13 with it, so it is light, not
+    # hue), stable from sigma 1 to 4 and 12-15 px across -- two to three JPEG
+    # blocks, in all three channels.  Its ridge runs through the core at 116.6
+    # deg; fitted as a short white segment on the core's 2D residual (4 px x 15
+    # deg bins, r 2-64) it lands on 116.4 deg, onset 7, peak 21, end 35 px.
+    # That is not the outer ray's line (107.1 deg from 6 px off the core), so it
+    # has its own origin on the core.
+    "flare_ray_a_in": dict(rot=-116.438, cx=531.0, cy=513.5, dx=None, dy=None,
+                           len=35.388, onset=0.192, peak_at=0.6019, tail=0.25,
+                           height=6.654, spread=1.0, blur=4.239),
     # Upper-left pair (D61).  Neither passes through the core: per-band ridge
     # centres fit lines at 140.4 deg through (519.9, 526.9) and 149.5 deg
     # through (518.0, 535.6), 17 and 26 px from the core; both are visible only
@@ -117,10 +153,11 @@ RAY_GEOMETRY = {
     # through a fixed template and is calibrated too BRIGHT to compensate --
     # it came out 1.5x the reference's peak -- so D62 gives B the measured
     # width (height 6, blur 3.2: sigma 3.5-4.0).
-    "flare_ray_ula": dict(rot=-140.4, dx=-10.05, dy=12.57,
-                          len=215.0, onset=0.42, peak_at=0.65, tail=None,
+    # (A's tail is the drawn 0.349: the default 0.35 sat 0.001 past the clamp.)
+    "flare_ray_ula": dict(rot=-140.4, cx=519.9, cy=526.9, dx=None, dy=None,
+                          len=215.0, onset=0.42, peak_at=0.65, tail=0.349,
                           height=4.0, spread=1.0, blur=2.8),
-    "flare_ray_ulb": dict(rot=-149.5, dx=-11.95, dy=21.27,
+    "flare_ray_ulb": dict(rot=-149.5, cx=518.0, cy=535.6, dx=None, dy=None,
                           len=175.0, onset=0.35, peak_at=0.55, tail=None,
                           height=6.0, spread=1.0, blur=3.2),
     # Lower-left ray, on its measured line: 255.2 deg through (524.2, 511.7),
@@ -128,9 +165,26 @@ RAY_GEOMETRY = {
     # every band from r 40 to 128.  Its profile along the line is a plateau
     # (G 11.1-12.2 at r 56-64, 9.5-11.2 at r 72-104, 4.5 by r 112), which one
     # single-peaked gradient cannot hold, so it is two segments on the same line.
-    "flare_ray_b": dict(rot=-255.2, dx=-5.75, dy=-2.63, len=95.4483, onset=0.4463, peak_at=0.4011, tail=None,
+    # D63 corrected an onset the builder could not draw: the inner segment's
+    # record held onset 0.4463 against peak_at 0.4011, an onset AFTER its own
+    # peak, which rendered clamped at 0.381 (a hard start at 36 px).  The
+    # reference fades in from r ~26 (centre minus flank 2.7-4.5 at r 28-40,
+    # 7-11 by r 52-60, nothing at r 12-24), and the default tail put the outer
+    # segment's 0.42 stop past its own end, so it stopped dead at 133 px.  Both
+    # were refitted jointly on the line with every stop reachable and each
+    # segment's end capped where the reference's ray has gone: inner onset 24,
+    # peak 38, 0.42 at 72, end 119 px; outer onset 50, peak 97, 0.42 at 135,
+    # end 149 px.  Band error 159 -> 49 on the reference's own templates.
+    # The inner segment was then fitted JOINTLY with the 229-degree lobe on both
+    # lines (a later D63 step): 7 px from the lobe's line at r ~30, its light
+    # lies inside the lobe's measurement window, and a fit on its own line had
+    # put light there that the lobe's line reads as the lobe's (onset 24 -> 25,
+    # peak 38 -> 34 px; joint band error 40.8 -> 30.6).
+    "flare_ray_b": dict(rot=-255.2, cx=524.2, cy=511.7, dx=None, dy=None,
+                        len=119.4483, onset=0.2123, peak_at=0.2871, tail=0.2713,
                         height=9.4638, spread=1.25, blur=2.4209),
-    "flare_ray_b2": dict(rot=-255.2, dx=-5.75, dy=-2.63, len=133.3837, onset=0.4049, peak_at=0.7294, tail=None,
+    "flare_ray_b2": dict(rot=-255.2, cx=524.2, cy=511.7, dx=None, dy=None,
+                         len=149.3837, onset=0.3348, peak_at=0.6513, tail=0.2541,
                          height=9.4638, spread=1.0, blur=2.4209),
     # The short lower-left lobe at 229 deg (D61), through the core, broad
     # (sigma 4.3-6.1 px).  D62 splits it by COLOUR along its length, because
@@ -140,25 +194,48 @@ RAY_GEOMETRY = {
     # white along the whole lobe (R 5-6 at r 40-56) and ran ~10 px too long
     # (G 12.1 / 7.4 at r 56/64 against 4.9 / 0.2).  Same line, same width:
     # llc_in is the white near-core part, llc the cyan lobe and its fade.
-    "flare_ray_llc_in": dict(rot=-229.0, dx=1.05, dy=-0.83,
-                             len=46.0, onset=0.5, peak_at=0.6504, tail=0.153,
-                             height=5.6348, spread=1.0, blur=5.0159),
-    "flare_ray_llc": dict(rot=-229.0, dx=1.05, dy=-0.83,
-                          len=60.9874, onset=0.5636, peak_at=0.6691, tail=0.1057,
+    # D63: at r 32 the lobe read 1.7x the reference's G and 1.6x its R, at
+    # sigma 8.1 against 4.3 -- too WIDE, not too long.  The white segment's
+    # blur 5.0 -> 3.6 (sigma 6.0 on the line), and both segments' shapes and
+    # colours refitted jointly with the lower-left ray's inner segment, whose
+    # light shares this line's window at r 28-36.
+    "flare_ray_llc_in": dict(rot=-229.0, cx=531.0, cy=513.5, dx=None, dy=None,
+                             len=42.0, onset=0.5, peak_at=0.6885, tail=0.1676,
+                             height=5.6348, spread=1.0, blur=3.6),
+    "flare_ray_llc": dict(rot=-229.0, cx=531.0, cy=513.5, dx=None, dy=None,
+                          len=59.9874, onset=0.5564, peak_at=0.6636, tail=0.1075,
                           height=5.6348, spread=1.0, blur=5.0159),
     # The 267-degree lower-left ray (D61): two maxima on one line, G 11.8 at
     # r 44 and 7.6 at r 92 with a dip to 3.4 between -- two segments.
-    "flare_ray_lld": dict(rot=-265.5, dx=1.05, dy=-0.83, len=69.7979, onset=0.3729, peak_at=0.6011, tail=None,
+    # The outer segment's tail is the value the builder already drew (D63):
+    # the default 0.35 put its 0.42 stop past the end of the ray and was
+    # clamped to 0.999.  Its fade is not measurable on its own line -- beyond
+    # r 76 the fit there is the ray and the vertical line together -- so the
+    # drawn profile is kept and only made explicit.
+    "flare_ray_lld": dict(rot=-265.5, cx=531.0, cy=513.5, dx=None, dy=None,
+                          len=69.7979, onset=0.3729, peak_at=0.6011, tail=None,
                           height=8.0, spread=1.0, blur=2.8),
-    "flare_ray_lld2": dict(rot=-266.5, dx=1.05, dy=-0.83, len=123.8089, onset=0.5074, peak_at=0.7073, tail=None,
+    "flare_ray_lld2": dict(rot=-266.5, cx=531.0, cy=513.5, dx=None, dy=None,
+                           len=123.8089, onset=0.5074, peak_at=0.7073, tail=0.2917,
                            height=3.1354, spread=1.0, blur=2.4),
+    # The white SOUTH arm of the core (D63), and the whiter south vertical line
+    # near the core.  South of the core the reference carries a broad white
+    # ridge centred 2-4 px west of the vertical line at dy +12..+28 (R ~90 at dy
+    # +20, FWHM ~10 px), R -20 to -25 against the model and G/B -9 to -12 with
+    # it; the vertical line is one narrow cyan layer and cannot be it.  Fitted
+    # on the same 2D residual as the north-west arm: a vertical white segment
+    # 5 px west of the core, onset dy +11, peak +17, end +29.
+    "flare_ray_s_in": dict(rot=-270.0, cx=526.08, cy=518.515, dx=None, dy=None,
+                           len=23.83, onset=0.25, peak_at=0.5135, tail=0.28,
+                           height=8.746, spread=1.0, blur=4.821),
     # Upper-right SOFT FLANK.  Axis 44.9 +- 0.4 (45.6 is excluded at ~6 sigma);
     # ends at r = 140 +- 15.  height 8 -> 26, spread 1.30 -> 1.00, len 150 -> 143
     # and a 5.4 px normal offset are a JOINT correction (D59): each alone is
     # worse than what it replaced.  A half-maximum is not a stable quantity in
     # this corridor (10.55 / 15.06 / 1.41 px over adjacent 20 px bands), which is
     # why the table no longer stores a "measured FWHM" for it.
-    "flare_ray_e": dict(rot=-44.9, dx=-3.8117, dy=-3.825, len=143.0, onset=None, peak_at=0.28, tail=None,
+    "flare_ray_e": dict(rot=-44.9, cx=526.1383, cy=510.505, dx=None, dy=None,
+                        len=143.0, onset=None, peak_at=0.28, tail=None,
                         height=26.0, spread=1.0, blur=3.5634),
     # Upper-right NARROW CORE (D61), on its own measured line: 47.6 deg,
     # 5.2 px off the core; width sigma 3.3-4.8 px in the reference.  D62: the
@@ -166,12 +243,13 @@ RAY_GEOMETRY = {
     # core's fade (0.42 at 146 px of 151) kept light at r 110-140 that belongs
     # at r 90-98.  Its onset and fade are re-fitted, not its amplitude alone:
     # onset 28 -> 46 px, 0.42-point 146 -> 106 px, peak and end unchanged.
-    "flare_ray_ur": dict(rot=-47.6, dx=4.85, dy=2.67,
+    "flare_ray_ur": dict(rot=-47.6, cx=534.8, cy=517.0, dx=None, dy=None,
                          len=150.8106, onset=0.3036, peak_at=0.6192, tail=0.0848,
                          height=1.8314, spread=1.0, blur=2.4929),
     # Lower-right TAIL.  Direction 327.3-328.1 and NOT resolvable further: a
     # transverse-position matched filter prefers 327.2-327.5, corridor pixel
-    # error 327.8-328.1.  The ~3 px dx/dy TRANSLATION is confirmed and must not
+    # error 327.8-328.1.  The ~3 px TRANSLATION of its origin off the core is
+    # confirmed (it was a dx/dy offset until D63) and must not
     # be turned back into a rotation: removing it costs +0.42 corridor MAE and a
     # rotation over-corrects inside r 70 and under-corrects beyond r 150,
     # because the measured offset is constant in pixels, not in degrees.  Its
@@ -183,14 +261,21 @@ RAY_GEOMETRY = {
     # the tail's light, not its line: the reference is 12-15 cv at r 60-84 and
     # down to 3.6 by r 132, where the old fade (peak 53 px, 0.42 at 116 px)
     # was 2-4 cv low inside r 84 and 1-2 cv high at r 108-132.
-    "flare_ray_c": dict(rot=-328.1, dx=1.5809, dy=-2.5497,
-                        len=177.2975, onset=None, peak_at=0.389, tail=0.1735,
-                        height=5.4845, spread=2.1988, blur=3.0915),
+    # D63: the tail is a LINE, not a widening band.  Beyond r 128 the
+    # reference's ray is narrow -- sigma 2.2 [2.0..3.1] at r 136 over window
+    # 9/12/15 px and a +-1 px line offset, 3.2-4.4 at r 128-168 -- where the
+    # spread-2.2 wedge measured 5.0-5.8 and carried 2-4x the reference's light at
+    # r 128-144.  Parallel-sided (spread 1.0), blur 3.1, the fade refitted
+    # (0.42-point 100 -> 103 px, end 177 -> 185 px): sigma 3.5-3.7 along the ray,
+    # fixed-template band error 32.4 -> 28.2.  The translation is unchanged.
+    "flare_ray_c": dict(rot=-328.1, cx=531.5309, cy=511.7803, dx=None, dy=None,
+                        len=185.2975, onset=None, peak_at=0.3722, tail=0.1822,
+                        height=5.4845, spread=1.0, blur=3.1),
     # Lower-right bright INNER segment on the same line (D61): the reference is
     # brightest and white next to the core (G 17.8, R 12.6 at r 44) and its
     # white is gone by r 52 (R 3.0), where the segment still gave R 9.6 (D62:
     # peak 30 -> 42 px, 0.42-point 54 -> 50 px).
-    "flare_ray_c_in": dict(rot=-328.1, dx=1.58, dy=-2.55,
+    "flare_ray_c_in": dict(rot=-328.1, cx=531.53, cy=511.78, dx=None, dy=None,
                            len=64.1046, onset=None, peak_at=0.6621, tail=0.1113,
                            height=6.5097, spread=1.0, blur=1.5175),
 }
@@ -256,13 +341,56 @@ CHANNELS = ("white", "cyan", "blue")
 # --------------------------------------------------------------------------- #
 # geometry
 # --------------------------------------------------------------------------- #
+def profile_problems(lid, g):
+    """Longitudinal values of one ray (a table entry or a layer) that the
+    builder would not render as written.
+
+    The builder clamps two stops (src/build_svg.py, kind "ray"): the onset to
+    ONSET_CLAMP * peak_at, and the 0.42 stop, peak_at + tail, to TAIL_CLAMP of
+    `len`.  A value past a clamp renders as the clamp.  Until D63 nothing said
+    so: `flare_ray_b`'s record held onset 0.4463 against peak_at 0.4011, i.e.
+    an onset AFTER the peak, and rendered at 0.381 -- the table described a ray
+    that was never drawn, and a search that moved the onset anywhere above the
+    clamp changed nothing.  An absent tail is the builder's default and is held
+    to the same rule: `flare_ray_b2` and `flare_ray_lld2` peak so late that
+    the default put their 0.42 stop past the end of the ray.
+    """
+    out = []
+    pk = g.get("peak_at")
+    pk = 0.3 if pk is None else float(pk)
+    on = g.get("onset")
+    on = 0.0 if on is None else float(on)
+    tl = g.get("tail")
+    tl_s = "tail %g" % tl if tl is not None else "the default tail %g" % DEFAULT_TAIL
+    tl = DEFAULT_TAIL if tl is None else float(tl)
+    if not 0.0 < pk < TAIL_CLAMP:
+        out.append("%s: peak_at %g is outside (0, %g)" % (lid, pk, TAIL_CLAMP))
+    if on < 0.0:
+        out.append("%s: onset %g is negative" % (lid, on))
+    elif on > 0.0 and on > ONSET_CLAMP * pk + 1e-9:
+        out.append("%s: onset %g is past the builder's clamp %g x peak_at %g = %.4f, so it "
+                   "renders as %.4f -- the record is not the ray that is drawn"
+                   % (lid, on, ONSET_CLAMP, pk, ONSET_CLAMP * pk, ONSET_CLAMP * pk))
+    if tl <= 0.0:
+        out.append("%s: tail %g is not positive" % (lid, tl))
+    elif pk + tl > TAIL_CLAMP + 1e-9:
+        out.append("%s: peak_at %g + %s = %.4f is past the builder's clamp %g, so the 0.42 "
+                   "stop renders at %g -- record the tail that is drawn"
+                   % (lid, pk, tl_s, pk + tl, TAIL_CLAMP, TAIL_CLAMP))
+    return out
+
+
 def geometry_problems(params):
     """Everything that stops the table above from being the model's geometry.
 
     Returns a list of strings: a ray layer without an entry, an entry without a
-    layer, a key outside GEOMETRY_KEYS, and a canonical value outside the
-    layer's own search bounds (which the optimiser would clip on its first
-    trial, silently moving the ray off its measurement).
+    layer, a key outside GEOMETRY_KEYS, an entry without an absolute origin, a
+    longitudinal value the builder would clamp (profile_problems), a canonical
+    value outside the layer's own search bounds (which the optimiser would clip
+    on its first trial, silently moving the ray off its measurement), and a
+    retired flank.  These are problems of the RECORD: `--geometry` refuses to
+    apply a record that has any.  What a layer currently holds is drift(),
+    which `--geometry` exists to repair.
     """
     out = []
     rays = {L["id"]: L for L in params["layers"] if L.get("kind") == "ray"}
@@ -278,13 +406,40 @@ def geometry_problems(params):
         missing = set(GEOMETRY_KEYS) - set(g)
         if extra or missing:
             out.append("%s geometry keys: extra %s, missing %s" % (lid, sorted(extra), sorted(missing)))
+        if g.get("cx") is None or g.get("cy") is None:
+            out.append("%s has no absolute origin (cx/cy): its position would follow the flare "
+                       "centre, which the geometry search moves" % lid)
+        out += profile_problems(lid, g)
         for k, v in g.items():
             b = L.get("bounds", {}).get(k)
             if v is not None and b is not None and not (b[0] <= v <= b[1]):
                 out.append("%s/%s canonical %g outside its search bounds [%g, %g]" % (lid, k, v, b[0], b[1]))
+            if v is None and b is not None:
+                out.append("%s/%s is absent from the record but still carries search bounds %s"
+                           % (lid, k, b))
     for L in params["layers"]:
         if L["id"] in RETIRED_FLANKS:
             out.append("retired flank layer %s is present" % L["id"])
+    return out
+
+
+def drift(params):
+    """(layer, key, record, value) wherever a ray layer differs from its record,
+    plus any ray layer whose own longitudinal values the builder would clamp.
+    Empty means the params draw exactly the geometry of record."""
+    out = []
+    for L in params["layers"]:
+        if L.get("kind") != "ray":
+            continue
+        g = RAY_GEOMETRY.get(L["id"])
+        if g is not None:
+            for k in GEOMETRY_KEYS:
+                want, got = g.get(k), L.get(k)
+                if (want is None) != (got is None) or (
+                        want is not None and abs(float(want) - float(got)) > 1e-9):
+                    out.append((L["id"], k, want, got))
+        for msg in profile_problems(L["id"], L):
+            out.append((L["id"], "profile", None, msg))
     return out
 
 
@@ -297,7 +452,8 @@ def apply_geometry(params, verbose=True):
     window went from +-3 to +-6 degrees and its length window roughly doubled
     on every rebuild.  A search space is a separate decision from a
     measurement; the only thing checked here is that the canonical value lies
-    inside it.
+    inside it.  Every key of GEOMETRY_KEYS is written or removed, so a key a
+    search added (an offset, a per-layer centre) does not survive a rebuild.
     """
     problems = geometry_problems(params)
     if problems:
@@ -312,8 +468,8 @@ def apply_geometry(params, verbose=True):
             else:
                 L[k] = v
         if verbose:
-            print("  %-15s direction %6.1f  origin %+7.2f %+7.2f  len %6.1f  h %5.2f blur %4.2f"
-                  % (lid, -g["rot"], g["dx"] or 0.0, g["dy"] or 0.0, g["len"], g["height"], g["blur"]))
+            print("  %-16s direction %6.1f  origin (%7.2f, %7.2f)  len %6.1f  h %5.2f blur %4.2f"
+                  % (lid, -g["rot"], g["cx"], g["cy"], g["len"], g["height"], g["blur"]))
 
 
 # --------------------------------------------------------------------------- #
@@ -408,22 +564,51 @@ class Lines:
 # --------------------------------------------------------------------------- #
 # the exact composite, over the measurement crop
 # --------------------------------------------------------------------------- #
+def basis_key(params, lid):
+    """Fingerprint of one layer's COVERAGE: the digest of its white basis SVG.
+
+    A basis document holds that one layer and nothing else, painted white
+    (src/build_svg.py Builder.document), so its text changes with everything
+    that decides where the layer puts light -- its geometry, position,
+    rotation, blur, clip, taper, profile tables, the flare centre it may be
+    anchored to and the frame and curve geometry its clip uses -- and with
+    nothing else.  In particular a change of colour does not touch it.
+    """
+    import hashlib
+    import build_svg
+    return hashlib.sha256(build_svg.build(params, basis=lid).encode("utf-8")).hexdigest()
+
+
 class Stack:
     """Coverage of every layer over the measurement crop, and the colours.
 
     The composite is the renderer's own algebra (fit_photometry.composite:
     screen and normal layers alike, in stack order), so scaling a calibrated
     layer's colour needs no re-render at all -- coverage depends only on shape.
+
+    WHAT MAKES A STACK VALID FOR A PARAMETER FILE (D63).  Its coverage arrays
+    are right for params only if all of these match: the layers and their
+    order (`names`); each layer's coverage fingerprint (`keys`, basis_key());
+    the crop (`box`, which is the measurement's); and the renderer and size
+    the arrays were made with, which this process fixes.  The blend flags and
+    the colours are not baked in: `refresh()` re-reads both.  Until D63
+    `calibrate()` reused a supplied stack whenever the layer NAMES matched, so a
+    caller that moved a ray before calibrating was solved on the old ray's
+    coverage.  Every reuse now goes through `refresh()`, which re-renders
+    exactly the layers whose fingerprint changed and nothing else.
     """
 
     def __init__(self, params, box):
         import build_svg
         import fit_photometry as FP
         self.FP = FP
+        self.box = tuple(box)
         y0, y1, x0, x1 = box
         A, names = FP.basis_stack(params)
         self.A = A[:, y0:y1, x0:x1].astype(np.float32)
         self.names = names
+        self.keys = [basis_key(params, lid) for lid in names]
+        self.renders = len(names)            # basis renders this stack has cost
         self.WC = FP.params_wc(params).astype(np.float64)
         self.normal = FP.normal_flags(params)
         missing = [lid for lid in CALIBRATED_LAYERS if lid not in names]
@@ -431,6 +616,32 @@ class Stack:
             raise SystemExit("calibrated layer(s) missing from the params: %s" % ", ".join(missing))
         self.idx = [names.index(lid) for lid in CALIBRATED_LAYERS]
         self.build = build_svg.build
+
+    def matches(self, params, box):
+        """True if this stack can be REFRESHED to params (same layers, same crop)."""
+        return tuple(box) == self.box and self.names == [L["id"] for L in params["layers"]]
+
+    def refresh(self, params):
+        """Bring the coverage up to `params`; returns the ids re-rendered.
+
+        A colour-only change re-renders nothing: the fingerprints are unchanged
+        and only the colours and blend flags are re-read.
+        """
+        if self.names != [L["id"] for L in params["layers"]]:
+            raise ValueError("a stack cannot be refreshed to a different layer list")
+        y0, y1, x0, x1 = self.box
+        changed = []
+        for i, lid in enumerate(self.names):
+            k = basis_key(params, lid)
+            if k != self.keys[i]:
+                a = self.FP.render_array(self.build(params, basis=lid))[..., 0]
+                self.A[i] = a[y0:y1, x0:x1]
+                self.keys[i] = k
+                changed.append(lid)
+        self.renders += len(changed)
+        self.WC = self.FP.params_wc(params).astype(np.float64)
+        self.normal = self.FP.normal_flags(params)
+        return changed
 
     def image(self, k):
         WC = self.WC.copy()
@@ -549,17 +760,22 @@ def report(lines, meas, label):
 def calibrate(params_path, ref, rounds=8, verbose=True, lines=None, stack=None):
     """Calibrate every family jointly; returns (worst, corrections) of the SAVED file.
 
-    `lines` and `stack` may be passed in to share their set-up between runs on
-    parameter files that differ only in COLOUR (the regression checks do):
-    coverage depends on shape alone, and the stack's colours are re-read from
-    the file here, so a stack built from the same shapes is exact.
+    `lines` and `stack` may be passed in to share their set-up between runs.
+    A supplied stack is REFRESHED to this file before it is used (Stack.refresh):
+    a layer whose coverage fingerprint differs -- a moved or reshaped ray, a
+    changed blur -- is re-rendered, a colour-only difference costs nothing, and
+    a stack for another layer list or crop is replaced.  The caller's stack is
+    updated in place, so it stays valid for the file it was last used on.
     """
     params = json.load(open(params_path))
     lines = lines if lines is not None else Lines(ref)
-    if stack is None or stack.names != [L["id"] for L in params["layers"]]:
+    if stack is None or not stack.matches(params, lines.box):
         stack = Stack(params, lines.box)
     else:
-        stack.WC = stack.FP.params_wc(params).astype(np.float64)
+        changed = stack.refresh(params)
+        if verbose and changed:
+            print("  stack: re-rendered %d layer(s) whose geometry changed: %s"
+                  % (len(changed), ", ".join(changed)))
     by_id = {L["id"]: L for L in params["layers"]}
     first = None
     for it in range(rounds):
