@@ -11,6 +11,7 @@ all.  Run after any change to tools/optimize.py or src/build_svg.py.
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 
@@ -687,41 +688,73 @@ def main():
 
     # `measure_flare.py --geometry` WRITES this table into the params, so a stale
     # entry silently reverts shipped work.  It did: the table held 45.6/215 and
-    # 327.8/185 for the right-hand rays after both had been superseded, so running
-    # --geometry would have undone an axis correction and re-lengthened a ray that
-    # measurement had shortened.
+    # 327.8/185 for the right-hand rays after both had been superseded.  And until
+    # D62 it covered only the original four rays: the nine added in D61 had no
+    # entry, so a rebuild restored four rays and left nine wherever the last
+    # shape search had put them, and it rewrote flare_ray_b's measured narrow
+    # bounds to generic wide ones on the way.  Every key of every ray is checked.
     import measure_flare as MFL
+    import copy as _cp
+    import contextlib as _clf, io as _iof
     drift = []
-    for lid, (th, fwhm, h, sp, ln, pk, dx, dy) in MFL.RAY_GEOMETRY.items():
+    for lid, g in MFL.RAY_GEOMETRY.items():
         L = next((x for x in params["layers"] if x["id"] == lid), None)
         if L is None:
             drift.append("%s missing from params" % lid); continue
-        for name, want, got in (("rot", -th, L.get("rot")), ("height", h, L.get("height")),
-                                ("blur", round(MFL.blur_for(fwhm, h), 4), L.get("blur")),
-                                ("spread", sp, L.get("spread")), ("len", ln, L.get("len")),
-                                ("peak_at", pk, L.get("peak_at")),
-                                # absent dx/dy mean zero to the builder, so the
-                                # preset and the params agree when both say "no
-                                # offset" in their own way
-                                ("dx", dx, L.get("dx", 0.0)), ("dy", dy, L.get("dy", 0.0))):
-            if got is None or abs(float(want) - float(got)) > 1e-6:
-                drift.append("%s/%s preset %.4g vs shipped %s" % (lid, name, want, got))
+        for k in MFL.GEOMETRY_KEYS:
+            want, got = g.get(k), L.get(k)
+            if (want is None) != (got is None) or (
+                    want is not None and abs(float(want) - float(got)) > 1e-9):
+                drift.append("%s/%s preset %s vs shipped %s" % (lid, k, want, got))
+    gprob = MFL.geometry_problems(params)
+    # Perturb every geometry key of every ray, rebuild, and require the layer to
+    # come back EXACTLY -- including keys that were absent (an onset the preset
+    # says a ray does not have must be removed again) -- with its bounds dict
+    # untouched.
+    gfail, gcount = [], 0
+    for lid in MFL.RAY_GEOMETRY:
+        orig = next(x for x in params["layers"] if x["id"] == lid)
+        for k in MFL.GEOMETRY_KEYS:
+            trial = _cp.deepcopy(params)
+            L = next(x for x in trial["layers"] if x["id"] == lid)
+            L[k] = float(L.get(k) or 0.0) + 0.37
+            with _clf.redirect_stdout(_iof.StringIO()):
+                MFL.apply_geometry(trial)
+            L = next(x for x in trial["layers"] if x["id"] == lid)
+            gcount += 1
+            if L != orig:
+                gfail.append("%s/%s not restored" % (lid, k))
+    # And the rebuild must not widen a search space: flare_ray_b's rotation
+    # window is +-3 deg around its measured line, not the generic +-6.
+    _b = next(x for x in params["layers"] if x["id"] == "flare_ray_b")
+    _t = _cp.deepcopy(params)
+    with _clf.redirect_stdout(_iof.StringIO()):
+        MFL.apply_geometry(_t)
+    if next(x for x in _t["layers"] if x["id"] == "flare_ray_b").get("bounds") != _b.get("bounds"):
+        gfail.append("flare_ray_b's bounds were rewritten by --geometry")
+    # A canonical value outside a layer's own search bounds is refused, since
+    # the optimiser would clip it on its first trial.
+    _t = _cp.deepcopy(params)
+    next(x for x in _t["layers"] if x["id"] == "flare_ray_b")["bounds"]["len"] = [10.0, 20.0]
+    try:
+        with _clf.redirect_stdout(_iof.StringIO()):
+            MFL.apply_geometry(_t)
+        gfail.append("--geometry accepted a canonical len outside the layer's bounds")
+    except SystemExit:
+        pass
     # The flank template WAS the other half of --geometry's promise: it
     # re-inserted a deleted flank, so a stale entry shipped a different model --
     # and once the flanks were found to BE the false triangle west of the core
     # (D61), keeping the template would have re-drawn it on the next geometry
-    # rebuild.  The guard is now that they stay gone: not in the params, not in
-    # the template, and --geometry refusing a params file that has one.
+    # rebuild.  The guard is now that they stay gone: not in the params, and
+    # --geometry refusing a params file that has one.
     fdrift = []
     for rid in MFL.RETIRED_FLANKS:
         if any(x["id"] == rid for x in params["layers"]):
             fdrift.append("%s is back in params.json" % rid)
-        if any(t.get("id") == rid for t in MFL.FLANKS):
-            fdrift.append("%s is back in measure_flare's insertion template" % rid)
     _probe = json.loads(json.dumps(params))
     _probe["layers"].append({"id": MFL.RETIRED_FLANKS[0], "kind": "ray"})
     try:
-        import contextlib as _clf, io as _iof
         with _clf.redirect_stdout(_iof.StringIO()):
             MFL.apply_geometry(_probe)
         fdrift.append("--geometry accepted a params file carrying %s" % MFL.RETIRED_FLANKS[0])
@@ -1037,42 +1070,215 @@ def main():
     check("the retired flank wedges stay retired",
           not fdrift,
           "; ".join(fdrift) if fdrift
-          else "%s absent from params and template; --geometry refuses them"
+          else "%s absent from params; --geometry refuses a file that has one"
           % " and ".join(MFL.RETIRED_FLANKS))
 
     check("the ray geometry preset matches the shipped params",
-          not drift, "; ".join(drift) if drift else "all %d ray layers agree" % len(MFL.RAY_GEOMETRY))
+          not drift, "; ".join(drift) if drift else "all %d ray layers agree on all %d keys"
+          % (len(MFL.RAY_GEOMETRY), len(MFL.GEOMETRY_KEYS)))
 
-    # ---- 6g. calibration that does not converge reports failure ----------- #
+    check("every ray layer has geometry of record inside its own bounds",
+          not gprob, "; ".join(gprob) if gprob else "%d ray layers, each with a contract; "
+          "every canonical value lies inside the layer's search bounds" % len(MFL.RAY_GEOMETRY))
 
-    # Any corrections computed on the way are saved, so a caller that only looked
-    # at the file could not tell a calibrated state from an uncalibrated one.
-    # Returning 0 regardless meant automation accepted parameters that had never
-    # met their tolerance.
+    check("--geometry restores every displaced ray and leaves its bounds alone",
+          not gfail, "; ".join(gfail[:6]) if gfail else "%d perturbations of %d rays restored "
+          "exactly; bounds untouched; an out-of-bounds canonical value refused"
+          % (gcount, len(MFL.RAY_GEOMETRY)))
+
+    # ---- 6g. flare calibration: profile-aware, segment-aware, verified ---- #
+
+    # Until D62 the calibration scaled ONE layer per ray to a pooled chord-excess
+    # peak.  A ray drawn as an inner and an outer segment was then scaled by the
+    # peak of the pair, which moves the inner segment's part of the profile and
+    # leaves the outer's where it was -- a calibration step that could destroy a
+    # correctly fitted profile.  It now solves every layer that puts light on
+    # every measured line jointly, band by band.  These checks use the shipped
+    # layers, not a toy.
     import subprocess as _sp
     import tempfile as _tf
+    _ref = np.asarray(Image.open(os.path.join(ROOT, "reference.png")).convert("RGB")).astype(np.float64)
+    with _clf.redirect_stdout(_iof.StringIO()):
+        _lines = MFL.Lines(_ref)
+        _stack = MFL.Stack(params, _lines.box)
+
+    def _amp(P, lid):
+        L = next(x for x in P["layers"] if x["id"] == lid)
+        return sum(float(L.get(c, 0.0)) for c in ("white", "cyan", "blue"))
+
+    def _scaled(P, factors):
+        Q = json.loads(json.dumps(P))
+        for L in Q["layers"]:
+            if L["id"] in factors:
+                MFL.scale(L, factors[L["id"]])
+        return Q
+
+    cal = {}
     with _tf.TemporaryDirectory() as _td:
-        bad = json.loads(json.dumps(params))
-        for L in bad["layers"]:
-            if L["id"] in MFL.RAY_LAYER.values():
-                L["color"] = [round(v * 0.05, 5) for v in L["color"]]
-                for ch in ("white", "cyan", "blue"):
-                    if ch in L:
-                        L[ch] = round(float(L[ch]) * 0.05, 6)
+        # (a) the shipped parameters are calibrated: a verify-only pass asks no
+        #     layer for a correction beyond TOL.
+        p0 = os.path.join(_td, "shipped.json")
+        json.dump(params, open(p0, "w"), indent=1)
+        w0, _c0 = MFL.calibrate(p0, _ref, rounds=0, verbose=False, lines=_lines, stack=_stack)
+        cal["shipped"] = (w0 <= 1.0, "shipped worst %.2f of TOL" % w0)
+        # The calibrated state every recovery below is measured against is the
+        # CONVERGED solve of the shipped file, not the shipped file times the
+        # one-step correction a verify pass reports: that step is a
+        # linearisation and lands within TOL of the solution, not on it.
+        pc = os.path.join(_td, "calibrated.json")
+        json.dump(params, open(pc, "w"), indent=1)
+        MFL.calibrate(pc, _ref, rounds=4, verbose=False, lines=_lines, stack=_stack)
+        star = json.load(open(pc))
+        _base_meas = _lines.measure(MFL.render_full(star))
+
+        # (b) SEGMENTED: halve only the INNER lower-left segment.  Calibration
+        #     must bring it back and must not drag the outer segment with it.
+        p1 = os.path.join(_td, "inner_halved.json")
+        json.dump(_scaled(star, {"flare_ray_b": 0.5}), open(p1, "w"), indent=1)
+        w1, _c1 = MFL.calibrate(p1, _ref, rounds=4, verbose=False, lines=_lines, stack=_stack)
+        s1 = json.load(open(p1))
+        dev = {lid: abs(math.log(_amp(s1, lid) / _amp(star, lid))) for lid in MFL.CALIBRATED_LAYERS}
+        m1 = _lines.measure(MFL.render_full(s1))
+        dprof = float(np.abs(m1["lower-left"]["bands"][:, 1] - _base_meas["lower-left"]["bands"][:, 1]).max())
+        cal["segmented"] = (w1 <= 1.0 and dev["flare_ray_b"] <= 0.04 and dev["flare_ray_b2"] <= 0.04
+                            and max(dev.values()) <= 0.04 and dprof <= 1.0,
+                            "inner restored to %.3f and outer held at %.3f of the calibrated state "
+                            "(worst layer %.3f in ln), lower-left profile within %.2f cv"
+                            % (math.exp(dev["flare_ray_b"]), math.exp(dev["flare_ray_b2"]),
+                               max(dev.values()), dprof))
+
+        # (c) JOINT: the lower-right's two segments pushed in opposite directions.
+        p2 = os.path.join(_td, "lr_split.json")
+        json.dump(_scaled(star, {"flare_ray_c_in": 0.5, "flare_ray_c": 1.6}), open(p2, "w"), indent=1)
+        w2, _c2 = MFL.calibrate(p2, _ref, rounds=4, verbose=False, lines=_lines, stack=_stack)
+        s2 = json.load(open(p2))
+        d2 = [abs(math.log(_amp(s2, lid) / _amp(star, lid))) for lid in ("flare_ray_c_in", "flare_ray_c")]
+        cal["joint"] = (w2 <= 1.0 and max(d2) <= 0.04,
+                        "inner %.3f, tail %.3f of the calibrated state after 0.5x / 1.6x"
+                        % tuple(math.exp(v) for v in d2))
+
+        # (d) the SAVED file reproduces the calibrated result through the
+        #     documented build and render commands, not the in-process path.
+        svg1, png1 = os.path.join(_td, "r.svg"), os.path.join(_td, "r.png")
+        _sp.run([sys.executable, os.path.join(ROOT, "src", "build_svg.py"), "--params", p1,
+                 "--out", svg1], check=True, capture_output=True)
+        _sp.run([sys.executable, os.path.join(ROOT, "tools", "render.py"), svg1, png1],
+                check=True, capture_output=True)
+        mcli = _lines.measure(np.asarray(Image.open(png1).convert("RGB")).astype(np.float64))
+        dcli = max(float(np.abs(mcli[f]["bands"] - m1[f]["bands"]).max()) for f in mcli)
+        cal["rebuild"] = (dcli <= 0.01, "rebuilt from the saved file, every band within %.3g cv" % dcli)
+
+        # (e) a calibration that does not converge says so and exits nonzero,
+        #     and still SAVES the corrections it computed: one round cannot
+        #     recover a 20x deficit, because a round moves a layer at most 3x.
+        bad = _scaled(params, {lid: 0.05 for lid in MFL.CALIBRATED_LAYERS})
         pf = os.path.join(_td, "uncalibrated.json")
         json.dump(bad, open(pf, "w"), indent=1)
-        # One round cannot recover a 20x deficit: the per-round gain is clipped at 3x.
         r = _sp.run([sys.executable, os.path.join(ROOT, "tools", "measure_flare.py"),
-                     "--params", pf, "--rays-only", "--rounds", "1"],
-                    capture_output=True, text=True)
+                     "--params", pf, "--rounds", "1"], capture_output=True, text=True)
         saved = json.load(open(pf))
-        moved = any(x["color"] != y["color"] for x, y in zip(saved["layers"], bad["layers"]))
-        check("flare calibration that does not converge returns nonzero",
-              r.returncode != 0 and "NOT converged" in r.stdout,
-              "exit %d; %s; corrections were %ssaved"
-              % (r.returncode,
-                 "reported NOT converged" if "NOT converged" in r.stdout else "reported success",
-                 "" if moved else "NOT "))
+        moved = all(_amp(saved, lid) > 2.0 * _amp(bad, lid) for lid in MFL.CALIBRATED_LAYERS)
+        cal["fails"] = (r.returncode != 0 and "NOT converged" in r.stdout and moved,
+                        "exit %d; %s; corrections %ssaved"
+                        % (r.returncode, "reported NOT converged" if "NOT converged" in r.stdout
+                           else "reported success", "" if moved else "NOT "))
+
+    check("the shipped rays are calibrated to their measured profiles", *cal["shipped"])
+    check("calibrating one segment does not drag the other", *cal["segmented"])
+    check("a two-segment ray is calibrated jointly", *cal["joint"])
+    check("a calibrated file rebuilds to the calibrated profiles", *cal["rebuild"])
+    check("flare calibration that does not converge returns nonzero", *cal["fails"])
+
+    # ---- 6h. the global fits hold the calibrated rays ---------------------- #
+
+    # optimize.py and fit_photometry.py fit every layer's colour to a
+    # whole-image objective, and until D62 that included the rays: any run of
+    # the documented full cycle rewrote the profile-calibrated amplitudes with
+    # the objective D61 caught drawing a lower-left ray 2.5x the reference.
+    # They now hold the rays -- shape out of the search, colour out of the fit
+    # -- and prune_layers never offers a ray for removal.
+    import fit_photometry as _FP
+    import prune_layers as _PL
+    _hs = [sp["path"] for sp in O.layer_specs(params, hold=tuple(MFL.RAY_GEOMETRY))
+           if any(a in MFL.RAY_GEOMETRY for a in sp.get("affects", []) if isinstance(a, str))]
+    _obj = O.Objective(os.path.join(ROOT, "reference.png"), held=MFL.CALIBRATED_LAYERS)
+    _fi = _obj.free_indices(params, None)
+    _hidx = [i for i, L in enumerate(params["layers"]) if L["id"] in MFL.CALIBRATED_LAYERS]
+    _hf = _FP.held_free(params)
+    _y0, _y1, _x0, _x1 = _lines.box
+    _tgt = np.minimum(_ref[_y0:_y1, _x0:_x1] / 255.0, 254.4 / 255.0).astype(np.float32)[::4, ::4]
+    _WC0 = _FP.params_wc(params)
+    _WC1 = _FP.fit(_stack.A[:, ::4, ::4], _tgt, _WC0, np.ones(_tgt.shape[:2], np.float32), iters=2,
+                   verbose=False, free=_hf, normal=_FP.normal_flags(params))
+    _moved_free = float(np.abs(_WC1[_hf] - _WC0[_hf]).max())
+    _moved_held = float(np.abs(_WC1[_hidx] - _WC0[_hidx]).max())
+    _unprot = sorted(set(MFL.RAY_GEOMETRY) - _PL.protected("exterior"))
+    check("the global fits never move a calibrated ray",
+          not _hs and not (set(_fi) & set(_hidx)) and not (set(_hf) & set(_hidx))
+          and _moved_held == 0.0 and _moved_free > 0.0 and not _unprot,
+          "ray shape specs emitted when held: %d; held rays in the optimiser's free set: %d, "
+          "in fit_photometry's: %d; a real fit moved the free layers by %.3g and the rays by %g; "
+          "rays prune could remove: %s"
+          % (len(_hs), len(set(_fi) & set(_hidx)), len(set(_hf) & set(_hidx)),
+             _moved_free, _moved_held, ", ".join(_unprot) or "none"))
+
+    # ---- 6i. the diagnostics refuse inputs they cannot read ---------------- #
+
+    # ray_lines sampled whatever it was given: a 512-px render came back as a
+    # column of plausible numbers read off the wrong pixels, and past the image
+    # off one replicated edge row.  The canvas is 1024 and everything that
+    # places structures in canvas pixels now says so and exits 2.
+    import ray_lines as _RL
+    import shutil as _sh2
+    _diag = []
+    with _tf.TemporaryDirectory() as _td3:
+        _small = os.path.join(_td3, "small.png")
+        Image.open(os.path.join(ROOT, "out", "render_1024.png")).resize((512, 512)).save(_small)
+        for _tool, _args in (("ray_lines.py", [_small]), ("visual_regression.py", [_small]),
+                             ("flare_parts.py", [_small, "--out", os.path.join(_td3, "fp.png")])):
+            _r = _sp.run([sys.executable, os.path.join(ROOT, "tools", _tool)] + _args,
+                         capture_output=True, text=True, cwd=ROOT)
+            if _r.returncode != 2 or "1024" not in _r.stderr:
+                _diag.append("%s on a 512-px image: exit %d" % (_tool, _r.returncode))
+        try:
+            _RL.profile(np.zeros((512, 512, 3)), *_RL.LINES["lower-right"][:4])
+            _diag.append("ray_lines.profile read a 512-px array")
+        except ValueError:
+            pass
+        try:
+            _RL._bilinear(np.zeros((1024, 1024)), np.array([1030.0]), np.array([5.0]))
+            _diag.append("ray_lines sampled outside the image instead of refusing")
+        except ValueError:
+            pass
+        # The before/after sheet is a publish artefact: built from a baseline
+        # whose manifest names its SVG by digest and from renders whose
+        # provenance matches the SVGs they are labelled as -- and refused
+        # otherwise.
+        _bd = os.path.join(_td3, "baseline")
+        os.makedirs(_bd)
+        for _f in ("reconstruction.svg", "manifest.json"):
+            _sh2.copy(os.path.join(ROOT, "out", "baseline", _f), _bd)
+        _sp.run([sys.executable, os.path.join(ROOT, "tools", "render.py"),
+                 os.path.join(_bd, "reconstruction.svg"), os.path.join(_bd, "render_1024.png")],
+                check=True, capture_output=True)
+        _fp_args = [os.path.join(ROOT, "out", "render_1024.png"), "--svg",
+                    os.path.join(ROOT, "reconstruction.svg"), "--baseline", _bd,
+                    "--labels", "this release", "--out", os.path.join(_td3, "sheet.png")]
+        _r = _sp.run([sys.executable, os.path.join(ROOT, "tools", "flare_parts.py")] + _fp_args,
+                     capture_output=True, text=True, cwd=ROOT)
+        if _r.returncode != 0:
+            _diag.append("flare_parts refused the shipped release: %s" % _r.stderr.strip()[:160])
+        _man = json.load(open(os.path.join(_bd, "manifest.json")))
+        _man["svg_sha256"] = "0" * 64
+        json.dump(_man, open(os.path.join(_bd, "manifest.json"), "w"))
+        _r = _sp.run([sys.executable, os.path.join(ROOT, "tools", "flare_parts.py")] + _fp_args,
+                     capture_output=True, text=True, cwd=ROOT)
+        if _r.returncode != 2:
+            _diag.append("flare_parts drew a sheet whose baseline manifest does not name its SVG")
+    check("the diagnostics refuse inputs they cannot read",
+          not _diag, "; ".join(_diag) if _diag else
+          "ray_lines, visual_regression and flare_parts exit 2 on a 512-px image; no sample "
+          "outside the canvas; the before/after sheet verifies its baseline and its release")
 
     # ---- 7. the lobe banding has not come back ---------------------------- #
 

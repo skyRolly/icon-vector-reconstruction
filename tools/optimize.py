@@ -72,9 +72,10 @@ def layer_index(params, lid):
 
 
 def layer_specs(params, keys=("width", "blur", "inset", "r", "squash", "rot",
-                              "half_len", "height", "len", "peak_at", "onset", "cx", "cy",
+                              "half_len", "height", "len", "peak_at", "onset", "tail", "cx", "cy",
                               "sigma_y", "sigma_x", "blur_x", "blur_y", "spread", "dx", "dy",
-                              "scale", "inner", "east_gain", "south_gain")):
+                              "scale", "inner", "east_gain", "south_gain"),
+                hold=()):
     """One spec per tunable shape number on each layer.
 
     Per-layer `bounds` in params.json win over the global defaults.  They are
@@ -92,9 +93,19 @@ def layer_specs(params, keys=("width", "blur", "inset", "r", "squash", "rot",
     values they were first guessed at.  `verify_searchable()` now fails the
     regression suite if any bounded parameter is unreachable, so the list
     cannot fall behind the model again.
+
+    `hold` names layers whose shape is NOT searched.  main() passes the rays of
+    record (tools/measure_flare.py RAY_GEOMETRY) unless --include-rays is given:
+    their geometry is a measurement that `measure_flare.py --geometry` restores,
+    so a search that moved them would either be undone by the next rebuild or,
+    worse, ship a ray displaced from its measured line.  The bounds audit calls
+    this with hold=() on purpose -- it asks whether a bound COULD be searched.
     """
     out = []
+    held = set(hold)
     for i, L in enumerate(params["layers"]):
+        if L["id"] in held:
+            continue
         b = L.get("bounds", {})
         for k in keys:
             if k not in L:
@@ -288,6 +299,9 @@ SHAPE_BOUNDS = {
     "height": (2.0, 200.0, None),
     "len": (30.0, 400.0, None),
     "peak_at": (0.05, 0.8, 0.03),
+    #: A ray's fade: where it reaches 0.42 of peak, as a fraction of `len` past
+    #: `peak_at` (src/build_svg.py; absent means 0.35 and emits no spec).
+    "tail": (0.05, 0.64, 0.03),
     "width": (0.2, 900.0, None),
     #: `blur` is QUANTISED by the acceptance renderer, and the step below can be
     #: smaller than the quantum.  Measured on the upper-left ray: every value
@@ -409,9 +423,15 @@ def field_specs(params):
 # objective
 # --------------------------------------------------------------------------- #
 class Objective:
-    def __init__(self, reference, stride=2, fit_iters=3, size=1024):
+    def __init__(self, reference, stride=2, fit_iters=3, size=1024, held=()):
         ref = np.asarray(Image.open(reference).convert("RGB")).astype(np.float32) / 255.0
         self.size = size
+        # Layers whose colours this objective never re-fits: the rays of record,
+        # whose amplitudes are calibrated against their own measured profiles
+        # (tools/measure_flare.py).  A whole-image fit moves light into them
+        # that belongs to a broad glow -- D61 caught it drawing a lower-left ray
+        # 2.5x the reference -- so they are held, not merely down-weighted.
+        self.held = set(held)
         self.target_full = np.minimum(ref, 254.4 / 255.0)
         self.stride = stride
         self.fit_iters = fit_iters
@@ -472,7 +492,14 @@ class Objective:
         fams = {lid.split("_")[0] for lid in affects}
         return [i for i, L in enumerate(params["layers"]) if L["id"].split("_")[0] in fams] or None
 
+    def free_indices(self, params, free):
+        """`free` (None = every layer) minus the held layers."""
+        idx = range(len(params["layers"])) if free is None else free
+        out = [i for i in idx if params["layers"][i]["id"] not in self.held]
+        return None if (free is None and not self.held) else out
+
     def evaluate(self, params, fit_iters=None, stride=None, full=False, free=None):
+        free = self.free_indices(params, free)
         A = np.stack([self.basis(params, L["id"]) for L in params["layers"]])
         st = 1 if full else (stride or self.stride)
         tgt = self.target_full[::st, ::st]
@@ -618,18 +645,27 @@ def main():
     ap.add_argument("--fit-iters", type=int, default=3)
     ap.add_argument("--only", default=None,
                     help="restrict to specs touching layers whose id starts with this")
+    ap.add_argument("--include-rays", action="store_true",
+                    help="also search the rays' shapes and re-fit their colours; by default "
+                         "both are held (measure_flare.py owns them), see D62")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
 
     params = json.load(open(a.params))
-    obj = Objective(a.reference, stride=a.stride, fit_iters=a.fit_iters)
-    builders = {"shapes": layer_specs, "tapers": taper_specs,
+    import measure_flare as MFL
+    held = () if a.include_rays else MFL.CALIBRATED_LAYERS
+    shape_hold = () if a.include_rays else tuple(MFL.RAY_GEOMETRY)
+    obj = Objective(a.reference, stride=a.stride, fit_iters=a.fit_iters, held=held)
+    builders = {"shapes": lambda p: layer_specs(p, hold=shape_hold), "tapers": taper_specs,
                 "geometry": geometry_specs, "field": field_specs}
     if a.spec == "all":
         specs = merge_specs(sum((builders[k](params)
                                  for k in ("shapes", "tapers", "field", "geometry")), []))
     else:
         specs = builders[a.spec](params)
+    if held:
+        print("holding %d ray layers (shape and colour): %s" % (len(set(held) | set(shape_hold)),
+              ", ".join(sorted(set(held) | set(shape_hold)))))
     if a.only:
         pre = tuple(x.strip() for x in a.only.split(","))
         specs = [sp for sp in specs
@@ -643,7 +679,7 @@ def main():
         sweep(obj, params, specs)
     # final full-resolution colour fit
     sse, mae, K = obj.evaluate(params, fit_iters=12, full=True)
-    FP.store_wc(params, K)
+    FP.store_wc(params, K, only=obj.free_indices(params, None))
     print("final: sse=%.6g mae=%.4f  (%.1fs, %d renders)" % (sse, mae, time.time() - t0, obj.n_render))
     json.dump(params, open(a.out or a.params, "w"), indent=1)
     print("wrote", a.out or a.params)

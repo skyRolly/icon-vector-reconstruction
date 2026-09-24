@@ -2,6 +2,18 @@
 """Before/after sheet for every named part of the flare, against the reference.
 
     python3 tools/flare_parts.py BEFORE.png AFTER.png --out out/flare_parts.png
+    python3 tools/flare_parts.py out/render_1024.png --svg reconstruction.svg \
+            --baseline out/baseline --labels "this release"      # what publish runs
+
+Up to three images are compared with the reference.  `--baseline DIR` puts the
+previous ACCEPTED release first: DIR holds that release's SVG and a manifest
+naming it (label, commit, svg_sha256), and publish renders it to
+DIR/render_1024.png.  The manifest's digest must match the SVG and the render's
+provenance must match both, or the sheet is not drawn -- a before/after sheet
+whose "before" is not the release it claims to be is worse than none.  `--svg`
+does the same for the positional images: each must be the 1024-px resvg render
+of the SVG given for it.  Without `--svg` the images are taken as given (an
+ad-hoc comparison of scratch renders), and the sheet says so in its header.
 
 `flare_view.py` decomposes one crop several ways; this answers the question a
 review of a flare change actually asks -- "for each part of the flare, did the
@@ -22,6 +34,7 @@ anatomy, so two sheets from different iterations are directly comparable.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 
@@ -30,6 +43,7 @@ from PIL import Image, ImageDraw
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+sys.path.insert(0, HERE)
 
 #: name -> (x0, y0, w, h, scale, lo, hi)
 PARTS = {
@@ -83,7 +97,8 @@ def lce(a, box):
 def part_sheet(name, box, images, labels):
     x0, y0, w, h, sc, lo, hi = box
     W, H, g, top = w * sc, h * sc, 6, 18
-    out = Image.new("RGB", (3 * W + 2 * g, top + 2 * H + g), (255, 255, 255))
+    n = len(images)
+    out = Image.new("RGB", (n * W + (n - 1) * g, top + 2 * H + g), (255, 255, 255))
     d = ImageDraw.Draw(out)
     d.text((2, 2), "%s   box x %d-%d, y %d-%d, x%d; plain window %g-%g"
            % (name, x0, x0 + w, y0, y0 + h, sc, lo, hi), fill=(0, 0, 0))
@@ -97,22 +112,95 @@ def part_sheet(name, box, images, labels):
     return out
 
 
+CANVAS = 1024
+
+
+class InputError(Exception):
+    pass
+
+
+def check_input(path, a, svg=None):
+    """A compared image must be a 1024 x 1024 render; with `svg`, provably of it."""
+    if a.shape[:2] != (CANVAS, CANVAS):
+        raise InputError("%s is %dx%d; the parts are boxes on the %d-px canvas -- render "
+                         "at --size %d" % (path, a.shape[1], a.shape[0], CANVAS, CANVAS))
+    if svg is not None:
+        import render as _R
+        try:
+            _R.read_provenance(path, require=True, expect_size=CANVAS,
+                               expect_renderer="resvg", expect_svg=svg)
+        except _R.ProvenanceError as exc:
+            raise InputError(str(exc))
+
+
+def baseline_input(d):
+    """(render path, svg path, label) of the accepted baseline in directory `d`."""
+    import render as _R
+    man_p = os.path.join(d, "manifest.json")
+    try:
+        man = json.load(open(man_p))
+    except (OSError, ValueError) as exc:
+        raise InputError("baseline manifest %s is unreadable: %s" % (man_p, exc))
+    svg = os.path.join(d, man.get("svg", "reconstruction.svg"))
+    if not os.path.exists(svg):
+        raise InputError("baseline SVG %s does not exist" % svg)
+    got = _R.sha256_file(svg)
+    if got != man.get("svg_sha256"):
+        raise InputError("baseline SVG %s hashes to %s..., but its manifest names %s...: it "
+                         "is not the release the manifest describes"
+                         % (svg, got[:12], str(man.get("svg_sha256"))[:12]))
+    return os.path.join(d, "render_1024.png"), svg, man.get("label", "baseline")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("before")
-    ap.add_argument("after")
+    ap.add_argument("images", nargs="+", help="1-3 renders to compare, in column order")
     ap.add_argument("--reference", default=os.path.join(ROOT, "reference.png"))
-    ap.add_argument("--labels", default="before,after")
+    ap.add_argument("--labels", default=None, help="comma-separated, one per image")
+    ap.add_argument("--svg", nargs="+", default=None,
+                    help="the SVG each image must be the resvg render of (verified)")
+    ap.add_argument("--baseline", default=None,
+                    help="directory holding the accepted release's SVG and manifest; its "
+                         "render becomes the first compared column")
     ap.add_argument("--out", default=os.path.join(ROOT, "out", "flare_parts.png"))
     ap.add_argument("--split", action="store_true",
                     help="also write one image per part next to --out")
     a = ap.parse_args()
-    images = [load(a.reference), load(a.before), load(a.after)]
-    labels = ["reference"] + a.labels.split(",")[:2]
+    paths = list(a.images)
+    labels = a.labels.split(",") if a.labels else ["image %d" % (i + 1) for i in range(len(paths))]
+    svgs = list(a.svg) if a.svg else [None] * len(paths)
+    try:
+        if len(labels) != len(paths):
+            raise InputError("%d labels for %d images" % (len(labels), len(paths)))
+        if len(svgs) != len(paths):
+            raise InputError("%d --svg for %d images" % (len(svgs), len(paths)))
+        if a.baseline:
+            bp, bs, bl = baseline_input(a.baseline)
+            paths, svgs, labels = [bp] + paths, [bs] + svgs, [bl] + labels
+        if len(paths) > 3:
+            raise InputError("at most three images are compared with the reference, got %d"
+                             % len(paths))
+        images = [load(a.reference)]
+        check_input(a.reference, images[0])
+        for p, sv in zip(paths, svgs):
+            if not os.path.exists(p):
+                raise InputError("%s does not exist" % p)
+            im = load(p)
+            check_input(p, im, sv)
+            images.append(im)
+    except InputError as exc:
+        print("flare_parts: %s" % exc, file=sys.stderr)
+        return 2
+    verified = all(sv is not None for sv in svgs)
+    labels = ["reference"] + labels
     sheets = [(n, part_sheet(n, b, images, labels)) for n, b in PARTS.items()]
     width = max(s.width for _n, s in sheets)
-    out = Image.new("RGB", (width, sum(s.height + 10 for _n, s in sheets)), (255, 255, 255))
-    y = 0
+    head = 16
+    out = Image.new("RGB", (width, head + sum(s.height + 10 for _n, s in sheets)), (255, 255, 255))
+    ImageDraw.Draw(out).text((2, 2), "columns: %s -- %s" % (
+        " | ".join(labels), "every render verified against the SVG it is labelled as"
+        if verified else "UNVERIFIED inputs (no --svg): an ad-hoc comparison"), fill=(0, 0, 0))
+    y = head
     for _n, s in sheets:
         out.paste(s, (0, y))
         y += s.height + 10

@@ -67,6 +67,15 @@ python3 tools/make_previews.py out/render_1024.png
 # so the documented release command has to produce it: a reviewer who runs this
 # should not have to know the tool exists to see what it shows.
 python3 tools/flare_view.py out/render_1024.png --out out/flare_view.png
+# The before/after sheet is a release artefact too, and a checked-in one: it was
+# drawn by hand once and would have gone on showing a "this release" column that
+# no longer described the release (D62).  Its "before" is the previous ACCEPTED
+# release, kept as its SVG in out/baseline/ with a manifest whose digest ties the
+# two together; flare_parts refuses to draw if the manifest, the baseline render
+# or this release's render does not match the SVG it is labelled as.
+python3 tools/render.py out/baseline/reconstruction.svg out/baseline/render_1024.png
+python3 tools/flare_parts.py out/render_1024.png --svg reconstruction.svg \
+    --baseline out/baseline --labels "this release" --out out/flare_parts.png
 
 echo "== 4. regression checks =="
 python3 -u tools/test_pipeline.py

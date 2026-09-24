@@ -3975,3 +3975,331 @@ after.
   (D54) has no lever inside the flare. A narrow cyan deficit on the curves'
   outer flank at d -8 (+7-8 G) is not moved by any inset or colour sweep of the
   split pair.
+
+## D62. The flare tools made consistent with the segmented rays, then eleven parts of the flare refined from their own measurements
+
+Two stages, in that order. The first made the calibration, geometry and publish
+tooling agree with the segmented ray model D61 built. The second refined the
+flare one named part at a time, and only where a measurement of that part asked
+for it. Two states were kept as comparison states throughout: the previous
+release (main 5bedbfc, now `out/baseline/` with a digest manifest) and D61's PR
+head (131a456). The reference is the only ground truth. Every change below was
+set against line profiles, crops and difference images of the part it changes,
+and against the part sheet (`out/flare_parts.png`). No global metric chose
+anything.
+
+Each part below separates **measured** (numbers read off the reference and the
+render), **inferred** (what the numbers are taken to mean), **changed** (what was
+done), and **uncertain** (what the evidence does not settle).
+
+### Stage 1: the tools
+
+**Calibration was one peak to one layer; it is now per line, per family, joint.**
+*Measured:* the old `measure_flare` scaled one layer per ray to a pooled
+chord-excess peak. For a ray drawn as two segments on one line, the scale moved
+whichever segment held the peak and left the other. On D61's head, a verify pass
+under the new measurement asked `flare_ray_lld` x1.195, `flare_ray_ur` x1.134,
+`flare_ray_e` x1.113, `flare_ray_llc` x1.097 and `flare_ray_ula` x0.881.
+*Changed:* a calibration family is one measured line (tools/ray_lines.py) plus
+every layer that lights it. Each band's amplitude is read with the reference's
+own template (s0, sigma) held fixed, which makes it a linear functional of the
+image. All families' per-layer scales are then solved together by
+Levenberg-Marquardt through the exact composite of the layer stack over the
+measurement crop. Each round moves a layer by at most 3x and saves, and the
+saved file is re-rendered in full and re-measured. It counts as converged when
+the correction that re-measurement still asks for is within TOL = 0.08 in ln for
+every layer. Otherwise the exit status is 1 and the corrections are saved anyway,
+so a caller can tell a calibrated state from an uncalibrated one. A scale keeps
+the layer's hue.
+
+**The residual is luminance-first.** *Measured:* with R, G and B weighted
+separately (R at half), a converged solve left several families' luminance
+13-26% short: Y-gain 0.84 (upper-left A), 0.74 (upper-left B), 0.95 (267),
+0.87 (upper-right). Those rays are greener than white/cyan/blue can draw (B
+below G above the ramp), and the solve split that hue error by dimming them.
+*Changed:* each band's residual is now Rec. 709 luminance plus the R-G and B-G
+differences at 0.3. The chroma terms still tell a white segment from a cyan one
+on a shared line. After the change every family's Y-gain is 0.90-1.02.
+*Uncertain:* the B those rays carry is 6-31% high. That is the cone, not the
+calibration (part 7).
+
+**Bands inside another structure's glow are not the ray's.** *Measured:* the
+first bands of both upper-left lines lie 20-36 px beyond the left curve's ridge,
+inside its glow. There the model's curve error reads as a negative ray: -3.5 and
+-4.6 cv at r 104 and 84, where the reference reads +2.3 and +2.9. The solve
+brightened `flare_ray_ulb` x1.23 to fill a dip that is not the ray's.
+*Changed:* FAMILIES carries `r_min`, 108 and 104 for those two lines.
+
+**The geometry of record covers every ray, and `--geometry` no longer touches
+bounds.** All 13 ray layers have an entry in `RAY_GEOMETRY`: rot, dx, dy, len,
+onset, peak_at, tail, height, spread and blur. A ray layer without an entry,
+an entry without a layer, a canonical value outside the layer's own search
+bounds, or a retired flank id present are all errors that `--geometry`
+refuses. The old version rewrote every ray's bounds to generic wide intervals,
+which doubled `flare_ray_b`'s rotation window on every rebuild. A search space
+is a different decision from a measurement, and it is now left alone.
+test_pipeline perturbs every key of every ray, rebuilds, and requires an exact
+restore with the bounds unchanged.
+
+**The ray's fade has its own parameter.** *Measured:* the ray gradient put 0.42
+of peak at `peak_at` + 0.35, a constant. A ray peaking at 0.62 of its length had
+to fall from 0.42 to nothing in the last 3%, and a lobe whose peak sits right
+could not also end where the reference ends. *Changed:* an optional `tail`
+places that stop. Absent means 0.35, which rebuilds every earlier ray
+byte-identically. It is part of the geometry of record and the optimiser's keys.
+
+**The diagnostics refuse what they cannot read.** `ray_lines.py`,
+`visual_regression.py` and `flare_parts.py` exit 2, and say why, on anything but
+a 1024 x 1024 canvas. The line sampler raises instead of clamping to the edge;
+clamping had turned a 512-px render into a column of plausible numbers.
+
+**`out/flare_parts.png` is a publish artefact regenerated from verified inputs.**
+Its "before" column is the previous accepted release, kept as its SVG plus a
+manifest naming the commit and svg_sha256. `publish.sh` renders it, and
+`tools/flare_parts.py` refuses to draw if the manifest, the baseline render or this
+release's render does not match the SVG it is labelled as. Without `--svg`, the
+header says the inputs are unverified.
+
+**The global fits hold the calibrated rays.** `optimize.py` and
+`fit_photometry.py` hold the rays' colour (CALIBRATED_LAYERS) and shape
+(RAY_GEOMETRY) unless `--include-rays` or `--fit-rays` is given, and
+`prune_layers.py` never offers a ray for removal. A whole-image objective is
+what drew a lower-left ray 2.5x the reference in D61. `optimize_all.sh` runs
+`--geometry` after the fits.
+
+**Optimisation readiness, checked item by item against the regression gate:**
+small-step refinement ("the search refines below its first step when a whole
+step fails"); flare dependencies ("flare-dependent layers are discovered from
+the builder", "moving flare/cx by 6 px moves every layer that does not pin cx");
+provenance (four sidecar and staleness checks); validation semantics ("a quick
+run says which carried rasters are current", and the CI exit-code steps); flare
+cells at strides ("the flare comb cells survive stride 3 and stride 4");
+photometric weighting ("the fitting weight equalises the profile cells and lifts
+the flare", "the profile weight is keyed on the target"); profile cache
+("content-addressed cache re-renders without an explicit invalidate"); isolation
+("isolation recovers a screen contribution under a normal layer", "isolation
+refuses orderings its algebra cannot express"). New in D62: calibration
+convergence of the shipped file; one segment's correction not dragging the
+other (a halved inner segment restored to the converged state, the outer held
+within 0.04 in ln); a two-segment ray pushed apart (x0.5 / x1.6) and calibrated
+back jointly; a calibrated file rebuilt through the documented commands to
+within 0.01 cv of its calibrated profile; a non-converging calibration exiting
+nonzero with its corrections saved; the global fits leaving calibrated rays
+untouched; and the diagnostics refusing a 512-px input.
+
+### Stage 2: the flare, part by part
+
+    part (priority)        head (D61)                          final                          reference
+    1 upper-left inner     G r 92-116: 7.9 1.9 -3.6 -3.4       7.1 6.2 4.8 3.4                7.0 5.3 3.7 1.9
+    2 lobe 229, white      R r 24-48: 2.2 4.1 5.4 5.6          8.8 17.0 8.5 1.3               11.0 19.2 7.5 -0.7
+      lobe 229, extent     G r 56 / 64: 10.7 / 9.4             3.8 / 1.5                      (fixed tmpl) 4.9 / 0.2
+    3 upper-right core     G r 90 / 98: 4.2 / 4.0              6.8 / 6.2                      7.0 / 7.0
+    4 lower-right          G r 60-84: 13.3 10.8 10.6 10.1      12.8 13.7 13.6 11.8            15.3 13.0 12.1 11.3
+                           G r 108-132: 8.9 6.8 7.0 6.8        7.9 6.1 6.5 6.2                6.1 8.2 5.7 3.6
+                           R r 52 / 60 (white): 9.6 / 5.6      5.0 / 3.5                      3.0 / 1.0
+    5 vertical line, N     per-band rms A_4 R/G/B 1.37/2.87/5.33   1.15/1.98/3.93
+    6 line C               rms 1.56 (east dx 95-150: 3.3-4.0)  1.21 (3.7-4.7)                 (3.9-4.8)
+    8 near-core ring       G/B r 12-28 (not E): +6.2 / +4.6    +0.7 / -0.9
+    9 curves, concave,     R -21.0 / -23.1 (right / left)      -6.8 / -5.9
+      |dy| < 45            MAE 11.79 / 13.05                   9.31 / 8.53
+
+(Line profiles by tools/ray_lines.py, each render read with its own fit;
+"fixed tmpl" is the calibration's reading with the reference's template.)
+
+**1. Upper-left inner ray.** *Measured:* the reference peaks at r ~60 (G 22.7),
+is 0.42 of that by r ~90 and fades slowly to ~0 by r ~125 (7.0 / 5.3 / 3.7 /
+1.9 at r 92-116). The head's ray fell from 0.42 of peak to zero between r 97 and
+100. *Inferred:* the ray does not end early. It fades late and slowly, which the
+fixed 0.35 fade could not draw at any length. *Changed:* its longitudinal
+profile was fitted to the fixed-template amplitudes (peak 54 px, 0.42 at 89 px,
+end 148 px). Its amplitude moved +4% (x1.04 in the fit, x0.999 in the joint
+calibration). It was neither lengthened as it was nor brightened. *Uncertain:*
+the reference's ray is ~15% wider than the model's (sigma 5.9 against 5.0,
+pooled), with band-to-band scatter of 4.1-7.9. The width was left alone.
+
+**2. Lower-left lobe (229 degrees).** *Measured:* the reference is WHITE at r
+24-40 (R 11.0 / 19.2 / 7.5) and cyan at r 32-56, and gone by r ~60. The single
+white+cyan layer put white along the whole lobe (R 5-6 at r 40-56) and ran
+~10 px long. *Inferred:* one layer has one colour, so a lobe that changes
+colour along its length is two segments on one line, the same pattern as the
+lower-right's white inner segment. *Changed:* `flare_ray_llc_in` (white,
+23-46 px, peak 30) and `flare_ray_llc` (cyan only now, 34-61 px, peak 41), on
+the same line with the same width, fitted jointly in shape and colour.
+Unconstrained, the fit collapsed both into short, strong blobs (a fade of 1.4 px,
+the cyan at 3.4x its old amount). Each part of the profile was then held to at
+least 6 px, which is below the 5 px blur's resolution anyway. *Uncertain:* at r 24 the model's G is
+7.8 against 5.9. The core is bright there and part of that band is the core's
+own structure.
+
+**3. Upper-right core at mid radius.** *Measured:* the reference holds G ~7
+from r 74 to 98 and is down to 4.5 by r 106. The core layer's 0.42-point was at
+146 px of 151, which kept light at r 110-140 that belongs at r 90-98.
+*Changed:* the core's onset (28 -> 46 px) and fade (0.42 at 146 -> 106 px) were
+refitted, with its peak and end kept. Its colour amount rose x2.2 because it is
+now lit over a shorter length. The flank `flare_ray_e` keeps D59's geometry; a
+joint fit that also reshaped it gained nothing (cost 50.0 against 52.0) and
+was not taken. *Uncertain:* r 98-114 is still ~1 cv low. The reference's sigma
+there (4.8 at r 90) is wider than the core's.
+
+**4. Lower-right tail.** *Measured:* 2-4 cv low inside r 84 and 1-2 cv high at
+r 108-132 on the reference's template, with the far tail (r 148-172) if
+anything below the reference (3.2-1.0 against 4.0-2.0). The white inner segment
+still gave R 9.6 at r 52 where the reference has 3.0. *Inferred:* "slightly
+long" is too much light at r 108-132 making the ray read longer, not light
+beyond r 172. *Changed:* the tail's peak 53 -> 69 px and 0.42-point 116 -> 100
+px, its end kept. The inner segment's peak 30 -> 42 px and 0.42-point 54 -> 50
+px. The translation was re-checked at three radii: the reference's ridge sits
++0.45 / -0.95 / -1.15 px from the line at r 36-60 / 68-124 / 132-172. That is
+flat beyond r 68, which a rotation cannot produce, and inside the 1.2-1.7 px
+spread of centre definitions, so the line and its translation stand.
+*Uncertain:* ray_lines reads R 13.5 at r 36 against 5.9. That band is where the
+line crosses the right curve's concave side 16 px from its ridge, where
+`arc_bloom_w` now sits (part 9). The pixels there are close to the reference (y
+530, x 552-568: 118 / 108 / 94 / 73 / 45 against 134 / 115 / 92 / 70 / 47; D61's
+112 / 93 / 69 / 48 / 33). It is the fit's window catching an oblique band, not
+white on the ray.
+
+**5. Vertical diffraction.** *Measured:* in the unclipped channels the
+reference's line rises across |dy| 33 and holds to ~70 (G A_4 north 7.41 / 5.46
+at |dy| 36-70 against the head's 5.20 / 2.96). The layer's tables had been
+fitted in R, which is floor-clipped there, and collapsed at |dy| ~33.
+`flare_vline`'s own note already said so. *Changed:* both tables' stops at |dy|
+31-100 were refitted by bounded linear least squares on G and B A_4 and N over
+|dy| 26-110, with R only inside |dy| 36. *Result:* north per-band rms falls in
+every channel and statistic. South, G and B A_4 improve (2.19 -> 1.26, 2.16 ->
+1.39) and R A_4 worsens (1.06 -> 1.92). *Uncertain:* the south line near the
+core is whiter than one colour allows (R 11.4 against G 6.0 at |dy| 26-36), and
+that is its remaining error. The pooled regression check "the vertical
+diffraction is present" falls from 0.608 to 0.469 of the reference, inside its
+0.45-2.20 band. Its docstring already recorded that correcting the northern
+falloff would lower it. The band was not moved to make room.
+
+**6. Lower horizontal lines.** *Measured:* line C, east side, dx +95..+240:
+3.13 / 3.92 / 3.51 / 1.98 / 0.87 against 4.61 / 4.78 / 3.91 / 0.97 / 0.45.
+*Changed:* `flare_sat_long` has its own east table, the west one compressed by
+0.9, with east_gain 0.85 -> 1.10. *Left alone:* line C's west (no stretch or
+gain improved it), and its near-core bins, where the bloom's vertical curvature
+and the line cannot be separated. Line B was not changed (rms 1.16 -> 1.06 from
+the core changes), and neither was line A (1.18 -> 0.95, same reason).
+
+**7. The 267-degree ray's colour.** *Measured:* in the screen domain (alpha_ch =
+dI_ch / (255 - flank_ch)) the reference's B/G on the inner segment is 0.61-0.92
+at r 40-64. The flank's B is 86-135, far from saturation, and R increments of
+1.3-1.8 argue against chroma subsampling as the cause. White/cyan/blue cannot go
+below ~1.06. *Decision:* the basis stays. A green basis vector would fit this
+ray and the three others that share the property, but nothing else in the
+artwork needs one, and it reopens the invented-colour failure the cone exists
+to prevent. With the luminance residual their strength matches; the cost is B
+6-31% high.
+
+**8. Near-core ring.** *Measured:* at r 12-28 the head's G/B were +6..+15 high
+in EVERY direction: west +8.8, north +4.7, south +4.9, east +13.5. The ablation
+put 46 cv of G in that ring from `flare_halo_far`, against ~12 from all the
+curve glows together. *Inferred:* a ring the same size in every direction is
+radial and the flare's. The right curve is east only. This corrects D61's
+"most of that ring is the right curve's glow". *Changed:* `flare_halo_far`'s
+exp law is kept verbatim beyond r ~39, and its six inner stops were refitted to
+the unclipped G and B at r 10-44 outside the curves. That leaves +0.7 / -0.9
+outside the east. Its centre stop (r < 8, clipped white in both images) is a
+monotone extrapolation, because nothing there can measure it. *Not changed:*
+the white core's shape. West, R is +14 cv at r 40-56 from the overlap of
+`flare_halo`, `flare_cloud_w` and `flare_fan`. North-west and south, R is 10-17
+short at r 12-28. A radial refit of `flare_halo` was ill-conditioned
+(non-monotone stops, rms 5.54 -> 5.17). Shrinking `flare_cloud_w` traded the
+west's outer excess for an inner deficit (score 13.9 -> 13.2, north-west r 14-28
+-12.7 -> -16.0). The direction-dependent residual is recorded, as D61 recorded
+the lumps.
+
+**9. The curves near the flare.** *Measured:* both curves are whiter on their
+concave side within ~40 px of the core row: R 20-59 cv short at 3-18 px from
+the ridge. On the left curve, 66 px from the core, it is as large as on the
+right. *Inferred:* the light is the curves', not the flare's. It is D54's "white
+east of the right curve", which had no lever inside the flare because it never
+was the flare. *Changed:* `arc_bloom_w`, a white glow 16 px toward the concave
+side, 8 wide, blur 4, flat over |dy| 15 and gone by |dy| 55, fitted over both
+concave sides (rms 10.19 -> 8.28; the fit wanted no cyan). *Uncertain:* the
+right side needed a hue shift more than more light. After the bloom, its
+concave side is +4.4 in luminance where it was even (R -9.2 -> -2.1 over offsets
+3-30). A separate right-side amplitude would gain 0.10 MAE, which does not pay
+for another layer.
+
+**10. Saturation.** Region by region, reference / final (HSV S, chroma
+max-min):
+
+    core r<12          0.210 / 0.220   49.4 / 52.0   (D61 head 0.233 / 56.5)
+    ring r 12-40       0.720 / 0.704   116.5 / 112.3
+    flare r 40-130     0.955 / 0.935   73.9 / 71.6   R 3.4 / 5.5
+    arc glow, convex   0.858 / 0.864   arc glow, concave 0.862 / 0.857
+    lens, |dy|>130     0.887 / 0.893   outer field 0.876 / 0.895
+
+*Inferred:* no region is globally under- or over-saturated. The core's excess
+chroma was the cyan ring (part 8), and it is mostly gone. The arc ridges clip in
+20.5% of the reference's pixels against 3% of the render's, but round-tripping
+the render through JPEG at q90 raises that to 13%. Most of that clipping is the
+reference's compression overshoot, not colour. The one local shortfall is the
+mid flare's R, +2.1 cv (5.5 against 3.4), weighted west. It is spread over
+`arc_glow2b`'s white term (+1.8), the field gradient (+1.0) and the white core
+layers. *Decision:* no global boost, and no change there: no layer is
+responsible, and the fix would be a curve-colour change far outside the flare.
+
+**11. Core mottling.** *Measured:* in the core box (r > 12, streak rows and the
+vertical line excluded), the reference's 8-px blockiness is 1.30 / 1.41 / 1.38
+in R / G / B. The render reads 0.91-0.95, and recompressing it at
+q95 / 90 / 80 / 70 / 60 reaches 1.31-1.43 only at q60. The reference-minus-render
+residual is grid-aligned (blockiness 1.50-1.57), most strongly in luminance
+(1.62). Its chroma part is less so (Cb 1.13, Cr 1.20) and carries ~2 cv RMS at
+4-8 px in R-Y. *Classified:* the block-scale mottling is JPEG (quality ~60 or
+several generations). What remains is a weak, partly grid-aligned white texture
+at 4-8 px, probably real light: D61's lumpy west cloud. *Decision:* neither is
+vectorised. The first is noise, and the second could only be drawn as invented
+lumps.
+
+**Found on the way: upper-left B's width.** *Measured:* beyond r 104, where its
+line is clear of the curve's glow, the reference's sigma is 3.6-4.1 in every
+band. The model's was 5.3-5.9 (height 10, blur 4.0). A ray too wide for the
+fixed template reads low and is calibrated too bright: it came out at 1.5x the
+reference's peak. *Changed:* height 6, blur 3.2 (sigma 3.5-4.0). The 267-degree
+inner segment's width was scanned the same way and left alone: its line is 2 px
+from the vertical line, which contaminates the fit, and the shipped width is
+among the better ones.
+
+### What the numbers did
+
+    measure                 previous release   D61 head   D62
+    MAE                     1.8416             1.8306     1.8149
+    RMSE                    3.9741             3.9084     3.8321
+    SSIM                    0.97443            0.97436    0.97450
+    MAE, display curve      5.406              5.366      5.346
+    centre region           7.641              6.987      6.364
+    flare r<110 (diagnose)  6.30               5.85       5.44
+    core r<25               8.305              8.362      6.474
+    flare box MAE / SSIM    4.177 / 0.96449    3.979 / 0.96556   3.801 / 0.96710
+    pixels off by > 8       4.52%              4.45%      4.37%
+    pixels off by > 24      0.729%             0.660%     0.544%
+    edge_iou                0.6912             0.6893     0.6933
+    bright region           9.359              9.654      9.663
+
+SSIM, core MAE and edge IoU, the three that got worse in D61, are now better
+than both earlier states. Bright-region MAE is not. All of its excess over the
+previous release lies on the curves beyond r 200 (|dy| 150-520). That is D61's
+curve-colour split, which this pass did not touch (+0.009 against the head);
+inside r 200 it improves. The frame is untouched (frame MAE 2.505 before and
+after). All 16 structural checks pass.
+
+### Remaining, with the reason
+
+* **Rays greener than the cone** (part 7): B 6-31% high on the 267-degree ray,
+  upper-left A, the upper-right and the lobe.
+* **The white core's shape** (part 8): west R +14 at r 40-56, north-west and
+  south -10..-17 at r 12-28. It is not a radial error, and there is no evidence
+  for a particular lump.
+* **The south vertical line near the core is whiter** than its one colour
+  (part 5).
+* **The right curve's concave side near the core is now slightly bright** (part
+  9). It needed white instead of cyan, and a screen layer can only add.
+* **Line B near the core** reads 22.0 against 24.6 at dx -36, and line C's
+  near-core bins are not separable from the bloom's curvature (part 6).
+* **The mid flare is +2 cv in R** (part 10), spread over several layers.
+* **The upper-left inner ray is ~15% narrower** than the reference's pooled
+  width, and the **upper-right is ~1 cv low at r 98-114** (parts 1 and 3). In
+  both the reference's band-to-band scatter is comparable to the difference.

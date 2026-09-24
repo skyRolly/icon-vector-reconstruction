@@ -731,12 +731,39 @@
    "width": 7.92
   },
   {
+   "id": "arc_bloom_w",
+   "kind": "arc",
+   "white": 0.262469,
+   "cyan": 0.0,
+   "blue": 0.0,
+   "color": [
+    66.93,
+    66.93,
+    66.93
+   ],
+   "inset": 16.0,
+   "width": 8.0,
+   "blur": 4.0,
+   "taper": "bloom_w",
+   "bounds": {
+    "inset": [
+     8.0,
+     24.0
+    ],
+    "width": [
+     4.0,
+     16.0
+    ],
+    "blur": [
+     2.0,
+     8.0
+    ]
+   },
+   "note": "D62: both curves are WHITER on their concave side at the flare's height than the glow terms draw -- R 20-59 cv short at 3-18 px from the ridge within |dy| ~40 of the core row, on the left curve 66 px from the core as much as on the right one, so it is the curves' light and not the flare's.  A white glow 16 px out, 8 wide, blur 4, flat over |dy| 15 and gone by |dy| 55 (fitted over both concave sides, |dy| <= 90: rms 10.19 -> 8.28; no cyan wanted)."
+  },
+  {
    "blue": 0.0,
    "bounds": {
-    "profile": [
-     0.1,
-     0.45
-    ],
     "r": [
      140,
      340
@@ -754,11 +781,85 @@
    "cyan": 1.0,
    "id": "flare_halo_far",
    "kind": "radial",
-   "note": "the isolated flare is below 0.01 in additive luminance beyond r ~ 130 px and indistinguishable from zero beyond ~160, so this widest bloom ends there; the broad light between the curves is the central field, not the flare.\nMEASURED, NOT ACTED ON -- the flare's mid-radius colour error.  In the annulus r 20-55 the render carries too much of the WHITE primary and too little cyan at nearly constant luminance, which is what makes the surround read as a white wash instead of a cyan bloom and is the measurable part of the standing under-saturation complaint.  Per-channel mean(render - reference), ridge clearance 8, unclipped, at r 20-40 / 40-55:\n    north  dR +12.3/+3.8   dG -4.8/-6.5   dB -6.4/-10.2\n    south  dR  +4.1/+5.1   dG +0.7/-5.5   dB +3.6/-6.9\n    nw     dR  -1.0/+6.4   dG -6.1/-2.3   dB -7.5/-5.6\n    sw     dR  -7.6/+7.9   dG -4.2/-9.4   dB -1.4/-8.4\nagainst a 36-placement matched null at z = +27 for the north cell, where the luminance difference is only +0.4 and sees almost none of it.\nTHE MODEL CANNOT CORRECT IT WITH THE LEVERS IT HAS, and three separate attempts establish that rather than assert it.  (1) Both halo layers are already at maximum amplitude -- white 1.0 and cyan 1.0 -- so the only levers are geometric.  A 9-point sweep of the pair's e-folding (halo 0.14/0.17/0.20 x this layer 0.246/0.32/0.40) leaves the shipped 0.20/0.2464 the MAE optimum: the best chroma cell, 0.14/0.32, improves the colour statistic from 5.73 to 4.99 and costs MAE 1.8886 -> 1.9414.  (2) Adding a NEW mid-radius cyan halo (four geometries, r 48-75) gets the chroma statistic to 5.14 for 0.0035 of MAE and 0.10 of flare-region MAE -- a tenth of the defect for a measurable regression.  (3) The reason both fail is that the error is ANISOTROPIC and every lever here is isotropic: the same annulus that is too white to the north and south is too DIM in red due west (dR -6.9 at r 20-40), so an elliptical halo cannot move white out of one and into the other.  Correcting it needs an angular colour decomposition -- white moved from the isotropic halo into a horizontal carrier, with the cyan raised to hold the luminance -- fitted against per-direction per-radius colour cells.  That is a rebuild of the bloom's colour basis and it is deliberately not attempted as a parameter change",
-   "profile": {
-    "kind": "exp",
-    "scale": 0.2464
-   },
+   "note": "the isolated flare is below 0.01 in additive luminance beyond r ~ 130 px and indistinguishable from zero beyond ~160, so this widest bloom ends there; the broad light between the curves is the central field, not the flare.\nMEASURED, NOT ACTED ON -- the flare's mid-radius colour error.  In the annulus r 20-55 the render carries too much of the WHITE primary and too little cyan at nearly constant luminance, which is what makes the surround read as a white wash instead of a cyan bloom and is the measurable part of the standing under-saturation complaint.  Per-channel mean(render - reference), ridge clearance 8, unclipped, at r 20-40 / 40-55:\n    north  dR +12.3/+3.8   dG -4.8/-6.5   dB -6.4/-10.2\n    south  dR  +4.1/+5.1   dG +0.7/-5.5   dB +3.6/-6.9\n    nw     dR  -1.0/+6.4   dG -6.1/-2.3   dB -7.5/-5.6\n    sw     dR  -7.6/+7.9   dG -4.2/-9.4   dB -1.4/-8.4\nagainst a 36-placement matched null at z = +27 for the north cell, where the luminance difference is only +0.4 and sees almost none of it.\nTHE MODEL CANNOT CORRECT IT WITH THE LEVERS IT HAS, and three separate attempts establish that rather than assert it.  (1) Both halo layers are already at maximum amplitude -- white 1.0 and cyan 1.0 -- so the only levers are geometric.  A 9-point sweep of the pair's e-folding (halo 0.14/0.17/0.20 x this layer 0.246/0.32/0.40) leaves the shipped 0.20/0.2464 the MAE optimum: the best chroma cell, 0.14/0.32, improves the colour statistic from 5.73 to 4.99 and costs MAE 1.8886 -> 1.9414.  (2) Adding a NEW mid-radius cyan halo (four geometries, r 48-75) gets the chroma statistic to 5.14 for 0.0035 of MAE and 0.10 of flare-region MAE -- a tenth of the defect for a measurable regression.  (3) The reason both fail is that the error is ANISOTROPIC and every lever here is isotropic: the same annulus that is too white to the north and south is too DIM in red due west (dR -6.9 at r 20-40), so an elliptical halo cannot move white out of one and into the other.  Correcting it needs an angular colour decomposition -- white moved from the isotropic halo into a horizontal carrier, with the cyan raised to hold the luminance -- fitted against per-direction per-radius colour cells.  That is a rebuild of the bloom's colour basis and it is deliberately not attempted as a parameter change  D62: the exp(-u/0.2464) law is now a TABLE -- verbatim beyond u 0.28 (r ~39), its six inner stops refitted to the reference's unclipped G and B at r 10-44 outside the curves: the law put G +6..+11 and B +5..+9 too much cyan at r 10-26 in EVERY direction, the near-core ring the eye reads as too cyan; after the refit +1..+2 / ~0.  u=0 (r<8, clipped white in both images) is not measurable and is the monotone extrapolation of the next two stops.  A table has no single knob, so its search bound was removed.",
+   "profile": [
+    [
+     0.0,
+     0.8357
+    ],
+    [
+     0.05556,
+     0.673053
+    ],
+    [
+     0.11111,
+     0.510363
+    ],
+    [
+     0.16667,
+     0.412544
+    ],
+    [
+     0.22222,
+     0.377352
+    ],
+    [
+     0.27778,
+     0.318611
+    ],
+    [
+     0.33333,
+     0.245477
+    ],
+    [
+     0.38889,
+     0.192377
+    ],
+    [
+     0.44444,
+     0.149995
+    ],
+    [
+     0.5,
+     0.116169
+    ],
+    [
+     0.55556,
+     0.089171
+    ],
+    [
+     0.61111,
+     0.067622
+    ],
+    [
+     0.66667,
+     0.050424
+    ],
+    [
+     0.72222,
+     0.036697
+    ],
+    [
+     0.77778,
+     0.02574
+    ],
+    [
+     0.83333,
+     0.016996
+    ],
+    [
+     0.88889,
+     0.010017
+    ],
+    [
+     0.94444,
+     0.004446
+    ],
+    [
+     1.0,
+     0.0
+    ]
+   ],
    "r": 140.44800000000004,
    "squash": 0.777728,
    "white": 0.0
@@ -1299,11 +1400,11 @@
    ],
    "cyan": 0.03756,
    "dy": 17.88,
-   "east_gain": 0.85,
+   "east_gain": 1.1,
    "half_len": 320.0,
    "id": "flare_sat_long",
    "kind": "streak",
-   "note": "line C: dy +19.33, rises from an inner cut-off near |dx| 80, peaks at 110-170, then falls -- an explicit table because no monotone law fits",
+   "note": "line C: dy +19.33, rises from an inner cut-off near |dx| 80, peaks at 110-170, then falls -- an explicit table because no monotone law fits  D62: line C's EAST side has its own table, the west one compressed by 0.9, and east_gain 0.85 -> 1.10: tools/line_report.py's line C at dx +95..+240 read 3.13/3.92/3.51/1.98/0.87 against the reference's 4.61/4.78/3.91/0.97/0.45.  The west was re-scored and left: no stretch or gain improved it.",
    "profile": [
     [
      0.0,
@@ -1347,7 +1448,53 @@
     ]
    ],
    "sigma_y": 2.3,
-   "white": 0.0
+   "white": 0.0,
+   "profile_e": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.198,
+     0.06
+    ],
+    [
+     0.27,
+     0.58
+    ],
+    [
+     0.324,
+     1.0
+    ],
+    [
+     0.405,
+     0.97
+    ],
+    [
+     0.477,
+     0.81
+    ],
+    [
+     0.513,
+     0.8
+    ],
+    [
+     0.648,
+     0.29
+    ],
+    [
+     0.81,
+     0.16
+    ],
+    [
+     0.9,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ]
+   ]
   },
   {
    "blue": 0.0,
@@ -1580,7 +1727,7 @@
    "half_len": 110.0,
    "id": "flare_vline",
    "kind": "vstreak",
-   "note": "the vertical diffraction line through the brightest point -- a real feature of the reference that the reconstruction had no trace of.  It took a channel-aware measurement to see: within ~12 px of the core G and B are CLIPPED (421 and 453 px at or above 253 in a 90x90 box, against 4 for R), so a luminance statistic there measures the clip.  In R the column high-pass A_4 reads 12.3/9.8/4.4/2.0/1.5/1.5 code values over |dy| 16-26/26-36/36-50/50-70/70-90/90-110 where the render read 2.4/0.5/0.7/0.4/-0.4/-0.2; see tools/vstreak_report.py.  Axis array x 528.9 +- 0.5, vertical to 0.3 +- 0.2 deg, FWHM 3.3-4.6 px.  It survives 4x downsampling, is flat across all eight y mod 8 JPEG phases, and the seven other block-boundary columns in the same rows read 0.0-0.6 against its 4.1, so it is light and not blocking.  The profile is TABULATED, and its factor-3.1 step at |dy| ~33 IS NOT A FEATURE OF THE LIGHT: it is an artefact of R's ZERO floor, which is 20-30% occupied over exactly those bands.  In the two unclipped channels the reference's line RISES across that boundary and peaks at |dy| 36-70 -- where this table puts its collapse -- and the model's non-monotone tail bump at |dy| 80-100 is absent from the reference altogether.  The table is therefore WRONG in shape and is left alone only because correcting it means refitting against G and B outside |dy| 26 and against R inside it, with south_gain re-checked afterwards because the two are entangled.  What was originally offered as the reason for tabulating rather than fitting a law.  Three things are deliberately absent: no broad halo (the flank at |dx| 3-8 is consistent with zero), nothing past |dy| 110 (pooled 110-240 is within 1.3 cv of zero at 95%), and nothing east of the core, where the right ridge allows only an 11.6 cv limit and the honest position is silence. south_gain was 1.0 -- a DEFAULT, never a measurement, and one that could not have been searched either: `sigma_x` and `south_gain` both carried bounds here and neither name was in the optimiser's key list, so they were frozen through every run that reported optimising shapes.  The reference's line is north-dominated.  south/north of A_4 over |dy| 36-110: reference 0.44 in B and 0.63 in R, against the shipped render's 0.97 and 1.19; at 0.55 the render reads 0.45 and 0.65.  B is the channel to trust for this -- it runs 50-119 cv in these bands with nothing clipped at either end, while R is FLOOR-clipped there (20.5%, 30.5% and 19.7% exact zeros at |dy| 26-36, 36-50 and 50-70).  A block bootstrap over 8-row blocks gives B 0.52 [0.28, 0.84] with P(south >= north) = 0.004; the honest range is 0.45-0.85 and the estimators disagree systematically inside it (a narrow centre-minus-flank statistic says 0.35-0.42, A_4 says 0.52-0.63, a 4x downsample says 0.75), so 0.55 is a choice within a range and not a measurement to two figures.  The pooled statistic in tools/vstreak_report.py was blind to all of this and actively penalised the fix, which is why that tool now reports the two sides separately.  sigma_x 1.7 was re-measured at the same time and SURVIVES: the width-sensitive ratio N/A_4 puts it at 1.44-1.60 in G and B and 0.95-1.35 in the floor-clipped R, so 1.5 is marginally better supported but the difference is below the render's own resolution.  The amplitude inside |dy| 16 is unconstrained -- the bloom's own curvature dominates there -- so the inner stop is continuity, not a measurement  THE SOUTH IS NOT A CONSTANT FRACTION OF THE NORTH, which is all a single south_gain can say.  By A_4 in R and G (tools/vstreak_report.py) the reference's southern line is BRIGHTER than its northern one inside |dy| 36 -- 14.05 and 11.35 over the 16-26 and 26-36 bands against 10.57 and 8.26 north -- and DIMMER outside it, 3.01 and 1.42 over 36-50 and 50-70 against 5.74 and 2.66.  At south_gain 0.55 the render's southern inner line read 9.42 and 6.23, i.e. 4.6 and 5.1 cv short, and both estimators agreed: the southern band error was 2.86 rms against the north's 1.10.  The `vstreak` primitive has carried a separate `profile_s` all along and this layer never used it; the southern falloff is now its own table, south_gain moves 0.55 -> 1.0 and stays as a residual scale on it.  Southern A_4 and N rms error 2.86 -> 1.22, for +0.02% of the weighted objective and +0.0001 of whole-image MAE.  The innermost southern stop sits at opacity 1.0 because that is where it clamps: 1.0, 1.15 and 1.30 render identically.  MEASURED AND DELIBERATELY NOT FIXED: the north has the same kind of shape error in the other direction, too bright at |dy| 16-36 (A_4 12.31 and 9.79 against the reference's 10.57 and 8.26) and too dim at 36-70 (4.50 and 2.14 against 5.74 and 2.66).  Correcting it takes the band-resolved northern error 1.76 -> 1.16 rms AND LOWERS visual_regression's `vertical_amplitude` from 0.561 to about 0.55, because that check pools |dy| 16-50 and the pooled number is flattered by the inner excess.  Moving the artwork and the guard that watches it in one step is the exact hazard that check's own docstring records, so the north is left where it is until the gate is made band-resolved.",
+   "note": "the vertical diffraction line through the brightest point -- a real feature of the reference that the reconstruction had no trace of.  It took a channel-aware measurement to see: within ~12 px of the core G and B are CLIPPED (421 and 453 px at or above 253 in a 90x90 box, against 4 for R), so a luminance statistic there measures the clip.  In R the column high-pass A_4 reads 12.3/9.8/4.4/2.0/1.5/1.5 code values over |dy| 16-26/26-36/36-50/50-70/70-90/90-110 where the render read 2.4/0.5/0.7/0.4/-0.4/-0.2; see tools/vstreak_report.py.  Axis array x 528.9 +- 0.5, vertical to 0.3 +- 0.2 deg, FWHM 3.3-4.6 px.  It survives 4x downsampling, is flat across all eight y mod 8 JPEG phases, and the seven other block-boundary columns in the same rows read 0.0-0.6 against its 4.1, so it is light and not blocking.  The profile is TABULATED, and its factor-3.1 step at |dy| ~33 IS NOT A FEATURE OF THE LIGHT: it is an artefact of R's ZERO floor, which is 20-30% occupied over exactly those bands.  In the two unclipped channels the reference's line RISES across that boundary and peaks at |dy| 36-70 -- where this table puts its collapse -- and the model's non-monotone tail bump at |dy| 80-100 is absent from the reference altogether.  The table is therefore WRONG in shape and is left alone only because correcting it means refitting against G and B outside |dy| 26 and against R inside it, with south_gain re-checked afterwards because the two are entangled.  What was originally offered as the reason for tabulating rather than fitting a law.  Three things are deliberately absent: no broad halo (the flank at |dx| 3-8 is consistent with zero), nothing past |dy| 110 (pooled 110-240 is within 1.3 cv of zero at 95%), and nothing east of the core, where the right ridge allows only an 11.6 cv limit and the honest position is silence. south_gain was 1.0 -- a DEFAULT, never a measurement, and one that could not have been searched either: `sigma_x` and `south_gain` both carried bounds here and neither name was in the optimiser's key list, so they were frozen through every run that reported optimising shapes.  The reference's line is north-dominated.  south/north of A_4 over |dy| 36-110: reference 0.44 in B and 0.63 in R, against the shipped render's 0.97 and 1.19; at 0.55 the render reads 0.45 and 0.65.  B is the channel to trust for this -- it runs 50-119 cv in these bands with nothing clipped at either end, while R is FLOOR-clipped there (20.5%, 30.5% and 19.7% exact zeros at |dy| 26-36, 36-50 and 50-70).  A block bootstrap over 8-row blocks gives B 0.52 [0.28, 0.84] with P(south >= north) = 0.004; the honest range is 0.45-0.85 and the estimators disagree systematically inside it (a narrow centre-minus-flank statistic says 0.35-0.42, A_4 says 0.52-0.63, a 4x downsample says 0.75), so 0.55 is a choice within a range and not a measurement to two figures.  The pooled statistic in tools/vstreak_report.py was blind to all of this and actively penalised the fix, which is why that tool now reports the two sides separately.  sigma_x 1.7 was re-measured at the same time and SURVIVES: the width-sensitive ratio N/A_4 puts it at 1.44-1.60 in G and B and 0.95-1.35 in the floor-clipped R, so 1.5 is marginally better supported but the difference is below the render's own resolution.  The amplitude inside |dy| 16 is unconstrained -- the bloom's own curvature dominates there -- so the inner stop is continuity, not a measurement  THE SOUTH IS NOT A CONSTANT FRACTION OF THE NORTH, which is all a single south_gain can say.  By A_4 in R and G (tools/vstreak_report.py) the reference's southern line is BRIGHTER than its northern one inside |dy| 36 -- 14.05 and 11.35 over the 16-26 and 26-36 bands against 10.57 and 8.26 north -- and DIMMER outside it, 3.01 and 1.42 over 36-50 and 50-70 against 5.74 and 2.66.  At south_gain 0.55 the render's southern inner line read 9.42 and 6.23, i.e. 4.6 and 5.1 cv short, and both estimators agreed: the southern band error was 2.86 rms against the north's 1.10.  The `vstreak` primitive has carried a separate `profile_s` all along and this layer never used it; the southern falloff is now its own table, south_gain moves 0.55 -> 1.0 and stays as a residual scale on it.  Southern A_4 and N rms error 2.86 -> 1.22, for +0.02% of the weighted objective and +0.0001 of whole-image MAE.  The innermost southern stop sits at opacity 1.0 because that is where it clamps: 1.0, 1.15 and 1.30 render identically.  MEASURED AND DELIBERATELY NOT FIXED: the north has the same kind of shape error in the other direction, too bright at |dy| 16-36 (A_4 12.31 and 9.79 against the reference's 10.57 and 8.26) and too dim at 36-70 (4.50 and 2.14 against 5.74 and 2.66).  Correcting it takes the band-resolved northern error 1.76 -> 1.16 rms AND LOWERS visual_regression's `vertical_amplitude` from 0.561 to about 0.55, because that check pools |dy| 16-50 and the pooled number is flattered by the inner excess.  Moving the artwork and the guard that watches it in one step is the exact hazard that check's own docstring records, so the north is left where it is until the gate is made band-resolved.  D62: both tables' stops at |dy| 31-100 refitted in the UNCLIPPED channels (G, B: A_4 and N over |dy| 26-110, R only inside |dy| 36): north 0.843/0.259/0.107/0.139/0.154 -> 0.435/0.418/0.325/0.196/0.155, south 0.650/0.142/0.059/0.076/0.085 -> 0.396/0.253/0.079/0.051/0.103.  The reference's line rises across |dy| 33 and holds to |dy| ~70 in G and B, which the R-fitted collapse could not draw; the south line near the core is WHITER (R 11.4 against G 6.0 at |dy| 26-36) than one colour allows, so R there is the residual that remains.",
    "profile": [
     [
      0.0,
@@ -1592,23 +1739,23 @@
     ],
     [
      0.282,
-     0.843
+     0.4355
     ],
     [
      0.391,
-     0.259
+     0.418
     ],
     [
      0.545,
-     0.107
+     0.3246
     ],
     [
      0.727,
-     0.139
+     0.1957
     ],
     [
      0.909,
-     0.154
+     0.1545
     ],
     [
      1.0,
@@ -1626,23 +1773,23 @@
     ],
     [
      0.282,
-     0.65
+     0.3959
     ],
     [
      0.391,
-     0.14245
+     0.2527
     ],
     [
      0.545,
-     0.05885
+     0.0794
     ],
     [
      0.727,
-     0.07645
+     0.051
     ],
     [
      0.909,
-     0.0847
+     0.1028
     ],
     [
      1.0,
@@ -1654,7 +1801,7 @@
    "white": 0.06258
   },
   {
-   "blue": 0.014377,
+   "blue": 0.014942,
    "blur": 4.5309,
    "bounds": {
     "blur": [
@@ -1688,28 +1835,33 @@
     "dy": [
      -10.0,
      10.0
+    ],
+    "tail": [
+     0.1,
+     0.5
     ]
    },
    "color": [
     0.0,
-    42.52141,
-    48.90228
+    44.19,
+    50.82
    ],
-   "cyan": 0.177391,
+   "cyan": 0.184357,
    "height": 9.0,
    "id": "flare_ray_a",
    "kind": "ray",
-   "len": 100.0,
-   "peak_at": 0.62,
+   "len": 148.0,
+   "peak_at": 0.3649,
    "rot": -107.1,
    "spread": 1.0,
    "white": 0.0,
    "dx": -4.783,
    "dy": 2.09,
-   "note": "the upper-left ray.  Its axis is -107.1 and not -113.6, with a +5.22 px offset along the normal carried by dx/dy: the reference's ray is NOT PARALLEL to the rendered one, and neither a rotation nor a translation alone describes it.  Over 39 estimator variants (band set x clearance x wing window x polynomial degree x centre definition) the transverse centre difference fits Delta = a + b*r with b = -3.7 to -8.9 deg (median -6.5) and a = +1.8 to +7.6 px (median +5.2); a straight line beat a pure translation in 39 of 39, median sum-of-squares ratio 0.09.  Delta itself is tight: -0.2 px at r 45, -3.7 at r 75, -7.1 at r 105, against a render whose own ridge is flat to 0.17 deg, so the background's curvature cancels.  a and b are strongly anti-correlated: the defensible statement is the Delta(r) curve, not either alone.\nlen 132 -> 100, height 12 -> 9 and peak_at 0.62 (longitudinal peak at r 62) because beyond r 70 the ray carried 1.8-3.0x too much light and reached too far: bias-calibrated peak ratios render/reference 1.03/1.27/1.82/2.15/3.00 at r 52/64/76/88/100, and the reference's normalised profile is 0.91/1.00/0.72/0.50/0.29 where the model's was 0.71/0.97/1.00/0.83/0.67.  Geometry and photometry are separable and were applied together: geometry alone takes the upper-left sector MAE from 4.375 to 3.688, the pair to 3.325, and whole-image MAE from 1.8861 to 1.8822.\nTWO THINGS THIS RAY IS NOT.  It has no measurable transverse asymmetry -- clockwise minus counter-clockwise half-width runs -0.7 to +1.3 sigma against a null built by injecting a SYMMETRIC Gaussian of the reference's own amplitude and width into a no-ray background, with no consistent sign, which is the third independent refutation of the shoulder claim.  And it does not need anisotropic blur: an SVG filter's axes are canvas axes, so for a diagonal ray that cannot express along-ray softening at all, and the reference's transverse sigma is a flat 5.2-5.5 px over r 46-82 anyway.\nBLUR IS QUANTISED HERE AND THE VALUE IS NOT MEANINGFUL TO THREE FIGURES.  In the acceptance renderer this layer's blur renders BIT-IDENTICALLY from 3.91 to 4.60 and changes first at 4.75 (max 2 cv over 1176 px).  The shipped 4.5309 and the previous 3.9088 are the same artwork.  So no width claim for this ray finer than about +-0.4 px of blur is verifiable, and the optimiser's own blur step at this value (0.12 x 4.5 = 0.54) is comparable to the plateau, which means a good fraction of its blur trials are no-ops rather than rejections"
+   "note": "the upper-left ray.  Its axis is -107.1 and not -113.6, with a +5.22 px offset along the normal carried by dx/dy: the reference's ray is NOT PARALLEL to the rendered one, and neither a rotation nor a translation alone describes it.  Over 39 estimator variants (band set x clearance x wing window x polynomial degree x centre definition) the transverse centre difference fits Delta = a + b*r with b = -3.7 to -8.9 deg (median -6.5) and a = +1.8 to +7.6 px (median +5.2); a straight line beat a pure translation in 39 of 39, median sum-of-squares ratio 0.09.  Delta itself is tight: -0.2 px at r 45, -3.7 at r 75, -7.1 at r 105, against a render whose own ridge is flat to 0.17 deg, so the background's curvature cancels.  a and b are strongly anti-correlated: the defensible statement is the Delta(r) curve, not either alone.\nlen 132 -> 100, height 12 -> 9 and peak_at 0.62 (longitudinal peak at r 62) because beyond r 70 the ray carried 1.8-3.0x too much light and reached too far: bias-calibrated peak ratios render/reference 1.03/1.27/1.82/2.15/3.00 at r 52/64/76/88/100, and the reference's normalised profile is 0.91/1.00/0.72/0.50/0.29 where the model's was 0.71/0.97/1.00/0.83/0.67.  Geometry and photometry are separable and were applied together: geometry alone takes the upper-left sector MAE from 4.375 to 3.688, the pair to 3.325, and whole-image MAE from 1.8861 to 1.8822.\nTWO THINGS THIS RAY IS NOT.  It has no measurable transverse asymmetry -- clockwise minus counter-clockwise half-width runs -0.7 to +1.3 sigma against a null built by injecting a SYMMETRIC Gaussian of the reference's own amplitude and width into a no-ray background, with no consistent sign, which is the third independent refutation of the shoulder claim.  And it does not need anisotropic blur: an SVG filter's axes are canvas axes, so for a diagonal ray that cannot express along-ray softening at all, and the reference's transverse sigma is a flat 5.2-5.5 px over r 46-82 anyway.\nBLUR IS QUANTISED HERE AND THE VALUE IS NOT MEANINGFUL TO THREE FIGURES.  In the acceptance renderer this layer's blur renders BIT-IDENTICALLY from 3.91 to 4.60 and changes first at 4.75 (max 2 cv over 1176 px).  The shipped 4.5309 and the previous 3.9088 are the same artwork.  So no width claim for this ray finer than about +-0.4 px of blur is verifiable, and the optimiser's own blur step at this value (0.12 x 4.5 = 0.54) is comparable to the plateau, which means a good fraction of its blur trials are no-ops rather than rejections",
+   "tail": 0.2365
   },
   {
-   "blue": 0.031745,
+   "blue": 0.034091,
    "blur": 2.4209,
    "bounds": {
     "blur": [
@@ -1751,10 +1903,10 @@
    },
    "color": [
     0.0,
-    26.7,
-    36.5
+    28.67,
+    39.19
    ],
-   "cyan": 0.111374,
+   "cyan": 0.119604,
    "height": 9.4638,
    "id": "flare_ray_b",
    "kind": "ray",
@@ -1769,14 +1921,14 @@
    "note": "D61: APPLIED -- the line below recorded as 'not applied, twice'.  The ray is now drawn on its measured line: per-band ridge centres over r 40-128 give 255.2 deg through (524.2, 511.7), 7 px from the core, and along that line the reference's ridge sits within +-1.5 px of s = 0 at every band.  The flank the note blames for inflating the drift (flare_flank_dl) is gone.  Colour cyan 0.089 -> 0.111, blue 0.035 -> 0.032: the reference's B/G on the line is 1.1-1.5, and a first global colour fit had taken it to 1.62 and 1.6x too bright.  The outer half of the profile is flare_ray_b2's.\nthe lower-left ray.  len 110 -> 124 because it is too SHORT: bias-calibrated peak ratios render/reference are 1.18/1.07/0.92/0.33 at r 76/88/100/112, i.e. the reference is still at half its peak (4.43 cv) where a len of 110 has gone out (1.47).  124 is inside the defensible 118-128; a trial at 130 overshot the outermost band and moved the flare r<110 MAE the wrong way.  Beyond r 118 the reference is not detected at all (1.0 sigma above a matched no-ray-plus-noise null at r 110-118, -0.5 to +0.3 sigma at 118-142), so the length is bounded above by absence and not by a fit.\nRECORDED AND NOT APPLIED, twice.  Its axis is also about +4.5 deg out with a compensating -7 px offset -- a line beat a constant in 45 of 45 estimator variants -- but the whole correction is worth 3.5% of the sector error, and two contaminations inflate the apparent drift: flare_flank_dl sits on the clockwise side and its no-ray null reads 2.6-3.1 cv inside r 70 against a reference amplitude of 5.6-9.6, so a third of what the instrument calls 'the ray' there is the flank.  Amplitude ratios inside r 70 (1.34 at r 52) should not be acted on for the same reason.\nIt DOES carry a genuine clockwise shoulder: clockwise minus counter-clockwise half-width is +2.01/+2.23/+0.55/+1.21/+4.16/+5.71 px at r 52..112 against symmetric-injection nulls, positive in all six bands, about 3.6 sigma combined over the inner five.  It is NOT fitted: an earlier pass established that a narrow-plus-broad decomposition's improvement on this image is inside what an injected single Gaussian already yields on the noise.  If it is ever acted on the honest route is to re-aim and re-narrow flare_flank_dl against this statistic, not to make this layer asymmetric"
   },
   {
-   "blue": 0.004967,
+   "blue": 0.004727,
    "blur": 2.4209,
    "color": [
     0.0,
-    13.57,
-    15.71
+    12.92,
+    14.95
    ],
-   "cyan": 0.056625,
+   "cyan": 0.053893,
    "dx": -5.75,
    "dy": -2.63,
    "height": 9.4638,
@@ -1829,7 +1981,7 @@
    "note": "the outer half of the lower-left ray, on the SAME measured line as flare_ray_b (D61).  The reference's profile along the line is a plateau -- G 11.1 / 12.2 / 9.5 / 9.6 / 11.2 / 10.1 / 8.4 at r 56-104 from the foot, then 4.5 by r 112 -- and one ray's gradient (single peak, 0.42 at peak+0.35) cannot hold a plateau: fitted alone it either matched r 56-80 and fell to 3.9 by r 104, or reached r 104 and over-shot r 72.  Two segments reproduce it (profile mismatch 622 -> 270)."
   },
   {
-   "blue": 0.013498,
+   "blue": 0.015622,
    "blur": 3.0915,
    "bounds": {
     "blur": [
@@ -1863,45 +2015,50 @@
     "spread": [
      1.0,
      3.0
+    ],
+    "tail": [
+     0.1,
+     0.5
     ]
    },
    "color": [
-    1.12,
-    23.82,
-    28.71
+    1.3,
+    27.56,
+    33.22
    ],
-   "cyan": 0.094711,
+   "cyan": 0.109569,
    "height": 5.4845,
    "id": "flare_ray_c",
    "kind": "ray",
-   "len": 179.2975,
+   "len": 177.2975,
    "note": "D61: this is now the long soft TAIL of a layered ray; flare_ray_c_in carries the bright white inner segment.  len 185 -> 179 (inside the measured extent 165 +- 20 below -- an intermediate candidate that lengthened it to 215 contradicted that measurement and was reverted), height 7 -> 5.5, blur 2.41 -> 3.09, spread 1.9 -> 2.2, fitted to the reference's per-band profile on this line.  The dx/dy translation is unchanged, as the note requires.\nlower-right ray.  Its line is PARALLEL to the render's -- the reference's own direction measures 328.18 +- 0.21 against the render's 328.40 -- and the discrepancy is an OFFSET: the reference's ray sits at s = +1.37 px where the render's sat at -1.66, flat across nine radii from 60 to 140 with no trend, which an angle error cannot produce.  A constant angular difference is rejected at chi2/dof 6.18 against 0.45 for a line. So `dx`/`dy` displace the origin 3.0 px along the +s normal instead of rotating: an earlier pass rotated this ray from 327.8 to 328.85 on a claimed axis of 328.35 +- 0.15, re-measurement gave 328.0 +- 0.8, and the change had to be reverted -- a rotation over-corrects inside r 70 and under-corrects beyond r 150 because the measured offset is constant in PIXELS, not in degrees.  NO ray axis in this image supports a precision near 0.15 deg; the best-determined of the four spreads 0.55 deg across the six reasonable definitions of a centre before any noise enters. height 4.0 -> 4.85 and spread 1.6 -> 1.9 because the reference is 1.3-1.8x wider and widens with radius where the render was flat: transverse FWHM 5.87 in the reference against 4.40, now 5.62",
-   "peak_at": 0.2954,
+   "peak_at": 0.389,
    "rot": -328.1,
    "spread": 2.1988,
-   "white": 0.00439,
+   "white": 0.005097,
    "dx": 1.5809,
-   "dy": -2.5497
+   "dy": -2.5497,
+   "tail": 0.1735
   },
   {
    "blue": 0.0,
    "blur": 1.5175,
    "color": [
-    21.83,
-    34.02,
-    34.8
+    20.14,
+    34.6,
+    35.52
    ],
-   "cyan": 0.050864,
+   "cyan": 0.060308,
    "dx": 1.58,
    "dy": -2.55,
    "height": 6.5097,
    "id": "flare_ray_c_in",
    "kind": "ray",
-   "len": 66.1046,
-   "peak_at": 0.4605,
+   "len": 64.1046,
+   "peak_at": 0.6621,
    "rot": -328.1,
    "spread": 1.0,
-   "white": 0.085612,
+   "white": 0.078982,
    "bounds": {
     "height": [
      3.0,
@@ -1934,9 +2091,14 @@
     "spread": [
      1.0,
      1.5
+    ],
+    "tail": [
+     0.05,
+     0.4
     ]
    },
-   "note": "the short, white-carrying inner segment of the lower-right ray, on ray_c's own line (D61).  The reference's ray is brightest next to the core -- G 17.8 at r 44 from the origin, 11-12 by r 80, 4 by r 150 -- and WHITE there (R 12.6 at r 44, ~0 beyond r 60).  One cyan ray could not do both: its best fit reached G 8.8 at r 44 while already 1.5-2x too bright beyond r 124.  Layered as a bright inner segment plus the long soft tail (flare_ray_c), the line profile's mismatch falls 1091 -> 415."
+   "note": "the short, white-carrying inner segment of the lower-right ray, on ray_c's own line (D61).  The reference's ray is brightest next to the core -- G 17.8 at r 44 from the origin, 11-12 by r 80, 4 by r 150 -- and WHITE there (R 12.6 at r 44, ~0 beyond r 60).  One cyan ray could not do both: its best fit reached G 8.8 at r 44 while already 1.5-2x too bright beyond r 124.  Layered as a bright inner segment plus the long soft tail (flare_ray_c), the line profile's mismatch falls 1091 -> 415.",
+   "tail": 0.1113
   },
   {
    "id": "flare_arm_w2",
@@ -2069,10 +2231,10 @@
    },
    "color": [
     0.0,
-    25.42,
-    27.05
+    26.36,
+    28.04
    ],
-   "cyan": 0.106068,
+   "cyan": 0.109959,
    "dx": -3.8117,
    "dy": -3.825,
    "height": 26.0,
@@ -2090,17 +2252,17 @@
    "blur": 2.4929,
    "color": [
     0.0,
-    12.04,
-    12.81
+    26.73,
+    28.44
    ],
-   "cyan": 0.050231,
+   "cyan": 0.111515,
    "dx": 4.85,
    "dy": 2.67,
    "height": 1.8314,
    "id": "flare_ray_ur",
    "kind": "ray",
    "len": 150.8106,
-   "onset": 0.1842,
+   "onset": 0.3036,
    "peak_at": 0.6192,
    "rot": -47.6,
    "spread": 1.0,
@@ -2141,19 +2303,24 @@
     "spread": [
      1.0,
      1.5
+    ],
+    "tail": [
+     0.03,
+     0.4
     ]
    },
-   "note": "the NARROW core of the upper-right ray (D61) -- the sharp part that made the reference's ray read sharper than the model's broad slab.  Measured on its own line (TLS through per-band ridge centres over r 50-146: 47.6 deg, 5.2 px off the core): a line-following peak of 4.14 cv against 1.9 in the model, with lines rotated 10 deg either way reading -1.1 and +1.0 on the reference.  Width sigma 3.3-4.8 px against the slab's 4.3-8.  flare_ray_e stays as the soft flank: the broad transverse profile (ramp removed at |s| 26-30) matches within 1 cv everywhere except this +2 cv centre bump, so the core is added, not substituted."
+   "note": "the NARROW core of the upper-right ray (D61) -- the sharp part that made the reference's ray read sharper than the model's broad slab.  Measured on its own line (TLS through per-band ridge centres over r 50-146: 47.6 deg, 5.2 px off the core): a line-following peak of 4.14 cv against 1.9 in the model, with lines rotated 10 deg either way reading -1.1 and +1.0 on the reference.  Width sigma 3.3-4.8 px against the slab's 4.3-8.  flare_ray_e stays as the soft flank: the broad transverse profile (ramp removed at |s| 26-30) matches within 1 cv everywhere except this +2 cv centre bump, so the core is added, not substituted.",
+   "tail": 0.0848
   },
   {
    "blue": 0.0,
    "blur": 2.8,
    "color": [
     0.0,
-    31.74,
-    33.77
+    41.71,
+    44.37
    ],
-   "cyan": 0.132417,
+   "cyan": 0.173991,
    "dx": 1.05,
    "dy": -0.83,
    "height": 8.0,
@@ -2210,10 +2377,10 @@
    "blur": 2.4,
    "color": [
     0.0,
-    27.84,
-    29.62
+    29.52,
+    31.4
    ],
-   "cyan": 0.116164,
+   "cyan": 0.123148,
    "dx": 1.05,
    "dy": -0.83,
    "height": 3.1354,
@@ -2269,22 +2436,22 @@
    "blue": 0.0,
    "blur": 5.0159,
    "color": [
-    25.67,
-    76.86,
-    80.12
+    0.0,
+    112.54,
+    119.72
    ],
-   "cyan": 0.213557,
+   "cyan": 0.469508,
    "dx": 1.05,
    "dy": -0.83,
    "height": 5.6348,
    "id": "flare_ray_llc",
    "kind": "ray",
-   "len": 86.9874,
-   "onset": 0.2572,
-   "peak_at": 0.4001,
+   "len": 60.9874,
+   "onset": 0.5636,
+   "peak_at": 0.6691,
    "rot": -229.0,
    "spread": 1.0,
-   "white": 0.100651,
+   "white": 0.0,
    "bounds": {
     "height": [
      3.0,
@@ -2295,15 +2462,86 @@
      7.0
     ],
     "len": [
-     55.0,
+     45.0,
      95.0
     ],
     "peak_at": [
      0.3,
-     0.6
+     0.85
     ],
     "onset": [
      0.15,
+     0.7
+    ],
+    "rot": [
+     -232.0,
+     -226.0
+    ],
+    "dx": [
+     -1.95,
+     4.05
+    ],
+    "dy": [
+     -3.83,
+     2.17
+    ],
+    "spread": [
+     1.0,
+     1.5
+    ],
+    "tail": [
+     0.05,
+     0.4
+    ]
+   },
+   "note": "the SHORT lobe at 229 degrees, lower-left (D61).  A first fit drew this as a long blue ray at 235 degrees, 2.3x the reference on the line-following statistic and visibly the most prominent structure in the lower-left -- an invented shape.  Measured on the reference it is broad (sigma 4.3-6.1 px), white at r 24-40 (R 11-19 cv) and cyan at r 40-56 (G 10-13), and gone by r 64 (G 3.1).  Now broad and white-tinted; it still runs about 8 px too long (G 9.4 at r 64) because the gradient's tail is tied to its peak.  visual_regression's 'lower-left lobe' check has a CEILING for this reason.",
+   "tail": 0.1057
+  },
+  {
+   "blue": 0.0,
+   "blur": 5.0159,
+   "color": [
+    89.81,
+    89.81,
+    89.81
+   ],
+   "cyan": 0.0,
+   "dx": 1.05,
+   "dy": -0.83,
+   "height": 5.6348,
+   "id": "flare_ray_llc_in",
+   "kind": "ray",
+   "len": 46.0,
+   "onset": 0.5,
+   "peak_at": 0.6504,
+   "rot": -229.0,
+   "spread": 1.0,
+   "white": 0.352212,
+   "note": "the SHORT lobe at 229 degrees, lower-left (D61).  A first fit drew this as a long blue ray at 235 degrees, 2.3x the reference on the line-following statistic and visibly the most prominent structure in the lower-left -- an invented shape.  Measured on the reference it is broad (sigma 4.3-6.1 px), white at r 24-40 (R 11-19 cv) and cyan at r 40-56 (G 10-13), and gone by r 64 (G 3.1).  Now broad and white-tinted; it still runs about 8 px too long (G 9.4 at r 64) because the gradient's tail is tied to its peak.  visual_regression's 'lower-left lobe' check has a CEILING for this reason.",
+   "tail": 0.153,
+   "bounds": {
+    "height": [
+     3.0,
+     10.0
+    ],
+    "blur": [
+     3.0,
+     7.0
+    ],
+    "len": [
+     30.0,
+     70.0
+    ],
+    "peak_at": [
+     0.4,
+     0.85
+    ],
+    "onset": [
+     0.2,
+     0.7
+    ],
+    "tail": [
+     0.05,
      0.4
     ],
     "rot": [
@@ -2322,21 +2560,20 @@
      1.0,
      1.5
     ]
-   },
-   "note": "the SHORT lobe at 229 degrees, lower-left (D61).  A first fit drew this as a long blue ray at 235 degrees, 2.3x the reference on the line-following statistic and visibly the most prominent structure in the lower-left -- an invented shape.  Measured on the reference it is broad (sigma 4.3-6.1 px), white at r 24-40 (R 11-19 cv) and cyan at r 40-56 (G 10-13), and gone by r 64 (G 3.1).  Now broad and white-tinted; it still runs about 8 px too long (G 9.4 at r 64) because the gradient's tail is tied to its peak.  visual_regression's 'lower-left lobe' check has a CEILING for this reason."
+   }
   },
   {
-   "blue": 0.032049,
-   "blur": 4.0,
+   "blue": 0.031492,
+   "blur": 3.2,
    "color": [
     0.0,
-    13.08,
-    22.09
+    12.85,
+    21.7
    ],
-   "cyan": 0.054571,
+   "cyan": 0.053623,
    "dx": -11.95,
    "dy": 21.27,
-   "height": 10.0,
+   "height": 6.0,
    "id": "flare_ray_ulb",
    "kind": "ray",
    "len": 175.0,
@@ -2390,10 +2627,10 @@
    "blur": 2.8,
    "color": [
     0.0,
-    23.97,
-    25.5
+    23.38,
+    24.87
    ],
-   "cyan": 0.1,
+   "cyan": 0.097546,
    "dx": -10.05,
    "dy": 12.57,
    "height": 4.0,
@@ -4109,6 +4346,15 @@
    "y1": 495.0,
    "y2": 535.0,
    "y3": 780.0
+  },
+  "bloom_w": {
+   "kind": "ramp",
+   "p0": 1.0,
+   "p1": 1.0,
+   "y0": 458.5,
+   "y1": 498.5,
+   "y2": 528.5,
+   "y3": 568.5
   }
  }
 }

@@ -9,8 +9,8 @@ rounded-square frame — as a hand-built, parametric SVG.
 | ![reference](out/side_reference.png) | ![reconstruction](out/side_reconstruction.png) | ![difference](out/side_diff.png) |
 
 <!-- DELIVERABLE:START -->
-**Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 46 named
-layers, 91 KB, no embedded bitmap and no traced outlines. Every mark is a
+**Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 48 named
+layers, 96 KB, no embedded bitmap and no traced outlines. Every mark is a
 primitive driven by a named parameter in
 [`src/params.json`](src/params.json): one path for the frame, two cubic-Bézier
 paths for the luminous curves (reused, offset and clipped, by every glow
@@ -25,15 +25,15 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 
 | metric | value | for scale |
 |---|---|---|
-| mean absolute error | **1.831** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 3.908 | |
-| MAE on a 1/2.2 display curve | 5.366 | weights the dark background as the eye does; black scores 59.7 |
-| SSIM (luminance) | **0.9744** | black scores 0.142 |
+| mean absolute error | **1.815** / 255 | a flat black canvas scores 17.89 |
+| RMSE | 3.832 | |
+| MAE on a 1/2.2 display curve | 5.346 | weights the dark background as the eye does; black scores 59.7 |
+| SSIM (luminance) | **0.9745** | black scores 0.142 |
 | worst single-channel error | 108 | |
-| pixels off by more than 2 / 8 / 24 | 34.3% / 4.5% / 0.7% | |
-| mean bias | -0.235 | |
+| pixels off by more than 2 / 8 / 24 | 34.3% / 4.4% / 0.5% | |
+| mean bias | -0.206 | |
 
-Per region (MAE): frame band 2.50, centre 90 px 6.99, bright pixels 9.65, dark background 1.36, everything else 1.62.
+Per region (MAE): frame band 2.50, centre 90 px 6.36, bright pixels 9.66, dark background 1.36, everything else 1.62.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -44,13 +44,13 @@ The two regions a whole-image average cannot police, from
 
 | targeted measurement | value |
 |---|---|
-| MAE within 110 px of the central light | 5.85 |
-| worst ring of the flare's radial profile | +2.8 code values at r = 12-20 |
+| MAE within 110 px of the central light | 5.44 |
+| worst ring of the flare's radial profile | +2.4 code values at r = 30-45 |
 | curve glow, rms relative error over 21 signed-distance bins | 2.8% |
 | the same, resolved along the curve (71 cells) | 4.9% |
 | light in the four interior corners, rms relative error | 5.0% |
 | worst single bin of that profile | -5.8% at s = -70..-52 px |
-| left lobe, MAE more than 25 px from the ridge | 1.34 (bias -0.18) |
+| left lobe, MAE more than 25 px from the ridge | 1.35 (bias -0.19) |
 | right lobe, MAE more than 25 px from the ridge | 1.32 (bias -0.11) |
 
 Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.695 (SSIM 0.9554); see `out/validation.md` for the resolution sweep.
@@ -75,7 +75,7 @@ tools/diagnose.py        targeted reports for the flare, the lobes and the glow 
 tools/ray_report.py      the four diagonal rays: peak, angle and width against the reference
 tools/core_report.py     the flare core's radial falloff, in bands, where a blur would show
 tools/chroma_report.py   colour by distance from a curve ridge, where the paleness is
-tools/measure_flare.py   sets the rays' amplitudes and geometry of record from those measurements
+tools/measure_flare.py   the rays' geometry of record, and their calibration against each line's profile
 tools/wedge_report.py    angular modulation west of the flare, where a regional mean is blind
 tools/arm_report.py      the horizontal arms, scored against a matched null along the ridge
 tools/vstreak_report.py  the vertical line through the core, north and south reported apart
@@ -142,26 +142,33 @@ restated those numbers drifted out of date twice, so it no longer does.
 1. **Background** — a flat exterior in three pieces (body, top edge, corners),
    then the frame shape filled with a base colour, two broad radial gradients
    and a vertical ramp.
-2. **Glow** — six blurred copies of each curve's path at effective cross-curve
-   widths from 3.3 to 87 px, four offset inward and two outward. The measured
-   facts they reproduce: the glow is 2.8-3.5x brighter on the concave side, and
-   each component carries its own measured fade along the curve, emitted as the
-   measured stations themselves. A seventh component closing the gap between
-   5.8 and 20.6 px was built and measured; it raises what the basis can achieve
-   beside the ridge but did not improve the render, and is not shipped
+2. **Glow** — eight blurred copies of each curve's path, six offset toward the
+   concave side and two toward the convex side. The measured facts they
+   reproduce: the glow is 2.8-3.5x brighter on the concave side, and each
+   component carries its own measured fade along the curve, emitted as the
+   measured stations themselves. One of the eight (`arc_bloom_w`, D62) is
+   confined to the flare's height: within ~40 px of the core row both curves
+   are whiter on their concave side than the other glow terms draw -- on the
+   left curve, 66 px from the core, as much as on the right -- so that light is
+   the curves' and not the flare's. A component closing the gap between 5.8 and
+   20.6 px was built and measured; it raises what the basis can achieve beside
+   the ridge but did not improve the render, and is not shipped
    (docs/DECISIONS.md D19, D22).
-3. **Central light** — thirteen layers: two stretched radial blooms, four
-   horizontal streak components at the three measured line heights, five
-   one-sided rays at their measured angles and widths, and two broad flanks.
-   There is no separate glint layer; the brightest pixels come from the streak
-   and bloom stack. The four diagonal rays are each measured rather than
-   assumed: the right-hand pair is at 45.6 and 327.8 degrees and is 4-5 px
-   wide, against the left pair's 8-11 px, so they are not mirror images of each
-   other (D26), and it runs out to r = 170-230 px where the left pair fades by
-   140 (D32). Two of them are a sharp spike on a broad fan, which is why the
-   flanks are their own layers (D29). A different rebuild of this group into
-   fourteen layers is recorded in D14/D21 and is not shipped — it measured
-   worse (D22).
+3. **Central light** — twenty-seven layers: five radial blooms, eight
+   horizontal streak components at the three measured line heights, the
+   vertical diffraction line, and thirteen one-sided ray segments on eight
+   measured lines. There is no separate glint layer; the brightest pixels come
+   from the streak and bloom stack. The rays are measured rather than assumed,
+   and several do not pass through the core (the upper-left pair misses it by
+   17 and 26 px). A ray whose profile along its line one gradient cannot hold
+   is drawn as segments on the same line -- an inner and an outer lower-left
+   segment, a bright white inner segment and a long tail on the lower right, a
+   white near-core part and a cyan lobe at 229 degrees -- and each segment's
+   geometry of record, including where it fades, is the table in
+   `tools/measure_flare.py`, which `--geometry` restores (D61, D62). Their
+   amplitudes are calibrated against each ray's measured profile, jointly per
+   line, not fitted to the whole image. The westward triangle that two
+   straight-edged flank layers once drew is gone and stays gone (D61).
 4. **Curve cores** — a hard-edged bright stroke on each path plus a narrower
    inset one, because the measured core is 5.8 px at the tips, 8.4 px at
    mid-height, and asymmetric about its own centre-line.
@@ -234,6 +241,22 @@ enough to search the geometry.
   adding matched noise to the render, whose true edges are unchanged. See D38.
 * The reference's JPEG blocking and its low-frequency "smudge" texture are not
   reproduced, by choice: together they set an MAE floor of ~0.6 per channel.
+  The mottling around the core was classified rather than assumed (D62): its
+  8-px block structure matches the render recompressed at about JPEG quality 60,
+  and what remains after that is a weak, only partly grid-aligned white texture
+  of ~2 cv RMS at 4-8 px -- real light, probably, but lumps a vector model could
+  only invent, so it is not modelled.
+* **Several rays are greener than the colour cone can draw.** The 267-degree
+  ray, the upper-left pair, the upper-right ray and the 229-degree lobe sit
+  with B below G above their local ramp, which white/cyan/blue cannot reach.
+  Their amplitudes are calibrated on luminance, so their strength matches; their
+  B is 6-31% high. A green basis vector would close that and was declined:
+  nothing else in the artwork needs one, and it reopens the invented-colour
+  failure the cone exists to prevent (D62).
+* **The white core's shape is lumpier than the model's.** West of the core the
+  render carries ~14 cv too much R at r 40-56, and ~10-17 too little at r 12-28
+  to the north-west and south. Radial layers cannot move white between
+  directions without lumps that nothing measured (D61, D62).
 * The two dark axial wedges between the diverging curves used to be
   over-predicted by ~4 code values, and this list blamed the additive stack for
   it: "a screen stack can only add light". That was the wrong diagnosis. The

@@ -485,6 +485,15 @@ def report(ref, rec):
     render while the reference has it.  Both leave `ratio` unformattable, so a
     caller printing failures must handle None.
     """
+    for what, a in (("the reference", ref), ("the render", rec)):
+        if np.shape(a)[:2] != (1024, 1024):
+            # Every statistic here is placed in 1024-px canvas coordinates --
+            # CORE, ARCS, the ray axes and the measured lines -- so another size
+            # is not a smaller version of the same question.  It used to be
+            # answered anyway, off the wrong pixels.
+            raise ValueError("%s is %s; these checks are defined on the 1024 x 1024 "
+                             "canvas -- render at --size 1024"
+                             % (what, "x".join(str(v) for v in np.shape(a))))
     sref, srec = statistics(ref), statistics(rec)
     rows = []
     for name, key, (lo, hi), floor, meaning in CHECKS:
@@ -500,7 +509,11 @@ def main():
     ap.add_argument("--reference", default=os.path.join(ROOT, "reference.png"))
     a = ap.parse_args()
     load = lambda p: np.asarray(Image.open(p).convert("RGB")).astype(np.float64)  # noqa: E731
-    rows = report(load(a.reference), load(a.render))
+    try:
+        rows = report(load(a.reference), load(a.render))
+    except ValueError as exc:
+        print("visual_regression: %s" % exc, file=sys.stderr)
+        return 2
     bad = 0
     print("%-38s %9s %9s %16s  %s" % ("structure", "reference", "render", "render/ref", ""))
     for name, ratio, lo, hi, ok, rv, cv, _meaning in rows:

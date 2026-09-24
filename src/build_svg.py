@@ -870,14 +870,26 @@ class Builder:
             # whole element outward -- which puts its near end on a curve ridge
             # and trips the banding check.  A ray's inner extent is a measurable
             # property of the reference and now has a parameter of its own.
+            #
+            # `tail` is where the fade reaches 0.42 of peak, as a fraction of
+            # `len` past `peak_at`.  It was a constant 0.35, which TIED a ray's
+            # fade to its peak: a ray peaking at 0.62 of its length had to reach
+            # 0.42 at 0.97 and then drop to zero in the last 3% -- the upper-left
+            # inner ray fell from 42% to nothing between r 97 and r 100 where the
+            # reference fades out over r 90-120 -- and a lobe whose peak sits
+            # right could not also end where the reference ends.  The fade is a
+            # measurable property of each ray (tools/ray_lines.py) and now has
+            # its own parameter; absent means 0.35, which reproduces every
+            # existing ray exactly.
             on = float(L.get("onset", 0.0))
+            tl = float(L.get("tail", 0.35))
             if on > 0.0:
                 on = min(on, pk * 0.95)
                 ramp = ((0.0, 0.0), (on, 0.0), (on + (pk - on) * 0.5, 0.62), (pk, 1.0),
-                        (min(0.999, pk + 0.35), 0.42), (1.0, 0.0))
+                        (min(0.999, pk + tl), 0.42), (1.0, 0.0))
             else:
                 ramp = ((0.0, 0.0), (pk * 0.5, 0.62), (pk, 1.0),
-                        (min(0.999, pk + 0.35), 0.42), (1.0, 0.0))
+                        (min(0.999, pk + tl), 0.42), (1.0, 0.0))
             body = "".join('<stop offset="%s" stop-color="%s" stop-opacity="%s"/>' % (f(o, 4), col, f(av, 4))
                            for o, av in ramp)
             self.add_def('<linearGradient id="%s" gradientUnits="userSpaceOnUse" x1="%s" y1="%s" '

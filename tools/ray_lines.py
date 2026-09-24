@@ -3,6 +3,9 @@
 
     python3 tools/ray_lines.py out/render_1024.png [--ray lower-right] [--hw 12]
 
+Input must be 1024 x 1024 (the canvas the lines are defined on); anything else
+exits 2 with the reason instead of sampling the wrong pixels.
+
 `ray_report.py` reads rays on axes through the core.  Several rays in this
 reference do not pass through the core -- the upper-left pair misses it by 17
 and 26 px, the lower-left ray by 7 -- and a statistic that samples a wedge about
@@ -69,15 +72,70 @@ LINES = {
 #: per-line transverse half-width where the default does not fit the line
 HALF_WIDTH = {"lower-left 268": 8.0}
 
+#: The lines above are canvas coordinates of the 1024-px artwork, and that is
+#: the only size they mean anything at.  A smaller image used to be sampled
+#: anyway: the bilinear lookup clipped every out-of-range index to the edge, so
+#: a 512-px render came back as a column of plausible-looking numbers read off
+#: the wrong pixels and, past the image, off one replicated edge row.  A
+#: diagnostic that answers a different question without saying so is worse than
+#: one that refuses, so it refuses.  Render at 1024 (`tools/render.py --size
+#: 1024`) to read a ray.
+CANVAS = 1024
+
+
+def check_canvas(img, what="image"):
+    """Refuse anything but a 1024 x 1024 RGB array: see CANVAS."""
+    shape = tuple(np.shape(img))
+    if len(shape) != 3 or shape[:2] != (CANVAS, CANVAS) or shape[2] < 3:
+        raise ValueError("%s is %s; the ray lines are defined on the %d x %d canvas "
+                         "and nothing else -- render at --size %d"
+                         % (what, "x".join(str(v) for v in shape), CANVAS, CANVAS, CANVAS))
+
 
 def _bilinear(a, x, y):
+    """Bilinear sample at float pixel-index coordinates -- never extrapolated.
+
+    A coordinate outside [0, w-1] x [0, h-1] is an error, not an edge pixel:
+    see CANVAS for what clipping here used to hide.
+    """
     h, w = a.shape[:2]
-    x0 = np.clip(np.floor(x).astype(int), 0, w - 1)
-    y0 = np.clip(np.floor(y).astype(int), 0, h - 1)
-    x1, y1 = np.clip(x0 + 1, 0, w - 1), np.clip(y0 + 1, 0, h - 1)
+    if x.min() < 0 or y.min() < 0 or x.max() > w - 1 or y.max() > h - 1:
+        raise ValueError("a ray line samples outside the %d x %d image (x %.1f..%.1f, "
+                         "y %.1f..%.1f)" % (w, h, x.min(), x.max(), y.min(), y.max()))
+    x0 = np.floor(x).astype(int)
+    y0 = np.floor(y).astype(int)
+    x1, y1 = np.minimum(x0 + 1, w - 1), np.minimum(y0 + 1, h - 1)
     fx, fy = x - x0, y - y0
     return (a[y0, x0] * (1 - fx) * (1 - fy) + a[y0, x1] * fx * (1 - fy)
             + a[y1, x0] * (1 - fx) * fy + a[y1, x1] * fx * fy)
+
+
+def band_coords(foot, direction, r, step=8.0, hw=12.0):
+    """Sample grid of one radial band: (s, xs, ys), xs/ys shaped (along, across).
+
+    `r` is the band's START along the line, measured from `foot`; the band
+    covers [r, r + step).  s > 0 is counter-clockwise of the line.
+    """
+    t = math.radians(direction)
+    ux, uy, nx, ny = math.cos(t), -math.sin(t), -math.sin(t), -math.cos(t)
+    s = np.arange(-hw, hw + 0.01, 0.5)
+    rr = np.arange(r, r + step, 0.5)
+    xs = foot[0] + rr[:, None] * ux + s[None, :] * nx - 0.5
+    ys = foot[1] + rr[:, None] * uy + s[None, :] * ny - 0.5
+    return s, xs, ys
+
+
+def amplitude_row(s, s0, sg):
+    """The fixed linear functional that reads a Gaussian's amplitude above a ramp.
+
+    Least squares of v ~ a*G(s0, sg) + c0 + c1*s with the template FIXED is
+    linear in v: a = row . v.  Holding (s0, sg) at the reference's own fit is
+    what makes a render's amplitude comparable band for band -- and linear in
+    every layer's colour, which is what the calibration in measure_flare.py
+    solves through.
+    """
+    X = np.stack([np.exp(-0.5 * ((s - s0) / sg) ** 2), np.ones_like(s), s], 1)
+    return np.linalg.pinv(X)[0]
 
 
 def _sse(s, v, s0, sg):
@@ -118,15 +176,11 @@ def fit_gauss_line(s, v, s0_max=4.0, sg_lo=0.8, sg_hi=9.0):
 
 
 def profile(img, foot, direction, r0, r1, step=8.0, hw=12.0):
-    """Rows of (r, A_R, A_G, A_B, s0, sigma) along one line."""
-    t = math.radians(direction)
-    ux, uy, nx, ny = math.cos(t), -math.sin(t), -math.sin(t), -math.cos(t)
-    s = np.arange(-hw, hw + 0.01, 0.5)
+    """Rows of (r, A_R, A_G, A_B, s0, sigma) along one line; r is the band centre."""
+    check_canvas(img)
     rows = []
     for r in np.arange(r0, r1, step):
-        rr = np.arange(r, r + step, 0.5)
-        xs = foot[0] + rr[:, None] * ux + s[None, :] * nx - 0.5
-        ys = foot[1] + rr[:, None] * uy + s[None, :] * ny - 0.5
+        s, xs, ys = band_coords(foot, direction, r, step, hw)
         v = [_bilinear(img[..., k], xs, ys).mean(0) for k in range(3)]
         _a, s0, sg = fit_gauss_line(s, v[1])
         shape = np.exp(-0.5 * ((s - s0) / sg) ** 2)
@@ -146,6 +200,15 @@ def main():
     a = ap.parse_args()
     load = lambda p: np.asarray(Image.open(p).convert("RGB")).astype(np.float64)  # noqa: E731
     ref, rec = load(a.reference), load(a.render)
+    try:
+        check_canvas(ref, a.reference)
+        check_canvas(rec, a.render)
+    except ValueError as exc:
+        print("ray_lines: %s" % exc, file=sys.stderr)
+        return 2
+    if a.ray and a.ray not in LINES:
+        print("ray_lines: unknown ray %r; known: %s" % (a.ray, ", ".join(LINES)), file=sys.stderr)
+        return 2
     for name, (foot, d, r0, r1) in LINES.items():
         if a.ray and a.ray != name:
             continue

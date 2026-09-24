@@ -515,8 +515,25 @@ def params_wc(params):
     return np.array([wc_from_color(L.get("color", [128, 128, 128])) for L in params["layers"]], np.float32)
 
 
-def store_wc(params, WC):
-    for L, wc in zip(params["layers"], WC):
+def held_free(params):
+    """Indices this fit may move: every layer except the calibrated rays.
+
+    The rays' amplitudes are calibrated against their own measured profiles
+    (tools/measure_flare.py CALIBRATED_LAYERS).  This fit's whole-image
+    objective is the wrong question for a structure a few code values tall over
+    a few hundred pixels, so it holds them rather than overwriting them.
+    """
+    import measure_flare as MFL
+    return [i for i, L in enumerate(params["layers"]) if L["id"] not in MFL.CALIBRATED_LAYERS]
+
+
+def store_wc(params, WC, only=None):
+    """Write fitted amounts back.  `only` (indices) leaves every other layer's
+    stored colour byte-for-byte as it was, instead of re-deriving it."""
+    keep = None if only is None else set(only)
+    for i, (L, wc) in enumerate(zip(params["layers"], WC)):
+        if keep is not None and i not in keep:
+            continue
         for name, v in zip(COMPONENTS, wc):
             L[name] = round(float(v), 5)
         L["color"] = [round(float(v) * 255.0, 2) for v in color_from_wc(wc)]
@@ -532,6 +549,9 @@ def main():
                     help="fit without lifting the flare and lobe regions")
     ap.add_argument("--stride", type=int, default=2)
     ap.add_argument("--no-write", action="store_true")
+    ap.add_argument("--fit-rays", action="store_true",
+                    help="also re-fit the calibrated ray layers' colours (held by default: "
+                         "tools/measure_flare.py calibrates them against their own profiles)")
     a = ap.parse_args()
 
     params = json.load(open(a.params))
@@ -543,8 +563,9 @@ def main():
     W = make_weight(tsub, a.weight, emphasis=not a.no_emphasis)
     print("fitting %d layers x %s  [stride %d]" % (len(names), str(COMPONENTS), st))
     nf = normal_flags(params)
-    WC = fit(Asub, tsub, params_wc(params), W, iters=a.iters, normal=nf)
-    store_wc(params, WC)
+    free = None if a.fit_rays else held_free(params)
+    WC = fit(Asub, tsub, params_wc(params), W, iters=a.iters, normal=nf, free=free)
+    store_wc(params, WC, only=free)
     out = composite(A, colors(WC), nf)
     print("analytic composite mae=%.4f" % (np.abs(out - target).mean() * 255))
     for L in params["layers"]:
