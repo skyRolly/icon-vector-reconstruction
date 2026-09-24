@@ -68,7 +68,18 @@ CORE = (FLARE_CORE[0] - 0.5, FLARE_CORE[1] - 0.5)
 #: disappeared.  At r 55-105 for all four, deleting every ray moved the
 #: upper-right figure by 5% -- the check was reading the right arc's glow.  At
 #: the radii below the ray's own share is 98 / 82 / 80 / 92 per cent.
-RAY_AXES = (("upper-left", 113.6, 55.0, 105.0), ("lower-left", 249.7, 55.0, 105.0),
+#:
+#: The lower-left ray is no longer read here but on its measured line in
+#: LINE_AXES.  It does not pass through the core: fitted band by band, its ridge
+#: is a line at 255.2 degrees missing the core by 7 px (the geometry of record
+#: had noted the "+4.5 deg with a compensating -7 px offset" and declined to
+#: apply it), and the reference also carries a real 267-degree ray in exactly
+#: the window this statistic takes as the empty flank.  Once both are drawn
+#: where the reference has them, the wedge compares a ray with a ray: removing
+#: the 267-degree segment alone moves it from -0.41 to +1.71 while the lower-left
+#: ray's own line profile is unchanged.  A presence test that a correctly
+#: placed ray fails and a misplaced one passes is testing the placement.
+RAY_AXES = (("upper-left", 113.6, 55.0, 105.0),
             ("upper-right", 44.9, 40.0, 90.0), ("lower-right", 328.1, 45.0, 110.0))
 
 _GEOM = {}
@@ -281,6 +292,64 @@ def ray_excess(a, theta, r0=55.0, r1=105.0, half=6.0, gap=(11.0, 20.0)):
     return on - min(sides)
 
 
+#: Rays that do NOT pass through the core, and the one short lobe that must stay
+#: short, each on the line measured for it in the reference by a 2D centreline
+#: fit (per-band Gaussian + line across the ray, then a weighted TLS line through
+#: the fitted centres).  (name, foot, direction, L0, L1, half-width): `foot` is a
+#: point on the line in canvas coordinates (pixel i spans [i, i+1]), the
+#: direction is counter-clockwise from east with y up, and L0-L1 is the stretch
+#: of the line, measured from the foot, where that structure is the one being
+#: read.
+#:
+#: `ray_excess` cannot see the upper-left pair, and that is why these exist: it
+#: samples a wedge about the CORE, and the pair misses the core by 17 and 26 px.
+#: The previous release, which drew nothing at 140-150 degrees at all, scored
+#: 7.50 there against the reference's 6.63 -- a presence test that a missing
+#: structure passes.  Following the measured line and comparing it with its own
+#: flanks reads 6.13 for the reference and 0.06 for that release, and a line
+#: rotated 10 degrees either way reads -2.4 to +1.5 on the reference.
+LINE_AXES = (("lower-left", (524.2, 511.7), 255.2, 50.0, 110.0, 12.0),
+             ("upper-left A", (519.9, 526.9), 140.4, 115.0, 195.0, 14.0),
+             ("upper-left B", (518.0, 535.6), 150.0, 90.0, 150.0, 14.0),
+             ("upper-right core", (534.8, 517.0), 47.6, 70.0, 140.0, 14.0),
+             ("lower-left lobe", (531.0, 513.5), 231.0, 36.0, 66.0, 12.0))
+
+
+def _bilinear(a, x, y):
+    """Bilinear sample of a 2-D array at float pixel-index coordinates."""
+    h, w = a.shape[:2]
+    x0 = np.clip(np.floor(x).astype(int), 0, w - 1)
+    y0 = np.clip(np.floor(y).astype(int), 0, h - 1)
+    x1, y1 = np.clip(x0 + 1, 0, w - 1), np.clip(y0 + 1, 0, h - 1)
+    fx, fy = x - x0, y - y0
+    return (a[y0, x0] * (1 - fx) * (1 - fy) + a[y0, x1] * fx * (1 - fy)
+            + a[y1, x0] * (1 - fx) * fy + a[y1, x1] * fx * fy)
+
+
+def line_peak(a, foot, theta, L0, L1, hw=14.0):
+    """Mean over L0..L1 of the transverse G peak within 4 px of a measured line.
+
+    Each 10 px stretch of the line is averaged along its length, a straight
+    line fitted to the outer 4 px of each flank is removed (the local ramp of
+    the curves' glow), and the largest remaining value within |s| <= 4 is the
+    stretch's reading.  G is the carrier: every ray here is cyan.
+    """
+    g = a[..., 1]
+    t = np.radians(theta)
+    ux, uy, nx, ny = np.cos(t), -np.sin(t), -np.sin(t), -np.cos(t)
+    s = np.arange(-hw, hw + 0.01, 1.0)
+    edge, inner = np.abs(s) >= hw - 4, np.abs(s) <= 4
+    vals = []
+    for L in np.arange(L0, L1, 10.0):
+        r = np.arange(L, L + 10.0, 0.5)
+        xs = foot[0] + r[:, None] * ux + s[None, :] * nx - 0.5
+        ys = foot[1] + r[:, None] * uy + s[None, :] * ny - 0.5
+        v = _bilinear(g, xs, ys).mean(0)
+        c = np.polyfit(s[edge], v[edge], 1)
+        vals.append(float((v - np.polyval(c, s))[inner].max()))
+    return float(np.mean(vals))
+
+
 # --------------------------------------------------------------------------- #
 # 5. the core must not become an oversized white mass
 # --------------------------------------------------------------------------- #
@@ -340,7 +409,10 @@ CHECKS = (
      "the line has become a hard isolated stroke without its broad component"),
     ("upper-left ray is present", "ray upper-left", (0.40, 2.20), 1.0,
      "a ray has been smoothed away"),
-    ("lower-left ray is present", "ray lower-left", (0.40, 2.20), 1.0,
+    # Read on its measured line (LINE_AXES), not on a wedge about the core --
+    # see the note above RAY_AXES.  Reference 9.52; lines rotated 10 degrees
+    # either way read -2.7 and -5.2 on the reference.
+    ("lower-left ray is present", "line lower-left", (0.40, 2.20), 1.0,
      "a ray has been smoothed away"),
     # The band's floor is set where the CURRENT artwork sits, not where it
     # ought to: on the shipped render the upper-right ray measures 0.49 of the
@@ -356,10 +428,32 @@ CHECKS = (
     # parameter changed, and the lower-right gained 0.10 from the same pass.
     # The floors are deliberately NOT retightened onto 0.49/0.76 -- 0.45 leaves
     # the upper-right only 0.04 of margin as it is.
+    # D61: both now read 0.95 and 0.91 of the reference, because both rays were
+    # rebuilt as a narrow core plus a soft flank on their measured lines.  The
+    # floors stay where they were: a floor is a guard against loss, and raising
+    # it to meet the artwork would make the next honest refit look like one.
     ("upper-right ray is present", "ray upper-right", (0.45, 2.20), 1.0,
      "a ray has been smoothed away (this one is already 0.49 of the reference)"),
     ("lower-right ray is present", "ray lower-right", (0.55, 2.20), 1.0,
      "a ray has been smoothed away (this one is already 0.76 of the reference)"),
+    # The line-following checks (LINE_AXES).  The pair and the upper-right core
+    # were ABSENT from the release before these were written -- 0.01, -0.01 and
+    # 0.46 of the reference -- so the floors are real presence floors, not
+    # where the artwork happened to sit.  The lower-left lobe is the opposite
+    # failure: a fit once drew it 2.3x the reference as a long blue ray, which
+    # is an invented structure, so its ceiling matters as much as its floor.
+    ("the upper-left ray A is present", "line upper-left A", (0.50, 2.00), 1.0,
+     "the outer of the two upper-left rays, off the core, has gone"),
+    ("the upper-left ray B is present", "line upper-left B", (0.50, 2.00), 1.0,
+     "the inner of the two upper-left rays, off the core, has gone"),
+    ("the upper-right ray keeps its sharp core", "line upper-right core", (0.50, 2.00), 1.0,
+     "the upper-right ray is back to a soft slab without its narrow core"),
+    # Read at 231 degrees, between the reference's lobe (peak 226-229) and
+    # where the over-drawn ray sat (235): the reference reads 5.50, the release
+    # without the lobe 0.22x and the over-drawn ray 2.47x.
+    ("the lower-left lobe is short, not a long ray", "line lower-left lobe", (0.45, 1.80), 1.0,
+     "the short lower-left lobe has vanished (below) or been drawn as a long "
+     "over-bright ray (above)"),
     ("the white core is not oversized", "white radius", (0.0, 1.35), 0.5,
      "the compact white region has grown into a blob"),
     ("the bloom has not gone white", "cyan fraction", (0.90, 1.12), 0.05,
@@ -378,6 +472,8 @@ def statistics(a):
         out["line" + k] = v
     for name, theta, r0, r1 in RAY_AXES:
         out["ray " + name] = ray_excess(a, theta, r0, r1)
+    for name, foot, theta, L0, L1, hw in LINE_AXES:
+        out["line " + name] = line_peak(a, foot, theta, L0, L1, hw)
     return out
 
 

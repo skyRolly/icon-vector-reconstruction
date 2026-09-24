@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
-"""Set the flare's rays and flanks from measurement rather than from the fit.
+"""Set the flare's rays from measurement rather than from the fit.
 
     python3 tools/measure_flare.py [--params src/params.json] [--geometry]
 
 Two jobs, and the second is the one that has to be repeated whenever anything
 under the flare changes:
 
-  * `--geometry` writes each ray's measured angle and width into its layer, and
-    inserts the two broad flank layers if they are absent. Widths go in through
+  * `--geometry` writes each ray's measured angle and width into its layer.
+    (It used to also insert two broad flank layers; they drew a false
+    triangle and are retired -- see RETIRED_FLANKS.) Widths go in through
     the primitive's own optics -- a slab of height h blurred by sigma_b has
     sigma_eff^2 = sigma_b^2 + h^2/12 -- so (height, blur) is determined once the
     measured FWHM is fixed. This is a one-time structural edit; see D26.
 
   * always, the amplitudes. Each ray's colour is scaled until its chord-excess
-    peak matches the reference's, and each flank's until the mean signed error
-    over its own angular sector reaches zero. Screen compositing is not linear
+    peak matches the reference's (and, while there were flanks, each flank's
+    until the mean signed error over its own angular sector reached zero). Screen compositing is not linear
     in a layer's amplitude -- a ray over a background of luminance b contributes
     about (1 - b) of what it would over black -- so this measures, scales and
     re-measures rather than solving once.
@@ -93,14 +94,18 @@ RAY_GEOMETRY = {
     # far: the reference is at 0.29 of its peak by r 100 where the model held
     # 0.67.  peak_at 0.62 keeps the longitudinal peak at r = 62.
     "flare_ray_a": (107.1, 12.3,  9.0, 1.00, 100.0, 0.62, -4.783, 2.09),   # upper-left
-    # Lower-left: too SHORT.  Bias-calibrated peak ratios render/reference run
-    # 1.18/1.07/0.92/0.33 at r 76/88/100/112 -- the reference is still at half its
-    # peak where a len of 110 has gone out.  124 is inside the defensible 118-128;
-    # a trial at 130 overshot the outermost band and moved flare r<110 the wrong
-    # way.  peak_at 0.532 keeps the longitudinal peak near r = 66.  Its angle is
-    # also about +4.5 deg out with a compensating -7 px offset, but that is worth
-    # only 3.5% of the sector error and is recorded rather than applied.
-    "flare_ray_b": (249.7,  7.9,  8.0, 1.25, 124.0, 0.532, 0.0, 0.0),  # lower-left
+    # Lower-left: ON ITS MEASURED LINE (D61), which does not pass through the
+    # core.  The "+4.5 deg with a compensating -7 px offset" this entry used to
+    # record and decline is now applied: a Gaussian-plus-line fit across the ray
+    # in every 8 px band from r 40 to 128, then a weighted TLS line through the
+    # fitted centres, gives 255.2 deg through (524.2, 511.7), 7.0 px from the
+    # core, and measured along THAT line the reference's ridge sits within
+    # +-1.5 px of s = 0 in every band.  Along the line its profile is a plateau
+    # (G 11.1-12.2 at r 56-64, 9.5-11.2 at r 72-104, 4.5 by r 112), which one
+    # ray's single-peaked gradient cannot hold, so this layer is the inner half
+    # (onset 0.446, held in params) and flare_ray_b2 the outer half on the same
+    # line.  FWHM 8.6 against a measured sigma of 3.5-4.5 px (8.2-10.6 FWHM).
+    "flare_ray_b": (255.2, 8.5964, 9.4638, 1.25, 95.4483, 0.4011, -5.75, -2.63),  # lower-left
     # Upper-right: axis 44.9 +- 0.4.  45.6, which tools/ray_report.py scans at,
     # is excluded at about 6 sigma: the reference's line lies -0.42 +- 0.28 px
     # from the 44.9 axis over r 65-145 across 15 analysis choices.  It ends at
@@ -151,46 +156,32 @@ RAY_GEOMETRY = {
     # SHORTENED; that reading is an artefact of the template and shortening makes
     # the picture worse.  Measured extent 165 +- 20, so len 185 is at the upper
     # edge of what the data allows and must not be increased.
-        "flare_ray_c": (328.1,  7.4,  7.0,  1.90, 185.0, 0.32, 1.5809, -2.5497),  # lower-right
+    # D61: this is now the long soft TAIL of a layered ray, and a short bright
+    # inner segment (flare_ray_c_in, same line, carrying the white the reference
+    # shows at r 36-52) takes the near-core light.  Fitted to the reference's
+    # per-band profile along this line: len 179 (inside 165 +- 20; a candidate
+    # at 215 was measured too long and reverted), height 7 -> 5.5, blur 2.41 ->
+    # 3.09, spread 1.9 -> 2.2.  The translation is untouched.
+    "flare_ray_c": (328.1, 8.1797, 5.4845, 2.1988, 179.2975, 0.2954, 1.5809, -2.5497),  # lower-right
 }
 #: ray name in tools/ray_report.py -> the layer that carries it
 RAY_LAYER = {"upper-left": "flare_ray_a", "lower-left": "flare_ray_b",
              "upper-right": "flare_ray_e", "lower-right": "flare_ray_c"}
-#: flank layer -> the angular sector whose signed error it exists to zero
-FLANK_SECTOR = {"flare_flank_ul": (100.0, 140.0), "flare_flank_dl": (205.0, 262.0)}
+#: The two broad flank layers are RETIRED (D61).  `flare_flank_ul` and
+#: `flare_flank_dl` were straight-edged quadrilaterals fanning out of the core
+#: to the upper-left and lower-left, and together they drew the false triangular
+#: region west of the core that the reference does not have.  The light they
+#: carried is real, but its shape is not a wedge: it is now the two upper-left
+#: rays on their own measured lines, the lower-left rays at their measured
+#: profiles, and a soft elliptical lens glow (flare_glow_lens).  --geometry used
+#: to RE-INSERT a deleted flank from a template here, so leaving the template in
+#: place would have brought the triangle back on the next geometry rebuild;
+#: `test_pipeline.py` now fails if either id reappears in the params or here.
+FLANK_SECTOR = {}
 FLANK_RADII = (20.0, 80.0)
 CHANNELS = ("white", "cyan", "blue")
-
-#: The template that --geometry uses to re-insert a flank that has been deleted.
-#: It is not an initial guess any more: it held the ORIGINAL rot -234.0 for the
-#: lower-left long after measurement moved that axis to -240.0, and the original
-#: colours for both flanks long after the photometric fit had changed them (the
-#: upper-left by a factor of four).  Deleting a flank and running the documented
-#: geometry rebuild therefore inserted a DIFFERENT model than the committed one,
-#: and the calibration that follows can rescale a colour but never a rotation.
-#: `test_pipeline.py` now asserts that every structural field here matches the
-#: shipped layer, so the two cannot drift again.  The colours are synchronised
-#: too but deliberately NOT asserted: photometric calibration rewrites them by
-#: design, and a check that fires on every legitimate refit is a check people
-#: learn to ignore.
-FLANKS = [
-    {"id": "flare_flank_dl", "kind": "ray", "rot": -240.0, "height": 30.0,
-     "spread": 1.7, "len": 110.0, "peak_at": 0.2, "blur": 6.0,
-     "note": ("the lower-left ray is a sharp spike on a broad fan; this is the fan, "
-              "found as the angular deficit left when the ray was narrowed to its "
-              "measured 8.3 px width -- theta 210-260, peaking 13.5 cv at 225"),
-     "bounds": {"blur": [3.0, 14.0], "height": [12.0, 55.0], "len": [80.0, 190.0],
-                "peak_at": [0.12, 0.6], "rot": [-252.0, -216.0], "spread": [1.0, 4.0]},
-     "color": [0.0, 34.97023, 58.41715], "white": 0.0, "cyan": 0.145904, "blue": 0.083187},
-    {"id": "flare_flank_ul", "kind": "ray", "rot": -118.0, "height": 22.0,
-     "spread": 2.0, "len": 110.0, "peak_at": 0.2, "blur": 6.0,
-     "note": ("the upper-left ray's fan, the companion to its 10.6 px spike; found "
-              "the same way and second, which is what makes the pair a decomposition "
-              "rather than a patch"),
-     "bounds": {"blur": [3.0, 14.0], "height": [10.0, 45.0], "len": [80.0, 190.0],
-                "peak_at": [0.12, 0.6], "rot": [-136.0, -100.0], "spread": [1.0, 4.0]},
-     "color": [0.0, 4.09391, 5.38001], "white": 0.0, "cyan": 0.017074, "blue": 0.004024},
-]
+RETIRED_FLANKS = ("flare_flank_dl", "flare_flank_ul")
+FLANKS = []
 
 
 def blur_for(fwhm, h):
@@ -219,12 +210,12 @@ def apply_geometry(params):
                  len=[max(60.0, ln - 45.0), ln + 60.0], peak_at=[0.2, 0.75])
         print("  %-14s theta %6.1f  FWHM %4.1f px (h %.1f, blur %.2f)"
               % (lid, th, 2.355 * math.sqrt(sb * sb + h * h / 12.0), h, sb))
-    ids = [L["id"] for L in params["layers"]]
-    at = ids.index("flare_ray_b")
-    for fl in FLANKS:
-        if fl["id"] not in ids:
-            params["layers"].insert(at, json.loads(json.dumps(fl)))
-            print("  inserted %s" % fl["id"])
+    # No flank re-insertion any more: the template drew the false triangle
+    # (RETIRED_FLANKS).  A retired id found in the params is an error, not
+    # something to repair silently.
+    back = [L["id"] for L in params["layers"] if L["id"] in RETIRED_FLANKS]
+    if back:
+        raise SystemExit("retired flank layer(s) present: %s" % ", ".join(back))
 
 
 def scale(layer, k):
@@ -258,12 +249,11 @@ def main():
     ap.add_argument("--params", default=os.path.join(ROOT, "src", "params.json"))
     ap.add_argument("--reference", default=os.path.join(ROOT, "reference.png"))
     ap.add_argument("--geometry", action="store_true",
-                    help="also write the measured ray geometry and insert the flanks")
+                    help="also write the measured ray geometry into the ray layers")
     ap.add_argument("--rounds", type=int, default=8)
     ap.add_argument("--rays-only", action="store_true",
-                    help="pin the four narrow rays and leave the broad flanks alone "
-                         "(their amplitudes come from an angular measurement that a "
-                         "sector mean would overwrite)")
+                    help="pin the four narrow rays only (kept for the calibration "
+                         "test; with the flanks retired there is nothing else to pin)")
     a = ap.parse_args()
 
     params = json.load(open(a.params))

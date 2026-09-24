@@ -411,7 +411,11 @@ def main():
                   # removed in this iteration and named in the record OF its
                   # removal: a flat-topped quadrilateral standing in for the
                   # broad west lobe, replaced by `flare_arm_w2`
-                  "flare_ray_d"}
+                  "flare_ray_d",
+                  # removed in D61 and named in the record of their removal:
+                  # the two straight-edged flank wedges that drew the false
+                  # triangle west of the core (measure_flare.RETIRED_FLANKS)
+                  "flare_flank_dl", "flare_flank_ul"}
     import re as _re
     named, missing = set(), {}
     for doc in ("README.md", os.path.join("docs", "METHOD.md"),
@@ -702,23 +706,27 @@ def main():
                                 ("dx", dx, L.get("dx", 0.0)), ("dy", dy, L.get("dy", 0.0))):
             if got is None or abs(float(want) - float(got)) > 1e-6:
                 drift.append("%s/%s preset %.4g vs shipped %s" % (lid, name, want, got))
-    # The FLANKS template is the other half of --geometry's promise: it INSERTS
-    # a flank that has been deleted, so a stale entry silently ships a different
-    # model.  It did -- rot -234.0 against the measured and committed -240.0 --
-    # and no calibration afterwards can move a rotation.  Colour is excluded on
-    # purpose: the photometric fit rewrites it by design, so asserting it would
-    # fire on every legitimate refit.
+    # The flank template WAS the other half of --geometry's promise: it
+    # re-inserted a deleted flank, so a stale entry shipped a different model --
+    # and once the flanks were found to BE the false triangle west of the core
+    # (D61), keeping the template would have re-drawn it on the next geometry
+    # rebuild.  The guard is now that they stay gone: not in the params, not in
+    # the template, and --geometry refusing a params file that has one.
     fdrift = []
-    for tpl in MFL.FLANKS:
-        L = next((x for x in params["layers"] if x["id"] == tpl["id"]), None)
-        if L is None:
-            fdrift.append("%s missing from params" % tpl["id"]); continue
-        for name in ("kind", "rot", "height", "spread", "len", "peak_at", "blur"):
-            want, got = tpl.get(name), L.get(name)
-            same = (want == got if isinstance(want, str)
-                    else got is not None and abs(float(want) - float(got)) <= 1e-6)
-            if not same:
-                fdrift.append("%s/%s template %s vs shipped %s" % (tpl["id"], name, want, got))
+    for rid in MFL.RETIRED_FLANKS:
+        if any(x["id"] == rid for x in params["layers"]):
+            fdrift.append("%s is back in params.json" % rid)
+        if any(t.get("id") == rid for t in MFL.FLANKS):
+            fdrift.append("%s is back in measure_flare's insertion template" % rid)
+    _probe = json.loads(json.dumps(params))
+    _probe["layers"].append({"id": MFL.RETIRED_FLANKS[0], "kind": "ray"})
+    try:
+        import contextlib as _clf, io as _iof
+        with _clf.redirect_stdout(_iof.StringIO()):
+            MFL.apply_geometry(_probe)
+        fdrift.append("--geometry accepted a params file carrying %s" % MFL.RETIRED_FLANKS[0])
+    except SystemExit:
+        pass
     # A bound is only "reachable" if a spec targets THAT parameter.  Raw prefix
     # matching let a sibling stand in for it -- a blur_x spec satisfied an
     # unreachable blur bound, and profile_e satisfied profile -- so the guard
@@ -1026,10 +1034,11 @@ def main():
           "a layer with bounds.blur but only blur_x emitted reports unreachable %s"
           % (_pun or "nothing"))
 
-    check("the flank insertion template matches the shipped flanks",
+    check("the retired flank wedges stay retired",
           not fdrift,
           "; ".join(fdrift) if fdrift
-          else "all %d flank layers agree on every structural field" % len(MFL.FLANKS))
+          else "%s absent from params and template; --geometry refuses them"
+          % " and ".join(MFL.RETIRED_FLANKS))
 
     check("the ray geometry preset matches the shipped params",
           not drift, "; ".join(drift) if drift else "all %d ray layers agree" % len(MFL.RAY_GEOMETRY))

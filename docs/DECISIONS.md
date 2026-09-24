@@ -3788,3 +3788,190 @@ the crop above.
 are all inside `taper_specs`' bounds and reachable by `--spec tapers`, so the
 next search can move them; the full publish cycle passes end to end and
 `src/params.json` reproduces `reconstruction.svg` byte for byte.
+
+## D61. The flare part by part: a false triangle removed, rays that miss the core drawn where they are, and a candidate's own overdraw caught before it shipped
+
+This pass was confined to the central flare and judged against `reference.png`
+alone. No frame, curve geometry or ridge was touched; the one change to a curve
+layer is `arc_glow1`'s colour, split into a white and a cyan part (below), which
+moves no geometry. Every change was set from a measurement of the part it
+changes, and every candidate was compared with the reference AND the previous
+release AND the previous candidate, with the picture in front of the numbers.
+
+### The instruments
+
+**`tools/ray_lines.py`: a ray as a 2D profile on its own line.** For each 8 px
+band along a line, the transverse G profile is fitted by a Gaussian plus a
+straight line (the curves' glow is a ramp at this scale). R and B are the
+least-squares amplitudes of the same Gaussian, so hue is compared on the same
+footing. The output is amplitude, ridge offset and width per band, for the
+reference and the render read on the same line. The lines themselves were found
+the same way: ridge centres per band, then a weighted TLS line through them.
+Three of them do not pass through the core:
+
+    ray              line of record                       from the core
+    upper-left A     140.4 deg through (519.9, 526.9)     17 px
+    upper-left B     149.5 deg through (518.0, 535.6)     26 px
+    lower-left       255.2 deg through (524.2, 511.7)      7 px
+    upper-right core  47.6 deg through (534.8, 517.0)      5 px
+    lower-right      328.1 deg, ray_c's own origin (unchanged)
+    lower-left 268 / 229 lobe / upper-left inner: through the core
+
+**`tools/flare_parts.py`** puts reference | before | after side by side for each
+named part (core, upper-left, lower-left, upper-right, lower-right, vertical,
+horizontal east and west), plain and local-contrast-enhanced. The LCE row is the
+one that shows what "too soft", "too sharp" and "invented" look like.
+
+**`tools/visual_regression.py`, 12 -> 16 checks.** `ray_excess` samples a wedge
+about the core, so it cannot see an off-core ray. The previous release had
+nothing at 140-150 degrees and scored 7.50 there against the reference's 6.63.
+The new line-following statistic compares the ramp-removed peak ON the measured
+line with its own flanks. It reads the reference at 6.13 and that release at
+0.06, and lines rotated 10 degrees read -2.4 to +1.5 on the reference. It gates
+the upper-left pair, the upper-right core, and a short lower-left lobe that has a
+CEILING as well as a floor. The lower-left ray's check moved onto its measured
+line (reasons in the `RAY_AXES` note). The previous release now fails four
+checks, the missing pair, the missing core and the missing lobe. This pass's own
+over-drawn candidate fails two. The final render fails none.
+
+### What the previous release had wrong
+
+* **A false triangle west of the core.** `flare_flank_ul` and `flare_flank_dl`
+  were straight-edged quadrilaterals fanning out of the core, and together they
+  drew a triangular region the reference does not have. Both are removed, not
+  dimmed. `measure_flare --geometry` used to RE-INSERT a missing flank from a
+  template, which would have redrawn the triangle on the next geometry rebuild.
+  The template is retired and `test_pipeline` fails if either id comes back.
+* **The upper-left pair was missing.** Ray A reads, along its line at L 112-176,
+  5.5 / 7.0 / 6.2 / 7.6 / 7.9 / 7.0 / 7.7 / 6.9 / 5.5 cv in the reference against
+  -1.4 to +0.7 in that release. Ray B is broader and fainter, 8.6 / 6.7 / 3.3 /
+  4.4 / 6.0 cv at L 92-124.
+* **The lower-left was the wrong light in the wrong places.** The 250-degree ray
+  was drawn through the core and too bright inside r 72 (11.5-14.8 against
+  4.5-12.2). A short lobe at 229 degrees was absent (G 2.9-3.9 against
+  13.2-13.4 at r 32-40). The 267-degree ray read NEGATIVE (-9 to -20 cv at r 36-60),
+  because the wedge's dark flank sat on it.
+* **The upper-right ray was a soft slab without its core.** On its line: 1.9
+  against the reference's 4.14, width sigma 4.3-6.8 px against 3.2-4.8.
+* **The lower-right ray was flat along its length.** Reference G 17.8 at r 44
+  falling to about 4 by r 150, white near the core (R 12.6). That release had 6.1
+  at r 44 and 9-10 out to r 110.
+* **The line below the core was a pure-white hard stroke.** It rendered
+  (255, 255, 255), 2 rows high and R-heavy (R/G/B increments 18.4 / 11.7 / 11.2)
+  where the reference's line is 2.5 rows FWHM and near-neutral (18.0 / 17.5 /
+  19.5). West of the left curve it drew a line the reference does not have.
+* **The main line's east tail was twice too bright** past dx 90 (G 10.9 / 9.7 /
+  8.6 at dx 93-123 against 7.8 / 5.5 / 3.3).
+* **The arcs' outer flank had one colour for two jobs.** Decomposed into white
+  and cyan, it was too white far from the flare (white -8 to -10, cyan +7 to +19
+  cv) and too cyan near it (white +12 to +39).
+
+### A candidate of this pass that was wrong, and how it was caught
+
+The first complete candidate improved every global number (MAE 1.8416 ->
+1.8322, flare r<110 6.31 -> 5.95) and was wrong in three places that only the
+side-by-side and the line profiles showed:
+
+* the new lower-left ray at 235 degrees was the most prominent structure in
+  the lower-left: 3-6x the reference's lobe beyond r 25, 2.5x on the line
+  statistic, and blue where the reference's is white-then-cyan -- an invented
+  shape;
+* `flare_ray_b` had been refitted 1.6x too bright and too blue (B/G 1.65
+  against 1.28);
+* `flare_ray_c` had been lengthened to 215, which the recorded extent 165 +- 20
+  rules out.
+
+All three came from colour and shape fits on a whole-image perceptual objective.
+The fit moved light into rays that belongs to a broad glow, because the rays
+were the levers it had. The fix was to fit each ray to its own measured profile
+and give the broad light a soft layer of its own (`flare_glow_lens`). Measured
+that way, the lens interior was 12-14 cv too dark in G at r 20-40 over theta
+210-270 once the rays were right. The over-bright rays and the wedges had been
+standing in for that light.
+
+### What changed
+
+    part            change                                                  measured on its line
+    triangle        flare_flank_ul, flare_flank_dl removed                  west_flatness 0.785 -> 0.852 of ref
+    upper-left      flare_ray_ula (A, narrow), flare_ray_ulb (B, broad)     A 0.01 -> 1.03, B -0.01 -> 0.98 of ref
+    lower-left      flare_ray_b on its measured line + flare_ray_b2         G at r 56-104 ref 11.1..8.4, now 9.7..8.0
+                    (plateau as two segments), flare_ray_llc (short         lobe: 0.22 -> 1.36 of ref
+                    229-degree lobe, broad, white-tinted), flare_ray_lld
+                    + flare_ray_lld2 (the 267-degree ray's two maxima)
+    upper-right     flare_ray_ur: the narrow core on the measured line;     core 0.46 -> 0.95 of ref
+                    flare_ray_e kept as the soft flank                      width 3.3-4.2 px (ref 3.2-4.8)
+    lower-right     flare_ray_c_in: bright, white inner segment;            G r 44: 6.1 -> 15.0 (ref 17.8)
+                    flare_ray_c refitted as the long soft tail (len 179)    R r 44: -> 10.1 (ref 12.6)
+    core            flare_core_w (compact white, amplitude set by the       R r 0-4: 233.6 (ref 233.0)
+                    core's own R ring means), flare_cloud_w (west cloud),   R>=200 extent W8 E17 N5 S5
+                    flare_halo squash 0.645 -> 0.514                        (ref W8 E17 N4 S5)
+    lens interior   flare_glow_lens: soft ellipse, cyan                     lens-core MAE 5.55 -> 4.94
+    line A          side tables fitted along the row; flare_streak_w       R at dx -42: 24.4 -> 46.1 (ref 47.0)
+                    carries the white beside (not on) the core              line A 1.26 -> 1.00 of ref
+    line B          (154, 224, 255) not clamped white; sigma_y 0.4 -> 0.9;  2.5 rows FWHM, R/G/B 20.1/16.5/17.3
+                    tails refitted                                          (ref 18.0/17.5/19.5); line B 0.71 -> 0.96
+    arcs' colour    arc_glow1 split: cyan stays, white moves to             far-field white excess removed,
+                    arc_glow1w on a taper along the curve                   near-flare deficit halved
+
+### Deliberately preserved
+
+* **The lower-right translation.** Its dx/dy offset was found to be translational
+  and confirmed twice, and it was not revisited. Its direction stays 328.1: the
+  TLS line through this pass's ridge centres reads 327.2, inside the recorded
+  327.3-328.1 interval that the note says is not resolvable further.
+* `flare_ray_e`'s geometry (D59's joint correction). The narrow core was added
+  beside it, not substituted for it: the broad transverse profile matches within
+  1 cv everywhere except the +2 cv centre bump that the core supplies.
+* `flare_ray_a`: an intermediate refit had raised its colour 20%. The line
+  profile showed that 1.25x too bright at r 44-76, so it was reverted to the
+  release value.
+* The vertical line, `flare_sat_long` (line C), `flare_fan`, `flare_arm_w` and
+  `flare_wash_far` are all unchanged. Line C reads 1.16 of the reference before
+  and after.
+
+### What the numbers did
+
+    MAE              1.8416 -> 1.8306        RMSE              3.9741 -> 3.9084
+    centre-region    7.641  -> 6.987         pixels off by > 8  4.52% -> 4.45%
+    flare r<110      6.308  -> 5.862         off by > 24       0.729% -> 0.660%
+    lens-core        5.549  -> 4.944         weighted SSE      217407 -> 184786
+    SSIM             0.97443 -> 0.97436      bright-region     9.359  -> 9.654
+    core r<25        8.290  -> 8.337         edge_iou          0.6912 -> 0.6893
+
+Three numbers get worse, and they are the same fact seen three ways. SSIM drops
+by 0.00007, bright-region MAE by 0.30, and the core r<25 MAE by 0.05: all three
+are dominated by the pixels next to the core. That is the cost of
+`flare_glow_lens` there. It removes 1.25 of lens-core MAE and 0.33 of flare r<110
+MAE, and removing it makes the core better (r<25 8.58 -> 7.54 on the candidate
+it was fitted on) while every flare-region figure gets worse. It was fitted with
+the core ring inside its objective. A hollow-centred variant, which puts no
+light at all near the core, did no better (flare 5.94 against 5.89). The light
+the lens needs and the light the core does not need overlap at r 10-25, and the
+reference itself is 5-7 cv less cyan there than any of these candidates. That
+excess predates this pass (see Remaining). `edge_iou` moves -0.002, which is
+also where it moved in D60. The frame is untouched: frame MAE 2.505 before and
+after.
+
+### Remaining, with the reason
+
+* **The core is smooth where the reference is lumpy.** R angular sd at r 8-12
+  is 21.1 against the reference's 28.4 (17.4 before). The reference's white sits
+  in spokes along the ray directions and in a mottled west cloud. The spokes are
+  partly there: the lower-right inner segment is white, and the streak's white
+  sits beside the core. The lumps are not modelled, because a lump drawn where
+  the reference's JPEG happens to have one is an invented structure.
+* **G/B at r 5-25 are 5-7 cv high.** The previous release had the same excess.
+  Most of that ring is the right curve's glow (the ridge crosses at dx +15), and
+  the curve is out of scope.
+* **The 229-degree lobe runs about 8 px long** (G 9.4 at r 64 against 3.1). Its
+  white near the core is not reproduced (R 2-4 against 11-19 at r 24-32). The
+  ray gradient ties its tail to its peak.
+* **The 267-degree ray's inner peak** (G 11.8 at r 44) has B/G 0.4-0.5, which no
+  white/cyan/blue mix produces. The fit holds G below the peak rather than
+  overshoot B.
+* **The upper-right core** is 4.0-4.2 against 7.0 at r 90-98.
+* **The upper-left inner ray stops early:** 1.9 against 5.3 at r 100.
+* **Two older findings stand.** White east of the right curve near the core
+  (D54) has no lever inside the flare. A narrow cyan deficit on the curves'
+  outer flank at d -8 (+7-8 G) is not moved by any inset or colour sweep of the
+  split pair.
