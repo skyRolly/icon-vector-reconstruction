@@ -516,6 +516,15 @@ class Lines:
     profile -- a linear functional of the image, identical for every image it
     is applied to.  The optional broad term is the band-averaged transverse
     profile with each band's ramp removed, also linear.
+
+    The optional SPLIT reading (D65) is for a line drawn as a narrow segment
+    inside a soft flank: over its radial range each band is read with TWO
+    fixed templates at once -- a narrow and a broad Gaussian on the
+    reference's own centre, above a ramp -- so the band yields a narrow and a
+    broad amplitude per channel, both linear in the image.  A single template
+    cannot tell a flank's light from a line's; the pair can (condition number
+    3.7 on the lower-right line), which is what lets a flank be calibrated at
+    all instead of being traded for the line.
     """
 
     def __init__(self, ref):
@@ -527,16 +536,30 @@ class Lines:
             hw = RL.HALF_WIDTH.get(spec["line"], 12.0)
             rows = RL.profile(ref, foot, d, r0, r1, hw=hw)
             bands = []
+            split_r0 = spec["split"][0] if "split" in spec else float("inf")
             for r, _ar, _ag, _ab, s0, sg in rows:
                 if abs(s0) >= 3.95 or sg <= 0.85 or sg >= 8.95:
                     continue                   # the reference has no clean ray here
                 if r < spec.get("r_min", 0.0):
                     continue                   # inside another structure's glow
+                if r >= split_r0:
+                    continue                   # read by the split templates instead
                 s, xs, ys = RL.band_coords(foot, d, r - 4.0, 8.0, hw)
                 bands.append({"r": float(r), "xs": xs, "ys": ys, "row": RL.amplitude_row(s, s0, sg)})
                 xs_all.append(xs)
                 ys_all.append(ys)
-            f = {"bands": bands, "broad": None}
+            f = {"bands": bands, "broad": None, "split": []}
+            if "split" in spec:
+                q0, q1, sn, sb, shw = spec["split"]
+                for r in np.arange(q0, q1, 8.0):
+                    s, xs, ys = RL.band_coords(foot, d, r, 8.0, shw)
+                    s0 = RL.fit_gauss_line(s, RL._bilinear(ref[..., 1], xs, ys).mean(0))[1]
+                    X = np.stack([np.exp(-0.5 * ((s - s0) / sn) ** 2),
+                                  np.exp(-0.5 * ((s - s0) / sb) ** 2), np.ones_like(s), s], 1)
+                    f["split"].append({"r": float(r + 4.0), "xs": xs, "ys": ys,
+                                       "rows": np.linalg.pinv(X)[:2]})
+                    xs_all.append(xs)
+                    ys_all.append(ys)
             if "broad" in spec:
                 L0, L1, bhw = spec["broad"]
                 grids = []
@@ -562,7 +585,8 @@ class Lines:
         self.target = self.measure(ref)
 
     def measure(self, img, cropped=False):
-        """{family: {"bands": (n, 3) amplitudes, "broad": (m,) G profile or None}}."""
+        """{family: {"bands": (n, 3) amplitudes, "broad": (m,) G profile or None,
+        "split": (k, 2, 3) narrow and broad amplitudes (k = 0 without a split)}}."""
         y0, _y1, x0, _x1 = self.box
         oy, ox = (y0, x0) if cropped else (0, 0)
         out = {}
@@ -578,7 +602,12 @@ class Lines:
                 for xs, ys in f["broad"]["grids"]:
                     acc = acc + f["broad"]["M"] @ RL._bilinear(img[..., 1], xs - ox, ys - oy).mean(0)
                 bro = acc / len(f["broad"]["grids"])
-            out[name] = {"bands": np.array(amps).reshape(-1, 3), "broad": bro}
+            spl = np.zeros((len(f["split"]), 2, 3))
+            for j, b in enumerate(f["split"]):
+                v = np.stack([RL._bilinear(img[..., k], b["xs"] - ox, b["ys"] - oy).mean(0)
+                              for k in range(3)])            # (3, n_s)
+                spl[j] = b["rows"] @ v.T                     # (2, 3): narrow, broad
+            out[name] = {"bands": np.array(amps).reshape(-1, 3), "broad": bro, "split": spl}
         return out
 
     def residual(self, meas):
@@ -590,6 +619,8 @@ class Lines:
             parts.append(((m["bands"] - t["bands"]) @ BAND_WEIGHT.T).ravel())
             if t["broad"] is not None:
                 parts.append((m["broad"] - t["broad"]) * math.sqrt(BROAD_WEIGHT) * LUMA[1])
+            if len(t["split"]):
+                parts.append(((m["split"] - t["split"]) @ BAND_WEIGHT.T).ravel())
         return np.concatenate(parts)
 
 
@@ -745,19 +776,34 @@ def correction(lines, stack, meas):
 
 
 def control(lines, J):
-    """Which radial interval each layer controls, from the Jacobian (G rows)."""
+    """Which radial interval each layer controls, from the Jacobian's luminance rows.
+
+    Each band contributes BAND_WEIGHT's three rows (luminance, then two chroma
+    differences); this reads the luminance row.  (Until D65 it read the second,
+    a chroma row, as if it were G.)  A split band counts twice, once per
+    template, so a flank that dominates the broad reading controls that band.
+    """
     out, row = {}, 0
     names = list(CALIBRATED_LAYERS)
+    nw = BAND_WEIGHT.shape[0]
     for fname, f in lines.fam.items():
         nb = len(f["bands"])
-        G = np.abs(J[row:row + 3 * nb].reshape(nb, 3, -1)[:, 1, :])
-        tot = G.sum(1) + 1e-12
+        Y = [np.abs(J[row:row + nw * nb].reshape(nb, nw, -1)[:, 0, :])]
+        rr = [b["r"] for b in f["bands"]]
+        row += nw * nb + (len(f["broad"]["M"]) if f["broad"] is not None else 0)
+        ns = len(f["split"])
+        if ns:
+            Ys = np.abs(J[row:row + 2 * nw * ns].reshape(ns, 2, nw, -1)[:, :, 0, :])
+            Y += [Ys[:, 0, :], Ys[:, 1, :]]
+            rr += [b["r"] for b in f["split"]] * 2
+            row += 2 * nw * ns
+        Y = np.concatenate(Y, 0)
+        tot = Y.sum(1) + 1e-12
         for lid in FAMILIES[fname]["layers"]:
             j = names.index(lid)
-            share = G[:, j] / tot
-            rs = [b["r"] for b, sh in zip(f["bands"], share) if sh >= 0.5]
+            share = Y[:, j] / tot
+            rs = [r for r, sh in zip(rr, share) if sh >= 0.5]
             out[lid] = (fname, (min(rs), max(rs)) if rs else None)
-        row += 3 * nb + (len(f["broad"]["M"]) if f["broad"] is not None else 0)
     return out
 
 
@@ -789,6 +835,11 @@ def report(lines, meas, label):
         rms = float(np.sqrt(np.mean((ym - yt) ** 2))) if len(yt) else float("nan")
         print("    %-17s Y-gain %.2f rms %.1f   (G-gain %.2f, B-gain %.2f)"
               % (name, gain(ym, yt), rms, gain(m[:, 1], t[:, 1]), gain(m[:, 2], t[:, 2])))
+        ts, ms = lines.target[name]["split"], meas[name]["split"]
+        if len(ts):
+            print("    %-17s split r %g-%g: narrow Y-gain %.2f, broad Y-gain %.2f"
+                  % ("", lines.fam[name]["split"][0]["r"] - 4, lines.fam[name]["split"][-1]["r"] + 4,
+                     gain(ms[:, 0] @ LUMA, ts[:, 0] @ LUMA), gain(ms[:, 1] @ LUMA, ts[:, 1] @ LUMA)))
 
 
 def calibrate(params_path, ref, rounds=8, verbose=True, lines=None, stack=None):
@@ -827,6 +878,10 @@ def calibrate(params_path, ref, rounds=8, verbose=True, lines=None, stack=None):
         if np.abs(np.log(np.clip(corr, 1e-3, None))).max() / TOL <= 1.0:
             break
     # Whatever happened above, the file on disk is what ships, so measure THAT.
+    # This is deliberate and includes the rounding scale() applies when it saves
+    # (basis amounts to 1e-6, colours to 0.01 cv): the convergence verdict is
+    # about the colours that will be rendered, not the solver's floats.  That
+    # rounding moves a band by well under 0.01 cv, far inside TOL (D65 review).
     img = render_full(json.load(open(params_path)))
     meas = lines.measure(img)
     corr, J = correction(lines, stack, meas)

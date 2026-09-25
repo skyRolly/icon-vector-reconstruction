@@ -1339,7 +1339,8 @@ def main():
     _tgt = np.minimum(_ref[_y0:_y1, _x0:_x1] / 255.0, 254.4 / 255.0).astype(np.float32)[::4, ::4]
     _WC0 = _FP.params_wc(params)
     _WC1 = _FP.fit(_stack.A[:, ::4, ::4], _tgt, _WC0, np.ones(_tgt.shape[:2], np.float32), iters=2,
-                   verbose=False, free=_hf, normal=_FP.normal_flags(params))
+                   verbose=False, free=_hf, normal=_FP.normal_flags(params),
+                   teal_ok=_FP.teal_eligible(params))
     _moved_free = float(np.abs(_WC1[_hf] - _WC0[_hf]).max())
     _moved_held = float(np.abs(_WC1[_hidx] - _WC0[_hidx]).max())
     _unprot = sorted(set(MFL.RAY_GEOMETRY) - _PL.protected("exterior"))
@@ -1351,6 +1352,54 @@ def main():
           "rays prune could remove: %s"
           % (len(_hs), len(set(_fi) & set(_hidx)), len(set(_hf) & set(_hidx)),
              _moved_free, _moved_held, ", ".join(_unprot) or "none"))
+
+    # ---- teal is a PERMISSION, not the current amount (D65) --------------- #
+    # The review case: fit() locked the fourth primary on every layer whose
+    # teal amount was 0, so an ELIGIBLE ray that had reached 0 could never use
+    # it again and `--fit-rays` could not restore it.  On the real stack: the
+    # upper-right narrow ray is eligible; zero its teal (keeping its best cone
+    # colour) and fit it alone against the shipped composite, whose colour
+    # needs teal -- it must come back.  The lower-right narrow ray is not
+    # eligible; give the TARGET a teal version of it -- it must stay in the cone.
+    _nfT = _FP.normal_flags(params)
+    _AT = _stack.A[:, ::2, ::2]
+    _okT = _FP.teal_eligible(params)
+    _WCs = _FP.params_wc(params).astype(np.float64)
+    _Kt = _FP.colors(_WCs).astype(np.float32)
+    _tgtT = _FP.composite(_AT, _Kt, _nfT)
+    _iu = [L["id"] for L in params["layers"]].index("flare_ray_ur")
+    _ic = [L["id"] for L in params["layers"]].index("flare_ray_c")
+    _teal_diag = []
+    _w0 = _WCs.copy()
+    _w0[_iu] = _FP.wc_from_color(np.asarray(params["layers"][_iu]["color"]), teal=False)
+    # Cyan and teal differ only in blue, so the fit walks that direction slowly
+    # (12 / 40 / 120 iterations reach 0.020 / 0.049 / 0.088 of 0.109): what is
+    # tested is that the amount LEAVES zero and the colour leaves the cone.
+    _wfit = _FP.fit(_AT, _tgtT, _w0, np.ones(_tgtT.shape[:2], np.float32), iters=40, verbose=False,
+                    free=[_iu], normal=_nfT, teal_ok=_okT)
+    _want_t = float(_WCs[_iu, _FP.CONE])
+    _got_t = float(_wfit[_iu, _FP.CONE])
+    _cf = np.asarray(_FP.color_from_wc(_wfit[_iu]), float)
+    _bg = float(_cf[2] / max(_cf[1], 1e-9))
+    if not _okT[_iu] or _w0[_iu, _FP.CONE] != 0.0 or _got_t < 0.3 * _want_t or _bg > 0.95:
+        _teal_diag.append("flare_ray_ur (eligible) from teal 0 reached %.4f of the target's %.4f, "
+                          "B/G %.2f" % (_got_t, _want_t, _bg))
+    _wlock = _FP.fit(_AT, _tgtT, _w0, np.ones(_tgtT.shape[:2], np.float32), iters=40, verbose=False,
+                     free=[_iu], normal=_nfT)
+    if float(_wlock[_iu, _FP.CONE]) != 0.0:
+        _teal_diag.append("with no eligibility given, fit() still moved a teal amount")
+    _Kc = _Kt.copy()
+    _Kc[_ic] = np.clip(np.asarray(_FP.color_from_wc([0.0, 0.0, 0.0, 0.15]), np.float32), 0, 1)
+    _tgtC = _FP.composite(_AT, _Kc, _nfT)
+    _wc = _FP.fit(_AT, _tgtC, _WCs, np.ones(_tgtC.shape[:2], np.float32), iters=40, verbose=False,
+                  free=[_ic], normal=_nfT, teal_ok=_okT)
+    if _okT[_ic] or float(_wc[_ic, _FP.CONE]) != 0.0:
+        _teal_diag.append("flare_ray_c (not eligible) took teal %.4f" % float(_wc[_ic, _FP.CONE]))
+    check("an eligible layer recovers teal from zero; an ineligible one never gains it",
+          not _teal_diag, "; ".join(_teal_diag) if _teal_diag else
+          "flare_ray_ur from teal 0 -> %.4f (target %.4f), B/G %.2f off the cone; flare_ray_c "
+          "against a teal target stays at 0; without eligibility no teal amount moves"
+          % (_got_t, _want_t, _bg))
 
     # ---- 6i. the diagnostics refuse inputs they cannot read ---------------- #
 
@@ -1424,6 +1473,74 @@ def main():
           "ray_lines, visual_regression and flare_parts exit 2 on a 512-px image; no sample "
           "outside the canvas; the before/after sheet verifies its baseline and its release, and "
           "its provenance catches a stale or altered sheet")
+
+    # ---- a sheet cannot vouch for a source image it no longer shows (D65) -- #
+    # The review case: the sidecar recorded each column's image digest, but
+    # sheet_problems compared only SVG digests, so replacing a source render
+    # after the sheet was drawn left the sheet "verified" while it showed
+    # pixels that were no longer there.  Run on COPIES of the sources, so the
+    # repository's own renders are never touched.
+    import flare_parts as _FPS
+    import shutil as _sh4
+    _src_diag = []
+    with _tf.TemporaryDirectory() as _td4:
+        _rel = os.path.join(_td4, "release.png")
+        for _ext in ("", ".prov.json"):
+            _sh4.copy(os.path.join(ROOT, "out", "render_1024.png") + _ext, _rel + _ext)
+        _bd4 = os.path.join(_td4, "baseline")
+        os.makedirs(_bd4)
+        for _f in ("reconstruction.svg", "manifest.json"):
+            _sh4.copy(os.path.join(ROOT, "out", "baseline", _f), _bd4)
+        _sp.run([sys.executable, os.path.join(ROOT, "tools", "render.py"),
+                 os.path.join(_bd4, "reconstruction.svg"), os.path.join(_bd4, "render_1024.png")],
+                check=True, capture_output=True)
+        _sheet4 = os.path.join(_td4, "sheet.png")
+        _r4 = _sp.run([sys.executable, os.path.join(ROOT, "tools", "flare_parts.py"), _rel,
+                       "--svg", os.path.join(ROOT, "reconstruction.svg"), "--baseline", _bd4,
+                       "--labels", "this release", "--out", _sheet4],
+                      capture_output=True, text=True, cwd=ROOT)
+        _p4 = lambda: _FPS.sheet_problems(_sheet4, os.path.join(ROOT, "reconstruction.svg"),  # noqa: E731
+                                          _bd4, os.path.join(ROOT, "reference.png"))
+        _keep = {q: open(q, "rb").read() for q in (_rel, _rel + ".prov.json")}
+
+        def _restore():
+            for q, b in _keep.items():
+                open(q, "wb").write(b)
+        if _r4.returncode != 0:
+            _src_diag.append("the sheet was not drawn: %s" % _r4.stderr.strip()[:160])
+        elif _p4():
+            _src_diag.append("(1) a fresh sheet with untouched sources reads as stale: %s" % _p4()[0])
+        else:
+            # (2) another AUTHENTIC render, with its own valid sidecar, put in its place
+            for _ext in ("", ".prov.json"):
+                _sh4.copy(os.path.join(_bd4, "render_1024.png") + _ext, _rel + _ext)
+            if not any("no longer there" in m for m in _p4()):
+                _src_diag.append("(2) a source render replaced by another authentic render passed")
+            _restore()
+            # (3) same filename, different bytes, sidecar left alone
+            open(_rel, "ab").write(b"\0")
+            if not _p4():
+                _src_diag.append("(3) a source render with changed bytes passed")
+            _restore()
+            # (4a) the render's provenance removed
+            os.remove(_rel + ".prov.json")
+            if not any("no provenance" in m for m in _p4()):
+                _src_diag.append("(4a) a source render without provenance passed")
+            _restore()
+            # (4b) provenance naming a different SVG (the render itself unchanged)
+            _pv = json.loads(_keep[_rel + ".prov.json"])
+            _pv["svg_sha256"] = "0" * 64
+            open(_rel + ".prov.json", "w").write(json.dumps(_pv))
+            if not _p4():
+                _src_diag.append("(4b) a source render whose provenance names another SVG passed")
+            _restore()
+            if _p4():
+                _src_diag.append("restored sources still read as stale: %s" % _p4()[0])
+    check("a before/after sheet re-verifies every source image it was drawn from",
+          not _src_diag, "; ".join(_src_diag) if _src_diag else
+          "valid sources pass; a source replaced by another authentic render, a source with "
+          "changed bytes, a source without provenance and one whose provenance names another "
+          "SVG each fail")
 
     # The published sheet is a release artefact (tools/publish.sh regenerates
     # it); a release whose sheet was drawn from anything but this SVG and the

@@ -231,8 +231,13 @@ def analytic_grad(A, target, WC, weight, normal, layer, comp):
 
 
 def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=None,
-        normal=None):
+        normal=None, teal_ok=None):
     """Levenberg-Marquardt on the per-layer basis amounts.
+
+    `teal_ok` (one bool per layer, `teal_eligible(params)`) says which layers
+    MAY use the fourth primary.  It is permission, not the current amount: an
+    eligible layer whose teal is 0 is still fitted in it (D65).  Without it no
+    layer may move its teal amount.
 
     The composite is affine in the accumulated colour at every layer (see
     `composite`), so both the value and the exact derivative with respect to any
@@ -251,9 +256,13 @@ def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=No
     idx = list(range(n)) if free is None else list(free)
     isnorm = [bool(normal[i]) if normal is not None else False for i in range(n)]
     WC = np.array(WC0, np.float64).copy()
-    # A layer that does not already use the fourth primary cannot start to: its
-    # teal column is held at zero (see TEAL).  Only the rays of record carry it.
-    teal_lock = WC[:, CONE:].sum(1) <= 0.0
+    # Only a layer ELIGIBLE for the fourth primary may use it (see TEAL); every
+    # other layer's teal column is held.  Eligibility is the layer's `teal` key,
+    # never its current amount: D64 keyed this on the amount, so an eligible ray
+    # whose teal had reached 0 was locked into the cone and no refit could bring
+    # it back (D65).
+    teal_lock = (np.ones(n, bool) if teal_ok is None
+                 else ~np.asarray(teal_ok, bool).reshape(n))
     Af = A.reshape(n, -1).astype(np.float32)
     Tf = target.reshape(-1, 3).astype(np.float32)
     Wf = weight.reshape(-1).astype(np.float32)
@@ -541,6 +550,12 @@ def normal_flags(params):
     return [L.get("blend", "screen") == "normal" for L in params["layers"]]
 
 
+def teal_eligible(params):
+    """Which layers may use the TEAL primary: exactly those carrying a `teal`
+    key (tools/measure_flare.py TEAL_LAYERS), whatever their current amount."""
+    return np.array(["teal" in L for L in params["layers"]], bool)
+
+
 def params_wc(params):
     return np.array([wc_from_color(L.get("color", [128, 128, 128]), teal="teal" in L)
                      for L in params["layers"]], np.float32)
@@ -597,7 +612,8 @@ def main():
     print("fitting %d layers x %s  [stride %d]" % (len(names), str(COMPONENTS), st))
     nf = normal_flags(params)
     free = None if a.fit_rays else held_free(params)
-    WC = fit(Asub, tsub, params_wc(params), W, iters=a.iters, normal=nf, free=free)
+    WC = fit(Asub, tsub, params_wc(params), W, iters=a.iters, normal=nf, free=free,
+             teal_ok=teal_eligible(params))
     store_wc(params, WC, only=free)
     out = composite(A, colors(WC), nf)
     print("analytic composite mae=%.4f" % (np.abs(out - target).mean() * 255))

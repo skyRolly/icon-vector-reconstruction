@@ -19,8 +19,9 @@ Every sheet is written with a provenance sidecar, `<out>.prov.json`: the
 digest of the sheet itself and, per column, the label, the SVG digest and the
 render digest it was drawn from, plus the reference's digest and the baseline
 manifest.  `sheet_problems()` reads it back and says why a sheet no longer
-describes the artefacts beside it -- tools/test_pipeline.py fails the release
-if the published sheet is stale (D63).
+describes the artefacts beside it -- including a source render replaced after
+the sheet was drawn (D65) -- and tools/test_pipeline.py fails the release if
+the published sheet is stale (D63).
 
 `flare_view.py` decomposes one crop several ways; this answers the question a
 review of a flare change actually asks -- "for each part of the flare, did the
@@ -192,10 +193,13 @@ def sheet_problems(sheet_path, current_svg, baseline_dir=None, reference=None):
     """Why the sheet at `sheet_path` does not describe these artefacts ([] if it does).
 
     It must exist with its sidecar; the sheet's bytes must be the ones the
-    sidecar describes; it must have been drawn from verified inputs; its last
-    column must be `current_svg` as it is NOW; with `baseline_dir`, its first
-    rendered column must be that baseline's SVG and match its manifest; and the
-    reference column must be the reference as it is now.
+    sidecar describes; it must have been drawn from verified inputs; every
+    column's source image must still exist and hash to what the sheet was drawn
+    from, and every rendered column's render must still carry provenance naming
+    its recorded SVG (1024 px, resvg); its last column must be `current_svg` as
+    it is NOW; with `baseline_dir`, its first rendered column must be that
+    baseline's SVG and match its manifest; and the reference column must be the
+    reference as it is now.
     """
     import render as _R
     out = []
@@ -215,6 +219,45 @@ def sheet_problems(sheet_path, current_svg, baseline_dir=None, reference=None):
     cols = rec.get("columns") or []
     if len(cols) < 2:
         return out + ["%s records %d columns" % (sheet_path, len(cols))]
+    # Every column's SOURCE, re-read now (D65).  The sidecar used to be checked
+    # only for the SVG digests, so a sheet drawn from one render kept passing
+    # after that render was replaced -- the sheet showed pixels that no longer
+    # existed.  Each recorded image must still exist and still hash to the
+    # digest the sheet was drawn from; a rendered column's SVG must still be
+    # the recorded one, and the render's own provenance must say it is that
+    # SVG's 1024-px resvg render.
+    for i, col in enumerate(cols):
+        lab = col.get("label", "column %d" % i)
+        img = col.get("image")
+        if not img:
+            out.append("%s's %r column records no source image" % (sheet_path, lab))
+            continue
+        ip = img if os.path.isabs(img) else os.path.normpath(os.path.join(ROOT, img))
+        if not os.path.exists(ip):
+            out.append("%s's %r column was drawn from %s, which no longer exists"
+                       % (sheet_path, lab, img))
+            continue
+        got = _R.sha256_file(ip)
+        if got != col.get("image_sha256"):
+            out.append("%s's %r column was drawn from %s as it hashed then (%s...), but it now "
+                       "hashes to %s...: the sheet shows an image that is no longer there"
+                       % (sheet_path, lab, img, str(col.get("image_sha256"))[:12], got[:12]))
+        svg = col.get("svg")
+        if not svg:
+            if i > 0 and rec.get("verified"):
+                out.append("%s is marked verified but its %r column records no SVG"
+                           % (sheet_path, lab))
+            continue
+        sp = svg if os.path.isabs(svg) else os.path.normpath(os.path.join(ROOT, svg))
+        if not os.path.exists(sp) or _R.sha256_file(sp) != col.get("svg_sha256"):
+            out.append("%s's %r column records SVG %s at %s..., which it no longer is"
+                       % (sheet_path, lab, svg, str(col.get("svg_sha256"))[:12]))
+            continue
+        try:
+            _R.read_provenance(ip, require=True, expect_size=CANVAS,
+                               expect_renderer="resvg", expect_svg=sp)
+        except _R.ProvenanceError as exc:
+            out.append("%s's %r column: %s" % (sheet_path, lab, exc))
     cur = _R.sha256_file(current_svg)
     if cols[-1].get("svg_sha256") != cur:
         out.append("%s's last column was drawn from SVG %s..., but %s is now %s...: the sheet "

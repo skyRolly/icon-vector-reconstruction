@@ -509,7 +509,7 @@ class Objective:
             self.K = FP.params_wc(params)
         nf = FP.normal_flags(params)
         K = FP.fit(Asub, tgt, self.K, W, iters=fit_iters or self.fit_iters, verbose=False,
-                   free=free, normal=nf)
+                   free=free, normal=nf, teal_ok=FP.teal_eligible(params))
         out = FP.composite(Asub, FP.colors(K), nf)
         sse = FP.weighted_sse(out - tgt, W) / (Asub.shape[1] * Asub.shape[2])
         mae = float(np.abs(out - tgt).mean() * 255)
