@@ -5884,7 +5884,6 @@ work.
   every tooling commit the artwork was re-verified: the SVG rebuilds byte for
   byte, and calibration verifies at 0.90 of tolerance.
 
-
 **5. Found in passing: `publish.sh` checked the README before writing it.**
 The README's generated blocks (metrics, layer count, SVG size) were written
 by step 5, after the regression gate in step 4. The gate checks that the
@@ -5893,7 +5892,6 @@ to change the layer count, this one (53 -> 54), failed its own gate on the
 previous release's README. `update_readme.py` reads only step 3's
 measurements, so it now runs before the gate, and the gate checks what
 ships.
-
 
 ### Stage 2: the artwork
 
@@ -5937,11 +5935,10 @@ marked absolute:
 | core ring R r < 4 / 4-8 / 8-12 (absolute) | 232.5 / 204.6 / 175.1 | 232.5 / 204.6 / 175.7 | 232.5 / 204.7 / 175.7 | 233.0 / 204.5 / 175.7 |
 | right-ridge item box R / G / B | +0.5 / +6.4 / +3.9 | +0.5 / +6.4 / +3.9 | +1.7 / +3.2 / +0.9 | 0 |
 | concave glow u 1..12, \|dy\| ≤ 100, rms, left / right | 11.5 / 10.4 | 11.5 / 10.4 | 5.2 / 6.6 | 0 |
-| north of the core, box dx 2..9 dy -30..-18, R | +9.4 | +9.4 | +11.5 | 0 |
+| north of the core, R, (i)'s box on whole pixels (it reads +10.0 on D65 with half-open edges) | +9.4 | +9.4 | +11.5 | 0 |
 | lobe family R, r 24 / 32 / 40 / 48 (absolute) | 9.4 / 18.3 / 7.2 / 0.0 | the same | 9.4 / 18.3 / 7.2 / 0.0 | 11.0 / 19.2 / 7.5 / -0.7 |
 | upper-right family G, sum \|err\| over 14 bands | 13.1 | 13.1 | 12.5 | 0 |
 | lower-right family R, r 36 / 44 / 52 (absolute) | 11.3 / 7.3 / 3.7 | the same | 8.4 / 6.3 / 3.3 | 5.9 / 12.6 / 3.0 |
-
 
 **(a) Ray colours: the controlled teal-aware refit returns the shipped colours.**
 - *Evidence:*
@@ -6569,7 +6566,6 @@ that need opposite corrections, so no change and no global operation.**
   - The ring's red excess (R +2.4) is the same anisotropic symmetric-white
     issue as (i).
 
-
 ### What was preserved
 
 - The west-side triangular field stays absent. `visual_regression`'s west
@@ -6658,7 +6654,6 @@ missing edge.
 * **The curves' tips** are 0.2-0.36 px too wide on both edges. A screen layer
   cannot subtract ((d)).
 * **Upper-left B's** hue is undetermined by the reference ((a)).
-
 
 ### Validation
 
