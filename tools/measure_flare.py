@@ -205,8 +205,15 @@ RAY_GEOMETRY = {
     # refitted on the line's ramp-removed corridor (r 16-64, with the cyan
     # segment's amplitude): onset 21 -> 15.5 px, peak 29 -> 28, end 42 -> 35,
     # blur 3.6 -> 2.65; corridor error 13.0 -> 11.0.
+    # D65: the near lobe was right (R 12.0 against 11.0 at r 24 on the family's
+    # own reading) but the white fell short from r 32 outward: R 15.3 / 3.5
+    # against 19.2 / 7.5 at r 32 / 40.  Only the outer fade was moved -- onset
+    # (15.5 px) and peak (28.3 px) held at the same radii, 0.42 of peak at
+    # 33.5 -> 37.6, end 35 -> 40.  After
+    # the family's recalibration, R at r 24/32/40/48 reads 9.4/18.3/7.2/0.0
+    # against the reference's 11.0/19.2/7.5/-0.7 (base 12.0/15.3/3.5/1.3).
     "flare_ray_llc_in": dict(rot=-229.0, cx=531.0, cy=513.5, dx=None, dy=None,
-                             len=34.6614, onset=0.4473, peak_at=0.8155, tail=0.1523,
+                             len=40.0, onset=0.3876, peak_at=0.7067, tail=0.2333,
                              height=6.912, spread=1.0, blur=2.6461),
     "flare_ray_llc": dict(rot=-229.0, cx=531.0, cy=513.5, dx=None, dy=None,
                           len=59.9874, onset=0.5564, peak_at=0.6636, tail=0.1075,
@@ -234,6 +241,19 @@ RAY_GEOMETRY = {
     "flare_ray_s_in": dict(rot=-270.0, cx=526.08, cy=518.515, dx=None, dy=None,
                            len=23.83, onset=0.25, peak_at=0.5135, tail=0.28,
                            height=8.746, spread=1.0, blur=4.821),
+    # The white EAST extension of the core to the right curve (D65).  Between
+    # the core and the curve, at dx +4..+8 and dy -8..+10, the model was R -12.5
+    # with G -1.7 (white missing, not light), and just past the curve's ridge
+    # R -5.7 with G +5.3; the reference's R >= 230 core runs 16.8 px east to
+    # the curve where the model's stopped at 5.6.  (The one-column R/G/B spikes
+    # on the curve's own inner edge, at every height, are the curve's edge
+    # placement and are not this.)  Fitted on dx -8..+24, |dy| <= 16 about the
+    # core with the edge columns dx +9..+13 and clipped pixels left out: box
+    # error 50.7 -> 36.9, dx +4..+8 R -12.5 -> -2.3, beyond the ridge R -5.7 ->
+    # -0.1 (G +5.3 -> +6.4), the west side unchanged.
+    "flare_ray_east_in": dict(rot=5.694, cx=531.0, cy=513.5, dx=None, dy=None,
+                              len=25.4144, onset=0.1, peak_at=0.576, tail=0.052,
+                              height=22.2101, spread=1.0, blur=2.6831),
     # Upper-right SOFT FLANK.  Axis 44.9 +- 0.4 (45.6 is excluded at ~6 sigma);
     # ends at r = 140 +- 15.  height 8 -> 26, spread 1.30 -> 1.00, len 150 -> 143
     # and a 5.4 px normal offset are a JOINT correction (D59): each alone is
@@ -276,8 +296,14 @@ RAY_GEOMETRY = {
     # fixed-template band error 32.4 -> 28.2.  The translation is unchanged.
     # D64: the narrow line stays; the widening D61 saw and D63 removed is real
     # but belongs to a separate soft flank on the same line (flare_ray_c_fl).
+    # D65: read with a narrow AND a broad template per band (FAMILIES split),
+    # the reference's narrow line is nearly gone beyond r ~105 (r 108-140: 1.4
+    # against the model's 4.0, robust in sign and size over six template
+    # choices) while its soft flank carries the light.  The line's fade was
+    # refitted on that reading with the flank's: peak r 69 -> 59, 0.42 of peak
+    # at r 103 -> 91, end r 185 -> 131.  Translation, width and blur unchanged.
     "flare_ray_c": dict(rot=-328.1, cx=531.5309, cy=511.7803, dx=None, dy=None,
-                        len=185.2975, onset=None, peak_at=0.3722, tail=0.1822,
+                        len=130.7436, onset=None, peak_at=0.4541, tail=0.2451,
                         height=5.4845, spread=1.0, blur=3.1),
     # Lower-right bright INNER segment on the same line (D61): the reference is
     # brightest and white next to the core (G 17.8, R 12.6 at r 44) and its
@@ -297,8 +323,10 @@ RAY_GEOMETRY = {
     # amplitudes in the same ramp-removed domain over r 40-184: corridor error
     # 3.50 -> 2.44, against 2.68 for the narrow ray widened alone (a spread-3.6
     # wedge).  Starts 81 px out, peaks at 93, 0.42 of peak by 151, gone by 200.
+    # D65: fitted jointly with the narrow line's fade on the split reading: peak
+    # r 93 -> 98, 0.42 of peak at r 151 -> 175, end r 200 -> 192.
     "flare_ray_c_fl": dict(rot=-329.362, cx=600.9434, cy=554.3329, dx=None, dy=None,
-                           len=118.8142, onset=0.0115, peak_at=0.1012, tail=0.4838,
+                           len=110.5395, onset=0.0115, peak_at=0.1538, tail=0.6948,
                            height=8.0227, spread=1.0, blur=7.4125),
 }
 
@@ -330,7 +358,8 @@ FAMILIES = {
     "lower-left 268": {"line": "lower-left 268", "layers": ("flare_ray_lld", "flare_ray_lld2")},
     "upper-right": {"line": "upper-right", "layers": ("flare_ray_ur", "flare_ray_e"),
                     "broad": (60.0, 140.0, 30.0)},
-    "lower-right": {"line": "lower-right", "layers": ("flare_ray_c_in", "flare_ray_c")},
+    "lower-right": {"line": "lower-right", "layers": ("flare_ray_c_in", "flare_ray_c", "flare_ray_c_fl"),
+                    "split": (88.0, 184.0, 3.0, 7.5, 22.0)},
 }
 CALIBRATED_LAYERS = tuple(dict.fromkeys(lid for f in FAMILIES.values() for lid in f["layers"]))
 

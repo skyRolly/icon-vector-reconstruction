@@ -1933,7 +1933,7 @@
    "white": 0.06258
   },
   {
-   "blue": 0.01494,
+   "blue": 0.02008,
    "blur": 4.5309,
    "bounds": {
     "blur": [
@@ -1974,11 +1974,11 @@
     ]
    },
    "color": [
-    0.0,
-    44.18,
-    50.81
+    3.11,
+    43.66,
+    51.36
    ],
-   "cyan": 0.184326,
+   "cyan": 0.169144,
    "height": 9.0,
    "id": "flare_ray_a",
    "kind": "ray",
@@ -1986,8 +1986,8 @@
    "peak_at": 0.3649,
    "rot": -107.1,
    "spread": 1.0,
-   "white": 0.0,
-   "note": "the upper-left ray.  Its axis is -107.1 and not -113.6, with a +5.22 px offset along the normal carried by dx/dy: the reference's ray is NOT PARALLEL to the rendered one, and neither a rotation nor a translation alone describes it.  Over 39 estimator variants (band set x clearance x wing window x polynomial degree x centre definition) the transverse centre difference fits Delta = a + b*r with b = -3.7 to -8.9 deg (median -6.5) and a = +1.8 to +7.6 px (median +5.2); a straight line beat a pure translation in 39 of 39, median sum-of-squares ratio 0.09.  Delta itself is tight: -0.2 px at r 45, -3.7 at r 75, -7.1 at r 105, against a render whose own ridge is flat to 0.17 deg, so the background's curvature cancels.  a and b are strongly anti-correlated: the defensible statement is the Delta(r) curve, not either alone.\nlen 132 -> 100, height 12 -> 9 and peak_at 0.62 (longitudinal peak at r 62) because beyond r 70 the ray carried 1.8-3.0x too much light and reached too far: bias-calibrated peak ratios render/reference 1.03/1.27/1.82/2.15/3.00 at r 52/64/76/88/100, and the reference's normalised profile is 0.91/1.00/0.72/0.50/0.29 where the model's was 0.71/0.97/1.00/0.83/0.67.  Geometry and photometry are separable and were applied together: geometry alone takes the upper-left sector MAE from 4.375 to 3.688, the pair to 3.325, and whole-image MAE from 1.8861 to 1.8822.\nTWO THINGS THIS RAY IS NOT.  It has no measurable transverse asymmetry -- clockwise minus counter-clockwise half-width runs -0.7 to +1.3 sigma against a null built by injecting a SYMMETRIC Gaussian of the reference's own amplitude and width into a no-ray background, with no consistent sign, which is the third independent refutation of the shoulder claim.  And it does not need anisotropic blur: an SVG filter's axes are canvas axes, so for a diagonal ray that cannot express along-ray softening at all, and the reference's transverse sigma is a flat 5.2-5.5 px over r 46-82 anyway.\nBLUR IS QUANTISED HERE AND THE VALUE IS NOT MEANINGFUL TO THREE FIGURES.  In the acceptance renderer this layer's blur renders BIT-IDENTICALLY from 3.91 to 4.60 and changes first at 4.75 (max 2 cv over 1176 px).  The shipped 4.5309 and the previous 3.9088 are the same artwork.  So no width claim for this ray finer than about +-0.4 px of blur is verifiable, and the optimiser's own blur step at this value (0.12 x 4.5 = 0.54) is comparable to the plateau, which means a good fraction of its blur trials are no-ops rather than rejections",
+   "white": 0.012205,
+   "note": "the upper-left ray.  Its axis is -107.1 and not -113.6, with a +5.22 px offset along the normal carried by dx/dy: the reference's ray is NOT PARALLEL to the rendered one, and neither a rotation nor a translation alone describes it.  Over 39 estimator variants (band set x clearance x wing window x polynomial degree x centre definition) the transverse centre difference fits Delta = a + b*r with b = -3.7 to -8.9 deg (median -6.5) and a = +1.8 to +7.6 px (median +5.2); a straight line beat a pure translation in 39 of 39, median sum-of-squares ratio 0.09.  Delta itself is tight: -0.2 px at r 45, -3.7 at r 75, -7.1 at r 105, against a render whose own ridge is flat to 0.17 deg, so the background's curvature cancels.  a and b are strongly anti-correlated: the defensible statement is the Delta(r) curve, not either alone.\nlen 132 -> 100, height 12 -> 9 and peak_at 0.62 (longitudinal peak at r 62) because beyond r 70 the ray carried 1.8-3.0x too much light and reached too far: bias-calibrated peak ratios render/reference 1.03/1.27/1.82/2.15/3.00 at r 52/64/76/88/100, and the reference's normalised profile is 0.91/1.00/0.72/0.50/0.29 where the model's was 0.71/0.97/1.00/0.83/0.67.  Geometry and photometry are separable and were applied together: geometry alone takes the upper-left sector MAE from 4.375 to 3.688, the pair to 3.325, and whole-image MAE from 1.8861 to 1.8822.\nTWO THINGS THIS RAY IS NOT.  It has no measurable transverse asymmetry -- clockwise minus counter-clockwise half-width runs -0.7 to +1.3 sigma against a null built by injecting a SYMMETRIC Gaussian of the reference's own amplitude and width into a no-ray background, with no consistent sign, which is the third independent refutation of the shoulder claim.  And it does not need anisotropic blur: an SVG filter's axes are canvas axes, so for a diagonal ray that cannot express along-ray softening at all, and the reference's transverse sigma is a flat 5.2-5.5 px over r 46-82 anyway.\nBLUR IS QUANTISED HERE AND THE VALUE IS NOT MEANINGFUL TO THREE FIGURES.  In the acceptance renderer this layer's blur renders BIT-IDENTICALLY from 3.91 to 4.60 and changes first at 4.75 (max 2 cv over 1176 px).  The shipped 4.5309 and the previous 3.9088 are the same artwork.  So no width claim for this ray finer than about +-0.4 px of blur is verifiable, and the optimiser's own blur step at this value (0.12 x 4.5 = 0.54) is comparable to the plateau, which means a good fraction of its blur trials are no-ops rather than rejections\nD65: colour refitted by bounded least squares on its family's calibration reading (teal eligible only on the six layers of record), then recalibrated; see docs/DECISIONS.md D65 (b).",
    "tail": 0.2365,
    "cx": 525.167,
    "cy": 516.42
@@ -2058,7 +2058,7 @@
    "note": "the white NORTH-WEST arm of the core (D63).  The reference's white core is not the model's horizontal ellipse: north of the core it leans west, in a radial ridge through the core at 116.6 deg, r 13-27, R -19..-25 and G/B -9..-13 against the model (light, not hue), 12-15 px across and stable from sigma 1 to 4 -- structure, not JPEG blocking.  A short white segment fitted to the core's 2D residual (4 px x 15 deg bins, r 2-64, amplitudes solved exactly with core_w, cloud_w and halo) lands on 116.4 deg: onset 7, peak 21, end 35 px.  Geometry of record in tools/measure_flare.py.  Not in a calibration family: its light is measured in 2D, not on a line, so it is held like the core's radials, not like the rays."
   },
   {
-   "blue": 0.03728,
+   "blue": 0.017656,
    "blur": 2.4209,
    "bounds": {
     "blur": [
@@ -2103,11 +2103,11 @@
     ]
    },
    "color": [
-    0.0,
-    31.35,
-    42.86
+    0.6,
+    31.99,
+    38.49
    ],
-   "cyan": 0.13078,
+   "cyan": 0.130943,
    "height": 9.4638,
    "id": "flare_ray_b",
    "kind": "ray",
@@ -2115,22 +2115,22 @@
    "peak_at": 0.2871,
    "rot": -255.2,
    "spread": 1.25,
-   "white": 0.0,
+   "white": 0.002348,
    "onset": 0.2123,
-   "note": "D61: APPLIED -- the line below recorded as 'not applied, twice'.  The ray is now drawn on its measured line: per-band ridge centres over r 40-128 give 255.2 deg through (524.2, 511.7), 7 px from the core, and along that line the reference's ridge sits within +-1.5 px of s = 0 at every band.  The flank the note blames for inflating the drift (flare_flank_dl) is gone.  Colour cyan 0.089 -> 0.111, blue 0.035 -> 0.032: the reference's B/G on the line is 1.1-1.5, and a first global colour fit had taken it to 1.62 and 1.6x too bright.  The outer half of the profile is flare_ray_b2's.\nthe lower-left ray.  len 110 -> 124 because it is too SHORT: bias-calibrated peak ratios render/reference are 1.18/1.07/0.92/0.33 at r 76/88/100/112, i.e. the reference is still at half its peak (4.43 cv) where a len of 110 has gone out (1.47).  124 is inside the defensible 118-128; a trial at 130 overshot the outermost band and moved the flare r<110 MAE the wrong way.  Beyond r 118 the reference is not detected at all (1.0 sigma above a matched no-ray-plus-noise null at r 110-118, -0.5 to +0.3 sigma at 118-142), so the length is bounded above by absence and not by a fit.\nRECORDED AND NOT APPLIED, twice.  Its axis is also about +4.5 deg out with a compensating -7 px offset -- a line beat a constant in 45 of 45 estimator variants -- but the whole correction is worth 3.5% of the sector error, and two contaminations inflate the apparent drift: flare_flank_dl sits on the clockwise side and its no-ray null reads 2.6-3.1 cv inside r 70 against a reference amplitude of 5.6-9.6, so a third of what the instrument calls 'the ray' there is the flank.  Amplitude ratios inside r 70 (1.34 at r 52) should not be acted on for the same reason.\nIt DOES carry a genuine clockwise shoulder: clockwise minus counter-clockwise half-width is +2.01/+2.23/+0.55/+1.21/+4.16/+5.71 px at r 52..112 against symmetric-injection nulls, positive in all six bands, about 3.6 sigma combined over the inner five.  It is NOT fitted: an earlier pass established that a narrow-plus-broad decomposition's improvement on this image is inside what an injected single Gaussian already yields on the noise.  If it is ever acted on the honest route is to re-aim and re-narrow flare_flank_dl against this statistic, not to make this layer asymmetric",
+   "note": "D61: APPLIED -- the line below recorded as 'not applied, twice'.  The ray is now drawn on its measured line: per-band ridge centres over r 40-128 give 255.2 deg through (524.2, 511.7), 7 px from the core, and along that line the reference's ridge sits within +-1.5 px of s = 0 at every band.  The flank the note blames for inflating the drift (flare_flank_dl) is gone.  Colour cyan 0.089 -> 0.111, blue 0.035 -> 0.032: the reference's B/G on the line is 1.1-1.5, and a first global colour fit had taken it to 1.62 and 1.6x too bright.  The outer half of the profile is flare_ray_b2's.\nthe lower-left ray.  len 110 -> 124 because it is too SHORT: bias-calibrated peak ratios render/reference are 1.18/1.07/0.92/0.33 at r 76/88/100/112, i.e. the reference is still at half its peak (4.43 cv) where a len of 110 has gone out (1.47).  124 is inside the defensible 118-128; a trial at 130 overshot the outermost band and moved the flare r<110 MAE the wrong way.  Beyond r 118 the reference is not detected at all (1.0 sigma above a matched no-ray-plus-noise null at r 110-118, -0.5 to +0.3 sigma at 118-142), so the length is bounded above by absence and not by a fit.\nRECORDED AND NOT APPLIED, twice.  Its axis is also about +4.5 deg out with a compensating -7 px offset -- a line beat a constant in 45 of 45 estimator variants -- but the whole correction is worth 3.5% of the sector error, and two contaminations inflate the apparent drift: flare_flank_dl sits on the clockwise side and its no-ray null reads 2.6-3.1 cv inside r 70 against a reference amplitude of 5.6-9.6, so a third of what the instrument calls 'the ray' there is the flank.  Amplitude ratios inside r 70 (1.34 at r 52) should not be acted on for the same reason.\nIt DOES carry a genuine clockwise shoulder: clockwise minus counter-clockwise half-width is +2.01/+2.23/+0.55/+1.21/+4.16/+5.71 px at r 52..112 against symmetric-injection nulls, positive in all six bands, about 3.6 sigma combined over the inner five.  It is NOT fitted: an earlier pass established that a narrow-plus-broad decomposition's improvement on this image is inside what an injected single Gaussian already yields on the noise.  If it is ever acted on the honest route is to re-aim and re-narrow flare_flank_dl against this statistic, not to make this layer asymmetric\nD65: colour refitted by bounded least squares on its family's calibration reading (teal eligible only on the six layers of record), then recalibrated; see docs/DECISIONS.md D65 (b).",
    "cx": 524.2,
    "cy": 511.7,
    "tail": 0.2713
   },
   {
-   "blue": 0.003247,
+   "blue": 0.008098,
    "blur": 2.4209,
    "color": [
-    0.0,
-    8.88,
-    10.27
+    0.78,
+    8.59,
+    11.15
    ],
-   "cyan": 0.03704,
+   "cyan": 0.032594,
    "height": 9.4638,
    "id": "flare_ray_b2",
    "kind": "ray",
@@ -2139,7 +2139,7 @@
    "peak_at": 0.6513,
    "rot": -255.2,
    "spread": 1.0,
-   "white": 0.0,
+   "white": 0.003052,
    "bounds": {
     "rot": [
      -258.2,
@@ -2182,13 +2182,13 @@
      0.34
     ]
    },
-   "note": "the outer half of the lower-left ray, on the SAME measured line as flare_ray_b (D61).  The reference's profile along the line is a plateau -- G 11.1 / 12.2 / 9.5 / 9.6 / 11.2 / 10.1 / 8.4 at r 56-104 from the foot, then 4.5 by r 112 -- and one ray's gradient (single peak, 0.42 at peak+0.35) cannot hold a plateau: fitted alone it either matched r 56-80 and fell to 3.9 by r 104, or reached r 104 and over-shot r 72.  Two segments reproduce it (profile mismatch 622 -> 270).",
+   "note": "the outer half of the lower-left ray, on the SAME measured line as flare_ray_b (D61).  The reference's profile along the line is a plateau -- G 11.1 / 12.2 / 9.5 / 9.6 / 11.2 / 10.1 / 8.4 at r 56-104 from the foot, then 4.5 by r 112 -- and one ray's gradient (single peak, 0.42 at peak+0.35) cannot hold a plateau: fitted alone it either matched r 56-80 and fell to 3.9 by r 104, or reached r 104 and over-shot r 72.  Two segments reproduce it (profile mismatch 622 -> 270).\nD65: colour refitted by bounded least squares on its family's calibration reading (teal eligible only on the six layers of record), then recalibrated; see docs/DECISIONS.md D65 (b).",
    "cx": 524.2,
    "cy": 511.7,
    "tail": 0.2541
   },
   {
-   "blue": 0.018026,
+   "blue": 0.013779,
    "blur": 3.1,
    "bounds": {
     "blur": [
@@ -2208,7 +2208,7 @@
      40.0
     ],
     "len": [
-     140.0,
+     110.0,
      245.0
     ],
     "peak_at": [
@@ -2229,21 +2229,21 @@
     ]
    },
    "color": [
-    1.5,
-    31.82,
-    38.35
+    1.37,
+    40.45,
+    46.46
    ],
-   "cyan": 0.126476,
+   "cyan": 0.163043,
    "height": 5.4845,
    "id": "flare_ray_c",
    "kind": "ray",
-   "len": 185.2975,
-   "note": "D61: this is now the long soft TAIL of a layered ray; flare_ray_c_in carries the bright white inner segment.  len 185 -> 179 (inside the measured extent 165 +- 20 below -- an intermediate candidate that lengthened it to 215 contradicted that measurement and was reverted), height 7 -> 5.5, blur 2.41 -> 3.09, spread 1.9 -> 2.2, fitted to the reference's per-band profile on this line.  The dx/dy translation is unchanged, as the note requires.\nlower-right ray.  Its line is PARALLEL to the render's -- the reference's own direction measures 328.18 +- 0.21 against the render's 328.40 -- and the discrepancy is an OFFSET: the reference's ray sits at s = +1.37 px where the render's sat at -1.66, flat across nine radii from 60 to 140 with no trend, which an angle error cannot produce.  A constant angular difference is rejected at chi2/dof 6.18 against 0.45 for a line. So `dx`/`dy` displace the origin 3.0 px along the +s normal instead of rotating: an earlier pass rotated this ray from 327.8 to 328.85 on a claimed axis of 328.35 +- 0.15, re-measurement gave 328.0 +- 0.8, and the change had to be reverted -- a rotation over-corrects inside r 70 and under-corrects beyond r 150 because the measured offset is constant in PIXELS, not in degrees.  NO ray axis in this image supports a precision near 0.15 deg; the best-determined of the four spreads 0.55 deg across the six reasonable definitions of a centre before any noise enters. height 4.0 -> 4.85 and spread 1.6 -> 1.9 because the reference is 1.3-1.8x wider and widens with radius where the render was flat: transverse FWHM 5.87 in the reference against 4.40, now 5.62\nD63: spread 2.2 -> 1.0, blur 3.09 -> 3.1, fade refitted -- the tail is a narrow line (reference sigma 2.2-4.4 at r 128-168, the wedge's 5.0-5.8).  See RAY_GEOMETRY.\nD64: the narrow line of a two-part ray; the widening at r 92-184 is flare_ray_c_fl's.  Recalibrated with that flank present: colour x0.89.",
-   "peak_at": 0.3722,
+   "len": 130.7436,
+   "note": "D61: this is now the long soft TAIL of a layered ray; flare_ray_c_in carries the bright white inner segment.  len 185 -> 179 (inside the measured extent 165 +- 20 below -- an intermediate candidate that lengthened it to 215 contradicted that measurement and was reverted), height 7 -> 5.5, blur 2.41 -> 3.09, spread 1.9 -> 2.2, fitted to the reference's per-band profile on this line.  The dx/dy translation is unchanged, as the note requires.\nlower-right ray.  Its line is PARALLEL to the render's -- the reference's own direction measures 328.18 +- 0.21 against the render's 328.40 -- and the discrepancy is an OFFSET: the reference's ray sits at s = +1.37 px where the render's sat at -1.66, flat across nine radii from 60 to 140 with no trend, which an angle error cannot produce.  A constant angular difference is rejected at chi2/dof 6.18 against 0.45 for a line. So `dx`/`dy` displace the origin 3.0 px along the +s normal instead of rotating: an earlier pass rotated this ray from 327.8 to 328.85 on a claimed axis of 328.35 +- 0.15, re-measurement gave 328.0 +- 0.8, and the change had to be reverted -- a rotation over-corrects inside r 70 and under-corrects beyond r 150 because the measured offset is constant in PIXELS, not in degrees.  NO ray axis in this image supports a precision near 0.15 deg; the best-determined of the four spreads 0.55 deg across the six reasonable definitions of a centre before any noise enters. height 4.0 -> 4.85 and spread 1.6 -> 1.9 because the reference is 1.3-1.8x wider and widens with radius where the render was flat: transverse FWHM 5.87 in the reference against 4.40, now 5.62\nD63: spread 2.2 -> 1.0, blur 3.09 -> 3.1, fade refitted -- the tail is a narrow line (reference sigma 2.2-4.4 at r 128-168, the wedge's 5.0-5.8).  See RAY_GEOMETRY.\nD64: the narrow line of a two-part ray; the widening at r 92-184 is flare_ray_c_fl's.  Recalibrated with that flank present: colour x0.89.\nD65: read with the split templates, the reference's narrow line is nearly gone beyond r ~105 (r 108-140: 1.4 against the model's 4.0, same sign and size over six template choices) while the flank carries the light.  Its fade refitted with the flank's on that reading: peak r 69 -> 59, 0.42 of peak r 103 -> 91, end r 185 -> 131 (len bound 140 -> 110).  Translation, width and blur unchanged.",
+   "peak_at": 0.4541,
    "rot": -328.1,
    "spread": 1.0,
-   "white": 0.005884,
-   "tail": 0.1822,
+   "white": 0.005381,
+   "tail": 0.2451,
    "cx": 531.5309,
    "cy": 511.7803
   },
@@ -2251,11 +2251,11 @@
    "blue": 0.0,
    "blur": 1.5175,
    "color": [
-    21.13,
-    36.3,
-    37.27
+    16.42,
+    30.65,
+    31.56
    ],
-   "cyan": 0.063274,
+   "cyan": 0.059372,
    "height": 6.5097,
    "id": "flare_ray_c_in",
    "kind": "ray",
@@ -2263,7 +2263,7 @@
    "peak_at": 0.6621,
    "rot": -328.1,
    "spread": 1.0,
-   "white": 0.082865,
+   "white": 0.064377,
    "bounds": {
     "height": [
      3.0,
@@ -2302,7 +2302,7 @@
      0.4
     ]
    },
-   "note": "the short, white-carrying inner segment of the lower-right ray, on ray_c's own line (D61).  The reference's ray is brightest next to the core -- G 17.8 at r 44 from the origin, 11-12 by r 80, 4 by r 150 -- and WHITE there (R 12.6 at r 44, ~0 beyond r 60).  One cyan ray could not do both: its best fit reached G 8.8 at r 44 while already 1.5-2x too bright beyond r 124.  Layered as a bright inner segment plus the long soft tail (flare_ray_c), the line profile's mismatch falls 1091 -> 415.",
+   "note": "the short, white-carrying inner segment of the lower-right ray, on ray_c's own line (D61).  The reference's ray is brightest next to the core -- G 17.8 at r 44 from the origin, 11-12 by r 80, 4 by r 150 -- and WHITE there (R 12.6 at r 44, ~0 beyond r 60).  One cyan ray could not do both: its best fit reached G 8.8 at r 44 while already 1.5-2x too bright beyond r 124.  Layered as a bright inner segment plus the long soft tail (flare_ray_c), the line profile's mismatch falls 1091 -> 415.\nD65: colour refitted by bounded least squares on its family's calibration reading (teal eligible only on the six layers of record), then recalibrated; see docs/DECISIONS.md D65 (b).",
    "tail": 0.1113,
    "cx": 531.53,
    "cy": 511.78
@@ -2311,19 +2311,19 @@
    "id": "flare_ray_c_fl",
    "kind": "ray",
    "rot": -329.362,
-   "len": 118.8142,
+   "len": 110.5395,
    "height": 8.0227,
    "blur": 7.4125,
    "spread": 1.0,
-   "peak_at": 0.1012,
-   "tail": 0.4838,
-   "white": 0.002373,
-   "cyan": 0.05098,
-   "blue": 0.007265,
+   "peak_at": 0.1538,
+   "tail": 0.6948,
+   "white": 0.0,
+   "cyan": 0.066825,
+   "blue": 0.000291,
    "color": [
-    0.6048,
-    12.8245,
-    15.4574
+    0.0,
+    16.02,
+    17.11
    ],
    "onset": 0.0115,
    "cx": 600.9434,
@@ -2363,14 +2363,14 @@
     ],
     "tail": [
      0.2,
-     0.6
+     0.75
     ],
     "spread": [
      1.0,
      1.5
     ]
    },
-   "note": "the lower-right ray's SOFT FLANK (D64), on flare_ray_c's own line: the reference's ray widens from sigma 2.6 at r 60-88 to 4.75 at 92-108, 5.4 at 108-128 and 5.7-5.8 at 132-184 (band-averaged transverse profile, ramp removed at |s| 16-22; unchanged after a 2x downsample), where the narrow line alone stayed at 3.0-3.6 and carried 0.07-0.75 of the reference's flux.  A narrow line inside a soft slab, as the upper-right ray is (flare_ray_ur inside flare_ray_e).  Fitted jointly with the narrow segments' amplitudes in the ramp-removed corridor over r 40-184: error 3.50 -> 2.44, against 2.68 for widening flare_ray_c alone (which ran to a spread-3.6 wedge, the shape D63 removed).  Calibrated with the lower-right family, whose broad term (r 88-184, half-width 24) is what reads it.  See RAY_GEOMETRY in tools/measure_flare.py and docs/DECISIONS.md D64."
+   "note": "the lower-right ray's SOFT FLANK (D64), on flare_ray_c's own line: the reference's ray widens from sigma 2.6 at r 60-88 to 4.75 at 92-108, 5.4 at 108-128 and 5.7-5.8 at 132-184 (band-averaged transverse profile, ramp removed at |s| 16-22; unchanged after a 2x downsample), where the narrow line alone stayed at 3.0-3.6 and carried 0.07-0.75 of the reference's flux.  A narrow line inside a soft slab, as the upper-right ray is (flare_ray_ur inside flare_ray_e).  Fitted jointly with the narrow segments' amplitudes in the ramp-removed corridor over r 40-184: error 3.50 -> 2.44, against 2.68 for widening flare_ray_c alone (which ran to a spread-3.6 wedge, the shape D63 removed).  (In D64 it was held OUTSIDE the lower-right family -- its narrow templates traded it for the line -- which left it free to any global fit: the D65 review finding.)  See RAY_GEOMETRY in tools/measure_flare.py and docs/DECISIONS.md D64.\nD65: now IN the lower-right calibration family, read by the split templates (a narrow and a broad Gaussian on the reference's own centre, per band, r 88-184) that tell a flank from a line, so the global fits hold it and calibration restores it.  Its fade was refitted jointly with the narrow line's on that reading: peak r 93 -> 98, 0.42 of peak at r 151 -> 175, end r 200 -> 192 (tail bound 0.6 -> 0.75 to admit it)."
   },
   {
    "id": "flare_arm_w2",
@@ -2503,10 +2503,10 @@
    },
    "color": [
     0.0,
-    26.09,
-    25.87
+    26.07,
+    26.31
    ],
-   "cyan": 0.087195,
+   "cyan": 0.092462,
    "height": 26.0,
    "id": "flare_ray_e",
    "kind": "ray",
@@ -2518,7 +2518,7 @@
    "white": 0.0,
    "cx": 526.1383,
    "cy": 510.505,
-   "teal": 0.020345
+   "teal": 0.015319
   },
   {
    "blue": 0.0,
@@ -2584,17 +2584,17 @@
    "tail": 0.0848,
    "cx": 534.8,
    "cy": 517.0,
-   "teal": 0.109033
+   "teal": 0.109031
   },
   {
-   "blue": 0.010706,
+   "blue": 0.0,
    "blur": 2.8,
    "color": [
     0.0,
-    43.43,
-    33.13
+    43.9,
+    33.28
    ],
-   "cyan": 0.0,
+   "cyan": 0.029299,
    "height": 8.0,
    "id": "flare_ray_lld",
    "kind": "ray",
@@ -2645,7 +2645,7 @@
    "note": "the inner segment of the 267-degree lower-left ray (D61).  In the previous release this direction read NEGATIVE (-28 to -43 cv in G across r 36-76 -- the wedge's dark flank sat on it).  The reference's profile on the 268-degree line has two maxima, G 11.8 at r 44 and 7.6 at r 92, with a dip to 3.4 at r 68; this segment carries the inner one and flare_ray_lld2 the outer.  Its colour is pure cyan: the reference's inner part reads B/G 0.4-0.5, which no white/cyan/blue mix can produce, so the fit holds G below the reference's peak rather than overshoot B.\nD64: allowed the TEAL primary (0, 1, 0.7) -- see TEAL in tools/fit_photometry.py and TEAL_LAYERS in tools/measure_flare.py.  Its colour is the bounded least-squares fit over its family's bands, then the family calibration.",
    "cx": 531.0,
    "cy": 513.5,
-   "teal": 0.170322
+   "teal": 0.144598
   },
   {
    "blue": 0.0,
@@ -2713,14 +2713,79 @@
    "note": "the white SOUTH arm of the core (D63), which is also the 'south vertical line is whiter than one colour allows' of D62.  South of the core the reference has a broad white ridge 2-4 px west of the vertical line at dy +12..+28 (R ~90 at dy +20, FWHM ~10 px): R -20..-25 and G/B -9..-12 against the model.  The vertical line is one narrow cyan layer (sigma 1.7) and cannot carry it.  Fitted with the north-west arm on the same 2D residual: a vertical white segment 5 px west of the core, onset dy +11, peak +17, end +29."
   },
   {
+   "id": "flare_ray_east_in",
+   "kind": "ray",
+   "rot": 5.694,
+   "cx": 531.0,
+   "cy": 513.5,
+   "len": 25.4144,
+   "height": 22.2101,
+   "blur": 2.6831,
+   "spread": 1.0,
+   "onset": 0.1,
+   "peak_at": 0.576,
+   "tail": 0.052,
+   "white": 0.400774,
+   "cyan": 0.0,
    "blue": 0.0,
+   "color": [
+    102.2,
+    102.2,
+    102.2
+   ],
+   "bounds": {
+    "rot": [
+     -10.0,
+     20.0
+    ],
+    "cx": [
+     528.0,
+     534.0
+    ],
+    "cy": [
+     510.5,
+     516.5
+    ],
+    "len": [
+     15.0,
+     35.0
+    ],
+    "height": [
+     10.0,
+     30.0
+    ],
+    "blur": [
+     1.5,
+     5.0
+    ],
+    "onset": [
+     0.0,
+     0.3
+    ],
+    "peak_at": [
+     0.35,
+     0.8
+    ],
+    "tail": [
+     0.03,
+     0.3
+    ],
+    "spread": [
+     1.0,
+     1.5
+    ]
+   },
+   "note": "the white EAST extension of the core toward the right curve (D65).  Between the core and the curve at dx +4..+8, dy -8..+10 the model was R -12.5 with G -1.7 -- white missing, not light -- and just past the curve's ridge R -5.7 with G +5.3; the reference's R >= 230 core runs east to the curve (16.8 px) where the model's stopped at 5.6.  A short white segment, fitted on dx -8..+24, |dy| <= 16 with the curve's edge columns (whose one-column spikes at every height are the curve's edge placement, not this) and clipped pixels left out: box error 50.7 -> 36.9, dx +4..+8 R -12.5 -> -2.3, beyond the ridge R -5.7 -> -0.1, the west side unchanged; core R ring means at r 4-8 / 8-12 202.5 / 170.2 -> 204.7 / 175.1 against 204.5 / 175.7.  Like the north-west and south arms (D63) it is measured in 2D, not on a line, so its shape is held (RAY_GEOMETRY) and it is in no calibration family.  See docs/DECISIONS.md D65."
+  },
+  {
+   "blue": 0.009359,
    "blur": 2.4,
    "color": [
-    2.18,
-    29.5,
-    27.17
+    2.92,
+    29.28,
+    28.39
    ],
-   "cyan": 0.067199,
+   "cyan": 0.053152,
    "height": 3.1354,
    "id": "flare_ray_lld2",
    "kind": "ray",
@@ -2729,7 +2794,7 @@
    "peak_at": 0.7073,
    "rot": -266.5,
    "spread": 1.0,
-   "white": 0.008553,
+   "white": 0.011441,
    "bounds": {
     "height": [
      2.0,
@@ -2772,21 +2837,21 @@
      0.2917
     ]
    },
-   "note": "the outer segment of the 267-degree lower-left ray (D61); see flare_ray_lld.  Reference G 6.8 / 7.6 / 6.4 / 4.9 at r 84-108 against 7.0 / 8.0 / 7.1 / 5.5 now.  It is not the vertical line: its ridge sits 4-5 px west of flare_vline's column.\nD64: allowed the TEAL primary (0, 1, 0.7) -- see TEAL in tools/fit_photometry.py and TEAL_LAYERS in tools/measure_flare.py.  Its colour is the bounded least-squares fit over its family's bands, then the family calibration.",
+   "note": "the outer segment of the 267-degree lower-left ray (D61); see flare_ray_lld.  Reference G 6.8 / 7.6 / 6.4 / 4.9 at r 84-108 against 7.0 / 8.0 / 7.1 / 5.5 now.  It is not the vertical line: its ridge sits 4-5 px west of flare_vline's column.\nD64: allowed the TEAL primary (0, 1, 0.7) -- see TEAL in tools/fit_photometry.py and TEAL_LAYERS in tools/measure_flare.py.  Its colour is the bounded least-squares fit over its family's bands, then the family calibration.\nD65: colour refitted by bounded least squares on its family's calibration reading (teal eligible only on the six layers of record), then recalibrated; see docs/DECISIONS.md D65 (b).",
    "cx": 531.0,
    "cy": 513.5,
    "tail": 0.2917,
-   "teal": 0.043985
+   "teal": 0.053405
   },
   {
-   "blue": 0.0,
+   "blue": 0.109678,
    "blur": 5.0159,
    "color": [
-    1.63,
-    145.92,
-    132.95
+    0.0,
+    132.12,
+    120.45
    ],
-   "cyan": 0.347573,
+   "cyan": 0.0,
    "height": 5.6348,
    "id": "flare_ray_llc",
    "kind": "ray",
@@ -2795,7 +2860,7 @@
    "peak_at": 0.6636,
    "rot": -229.0,
    "spread": 1.0,
-   "white": 0.006378,
+   "white": 0.0,
    "bounds": {
     "height": [
      3.0,
@@ -2838,32 +2903,32 @@
      0.4
     ]
    },
-   "note": "the SHORT lobe at 229 degrees, lower-left (D61).  A first fit drew this as a long blue ray at 235 degrees, 2.3x the reference on the line-following statistic and visibly the most prominent structure in the lower-left -- an invented shape.  Measured on the reference it is broad (sigma 4.3-6.1 px), white at r 24-40 (R 11-19 cv) and cyan at r 40-56 (G 10-13), and gone by r 64 (G 3.1).  Now broad and white-tinted; it still runs about 8 px too long (G 9.4 at r 64) because the gradient's tail is tied to its peak.  visual_regression's 'lower-left lobe' check has a CEILING for this reason.\nD64: allowed the TEAL primary (0, 1, 0.7) -- see TEAL in tools/fit_photometry.py and TEAL_LAYERS in tools/measure_flare.py.  Its colour is the bounded least-squares fit over its family's bands, then the family calibration.",
+   "note": "the SHORT lobe at 229 degrees, lower-left (D61).  A first fit drew this as a long blue ray at 235 degrees, 2.3x the reference on the line-following statistic and visibly the most prominent structure in the lower-left -- an invented shape.  Measured on the reference it is broad (sigma 4.3-6.1 px), white at r 24-40 (R 11-19 cv) and cyan at r 40-56 (G 10-13), and gone by r 64 (G 3.1).  Now broad and white-tinted; it still runs about 8 px too long (G 9.4 at r 64) because the gradient's tail is tied to its peak.  visual_regression's 'lower-left lobe' check has a CEILING for this reason.\nD64: allowed the TEAL primary (0, 1, 0.7) -- see TEAL in tools/fit_photometry.py and TEAL_LAYERS in tools/measure_flare.py.  Its colour is the bounded least-squares fit over its family's bands, then the family calibration.\nD65: colour refitted by bounded least squares on its family's calibration reading (teal eligible only on the six layers of record), then recalibrated; see docs/DECISIONS.md D65 (b).",
    "tail": 0.1075,
    "cx": 531.0,
    "cy": 513.5,
-   "teal": 0.239156
+   "teal": 0.518121
   },
   {
    "blue": 0.0,
    "blur": 2.6461,
    "color": [
-    51.43,
-    51.43,
-    51.43
+    44.43,
+    44.43,
+    44.43
    ],
    "cyan": 0.0,
    "height": 6.912,
    "id": "flare_ray_llc_in",
    "kind": "ray",
-   "len": 34.6614,
-   "onset": 0.4473,
-   "peak_at": 0.8155,
+   "len": 40.0,
+   "onset": 0.3876,
+   "peak_at": 0.7067,
    "rot": -229.0,
    "spread": 1.0,
-   "white": 0.201679,
-   "note": "the SHORT lobe at 229 degrees, lower-left (D61).  A first fit drew this as a long blue ray at 235 degrees, 2.3x the reference on the line-following statistic and visibly the most prominent structure in the lower-left -- an invented shape.  Measured on the reference it is broad (sigma 4.3-6.1 px), white at r 24-40 (R 11-19 cv) and cyan at r 40-56 (G 10-13), and gone by r 64 (G 3.1).  Now broad and white-tinted; it still runs about 8 px too long (G 9.4 at r 64) because the gradient's tail is tied to its peak.  visual_regression's 'lower-left lobe' check has a CEILING for this reason.\nD63: blur 5.0 -> 3.6 and the lobe refitted jointly with flare_ray_b's inner segment on both lines: at r 32 the lobe read G 22.6 / R 30.5 at sigma 8.1 against 13.4 / 19.2 at 4.3; now 17.1 / 22.6 at 6.0.\nD64: onset 0.5 -> 0.447, peak 0.689 -> 0.816, len 42 -> 34.7, blur 3.6 -> 2.65 (its blur bound 3 -> 2 to admit that): the white peaked too far out -- R 6.9/22.5/5.8 at r 24/32/40 on D63's head and 5.0/24.0/9.6 after the teal recalibration, against the reference's 10.3/19.2/7.5 (now 10.3/19.1/3.9) -- refitted on the line's ramp-removed corridor.  See RAY_GEOMETRY.",
-   "tail": 0.1523,
+   "white": 0.174237,
+   "note": "the SHORT lobe at 229 degrees, lower-left (D61).  A first fit drew this as a long blue ray at 235 degrees, 2.3x the reference on the line-following statistic and visibly the most prominent structure in the lower-left -- an invented shape.  Measured on the reference it is broad (sigma 4.3-6.1 px), white at r 24-40 (R 11-19 cv) and cyan at r 40-56 (G 10-13), and gone by r 64 (G 3.1).  Now broad and white-tinted; it still runs about 8 px too long (G 9.4 at r 64) because the gradient's tail is tied to its peak.  visual_regression's 'lower-left lobe' check has a CEILING for this reason.\nD63: blur 5.0 -> 3.6 and the lobe refitted jointly with flare_ray_b's inner segment on both lines: at r 32 the lobe read G 22.6 / R 30.5 at sigma 8.1 against 13.4 / 19.2 at 4.3; now 17.1 / 22.6 at 6.0.\nD64: onset 0.5 -> 0.447, peak 0.689 -> 0.816, len 42 -> 34.7, blur 3.6 -> 2.65 (its blur bound 3 -> 2 to admit that): the white peaked too far out -- R 6.9/22.5/5.8 at r 24/32/40 on D63's head and 5.0/24.0/9.6 after the teal recalibration, against the reference's 10.3/19.2/7.5 (now 10.3/19.1/3.9) -- refitted on the line's ramp-removed corridor.  See RAY_GEOMETRY.\nD65: the near lobe was right (R 12.0 against 11.0 at r 24 on the family's reading) but the white fell short from r 32 outward (R 15.3 / 3.5 against 19.2 / 7.5 at r 32 / 40); only the outer fade moved -- onset (15.5 px) and peak (28.3 px) held, 0.42 of peak 33.5 -> 37.6 px, end 35 -> 40 px.  Recalibrated: R at r 24/32/40/48 9.4/18.3/7.2/0.0 against 11.0/19.2/7.5/-0.7.",
+   "tail": 0.2333,
    "bounds": {
     "height": [
      3.0,
@@ -2910,14 +2975,14 @@
    "cy": 513.5
   },
   {
-   "blue": 0.02543,
+   "blue": 0.025534,
    "blur": 3.2,
    "color": [
-    2.39,
-    12.71,
-    19.86
+    2.33,
+    12.72,
+    19.9
    ],
-   "cyan": 0.043079,
+   "cyan": 0.043369,
    "height": 6.0,
    "id": "flare_ray_ulb",
    "kind": "ray",
@@ -2926,7 +2991,7 @@
    "peak_at": 0.55,
    "rot": -149.5,
    "spread": 1.0,
-   "white": 0.009354,
+   "white": 0.009133,
    "bounds": {
     "height": [
      5.0,
@@ -2973,11 +3038,11 @@
    "blue": 0.0,
    "blur": 2.8,
    "color": [
-    1.51,
-    23.7,
-    18.42
+    1.4,
+    23.72,
+    18.4
    ],
-   "cyan": 0.015813,
+   "cyan": 0.015751,
    "height": 4.0,
    "id": "flare_ray_ula",
    "kind": "ray",
@@ -2986,7 +3051,7 @@
    "peak_at": 0.65,
    "rot": -140.4,
    "spread": 1.0,
-   "white": 0.00593,
+   "white": 0.005502,
    "bounds": {
     "height": [
      2.0,
@@ -3033,7 +3098,7 @@
    "cx": 519.9,
    "cy": 526.9,
    "tail": 0.349,
-   "teal": 0.072142
+   "teal": 0.072698
   },
   {
    "blue": 0.0,

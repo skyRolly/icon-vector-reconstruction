@@ -1253,6 +1253,54 @@ def main():
                         "inner %.3f, tail %.3f of the calibrated state after 0.5x / 1.6x"
                         % tuple(math.exp(v) for v in d2))
 
+        # (f) FLANK (D65 review): the lower-right ray is a narrow line inside a
+        #     soft flank.  The flank used to sit outside every family, so a
+        #     global fit could move it and calibration then re-balanced only
+        #     the narrow segments around the wrong flank.  It is now in the
+        #     family and read by the split templates: displaced alone (0.4x)
+        #     or against the line (2.0x with the line 1.3x), all three segments
+        #     and the combined profile -- narrow AND broad readings -- come back.
+        _lr = ("flare_ray_c_in", "flare_ray_c", "flare_ray_c_fl")
+        _fl_notes = []
+        _fl_ok = "flare_ray_c_fl" in MFL.CALIBRATED_LAYERS and "split" in MFL.FAMILIES["lower-right"]
+        if not _fl_ok:
+            _fl_notes.append("flare_ray_c_fl is not calibrated with a split reading")
+        _split0 = _base_meas["lower-right"]["split"]
+        import fit_photometry as _FPf
+        for _tag, _fac in (("flank 0.4x", {"flare_ray_c_fl": 0.4}),
+                           ("flank 2.0x, line 1.3x", {"flare_ray_c_fl": 2.0, "flare_ray_c": 1.3})):
+            _pp = os.path.join(_td, "lr_flank.json")
+            _pert = _scaled(star, _fac)
+            json.dump(_pert, open(_pp, "w"), indent=1)
+            # The global fit runs first, as the documented cycle would: it may
+            # move every other layer but must leave all three segments exactly
+            # where the displacement put them -- it can neither move the flank
+            # further nor "repair" it behind calibration's back.
+            _gy0, _gy1, _gx0, _gx1 = _lines.box
+            _gt = np.minimum(_ref[_gy0:_gy1, _gx0:_gx1] / 255.0, 254.4 / 255.0).astype(np.float32)[::4, ::4]
+            _gW0 = _FPf.params_wc(_pert)
+            _gW1 = _FPf.fit(_stack.A[:, ::4, ::4], _gt, _gW0, np.ones(_gt.shape[:2], np.float32), iters=2,
+                            verbose=False, free=_FPf.held_free(_pert), normal=_FPf.normal_flags(_pert),
+                            teal_ok=_FPf.teal_eligible(_pert))
+            _gi = [[L["id"] for L in _pert["layers"]].index(lid) for lid in _lr]
+            _gmoved = float(np.abs(_gW1[_gi] - _gW0[_gi]).max())
+            _gfree = float(np.abs(_gW1 - _gW0).max())
+            if _gmoved != 0.0:
+                _fl_ok = False
+                _fl_notes.append("%s: the global fit moved a lower-right segment by %.3g" % (_tag, _gmoved))
+            _wf, _cf2 = MFL.calibrate(_pp, _ref, rounds=6, verbose=False, lines=_lines, stack=_stack)
+            _sf = json.load(open(_pp))
+            _dl = [abs(math.log(_amp(_sf, lid) / _amp(star, lid))) for lid in _lr]
+            _ms = _lines.measure(MFL.render_full(_sf))["lower-right"]["split"]
+            _dsp = float(np.abs(_ms[..., 1] - _split0[..., 1]).max()) if len(_split0) else 99.0
+            _ok = _wf <= 1.0 and max(_dl) <= 0.04 and _dsp <= 0.5
+            _fl_ok = _fl_ok and _ok
+            _fl_notes.append("%s: global fit moved the segments by %.3g (other layers up to %.3g), then "
+                             "calibration -> inner/line/flank %s of the calibrated state, split G within "
+                             "%.2f cv" % (_tag, _gmoved, _gfree, "/".join("%.3f" % math.exp(v) for v in _dl),
+                                          _dsp))
+        cal["flank"] = (_fl_ok, "; ".join(_fl_notes))
+
         # (d) the SAVED file reproduces the calibrated result through the
         #     documented build and render commands, not the in-process path.
         svg1, png1 = os.path.join(_td, "r.svg"), os.path.join(_td, "r.png")
@@ -1262,7 +1310,18 @@ def main():
                 check=True, capture_output=True)
         mcli = _lines.measure(np.asarray(Image.open(png1).convert("RGB")).astype(np.float64))
         dcli = max(float(np.abs(mcli[f]["bands"] - m1[f]["bands"]).max()) for f in mcli)
-        cal["rebuild"] = (dcli <= 0.01, "rebuilt from the saved file, every band within %.3g cv" % dcli)
+        # ... and so does the recalibrated FLANK file of (f), split readings included
+        _sp.run([sys.executable, os.path.join(ROOT, "src", "build_svg.py"), "--params", _pp,
+                 "--out", svg1], check=True, capture_output=True)
+        _sp.run([sys.executable, os.path.join(ROOT, "tools", "render.py"), svg1, png1],
+                check=True, capture_output=True)
+        _mcf = _lines.measure(np.asarray(Image.open(png1).convert("RGB")).astype(np.float64))
+        _mif = _lines.measure(MFL.render_full(json.load(open(_pp))))
+        dcli = max(dcli, max(float(np.abs(_mcf[f]["bands"] - _mif[f]["bands"]).max()) for f in _mcf),
+                   max(float(np.abs(_mcf[f]["split"] - _mif[f]["split"]).max()) if len(_mif[f]["split"])
+                       else 0.0 for f in _mcf))
+        cal["rebuild"] = (dcli <= 0.01, "rebuilt from the saved files (a segment and the flank "
+                          "recalibrated), every band and split reading within %.3g cv" % dcli)
 
         # (e) a calibration that does not converge says so and exits nonzero,
         #     and still SAVES the corrections it computed: one round cannot
@@ -1315,6 +1374,7 @@ def main():
     check("the shipped rays are calibrated to their measured profiles", *cal["shipped"])
     check("calibrating one segment does not drag the other", *cal["segmented"])
     check("a two-segment ray is calibrated jointly", *cal["joint"])
+    check("the lower-right flank is held by the global fit and restored by calibration", *cal["flank"])
     check("a calibrated file rebuilds to the calibrated profiles", *cal["rebuild"])
     check("flare calibration that does not converge returns nonzero", *cal["fails"])
     check("a calibration stack whose geometry is stale is refreshed, not reused", *cal["stale"])
@@ -1450,17 +1510,20 @@ def main():
         # ... and it says what it was drawn from, so a stale sheet is caught.
         import flare_parts as _FPT
         _sheet = os.path.join(_td3, "sheet.png")
-        _fresh = _FPT.sheet_problems(_sheet, os.path.join(ROOT, "reconstruction.svg"), _bd,
-                                     os.path.join(ROOT, "reference.png"))
-        if _fresh:
-            _diag.append("a sheet drawn just now reads as stale: %s" % _fresh[0])
-        if not _FPT.sheet_problems(_sheet, os.path.join(_bd, "reconstruction.svg"), _bd):
-            _diag.append("a sheet checked against a different SVG was not reported stale")
-        _sh2.copy(_sheet, _sheet + ".t.png")
-        _sh2.copy(_sheet + ".prov.json", _sheet + ".t.png.prov.json")
-        open(_sheet + ".t.png", "ab").write(b"\0")
-        if not _FPT.sheet_problems(_sheet + ".t.png", os.path.join(ROOT, "reconstruction.svg"), _bd):
-            _diag.append("a sheet whose bytes changed was not caught")
+        # (Only if it was drawn: a refusal above is already a failure, and
+        # copying a sheet that does not exist would abort the whole suite.)
+        if os.path.exists(_sheet):
+            _fresh = _FPT.sheet_problems(_sheet, os.path.join(ROOT, "reconstruction.svg"), _bd,
+                                         os.path.join(ROOT, "reference.png"))
+            if _fresh:
+                _diag.append("a sheet drawn just now reads as stale: %s" % _fresh[0])
+            if not _FPT.sheet_problems(_sheet, os.path.join(_bd, "reconstruction.svg"), _bd):
+                _diag.append("a sheet checked against a different SVG was not reported stale")
+            _sh2.copy(_sheet, _sheet + ".t.png")
+            _sh2.copy(_sheet + ".prov.json", _sheet + ".t.png.prov.json")
+            open(_sheet + ".t.png", "ab").write(b"\0")
+            if not _FPT.sheet_problems(_sheet + ".t.png", os.path.join(ROOT, "reconstruction.svg"), _bd):
+                _diag.append("a sheet whose bytes changed was not caught")
         _man = json.load(open(os.path.join(_bd, "manifest.json")))
         _man["svg_sha256"] = "0" * 64
         json.dump(_man, open(os.path.join(_bd, "manifest.json"), "w"))

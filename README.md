@@ -9,8 +9,8 @@ rounded-square frame — as a hand-built, parametric SVG.
 | ![reference](out/side_reference.png) | ![reconstruction](out/side_reconstruction.png) | ![difference](out/side_diff.png) |
 
 <!-- DELIVERABLE:START -->
-**Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 52 named
-layers, 100 KB, no embedded bitmap and no traced outlines. Every mark is a
+**Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 53 named
+layers, 101 KB, no embedded bitmap and no traced outlines. Every mark is a
 primitive driven by a named parameter in
 [`src/params.json`](src/params.json): one path for the frame, two cubic-Bézier
 paths for the luminous curves (reused, offset and clipped, by every glow
@@ -26,12 +26,12 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 | metric | value | for scale |
 |---|---|---|
 | mean absolute error | **1.804** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 3.815 | |
-| MAE on a 1/2.2 display curve | 5.330 | weights the dark background as the eye does; black scores 59.7 |
+| RMSE | 3.812 | |
+| MAE on a 1/2.2 display curve | 5.331 | weights the dark background as the eye does; black scores 59.7 |
 | SSIM (luminance) | **0.9746** | black scores 0.142 |
 | worst single-channel error | 110 | |
-| pixels off by more than 2 / 8 / 24 | 34.2% / 4.2% / 0.6% | |
-| mean bias | -0.222 | |
+| pixels off by more than 2 / 8 / 24 | 34.2% / 4.2% / 0.5% | |
+| mean bias | -0.219 | |
 
 Per region (MAE): frame band 2.50, centre 90 px 5.95, bright pixels 9.66, dark background 1.36, everything else 1.62.
 
@@ -45,7 +45,7 @@ The two regions a whole-image average cannot police, from
 | targeted measurement | value |
 |---|---|
 | MAE within 110 px of the central light | 5.16 |
-| worst ring of the flare's radial profile | -2.0 code values at r = 6-12 |
+| worst ring of the flare's radial profile | +1.1 code values at r = 20-30 |
 | curve glow, rms relative error over 21 signed-distance bins | 2.8% |
 | the same, resolved along the curve (71 cells) | 4.9% |
 | light in the four interior corners, rms relative error | 5.0% |
@@ -154,29 +154,32 @@ restated those numbers drifted out of date twice, so it no longer does.
    20.6 px was built and measured; it raises what the basis can achieve beside
    the ridge but did not improve the render, and is not shipped
    (docs/DECISIONS.md D19, D22).
-3. **Central light** — thirty-one layers: five radial blooms, nine
+3. **Central light** — thirty-two layers: five radial blooms, nine
    horizontal streak components at the three measured line heights (lines A
    and B each carry their white in a layer of their own, so white and cyan
    follow different profiles along the line; D64), the vertical diffraction
-   line, fourteen one-sided ray segments on eight measured lines, and two short
-   white arms of the core itself, north-west and south, where the reference's
-   white leans away from the horizontal (D63).
+   line, fourteen one-sided ray segments on eight measured lines, and three short
+   white arms of the core itself: north-west and south, where the reference's
+   white leans away from the horizontal (D63), and east, where its white core
+   runs on to the right curve (D65).
    There is no separate glint layer; the brightest pixels come from the streak
    and bloom stack. The rays are measured rather than assumed, and several do
    not pass through the core (the upper-left pair misses it by 17 and 26 px).
    A ray whose profile along its line one gradient cannot hold is drawn as
    segments on the same line -- an inner and an outer lower-left segment, a
    bright white inner segment, a narrow line and a soft flank that widens
-   with radius on the lower right (D64), a white near-core part and a cyan
+   with radius on the lower right (D64; the line fades by r ~130 and the
+   flank carries the light beyond it, D65), a white near-core part and a cyan
    lobe at 229 degrees -- and each segment's
    geometry of record, including its absolute origin in canvas pixels and
    where it fades, is the table in `tools/measure_flare.py`, which
-   `--geometry` restores (D61-D64). Their amplitudes are calibrated against
+   `--geometry` restores (D61-D65). Their amplitudes are calibrated against
    each ray's measured profile, jointly per line, not fitted to the whole
-   image; the lower-right flank is the exception, fitted in its line's
-   ramp-removed corridor, because fixed narrow templates cannot tell a flank
-   from a line (D64). The westward triangle that two straight-edged flank layers once drew
-   is gone and stays gone (D61).
+   image. The lower-right line and its flank are calibrated together: past
+   r 88 each band is read with a narrow and a broad template at once, which
+   tells a flank's light from a line's, so the whole-image fits hold the flank
+   and calibration restores it (D65). The westward triangle that two
+   straight-edged flank layers once drew is gone and stays gone (D61).
 4. **Curve cores** — a hard-edged bright stroke on each path plus a narrower
    inset one, because the measured core is 5.8 px at the tips, 8.4 px at
    mid-height, and asymmetric about its own centre-line.
@@ -264,8 +267,11 @@ enough to search the geometry.
   because it reaches the evidence and no further: its floor, B/G 0.7, is the
   greenest ray measured, while pure green would let a later fit draw rays far
   greener than anything in the reference. Teal is allowed only on the six
-  layers of record, and every other layer stays in the cone. Those four rays now read B/G 0.73 / 0.77 /
-  0.83 / 0.72 against the reference's 0.73 / 0.78 / 0.85 / 0.74 (D64).
+  layers of record, and every other layer stays in the cone. The permission
+  is the layer's own `teal` key, not its current amount, so a teal ray
+  refitted from zero can take teal back (D65). Those four rays now read B/G
+  0.73 / 0.78 / 0.84 / 0.78 against the reference's 0.73 / 0.78 / 0.85 / 0.74
+  (D65).
 * **The white core's directional shape is drawn, not all of it matched.** The
   reference's white leans north-west and reaches south of the core; two short
   white arms fitted to the core's 2D residual now carry that (D63). North of
@@ -273,7 +279,8 @@ enough to search the geometry.
   ~15 cv too red where the reference is dark. The reference lacks WHITE there,
   not light (G and B match the south's), so this is not an occluder: the
   core's symmetric white (halo and fan) would have to become directional, a
-  redesign not attempted (D64).
+  redesign not attempted (D64). Moving the fan's centre south, the one local
+  lever, changed nothing measurable (D65).
 * The two dark axial wedges between the diverging curves used to be
   over-predicted by ~4 code values, and this list blamed the additive stack for
   it: "a screen stack can only add light". That was the wrong diagnosis. The
