@@ -379,12 +379,19 @@ MISSING_EXPLAINED = 0.5
 #: none -- so only the luminance rows are read, and the probe is small enough
 #: to stay in the composite's linear range.
 PROBE_WHITE = 0.05
-#: A calibrated layer counts as DARK when its basis amounts sum to less than
-#: this: at full coverage it would add under ~0.5 cv, which no calibrated ray
-#: legitimately does (the faintest shipped one, flare_ray_b2, holds ~0.044).
-#: Exactly zero was the first definition; a ray scaled to 1e-9 is no less
-#: missing, and its Jacobian column is just as unusable (D66 review).
-DARK_AMOUNT = 2e-3
+#: A calibrated layer counts as DARK when no reading moves by more than this
+#: (cv) per unit of its log-scale -- i.e. its own light changes no band by
+#: DARK_CV: the Jacobian column correction() would have to work with is, in
+#: effect, zero.  Exactly-zero colour was the first definition, and a ray
+#: scaled to 1e-4 is no less missing (D66 review); an absolute amount
+#: threshold was the second, and it would have called a lit ray at 5% of its
+#: light -- a deficit a scale recovers in three rounds -- "no light" (D66
+#: review).  A shipped ray moves its bands by several cv; at 5% it still moves
+#: them by ~0.25, 25x above this.
+DARK_CV = 0.01
+#: Only a layer this faint (summed basis amounts) can be dark, so only such a
+#: file pays for the pre-solve check (the faintest shipped ray holds ~0.044).
+FAINT_AMOUNT = 0.01
 #: A dark layer whose probe response is, all but this fraction, a re-scaling of
 #: lit calibrated layers is indistinguishable from them: the reference cannot
 #: say it is needed rather than they are under-scaled, so it is "not needed".
@@ -841,9 +848,15 @@ def correction(lines, stack, meas):
     return corr, J
 
 
-def is_dark(stack, j):
-    """True if calibrated layer j (index into CALIBRATED_LAYERS) has, in effect, no light."""
-    return float(np.sum(stack.WC[stack.idx[j]])) < DARK_AMOUNT
+def maybe_dark(stack, j):
+    """True if calibrated layer j (index into CALIBRATED_LAYERS) is faint enough to check."""
+    return float(np.sum(stack.WC[stack.idx[j]])) < FAINT_AMOUNT
+
+
+def dark_layers(stack, J):
+    """Indices of calibrated layers that have, in effect, no light (see DARK_CV)."""
+    return [j for j in range(len(CALIBRATED_LAYERS))
+            if maybe_dark(stack, j) and float(np.abs(J[:, j]).max()) < DARK_CV]
 
 
 def dark_report(lines, stack, meas, J=None):
@@ -856,7 +869,7 @@ def dark_report(lines, stack, meas, J=None):
     zeroed read as perfectly calibrated and the calibration said "converged"
     with the ray missing (the D66 review finding).
 
-    A dark layer (is_dark) is probed instead: given a small white amount, what
+    A dark layer (dark_layers) is probed instead: given a small white amount, what
     would it add to each band's luminance (d)?  The evidence is what the
     reference asks of that shape BEYOND what re-scaling the lit calibrated
     layers can supply -- the residual's luminance rows and d are both projected
@@ -886,11 +899,13 @@ def dark_report(lines, stack, meas, J=None):
     """
     import fit_photometry as FP
     out = {}
-    dark = [j for j in range(len(CALIBRATED_LAYERS)) if is_dark(stack, j)]
-    if not dark:
+    if not any(maybe_dark(stack, j) for j in range(len(CALIBRATED_LAYERS))):
         return out
     if J is None:
         _corr, J = correction(lines, stack, meas)
+    dark = dark_layers(stack, J)
+    if not dark:
+        return out
     Y = lines.luma_rows()
     r = lines.residual(meas)
     base = lines.residual(lines.measure(stack.image(np.ones(len(stack.idx))), cropped=True))
@@ -1020,7 +1035,7 @@ def calibrate(params_path, ref, rounds=8, verbose=True, lines=None, stack=None):
     # dark layer (a scale of nothing is nothing), so it pushes that layer's
     # light onto its lit neighbours and saves the result (D66 review).  If the
     # reference has the ray, stop here and fail, leaving the file untouched.
-    if any(is_dark(stack, j) for j in range(len(CALIBRATED_LAYERS))):
+    if any(maybe_dark(stack, j) for j in range(len(CALIBRATED_LAYERS))):
         meas0 = lines.measure(render_full(params))
         corr0, J0 = correction(lines, stack, meas0)
         dark0 = dark_report(lines, stack, meas0, J0)

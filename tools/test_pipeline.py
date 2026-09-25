@@ -412,6 +412,39 @@ def main():
     check("the analytic gradient matches the objective, clipped and zero channels included",
           worst[0] < 0.02, "worst relative error %.4f at %s" % worst)
 
+    # ---- 5b'. the fit is a PROJECTED solve (D66 review) ------------------- #
+    # Once the derivative at a channel's lower bound was made exact (so a dark
+    # layer can be fitted back), an amount AT its bound whose gradient points
+    # out of the box kept pulling every LM step outside it; each clipped step
+    # failed its line search and the documented fit stalled (30 iterations:
+    # sse 13.67 against 13.40 before and 13.34 with the active set).  Two cyan
+    # layers against a target with R = 0 everywhere: every white amount sits
+    # at 0 with an outward gradient.  The fit must reach its floor quickly.
+    _rng = np.random.default_rng(0)
+    _As = np.stack([np.clip(_rng.random((16, 16)) * 1.2, 0, 1),
+                    np.clip(_rng.random((16, 16)) * 1.2, 0, 1)]).astype(np.float32)
+    _ts = FP.composite(_As, np.array([[0.0, 0.40, 0.55], [0.0, 0.25, 0.20]], np.float32),
+                       [False, False]).astype(np.float32)
+    _w0s = np.array([[0.0, 0.2, 0.0, 0.0], [0.0, 0.1, 0.0, 0.0]], np.float32)
+
+    def _rms_after(k):
+        _w = FP.fit(_As, _ts, _w0s, np.ones((16, 16), np.float32), iters=k, verbose=False,
+                    normal=[False, False], teal_ok=np.array([False, False]))
+        return float(np.sqrt(((FP.composite(_As, FP.colors(_w), [False, False]) - _ts) ** 2).mean()))
+    _r6, _r40 = _rms_after(6), _rms_after(40)
+    # ... and the UPPER bound is the same kind of edge: a channel exactly at 1
+    # (a white layer clipped to its amount limit) was treated as clipped, so
+    # its whole Jacobian was zero and it could never come back down.
+    _A1 = np.ones((1, 8, 8), np.float32)
+    _t1 = FP.composite(_A1, np.array([[0.5, 0.5, 0.5]], np.float32), [False]).astype(np.float32)
+    _w1 = FP.fit(_A1, _t1, np.array([[1.0, 0.0, 0.0, 0.0]], np.float32), np.ones((8, 8), np.float32),
+                 iters=20, verbose=False, normal=[False], teal_ok=np.array([False]))
+    check("the photometric fit is a projected solve: amounts at a bound do not stall it",
+          _r6 <= 1.01 * _r40 and abs(float(_w1[0, 0]) - 0.5) < 0.01,
+          "rms after 6 iterations %.3e, after 40 %.3e (a stalled solve is still >5%% above its floor "
+          "after 12); a white layer starting at the clip (1.0) against a 0.5 target reaches %.3f"
+          % (_r6, _r40, float(_w1[0, 0])))
+
     # ---- 5b. the documentation names layers that actually exist ---------- #
 
     # Every layer id the docs mention in backticks must be in params.json, and
@@ -1381,15 +1414,31 @@ def main():
         if _wa <= 1.0 or not np.isinf(_ca["flare_ray_e"]):
             _dk.append("an already-absorbed file (flare_ray_e dark, flare_ray_ur x2.09) verified as "
                        "calibrated (worst %.2f)" % _wa)
-        # A ray scaled to next to nothing is as missing as one at exactly 0.
+        # A ray scaled to next to nothing is as missing as one at exactly 0 --
+        # 1e-4 of its light survives the file's rounding (amounts to 1e-6) as
+        # non-zero amounts, which is the point: it is not exactly dark.  And a
+        # LIT ray at 5% of its light is not dark at all: a scale recovers it.
         _fa = json.loads(json.dumps(star))
         for L in _fa["layers"]:
             if L["id"] == "flare_ray_ula":
-                MFL.scale(L, 1e-6)
+                MFL.scale(L, 1e-4)
+                _faint_sum = sum(float(L.get(c, 0.0)) for c in MFL.CHANNELS)
         json.dump(_fa, open(_pd, "w"), indent=1)
         _wf2, _cf3 = MFL.calibrate(_pd, _ref, rounds=0, verbose=False, lines=_lines, stack=_stack)
+        if not _faint_sum > 0.0:
+            _dk.append("the faint-ray case rounded to exactly zero and tests nothing")
         if _wf2 <= 1.0 or not np.isinf(_cf3["flare_ray_ula"]):
-            _dk.append("flare_ray_ula at 1e-6 of its light verified as calibrated (worst %.2f)" % _wf2)
+            _dk.append("flare_ray_ula at 1e-4 of its light (amounts %.1e) verified as calibrated (worst %.2f)"
+                       % (_faint_sum, _wf2))
+        _lo = json.loads(json.dumps(star))
+        for L in _lo["layers"]:
+            if L["id"] == "flare_ray_ula":
+                MFL.scale(L, 0.05)
+        json.dump(_lo, open(_pd, "w"), indent=1)
+        _wl, _cl = MFL.calibrate(_pd, _ref, rounds=0, verbose=False, lines=_lines, stack=_stack)
+        if np.isinf(_cl["flare_ray_ula"]) or _cl["flare_ray_ula"] < 5.0:
+            _dk.append("flare_ray_ula at 5%% of its light was called dark, or not asked to scale up "
+                       "(asks x%.3g)" % _cl["flare_ray_ula"])
         # A dark layer the reference has no use for, and one no band can see:
         # a zero-light copy of the upper-left A ray on its own line, and one
         # moved off the measured crop, both made members of its family.
@@ -1442,7 +1491,8 @@ def main():
                        "a zeroed upper-left A ray and a zeroed lower-right flank each fail verification "
                        "(the CLI exits 1 saying MISSING); a zeroed upper-right slab fails on the default "
                        "solving path too, with the file left untouched, and so does a file its neighbour "
-                       "already absorbed (x2.09); a ray at 1e-6 of its light counts as dark and fails; "
+                       "already absorbed (x2.09); a ray at 1e-4 of its light counts as dark and fails, "
+                       "while one at 5%% is lit and simply asked to scale up; "
                        "a zero-light copy on the line is 'not needed' "
                        "(asks %.2f cv) and one off the crop 'unobservable', and neither fails; at teal 0, "
                        "flare_ray_lld (cyan still lit) calibrates (worst %.2f) while flare_ray_ur (all "
@@ -1580,16 +1630,17 @@ def main():
     _teal_diag = []
     _w0 = _WCs.copy()
     _w0[_iu] = _FP.wc_from_color(np.asarray(params["layers"][_iu]["color"]), teal=False)
-    # Cyan and teal differ only in blue, so the fit walks that direction slowly
-    # (12 / 40 / 120 iterations reach 0.020 / 0.049 / 0.088 of 0.109): what is
-    # tested is that the amount LEAVES zero and the colour leaves the cone.
+    # D65 read the slow approach here (12 / 40 / 120 iterations reached 0.020 /
+    # 0.049 / 0.088 of 0.109) as cyan and teal being nearly collinear.  It was
+    # the stall 5b' describes -- a bound amount pulling every step outside the
+    # box -- and with the projected solve 40 iterations reach the target (D66).
     _wfit = _FP.fit(_AT, _tgtT, _w0, np.ones(_tgtT.shape[:2], np.float32), iters=40, verbose=False,
                     free=[_iu], normal=_nfT, teal_ok=_okT)
     _want_t = float(_WCs[_iu, _FP.CONE])
     _got_t = float(_wfit[_iu, _FP.CONE])
     _cf = np.asarray(_FP.color_from_wc(_wfit[_iu]), float)
     _bg = float(_cf[2] / max(_cf[1], 1e-9))
-    if not _okT[_iu] or _w0[_iu, _FP.CONE] != 0.0 or _got_t < 0.3 * _want_t or _bg > 0.95:
+    if not _okT[_iu] or _w0[_iu, _FP.CONE] != 0.0 or _got_t < 0.9 * _want_t or _bg > 0.8:
         _teal_diag.append("flare_ray_ur (eligible) from teal 0 reached %.4f of the target's %.4f, "
                           "B/G %.2f" % (_got_t, _want_t, _bg))
     _wlock = _FP.fit(_AT, _tgtT, _w0, np.ones(_tgtT.shape[:2], np.float32), iters=40, verbose=False,
@@ -1614,7 +1665,7 @@ def main():
     _dk_t = float(_wdf[_iu, _FP.CONE])
     _dk_c = np.asarray(_FP.color_from_wc(_wdf[_iu]), float) * 255.0
     _dk_w = np.asarray(_FP.color_from_wc(_WCs[_iu]), float) * 255.0
-    if _dk_t < 0.5 * _want_t or np.abs(_dk_c - _dk_w).max() > 3.0:
+    if _dk_t < 0.9 * _want_t or np.abs(_dk_c - _dk_w).max() > 1.0:
         _teal_diag.append("flare_ray_ur from NO light reached teal %.4f, colour %s against %s"
                           % (_dk_t, np.round(_dk_c, 1), np.round(_dk_w, 1)))
     check("an eligible layer recovers teal from zero; an ineligible one never gains it",
@@ -1894,6 +1945,18 @@ def main():
                 _SB.setup(_bd5, sheet_path=_side5, compare_sheet=False, verbose=False)
             except _SB.SetupError as exc:
                 _sb_diag.append("--for-publish still compared with the old sheet: %s" % exc)
+            # ... but a publisher on another resvg-py than the pin is refused:
+            # the sheet it drew could not be reproduced by CI
+            _inst5 = _SB.installed_renderer
+            try:
+                _SB.installed_renderer = lambda: "0.0.0-not-the-pin"
+                _SB.setup(_bd5, sheet_path=_side5, compare_sheet=False, verbose=False)
+                _sb_diag.append("--for-publish accepted a renderer other than the pinned one")
+            except _SB.SetupError as exc:
+                if "pins" not in str(exc):
+                    _sb_diag.append("wrong reason for an unpinned publisher: %s" % exc)
+            finally:
+                _SB.installed_renderer = _inst5
             _sheet5(_want5)
             # an SVG that is not the pinned one -> SETUP failure, nothing rendered from it
             _svg5 = os.path.join(_bd5, "reconstruction.svg")
@@ -1911,12 +1974,44 @@ def main():
                        "--baseline", os.path.join(_td5, "nowhere")], capture_output=True, text=True)
         if _r5.returncode != 3 or "SETUP FAILURE" not in _r5.stderr:
             _sb_diag.append("a missing baseline exits %d without saying SETUP FAILURE" % _r5.returncode)
+        # a directory that is not a baseline (no manifest) is refused UNTOUCHED:
+        # `--baseline out` must not delete the committed out/render_1024.png
+        _nb5 = os.path.join(_td5, "not_a_baseline")
+        os.makedirs(_nb5)
+        open(os.path.join(_nb5, _SB.RENDER_NAME), "wb").write(b"keep me")
+        _r5 = _sp.run([sys.executable, os.path.join(ROOT, "tools", "setup_baseline.py"),
+                       "--baseline", _nb5], capture_output=True, text=True)
+        if _r5.returncode != 3 or open(os.path.join(_nb5, _SB.RENDER_NAME), "rb").read() != b"keep me":
+            _sb_diag.append("setup on a directory without a manifest exited %d and%s left its render alone"
+                            % (_r5.returncode, "" if os.path.exists(os.path.join(_nb5, _SB.RENDER_NAME))
+                               else " did not"))
+        # git is asked only about THIS checkout: an enclosing repository (a
+        # source export inside another work tree) is not a clone of this one
+        _outer5 = os.path.join(_td5, "outer")
+        os.makedirs(os.path.join(_outer5, "export"))
+        if _sp.run(["git", "init", "-q", _outer5], capture_output=True).returncode == 0:
+            _ok5, _note5 = _SB.check_commit({"commit": "0" * 40, "svg": "reconstruction.svg"}, _pin5,
+                                            os.path.join(_outer5, "export"))
+            if not _ok5:
+                _sb_diag.append("an enclosing repository was taken for this checkout: %s" % _note5)
+        # a manifest naming a commit this (full) clone lacks fails verify() too
+        _shallow5 = _sp.run(["git", "-C", ROOT, "rev-parse", "--is-shallow-repository"],
+                            capture_output=True, text=True).stdout.strip() == "true"
+        _man5 = json.load(open(os.path.join(_bd5, "manifest.json")))
+        json.dump(dict(_man5, commit="0" * 40), open(os.path.join(_bd5, "manifest.json"), "w"))
+        _v5 = _SB.verify(_bd5, sheet_path=_side5)
+        if not _shallow5 and not any("does not have" in m for m in _v5):
+            _sb_diag.append("verify() passed a manifest naming a commit this full clone lacks: %s" % _v5)
+        json.dump(_man5, open(os.path.join(_bd5, "manifest.json"), "w"))
     check("the baseline setup renders only the pinned SVG and reproduces the sheet's baseline",
           not _sb_diag, "; ".join(_sb_diag) if _sb_diag else
           "no render -> pre-flight reports it absent; the pinned SVG sets up to the recorded baseline "
           "image byte for byte (sheet column found by content); a re-encoded leftover render, a "
           "differing render, an unpinned SVG and a missing baseline are each a SETUP failure (exit 3), "
-          "nothing left behind; --for-publish skips only the sheet comparison")
+          "nothing left behind; a directory without a manifest is refused untouched; an enclosing "
+          "repository is not taken for this checkout, and a manifest naming a commit a full clone "
+          "lacks fails verify(); --for-publish skips only the sheet comparison, and refuses a "
+          "renderer other than the pinned one")
 
     # The published sheet is a release artefact (tools/publish.sh regenerates
     # it); a release whose sheet was drawn from anything but this SVG and the

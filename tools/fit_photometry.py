@@ -206,7 +206,7 @@ def analytic_grad(A, target, WC, weight, normal, layer, comp):
     isnorm = [bool(normal[i]) if normal is not None else False for i in range(n)]
     Kraw = np.asarray(WC, np.float64) @ B
     K = np.clip(Kraw, 0.0, 1.0).astype(np.float32)
-    live = (Kraw < 1.0).astype(np.float32)        # see fit(): 0 is a bound, not a clip
+    live = (Kraw <= 1.0).astype(np.float32)       # see fit(): 0 and 1 are edges, not clips
     P = Af.shape[1]
     out = np.zeros((P, 3), np.float32)
     before = np.empty((n, P, 3), np.float32)
@@ -281,8 +281,11 @@ def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=No
         # its derivative in the feasible direction is BASIS[j, ch].  Treating
         # 0 as clipped (until D66) zeroed every derivative of a layer with no
         # light, so a dark layer could never be fitted back -- and it dropped a
-        # cyan layer's R term from its white amount's gradient.
-        live = (Kraw < 1.0).astype(np.float32)
+        # cyan layer's R term from its white amount's gradient.  A channel AT 1
+        # is the other edge: its derivative going down is BASIS[j, ch] (only
+        # going up is clipped, and the line search sees that), so it counts too
+        # -- else a layer clipped to exactly 1 could never come back down.
+        live = (Kraw <= 1.0).astype(np.float32)
         P = Af.shape[1]
         before = np.empty((n, P, 3), np.float32)
         out = np.zeros((P, 3), np.float32)
@@ -320,6 +323,16 @@ def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=No
                     continue
                 cols.append((g * (B[bi] * live[i])[None, :] * Wf[:, None]).reshape(-1))
         J = np.stack(cols, 1)
+        # Active set: an amount AT a bound whose gradient points out of the
+        # feasible box is held for this iteration.  Counting its derivative
+        # (which D66 made exact at 0, so a dark layer can be fitted back) and
+        # then clipping the step made every step fail its line search until
+        # LM had damped the whole solve into a crawl; the solve must be the
+        # projected one.  A dark layer the target wants lit has an INWARD
+        # gradient and stays free.
+        wv = WC[idx].reshape(-1)
+        g0 = J.T @ r
+        J[:, ((wv <= 0.0) & (g0 > 0.0)) | ((wv >= hi) & (g0 < 0.0))] = 0.0
         G = J.T @ J
         g2 = J.T @ r
         m = len(idx)

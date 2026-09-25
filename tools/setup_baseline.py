@@ -73,6 +73,26 @@ class SetupError(Exception):
     pass
 
 
+def pinned_renderer(root=ROOT):
+    """The resvg-py version requirements.txt pins, or None."""
+    try:
+        for line in open(os.path.join(root, "requirements.txt")):
+            line = line.split("#")[0].strip().replace(" ", "")
+            if line.lower().startswith("resvg-py=="):
+                return line.split("==", 1)[1]
+    except OSError:
+        pass
+    return None
+
+
+def installed_renderer():
+    try:
+        from importlib.metadata import version
+        return version("resvg-py")
+    except Exception:                                   # noqa: BLE001
+        return None
+
+
 def renderer_version():
     try:
         from importlib.metadata import version
@@ -120,6 +140,9 @@ def check_commit(man, svg_sha, root=ROOT):
         return True, "git is not available; pinned by digest"
     if inside.returncode != 0:
         return True, "not a git checkout; pinned by digest"
+    top = _git(root, "rev-parse", "--show-toplevel").stdout.decode().strip()
+    if not top or os.path.realpath(top) != os.path.realpath(root):
+        return True, "not this repository's own checkout (git top level %s); pinned by digest" % (top or "?")
     shallow = _git(root, "rev-parse", "--is-shallow-repository").stdout.strip() == b"true"
     if _git(root, "cat-file", "-e", commit + "^{commit}").returncode != 0:
         if shallow:
@@ -168,6 +191,9 @@ def verify(baseline_dir=BASELINE_DIR, root=ROOT, sheet_path=SHEET, compare_sheet
         man, svg = pinned_svg(baseline_dir)
     except SetupError as exc:
         return [str(exc)]
+    ok, note = check_commit(man, man["svg_sha256"], root)
+    if not ok:
+        return [note]
     png = os.path.join(baseline_dir, RENDER_NAME)
     rel = os.path.relpath(png, root)
     if not os.path.exists(png):
@@ -197,16 +223,29 @@ def _remove(png):
 def setup(baseline_dir=BASELINE_DIR, root=ROOT, sheet_path=SHEET, compare_sheet=True, verbose=True):
     """Render and verify the baseline; returns the render's path.  Raises SetupError.
 
-    Whatever render was there before is removed first, on every path: a setup
-    that fails -- on the pin, the commit, the renderer or the sheet -- leaves no
-    render at all, never an earlier one that the gate's pre-flight could take
-    for a set-up baseline."""
+    Once the directory is known to BE a baseline (it holds a readable
+    manifest), whatever render was there before is removed first, on every
+    path: a setup that fails -- on the pin, the commit, the renderer or the
+    sheet -- leaves no render at all, never an earlier one that the gate's
+    pre-flight could take for a set-up baseline.  A directory without a
+    manifest is refused untouched (`--baseline out` must not delete the
+    committed out/render_1024.png)."""
     out = os.path.join(baseline_dir, RENDER_NAME)
+    manifest(baseline_dir)               # not a baseline directory -> touch nothing in it
     _remove(out)
     man, svg = pinned_svg(baseline_dir)
     ok, note = check_commit(man, man["svg_sha256"], root)
     if not ok:
         raise SetupError(note)
+    if not compare_sheet:
+        # publish.sh redraws the sheet from this render, and CI must then be
+        # able to reproduce it: a publisher on another resvg-py would draw a
+        # sheet CI cannot match, and CI's setup would blame itself.
+        pin, have = pinned_renderer(root), installed_renderer()
+        if pin is not None and have != pin:
+            raise SetupError("publishing with resvg-py %s, but requirements.txt pins %s: the sheet "
+                             "drawn from this render could not be reproduced by CI -- install the "
+                             "pinned versions" % (have, pin))
     data = R.render(svg, SIZE, RENDERER)
     png_sha = hashlib.sha256(data).hexdigest()
     want, wnote = (sheet_expectation(man["svg_sha256"], sheet_path) if compare_sheet
