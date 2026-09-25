@@ -1,7 +1,7 @@
 {
- "png_sha256": "fca22c6fb894a28f506dd14b33039fe92e0e1262f8280bff264fb65ec2da00b1",
+ "png_sha256": "762781c9c49466ae94eaf957177c0d2759d1fbefad5497e7d2dab083baa7c4ab",
  "renderer": "resvg",
  "size": 256,
  "svg_path": "reconstruction.svg",
- "svg_sha256": "c94293db3f6922bd5cfdfde3a8f31d36d90e0a7bae6dfd508c3a834859c1cd24"
+ "svg_sha256": "d412b2f92324a9e5e96e5a4a484a0dc3e6c4b56045afe5994cdd18cbf474316b"
 }

@@ -25,15 +25,15 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 
 | metric | value | for scale |
 |---|---|---|
-| mean absolute error | **1.757** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 3.365 | |
-| MAE on a 1/2.2 display curve | 5.302 | weights the dark background as the eye does; black scores 59.7 |
+| mean absolute error | **1.732** / 255 | a flat black canvas scores 17.89 |
+| RMSE | 3.284 | |
+| MAE on a 1/2.2 display curve | 5.285 | weights the dark background as the eye does; black scores 59.7 |
 | SSIM (luminance) | **0.9756** | black scores 0.142 |
 | worst single-channel error | 79 | |
-| pixels off by more than 2 / 8 / 24 | 34.2% / 4.2% / 0.5% | |
-| mean bias | -0.151 | |
+| pixels off by more than 2 / 8 / 24 | 34.2% / 4.0% / 0.4% | |
+| mean bias | -0.157 | |
 
-Per region (MAE): frame band 2.50, centre 90 px 5.37, bright pixels 8.47, dark background 1.36, everything else 1.58.
+Per region (MAE): frame band 2.50, centre 90 px 4.71, bright pixels 8.16, dark background 1.36, everything else 1.57.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -44,8 +44,8 @@ The two regions a whole-image average cannot police, from
 
 | targeted measurement | value |
 |---|---|
-| MAE within 110 px of the central light | 4.67 |
-| worst ring of the flare's radial profile | +1.7 code values at r = 20-30 |
+| MAE within 110 px of the central light | 4.18 |
+| worst ring of the flare's radial profile | +1.5 code values at r = 20-30 |
 | curve glow, rms relative error over 21 signed-distance bins | 2.8% |
 | the same, resolved along the curve (71 cells) | 4.9% |
 | light in the four interior corners, rms relative error | 5.0% |
@@ -53,7 +53,7 @@ The two regions a whole-image average cannot police, from
 | left lobe, MAE more than 25 px from the ridge | 1.34 (bias -0.19) |
 | right lobe, MAE more than 25 px from the ridge | 1.31 (bias -0.11) |
 
-Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.697 (SSIM 0.9554); see `out/validation.md` for the resolution sweep.
+Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.693 (SSIM 0.9554); see `out/validation.md` for the resolution sweep.
 <!-- METRICS:END -->
 
 ## What is in here
@@ -160,10 +160,13 @@ restated those numbers drifted out of date twice, so it no longer does.
    confined to the flare's height: within ~40 px of the core row both curves
    are whiter on their concave side than the other glow terms draw -- on the
    left curve, 66 px from the core, as much as on the right -- so that light is
-   the curves' and not the flare's. A component closing the gap between 5.8 and
-   20.6 px was built and measured; it raises what the basis can achieve beside
-   the ridge but did not improve the render, and is not shipped
-   (docs/DECISIONS.md D19, D22).
+   the curves' and not the flare's. The narrowest concave term is split into
+   a cyan layer and a white one, and near the flare's rows their fades were
+   measured station by station on each curve (D66): there the reference's
+   glow is white, not cyan, on both curves. A component closing the gap
+   between 5.8 and 20.6 px was built and measured; it raises what the basis
+   can achieve beside the ridge but did not improve the render, and is not
+   shipped (docs/DECISIONS.md D19, D22).
 3. **Central light** — thirty-two layers: five radial blooms, nine
    horizontal streak components at the three measured line heights (lines A
    and B each carry their white in a layer of their own, so white and cyan
@@ -291,7 +294,14 @@ enough to search the geometry.
   not light (G and B match the south's), so this is not an occluder: the
   core's symmetric white (halo and fan) would have to become directional, a
   redesign not attempted (D64). Moving the fan's centre south, the one local
-  lever, changed nothing measurable (D65).
+  lever, changed nothing measurable (D65). Every other existing lever trades
+  the north against the south or damages the core (D66), and the right curve's
+  whiter concave glow (D66) adds about 2 cv of red there.
+* **Just past the right curve at the core's height, part of the remaining
+  green is the flare's own light**, compact within ~30 px of the core and
+  shaped like the fan and halo, not like the curve's glow. The curve's part
+  was fixed at the curve (D66); the flare part is left, since dimming the
+  flare there would trade one error for another.
 * The two dark axial wedges between the diverging curves used to be
   over-predicted by ~4 code values, and this list blamed the additive stack for
   it: "a screen stack can only add light". That was the wrong diagnosis. The
