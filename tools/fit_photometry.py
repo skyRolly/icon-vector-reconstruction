@@ -206,7 +206,7 @@ def analytic_grad(A, target, WC, weight, normal, layer, comp):
     isnorm = [bool(normal[i]) if normal is not None else False for i in range(n)]
     Kraw = np.asarray(WC, np.float64) @ B
     K = np.clip(Kraw, 0.0, 1.0).astype(np.float32)
-    live = ((Kraw > 0.0) & (Kraw < 1.0)).astype(np.float32)
+    live = (Kraw < 1.0).astype(np.float32)        # see fit(): 0 is a bound, not a clip
     P = Af.shape[1]
     out = np.zeros((P, 3), np.float32)
     before = np.empty((n, P, 3), np.float32)
@@ -276,7 +276,13 @@ def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=No
         # the clip made the analytic gradient of a saturated layer 1.6x too
         # large (measured on arc_core, whose unclipped blue channel is 1.0014),
         # which LM's line search absorbs but which is still a wrong Jacobian.
-        live = ((Kraw > 0.0) & (Kraw < 1.0)).astype(np.float32)
+        # The LOWER bound is not a clip: amounts and primaries are
+        # non-negative, so Kraw >= 0 and a channel AT 0 can only increase --
+        # its derivative in the feasible direction is BASIS[j, ch].  Treating
+        # 0 as clipped (until D66) zeroed every derivative of a layer with no
+        # light, so a dark layer could never be fitted back -- and it dropped a
+        # cyan layer's R term from its white amount's gradient.
+        live = (Kraw < 1.0).astype(np.float32)
         P = Af.shape[1]
         before = np.empty((n, P, 3), np.float32)
         out = np.zeros((P, 3), np.float32)
@@ -557,8 +563,30 @@ def teal_eligible(params):
 
 
 def params_wc(params):
-    return np.array([wc_from_color(L.get("color", [128, 128, 128]), teal="teal" in L)
-                     for L in params["layers"]], np.float32)
+    """Every layer's basis amounts, (n, NB).
+
+    The STORED amounts are used whenever they reproduce the stored colour (to
+    0.02 cv); only a layer without them, or whose amounts disagree with its
+    colour, is decomposed from the colour.  Decomposing always (until D66) lost
+    information twice: a colour clipped at 255 has no unique pre-clip amounts,
+    so arc_core (216.24, 255, 255) came back as amounts that re-compose to
+    (216.24, 253.77, 255) and every fit_photometry run rewrote it by 1.23 cv
+    even when nothing was fitted; and with four primaries a teal layer's colour
+    has many decompositions, so a fit started from different amounts than the
+    ones the calibration scales.  The rendered colour is the same either way.
+    """
+    out = []
+    for L in params["layers"]:
+        teal = "teal" in L
+        color = L.get("color", [128, 128, 128])
+        names = COMPONENTS if teal else COMPONENTS[:CONE]
+        if all(c in L for c in names):
+            wc = np.array([float(L[c]) for c in names] + ([] if teal else [0.0]))
+            if (wc >= 0).all() and np.abs(color_from_wc(wc) * 255.0 - np.asarray(color, float)).max() <= 0.02:
+                out.append(wc)
+                continue
+        out.append(wc_from_color(color, teal=teal))
+    return np.array(out, np.float32)
 
 
 def held_free(params):

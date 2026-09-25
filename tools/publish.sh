@@ -75,7 +75,7 @@ python3 tools/flare_view.py out/render_1024.png --out out/flare_view.png
 # or this release's render does not match the SVG it is labelled as.
 # The baseline's render is made by the same setup step CI runs (D66): only the
 # SVG the manifest pins is rendered, and a failure there is a SETUP failure.
-python3 tools/setup_baseline.py
+python3 tools/setup_baseline.py --for-publish
 python3 tools/flare_parts.py out/render_1024.png --svg reconstruction.svg \
     --baseline out/baseline --labels "this release" --out out/flare_parts.png
 # ...and prove it: the sheet's provenance sidecar names every input by digest,
