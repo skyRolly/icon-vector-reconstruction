@@ -9,8 +9,8 @@ rounded-square frame — as a hand-built, parametric SVG.
 | ![reference](out/side_reference.png) | ![reconstruction](out/side_reconstruction.png) | ![difference](out/side_diff.png) |
 
 <!-- DELIVERABLE:START -->
-**Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 53 named
-layers, 101 KB, no embedded bitmap and no traced outlines. Every mark is a
+**Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 54 named
+layers, 105 KB, no embedded bitmap and no traced outlines. Every mark is a
 primitive driven by a named parameter in
 [`src/params.json`](src/params.json): one path for the frame, two cubic-Bézier
 paths for the luminous curves (reused, offset and clipped, by every glow
@@ -25,15 +25,15 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 
 | metric | value | for scale |
 |---|---|---|
-| mean absolute error | **1.804** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 3.812 | |
-| MAE on a 1/2.2 display curve | 5.331 | weights the dark background as the eye does; black scores 59.7 |
-| SSIM (luminance) | **0.9746** | black scores 0.142 |
-| worst single-channel error | 110 | |
+| mean absolute error | **1.757** / 255 | a flat black canvas scores 17.89 |
+| RMSE | 3.365 | |
+| MAE on a 1/2.2 display curve | 5.302 | weights the dark background as the eye does; black scores 59.7 |
+| SSIM (luminance) | **0.9756** | black scores 0.142 |
+| worst single-channel error | 79 | |
 | pixels off by more than 2 / 8 / 24 | 34.2% / 4.2% / 0.5% | |
-| mean bias | -0.219 | |
+| mean bias | -0.151 | |
 
-Per region (MAE): frame band 2.50, centre 90 px 5.95, bright pixels 9.66, dark background 1.36, everything else 1.62.
+Per region (MAE): frame band 2.50, centre 90 px 5.37, bright pixels 8.47, dark background 1.36, everything else 1.58.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -44,8 +44,8 @@ The two regions a whole-image average cannot police, from
 
 | targeted measurement | value |
 |---|---|
-| MAE within 110 px of the central light | 5.16 |
-| worst ring of the flare's radial profile | +1.1 code values at r = 20-30 |
+| MAE within 110 px of the central light | 4.67 |
+| worst ring of the flare's radial profile | +1.7 code values at r = 20-30 |
 | curve glow, rms relative error over 21 signed-distance bins | 2.8% |
 | the same, resolved along the curve (71 cells) | 4.9% |
 | light in the four interior corners, rms relative error | 5.0% |
@@ -53,7 +53,7 @@ The two regions a whole-image average cannot police, from
 | left lobe, MAE more than 25 px from the ridge | 1.34 (bias -0.19) |
 | right lobe, MAE more than 25 px from the ridge | 1.31 (bias -0.11) |
 
-Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.702 (SSIM 0.9553); see `out/validation.md` for the resolution sweep.
+Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.697 (SSIM 0.9554); see `out/validation.md` for the resolution sweep.
 <!-- METRICS:END -->
 
 ## What is in here
@@ -190,9 +190,10 @@ restated those numbers drifted out of date twice, so it no longer does.
    tells a flank's light from a line's, so the whole-image fits hold the flank
    and calibration restores it (D65). The westward triangle that two
    straight-edged flank layers once drew is gone and stays gone (D61).
-4. **Curve cores** — a hard-edged bright stroke on each path plus a narrower
-   inset one, because the measured core is 5.8 px at the tips, 8.4 px at
-   mid-height, and asymmetric about its own centre-line.
+4. **Curve cores** — a hard-edged bright stroke on each path plus two thin
+   mid-tapered ones, one on each side, because the measured core widens from
+   about 6.2 px at the tips to about 8 px at mid-height on both sides of its
+   centre-line (the flare-side stroke is D66's).
 5. **Rim** — two frame-ring strokes, a uniform base and a gradient-painted rim,
    because the measured rim brightness peaks at the middle of each edge and the
    top edge is twice as bright as the bottom. Two further layers light the four

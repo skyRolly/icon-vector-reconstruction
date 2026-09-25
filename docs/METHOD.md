@@ -304,12 +304,18 @@ fit and are data; the two components added above postdate that fit, so reusing
 measurement. They carry their own fades (`tapers.haze`, `tapers.glow2b`) as
 tunable ramps instead.
 
-The core's width is not constant -- 5.8 px at both tips, 8.4 px at mid-height --
-and it is **not symmetric about its own centre-line**: its 50% edges reach
-4.8 px on the concave side but only 3.3 px on the convex side. A single stroke
-cannot do either, so the core is two strokes: a full-length one on the fitted
-centre-line, and a narrower inset one tapered towards mid-height that supplies
-exactly that extra concave-side width.
+The core's width is not constant: measured along the normal of the curve of
+record, its R half-level edges sit at about +-3.1 px at the tips and at
+-3.9..-4.0 px (flare side) / +4.0..+4.2 px (lens side) at mid-height, so it
+widens from about 6.2 px to 7.9-8.1 px, nearly symmetrically. A single stroke
+cannot do that, so the core is three strokes: a full-length one on the fitted
+centre-line (`arc_core`), and two thin strokes tapered towards mid-height that
+supply the extra width, one on the lens side (`arc_core_wide`, inset +2) and
+one on the flare side (`arc_core_edge`, inset -3.4, D66). Until D66 the core
+was described as asymmetric (4.8 px lens side / 3.3 px flare side) and only the
+lens-side stroke existed; against the current curve of record that asymmetry
+is 0.1-0.3 px, and the flare-side edge was 0.4-0.9 px short along the whole
+middle of both curves.
 
 The fades along the arcs are not guessed: the core coverage and each glow term's
 amplitude were measured station by station on both arcs and are carried in

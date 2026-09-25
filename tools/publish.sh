@@ -85,11 +85,15 @@ python3 tools/flare_parts.py out/render_1024.png --svg reconstruction.svg \
 python3 tools/flare_parts.py --verify --svg reconstruction.svg --baseline out/baseline \
     --out out/flare_parts.png
 
-echo "== 4. regression checks =="
-python3 -u tools/test_pipeline.py
-
-echo "== 5. README =="
+# The README's generated blocks (metrics, layer count, size) are written from
+# step 3's measurements BEFORE the gate runs, so the gate checks what ships.
+# Until D66 they were written after it, and the first release to change the
+# layer count failed its own gate on the previous release's README.
+echo "== 4. README =="
 python3 tools/update_readme.py
+
+echo "== 5. regression checks =="
+python3 -u tools/test_pipeline.py
 
 echo "== 6. reproducibility =="
 # The committed parameters must rebuild the committed SVG byte for byte.  This

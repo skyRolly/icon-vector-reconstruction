@@ -3156,10 +3156,41 @@
    "id": "arc_core_wide",
    "inset": 2.0,
    "kind": "arc",
-   "note": "the reference core is asymmetric about its centre-line: its 50% edges reach 4.8 px on the concave side but only 3.3 px on the convex side, and it widens from 6.1 px at the tips to 8.4 px at mid-height. This second, inset, mid-tapered stroke supplies exactly that extra concave-side width.",
+   "note": "the lens-side (concave) widening of the core toward mid-height: an inset, mid-tapered stroke.  D66: the asymmetry this was built on (50% edges at 4.8 px concave / 3.3 px convex) does not hold against the current curve of record: measured along its normal, the reference's R half-level edges sit at -3.9..-4.0 px (flare side) and +4.0..+4.2 px (lens side) at mid-height and about +-3.1 px at the tips, symmetric within 0.1-0.3 px.  This stroke supplies the lens side of the mid-height widening; arc_core_edge supplies the flare side.",
    "taper": "core_wide",
    "white": 0.36827,
    "width": 4.02688
+  },
+  {
+   "blue": 0.06856,
+   "blur": 0.20421316015498364,
+   "bounds": {
+    "inset": [
+     -5.0,
+     0.0
+    ],
+    "width": [
+     0.5,
+     6.0
+    ],
+    "blur": [
+     0.2,
+     1.6
+    ]
+   },
+   "color": [
+    93.91,
+    184.25,
+    207.5
+   ],
+   "cyan": 0.37689,
+   "id": "arc_core_edge",
+   "inset": -3.4,
+   "kind": "arc",
+   "note": "D66: the convex (flare-facing) counterpart of arc_core_wide: measured along the normal of the curve of record, the reference core's R half-level edges sit at -3.9..-4.0 / +4.0..+4.2 px at mid-height (symmetric within ~0.2 px) and at +-3.1 px at the tips, but arc_core alone reaches only 3.42 px on the convex side, so the convex edge was 0.4-0.9 px short over y ~240-790 on both curves.  A thin stroke over s = -4.1..-2.7 px with arc_core_wide's own colour and blur, on its own mid ramp (tapers.core_edge, fitted to the per-height alpha both curves ask for), supplies that width; the tips are untouched.",
+   "taper": "core_edge",
+   "white": 0.36827,
+   "width": 1.4
   },
   {
    "blend": "normal",
@@ -4773,6 +4804,15 @@
    "y1": 498.5,
    "y2": 528.5,
    "y3": 568.5
+  },
+  "core_edge": {
+   "kind": "ramp",
+   "y0": 235.0,
+   "y1": 300.0,
+   "y2": 705.0,
+   "y3": 790.0,
+   "p0": 1.0,
+   "p1": 1.0
   }
  }
 }
