@@ -594,6 +594,34 @@ class Builder:
             '<radialGradient id="%s" gradientUnits="userSpaceOnUse" cx="%s" cy="%s" r="%s"%s>%s</radialGradient>'
             % (gid, f(cx), f(cy), f(r), tr, body), gid)
 
+    def gap_mask(self, gid, g):
+        """A luminance mask that removes a blurred annular sector from one layer.
+
+        `gap` = {cx, cy, th0, th1, r0, r1, depth, blur}: the sector between the
+        angles th0..th1 (degrees, counter-clockwise from east with y UP, so 90
+        is due north) and the radii r0..r1 about (cx, cy), blurred by `blur`,
+        is multiplied by (1 - depth).  It only ever lowers the layer's own
+        coverage, so the composite stays a screen of non-negative layers: this
+        is a directional layer, not a darkening one.  resvg reads a luminance
+        mask linearly in sRGB values (a #808080 mask passes exactly half).
+        The mask is in the element's user space, so on a layer with `rot` the
+        gap turns with it.  A layer without `gap` emits exactly what it did.
+        """
+        n = 24
+        t0, t1 = math.radians(g["th0"]), math.radians(g["th1"])
+        ts = [t0 + (t1 - t0) * i / (n - 1.0) for i in range(n)]
+        cx, cy, r0, r1 = g["cx"], g["cy"], g["r0"], g["r1"]
+        pts = ([(cx + r0 * math.cos(t), cy - r0 * math.sin(t)) for t in ts] +
+               [(cx + r1 * math.cos(t), cy - r1 * math.sin(t)) for t in reversed(ts)])
+        d = "M" + " L".join("%s,%s" % (f(x, 2), f(y, 2)) for x, y in pts) + " Z"
+        filt = ' filter="url(#%s)"' % self.blur(g["blur"]) if g.get("blur") else ""
+        mid = "m_" + gid
+        return self.add_def(
+            '<mask id="%s" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">'
+            '<rect width="1024" height="1024" fill="#ffffff"/>'
+            '<path d="%s" fill="#000000" fill-opacity="%s"%s/></mask>'
+            % (mid, d, f(g.get("depth", 1.0), 4), filt), mid)
+
     # -- one layer --------------------------------------------------------- #
     def layer(self, L, white=False):
         """Return the SVG element for layer L (white/full opacity when fitting).
@@ -687,8 +715,9 @@ class Builder:
                               L.get("squash", 1.0), L.get("rot", 0.0))
             rx = L["r"]; ry = L["r"] * L.get("squash", 1.0)
             tr = ' transform="rotate(%s %s %s)"' % (f(L["rot"]), f(cx), f(cy)) if L.get("rot") else ""
-            return ('<ellipse cx="%s" cy="%s" rx="%s" ry="%s" fill="url(#%s)"%s%s%s%s%s/>'
-                    % (f(cx), f(cy), f(rx), f(ry), gid, tr, filt, clip, opa, blend))
+            mk = ' mask="url(#%s)"' % self.gap_mask(gid, L["gap"]) if L.get("gap") else ""
+            return ('<ellipse cx="%s" cy="%s" rx="%s" ry="%s" fill="url(#%s)"%s%s%s%s%s%s/>'
+                    % (f(cx), f(cy), f(rx), f(ry), gid, tr, filt, clip, mk, opa, blend))
 
         if kind == "streak":
             # One member of the central light's horizontal streak family.

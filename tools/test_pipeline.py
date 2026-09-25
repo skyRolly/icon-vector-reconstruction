@@ -186,7 +186,7 @@ def main():
     # ever being reported.  That gap cannot be closed by flagging every unbounded
     # number -- 486 of the model's 627 numeric leaves are unbounded on purpose,
     # so a report of all of them reports nothing.  What CAN be pinned is the
-    # inventory: every unbounded number today belongs to one of fourteen kinds,
+    # inventory: every unbounded number today belongs to one of fifteen kinds,
     # each searched by a different mechanism or measured rather than fitted.  A
     # new unbounded field in a NEW kind is the case worth catching, and this
     # fires on it.  `paint/x1..y2` is the one kind that is neither -- eight
@@ -206,6 +206,10 @@ def main():
         "paint/x2": "frozen canvas gradient extent (D55)",
         "paint/y1": "frozen canvas gradient extent (D55)",
         "paint/y2": "frozen canvas gradient extent (D55)",
+        # D67: a radial layer's directional gap (build_svg Builder.gap_mask),
+        # fitted to the core's reference residual and held, like the white
+        # arms' shape
+        "gap": "fitted to the reference and held (D67)",
     }
 
     def _numeric_leaves(node, prefix):
@@ -1706,6 +1710,63 @@ def main():
           "refresh (also on a family-restricted trial, as sweep scores them), a reordered stack "
           "re-seeds, and a layer that loses teal eligibility is scored without teal"
           % (100 * abs(_sK["A"] - _sK["B"]) / abs(_sK["A"])))
+
+    # ---- a radial layer's directional gap only removes its own light (D67) - #
+    # The halo carries a fitted gap north-east of the core (a blurred annular
+    # sector of its own coverage removed by a luminance mask).  It must stay a
+    # directional LAYER, never a darkening one.  On the shipped file, rendered
+    # alone, the halo with its gap may never exceed the halo without it and
+    # must be unchanged away from the sector.  The shipped sector lies where
+    # the halo is faint (<= 7/255), so the mechanism is also checked with a
+    # probe gap over the halo's bright part: depth 1 removes (all but) all of
+    # it inside, depth 0.5 about half (resvg reads a luminance mask linearly).
+    # A layer without a gap must emit no mask at all.
+    _gapL = [L for L in params["layers"] if L.get("gap")]
+    _gd = []
+    _yy, _xx = np.mgrid[0:1024, 0:1024] + 0.5
+    def _halo(pp):
+        return _FP.render_array(build_svg.build(pp, basis="flare_halo"), 1024)[..., 0].astype(np.float64)
+    def _sector(g, pad_th, pad_r):
+        rr = np.hypot(_xx - g["cx"], _yy - g["cy"])
+        th = np.degrees(np.arctan2(-(_yy - g["cy"]), _xx - g["cx"]))
+        return (th > g["th0"] + pad_th) & (th < g["th1"] - pad_th) & (rr > g["r0"] + pad_r) & (rr < g["r1"] - pad_r)
+    if [L["id"] for L in _gapL] != ["flare_halo"]:
+        _gd.append("layers with a gap: %s (expected flare_halo)" % [L["id"] for L in _gapL])
+    else:
+        _g = _gapL[0]["gap"]
+        _pn = _cpk.deepcopy(params)
+        for _Lg in _pn["layers"]:
+            _Lg.pop("gap", None)
+        if "<mask" in build_svg.build(_pn):
+            _gd.append("a stack without gaps still emits a mask")
+        _cw, _cn = _halo(params), _halo(_pn)
+        _added = float((_cw - _cn).max() * 255)
+        _away = float(np.abs(_cw - _cn)[~_sector(_g, -12, -6 * _g["blur"])].max() * 255)
+        _removed = float((_cn - _cw).max() * 255)
+        if _added > 1.0:
+            _gd.append("the gap ADDS light (up to %.1f cv)" % _added)
+        if _away > 1.0:
+            _gd.append("the halo changed away from its gap (up to %.1f cv)" % _away)
+        if _removed < 3.0:
+            _gd.append("the shipped gap removes nothing (max %.1f cv)" % _removed)
+        _probe = {"cx": _g["cx"], "cy": _g["cy"], "th0": -20.0, "th1": 20.0, "r0": 4.0, "r1": 30.0, "blur": 1.0}
+        _inP = _sector(_probe, 6, 3) & (_cn > 40 / 255.0)
+        _left = {}
+        for _dep in (1.0, 0.5):
+            _pp = _cpk.deepcopy(_pn)
+            for _Lg in _pp["layers"]:
+                if _Lg["id"] == "flare_halo":
+                    _Lg["gap"] = dict(_probe, depth=_dep)
+            _left[_dep] = float(_halo(_pp)[_inP].sum() / _cn[_inP].sum())
+        if not (_inP.sum() > 100 and _left[1.0] < 0.03 and 0.42 < _left[0.5] < 0.58):
+            _gd.append("probe gap over the bright halo (%d px) leaves %.3f at depth 1 and %.3f at depth 0.5"
+                       % (int(_inP.sum()), _left[1.0], _left[0.5]))
+    check("a radial layer's gap removes only its own light, only in its sector",
+          not _gd, "; ".join(_gd) if _gd else
+          "shipped halo gap: never brighter (max %+.2f cv), removes up to %.0f cv, identical away from its "
+          "sector (max %.2f cv); a probe gap over the bright halo (%d px) leaves %.1f%% at depth 1 and "
+          "%.1f%% at depth 0.5; no mask without a gap"
+          % (_added, _removed, _away, int(_inP.sum()), 100 * _left[1.0], 100 * _left[0.5]))
 
     # ---- teal is a PERMISSION, not the current amount (D65) --------------- #
     # The review case: fit() locked the fourth primary on every layer whose

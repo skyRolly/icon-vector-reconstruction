@@ -10,7 +10,7 @@ rounded-square frame — as a hand-built, parametric SVG.
 
 <!-- DELIVERABLE:START -->
 **Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 54 named
-layers, 105 KB, no embedded bitmap and no traced outlines. Every mark is a
+layers, 106 KB, no embedded bitmap and no traced outlines. Every mark is a
 primitive driven by a named parameter in
 [`src/params.json`](src/params.json): one path for the frame, two cubic-Bézier
 paths for the luminous curves (reused, offset and clipped, by every glow
@@ -26,14 +26,14 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 | metric | value | for scale |
 |---|---|---|
 | mean absolute error | **1.732** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 3.284 | |
+| RMSE | 3.283 | |
 | MAE on a 1/2.2 display curve | 5.285 | weights the dark background as the eye does; black scores 59.7 |
 | SSIM (luminance) | **0.9756** | black scores 0.142 |
 | worst single-channel error | 79 | |
 | pixels off by more than 2 / 8 / 24 | 34.2% / 4.0% / 0.4% | |
 | mean bias | -0.157 | |
 
-Per region (MAE): frame band 2.50, centre 90 px 4.71, bright pixels 8.16, dark background 1.36, everything else 1.57.
+Per region (MAE): frame band 2.50, centre 90 px 4.70, bright pixels 8.16, dark background 1.36, everything else 1.57.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -44,8 +44,8 @@ The two regions a whole-image average cannot police, from
 
 | targeted measurement | value |
 |---|---|
-| MAE within 110 px of the central light | 4.18 |
-| worst ring of the flare's radial profile | +1.5 code values at r = 20-30 |
+| MAE within 110 px of the central light | 4.17 |
+| worst ring of the flare's radial profile | +1.3 code values at r = 65-90 |
 | curve glow, rms relative error over 21 signed-distance bins | 2.8% |
 | the same, resolved along the curve (71 cells) | 4.9% |
 | light in the four interior corners, rms relative error | 5.0% |
@@ -53,7 +53,7 @@ The two regions a whole-image average cannot police, from
 | left lobe, MAE more than 25 px from the ridge | 1.34 (bias -0.19) |
 | right lobe, MAE more than 25 px from the ridge | 1.31 (bias -0.11) |
 
-Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.693 (SSIM 0.9554); see `out/validation.md` for the resolution sweep.
+Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.692 (SSIM 0.9554); see `out/validation.md` for the resolution sweep.
 <!-- METRICS:END -->
 
 ## What is in here
@@ -167,7 +167,9 @@ restated those numbers drifted out of date twice, so it no longer does.
    between 5.8 and 20.6 px was built and measured; it raises what the basis
    can achieve beside the ridge but did not improve the render, and is not
    shipped (docs/DECISIONS.md D19, D22).
-3. **Central light** — thirty-two layers: five radial blooms, nine
+3. **Central light** — thirty-two layers: five radial blooms (the halo with
+   one fitted gap north-east of the core, where the reference's white has a
+   notch; D67), nine
    horizontal streak components at the three measured line heights (lines A
    and B each carry their white in a layer of their own, so white and cyan
    follow different profiles along the line; D64), the vertical diffraction
