@@ -167,7 +167,7 @@ def main():
     # ever being reported.  That gap cannot be closed by flagging every unbounded
     # number -- 486 of the model's 627 numeric leaves are unbounded on purpose,
     # so a report of all of them reports nothing.  What CAN be pinned is the
-    # inventory: every unbounded number today belongs to one of thirteen kinds,
+    # inventory: every unbounded number today belongs to one of fourteen kinds,
     # each searched by a different mechanism or measured rather than fitted.  A
     # new unbounded field in a NEW kind is the case worth catching, and this
     # fires on it.  `paint/x1..y2` is the one kind that is neither -- eight
@@ -176,6 +176,8 @@ def main():
     _KNOWN_UNBOUNDED = {
         "white": "photometric fit", "cyan": "photometric fit",
         "blue": "photometric fit", "color": "derived from the coefficients",
+        # D64: the fourth primary, carried only by the TEAL_LAYERS of record
+        "teal": "photometric fit",
         "profile": "tabulated from the reference",
         "profile_e": "tabulated from the reference",
         "profile_s": "tabulated from the reference",
@@ -1151,11 +1153,33 @@ def main():
             pass
     finally:
         MFL.RAY_GEOMETRY["flare_ray_b"] = _saved
+    # The same pair in the PARAMS, the other place it could live (a review
+    # re-reported it against an older commit, D64): drift() must name it, and
+    # --geometry must put back the reachable record so that what is emitted
+    # and drawn is the record again, pixel for pixel.
+    _dv = _cp.deepcopy(params)
+    _Ld = next(x for x in _dv["layers"] if x["id"] == "flare_ray_b")
+    _Ld.update(onset=0.4463, peak_at=0.4011)
+    if not any(d[0] == "flare_ray_b" and d[1] == "profile" for d in MFL.drift(_dv)):
+        _onset.append("the D62 onset/peak in the params is not reported by drift()")
+    try:
+        with _clf.redirect_stdout(_iof.StringIO()):
+            MFL.apply_geometry(_dv)
+    except SystemExit as _e:
+        _onset.append("--geometry refused to repair the params: %s" % str(_e).splitlines()[0])
+    _gm2 = _re2.search(r'<linearGradient id="g_flare_ray_b"[^>]*>(.*?)</linearGradient>', _BS.build(_dv))
+    _offs2 = [float(v) for v in _re2.findall(r'offset="([0-9.]+)"', _gm2.group(1))] if _gm2 else []
+    _rep = float(np.abs(_ray_cov(_dv) - _c0).max())
+    if (MFL.drift(_dv) or len(_offs2) != 6 or abs(_offs2[1] - _bg["onset"]) > 1e-4
+            or abs(_offs2[3] - _bg["peak_at"]) > 1e-4 or _rep != 0.0):
+        _onset.append("--geometry did not repair the D62 onset/peak in the params (stops %s, "
+                      "render delta %g)" % (_offs2, _rep))
     check("every stored onset and tail is one the builder draws",
           not _onset, "; ".join(_onset[:4]) if _onset else
           "no clamped onset or tail in the record or the shipped rays; flare_ray_b's onset %.4f is "
           "drawn as stored; +-0.03 inside its range moves the render by %.3f / %.3f, two values "
-          "past the clamp render identically; the D62 record (onset after peak) is refused"
+          "past the clamp render identically; the D62 record (onset after peak) is refused, and "
+          "the same pair in the params is reported and repaired by --geometry to the shipped render"
           % (_bg["onset"], _inside[0], _inside[1]))
 
     # ---- 6g. flare calibration: profile-aware, segment-aware, verified ---- #
@@ -1176,7 +1200,7 @@ def main():
 
     def _amp(P, lid):
         L = next(x for x in P["layers"] if x["id"] == lid)
-        return sum(float(L.get(c, 0.0)) for c in ("white", "cyan", "blue"))
+        return sum(float(L.get(c, 0.0)) for c in ("white", "cyan", "blue", "teal"))
 
     def _scaled(P, factors):
         Q = json.loads(json.dumps(P))
@@ -1503,21 +1527,54 @@ def main():
     # (flare_spike is [256.9, 372.9, 455.0]) is not a violation: split_color
     # clamps it to white and the coefficients say white.
     import fit_photometry as _FP
+    #
+    # D64 added a fourth primary, TEAL, for six ray layers whose own lines are
+    # greener than the cone.  It is a decision made where the cone is defined
+    # (fit_photometry TEAL, measure_flare TEAL_LAYERS), so this also requires
+    # that exactly those layers carry it and that no other layer's colour has
+    # left the white/cyan/blue cone.
+    import measure_flare as _MF2
     off_cone = []
     for L in params["layers"]:
         c = L.get("color")
         if c is None:
             continue
         want = np.clip(np.asarray(_FP.color_from_wc(
-            [L.get("white", 0.0), L.get("cyan", 0.0), L.get("blue", 0.0)]), float) * 255.0, 0, 255)
+            [L.get(k, 0.0) for k in _FP.COMPONENTS]), float) * 255.0, 0, 255)
         got = np.clip(np.asarray(c, float), 0, 255)
         d = float(np.abs(want - got).max())
         if d > 0.05:
             off_cone.append("%s (%.1f cv)" % (L["id"], d))
-    check("every layer's colour is reachable from its white/cyan/blue",
+        # A layer without a `teal` key is drawn from white/cyan/blue alone
+        # (L.get("teal", 0.0) above), so passing the comparison above already
+        # puts it inside the cone.  Re-decomposing the stored colour instead
+        # would misfire on a colour clipped at 255 (arc_core's G).
+    _teal = sorted(L["id"] for L in params["layers"] if "teal" in L)
+    if _teal != sorted(_MF2.TEAL_LAYERS):
+        off_cone.append("teal carried by %s, of record %s" % (_teal, sorted(_MF2.TEAL_LAYERS)))
+    check("every layer's colour is reachable from its white/cyan/blue(/teal)",
           not off_cone,
-          "%d layers; off-cone: %s" % (len(params["layers"]),
-                                       ", ".join(off_cone) or "none"))
+          "%d layers, %d of them teal layers of record; off-cone: %s"
+          % (len(params["layers"]), len(_teal), ", ".join(off_cone) or "none"))
+
+    # ---- a horizontal line drawn as two colours is still ONE line ----------- #
+    # Lines A and B each carry their white in a layer of its own (flare_streak_w,
+    # and since D64 flare_spike_w) so white and cyan can follow different
+    # longitudinal profiles.  That is only one line if both layers sit on the
+    # same row and run the same length; a search that moved one of the pair
+    # would draw two thin lines where the reference has one.  (Widths may
+    # differ: line A's white is measured narrower than its cyan.)
+    _byid = {L["id"]: L for L in params["layers"]}
+    _pair_bad = []
+    for _cy, _w in (("flare_streak", "flare_streak_w"), ("flare_spike", "flare_spike_w")):
+        if _cy not in _byid or _w not in _byid:
+            _pair_bad.append("%s/%s missing" % (_cy, _w))
+            continue
+        for _k in ("cy", "dy", "half_len"):
+            if _byid[_cy].get(_k) != _byid[_w].get(_k):
+                _pair_bad.append("%s %s %r != %s %r" % (_cy, _k, _byid[_cy].get(_k), _w, _byid[_w].get(_k)))
+    check("each two-colour horizontal line is one line (same row and length)",
+          not _pair_bad, "; ".join(_pair_bad) or "line A and line B pairs agree")
 
     # ---- render provenance cannot authenticate a raster it does not describe #
     # The three-step case the review asks for, run for real rather than

@@ -68,12 +68,30 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # point of fitting in this basis rather than in free RGB: a shape error can no
 # longer be hidden by inventing a green or magenta glow layer, which is what
 # free-RGB fitting did.
+#
+# A FOURTH primary, TEAL (0, 1, 0.7), exists for six ray layers only (D64).
+# Four of the reference's rays -- upper-left A, the upper-right pair, the
+# 267-degree pair and the 229-degree lobe's cyan segment -- carry B BELOW G
+# above their local ramp (B/G 0.73-0.86, measured on their own lines), which
+# no non-negative mix of the three can draw: the cone's floor is cyan's 1.06.
+# Tested before adding: blending in linear light does not explain it (it moves
+# every ray the same way), and a controlled fit of every ray family in three
+# bases -- the cone, the cone + (0, 1, 0.8), the cone + pure green -- put the
+# new primary on exactly those four families and nowhere it was not
+# interchangeable with cyan.  (0, 1, 0.7) is the greenest ray measured, so the
+# extension reaches the evidence and no further.  A layer may use it only if
+# it carries a "teal" key (TEAL_LAYERS in tools/measure_flare.py, checked by
+# test_pipeline); for every other layer the cone argument above still holds,
+# and `fit` cannot move one into it.
 WHITE = np.array([1.0, 1.0, 1.0], np.float32)
 CYAN = np.array([0.0, 0.94, 1.0], np.float32)
 BLUE = np.array([0.0, 0.0, 1.0], np.float32)
-BASIS = np.stack([WHITE, CYAN, BLUE])    # (3, 3)
+TEAL = np.array([0.0, 1.0, 0.7], np.float32)
+BASIS = np.stack([WHITE, CYAN, BLUE, TEAL])    # (4, 3)
 NB = BASIS.shape[0]
-COMPONENTS = ("white", "cyan", "blue")
+COMPONENTS = ("white", "cyan", "blue", "teal")
+#: the cone's own primaries; a layer without a "teal" key is decomposed in these
+CONE = 3
 
 
 def render_array(svg_text: str, size: int = 1024) -> np.ndarray:
@@ -98,28 +116,34 @@ def basis_stack(params, size=1024, cache=None):
     return np.stack(out), names
 
 
-def wc_from_color(color):
+def wc_from_color(color, teal=False):
     """Exact non-negative basis amounts for an sRGB 0..255 colour.
 
-    Three basis vectors, so the active-set enumeration is only seven cases.
+    Without `teal` only the three cone primaries are used (the fourth amount is
+    0); with it all four.  Smaller active sets are tried first and a later one
+    replaces an earlier only if strictly better, so a colour the cone can draw
+    exactly keeps its cone decomposition even on a teal layer.
     """
     import itertools
 
     k = np.asarray(color, np.float64) / 255.0
     B = BASIS.T.astype(np.float64)
+    use = NB if teal else CONE
     best = None
-    for r in range(1, NB + 1):
-        for comb in itertools.combinations(range(NB), r):
+    for r in range(1, use + 1):
+        for comb in itertools.combinations(range(use), r):
             sol, *_ = np.linalg.lstsq(B[:, comb], k, rcond=None)
             if (sol < -1e-9).any():
                 continue
             full = np.zeros(NB)
             full[list(comb)] = sol
             e = float(np.abs(B @ full - k).sum())
-            if best is None or e < best[0]:
+            if best is None or e < best[0] - 1e-6:
                 best = (e, full)
     if best is None:
-        return np.clip(np.linalg.lstsq(B, k, rcond=None)[0], 0.0, None)
+        full = np.zeros(NB)
+        full[:use] = np.clip(np.linalg.lstsq(B[:, :use], k, rcond=None)[0], 0.0, None)
+        return full
     return best[1]
 
 
@@ -128,7 +152,7 @@ def color_from_wc(wc):
 
 
 def colors(WC):
-    """(n,2) white/cyan amounts -> (n,3) premultiplied colours in 0..1."""
+    """(n,NB) basis amounts -> (n,3) premultiplied colours in 0..1."""
     return np.clip(WC @ BASIS, 0.0, 1.0)
 
 
@@ -227,6 +251,9 @@ def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=No
     idx = list(range(n)) if free is None else list(free)
     isnorm = [bool(normal[i]) if normal is not None else False for i in range(n)]
     WC = np.array(WC0, np.float64).copy()
+    # A layer that does not already use the fourth primary cannot start to: its
+    # teal column is held at zero (see TEAL).  Only the rays of record carry it.
+    teal_lock = WC[:, CONE:].sum(1) <= 0.0
     Af = A.reshape(n, -1).astype(np.float32)
     Tf = target.reshape(-1, 3).astype(np.float32)
     Wf = weight.reshape(-1).astype(np.float32)
@@ -273,6 +300,9 @@ def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=No
             if not isnorm[i]:
                 g = g * (1.0 - before[i])
             for bi in range(NB):
+                if bi >= CONE and teal_lock[i]:
+                    cols.append(np.zeros(g.size, np.float32))
+                    continue
                 cols.append((g * (B[bi] * live[i])[None, :] * Wf[:, None]).reshape(-1))
         J = np.stack(cols, 1)
         G = J.T @ J
@@ -512,7 +542,8 @@ def normal_flags(params):
 
 
 def params_wc(params):
-    return np.array([wc_from_color(L.get("color", [128, 128, 128])) for L in params["layers"]], np.float32)
+    return np.array([wc_from_color(L.get("color", [128, 128, 128]), teal="teal" in L)
+                     for L in params["layers"]], np.float32)
 
 
 def held_free(params):
@@ -535,6 +566,8 @@ def store_wc(params, WC, only=None):
         if keep is not None and i not in keep:
             continue
         for name, v in zip(COMPONENTS, wc):
+            if name == "teal" and name not in L:
+                continue    # a cone layer stays a cone layer (see TEAL)
             L[name] = round(float(v), 5)
         L["color"] = [round(float(v) * 255.0, 2) for v in color_from_wc(wc)]
 

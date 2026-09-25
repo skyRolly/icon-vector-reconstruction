@@ -199,9 +199,15 @@ RAY_GEOMETRY = {
     # blur 5.0 -> 3.6 (sigma 6.0 on the line), and both segments' shapes and
     # colours refitted jointly with the lower-left ray's inner segment, whose
     # light shares this line's window at r 28-36.
+    # D64: the white still peaked too far out -- R 6.9 / 22.5 / 5.8 at r
+    # 24/32/40 (5.0 / 24.0 / 9.6 once the lobe took the teal primary) against
+    # 10.3 / 19.2 / 7.5; now 10.3 / 19.1 / 3.9.  Its longitudinal shape and width
+    # refitted on the line's ramp-removed corridor (r 16-64, with the cyan
+    # segment's amplitude): onset 21 -> 15.5 px, peak 29 -> 28, end 42 -> 35,
+    # blur 3.6 -> 2.65; corridor error 13.0 -> 11.0.
     "flare_ray_llc_in": dict(rot=-229.0, cx=531.0, cy=513.5, dx=None, dy=None,
-                             len=42.0, onset=0.5, peak_at=0.6885, tail=0.1676,
-                             height=5.6348, spread=1.0, blur=3.6),
+                             len=34.6614, onset=0.4473, peak_at=0.8155, tail=0.1523,
+                             height=6.912, spread=1.0, blur=2.6461),
     "flare_ray_llc": dict(rot=-229.0, cx=531.0, cy=513.5, dx=None, dy=None,
                           len=59.9874, onset=0.5564, peak_at=0.6636, tail=0.1075,
                           height=5.6348, spread=1.0, blur=5.0159),
@@ -268,6 +274,8 @@ RAY_GEOMETRY = {
     # r 128-144.  Parallel-sided (spread 1.0), blur 3.1, the fade refitted
     # (0.42-point 100 -> 103 px, end 177 -> 185 px): sigma 3.5-3.7 along the ray,
     # fixed-template band error 32.4 -> 28.2.  The translation is unchanged.
+    # D64: the narrow line stays; the widening D61 saw and D63 removed is real
+    # but belongs to a separate soft flank on the same line (flare_ray_c_fl).
     "flare_ray_c": dict(rot=-328.1, cx=531.5309, cy=511.7803, dx=None, dy=None,
                         len=185.2975, onset=None, peak_at=0.3722, tail=0.1822,
                         height=5.4845, spread=1.0, blur=3.1),
@@ -278,6 +286,20 @@ RAY_GEOMETRY = {
     "flare_ray_c_in": dict(rot=-328.1, cx=531.53, cy=511.78, dx=None, dy=None,
                            len=64.1046, onset=None, peak_at=0.6621, tail=0.1113,
                            height=6.5097, spread=1.0, blur=1.5175),
+    # Lower-right SOFT FLANK (D64), on the same line: the ray is two parts, as
+    # the upper-right one is (a narrow line inside a soft slab).  Averaged over
+    # 16-28 px bands with each band's ramp removed at |s| 16-22, the reference's
+    # transverse sigma grows 2.6 (r 60-88) -> 4.75 (92-108) -> 5.4 (108-128) ->
+    # 5.7-5.8 (132-184), identical after a 2x box downsample, where the narrow
+    # line alone gave a flat 3.0-3.6 and 0.07-0.75 of the reference's flux.
+    # D63's "narrow tail" reading came from the free-template band fit, which
+    # takes the flank into its ramp.  Fitted with the narrow segments'
+    # amplitudes in the same ramp-removed domain over r 40-184: corridor error
+    # 3.50 -> 2.44, against 2.68 for the narrow ray widened alone (a spread-3.6
+    # wedge).  Starts 81 px out, peaks at 93, 0.42 of peak by 151, gone by 200.
+    "flare_ray_c_fl": dict(rot=-329.362, cx=600.9434, cy=554.3329, dx=None, dy=None,
+                           len=118.8142, onset=0.0115, peak_at=0.1012, tail=0.4838,
+                           height=8.0227, spread=1.0, blur=7.4125),
 }
 
 #: Layers removed in D61 and named in the record of their removal: two
@@ -335,7 +357,17 @@ BAND_WEIGHT = np.array([LUMA,
                         CHROMA_WEIGHT * np.array([0.0, -1.0, 1.0])])
 #: The broad term is a G profile; LUMA[1] puts it in luminance units.
 BROAD_WEIGHT = 0.5
-CHANNELS = ("white", "cyan", "blue")
+CHANNELS = ("white", "cyan", "blue", "teal")
+#: The ray layers allowed the fourth primary, TEAL (0, 1, 0.7) in
+#: tools/fit_photometry.py (D64).  Each belongs to a family whose own line reads
+#: B below G above the local ramp -- beyond what white/cyan/blue can draw --
+#: measured as amplitude-weighted B/G over the family's clean bands against
+#: cyan's floor of ~1.06: upper-left A 0.73, the upper-right 0.78-0.80, the
+#: 267-degree pair 0.85-0.86, the 229-degree lobe 0.74-0.76.  The lobe's WHITE
+#: segment is white and stays in the cone.  Every other layer is a cone layer,
+#: and test_pipeline requires that the params agree with this list exactly.
+TEAL_LAYERS = ("flare_ray_ula", "flare_ray_ur", "flare_ray_e", "flare_ray_lld",
+               "flare_ray_lld2", "flare_ray_llc")
 
 
 # --------------------------------------------------------------------------- #
@@ -730,10 +762,12 @@ def control(lines, J):
 
 
 def scale(layer, k):
-    """Scale a layer's light by k, hue kept: white/cyan/blue and the colour."""
+    """Scale a layer's light by k, hue kept: its basis amounts and the colour."""
     import fit_photometry as FP
     wc = [float(layer.get(c, 0.0)) * k for c in CHANNELS]
     for c, v in zip(CHANNELS, wc):
+        if c == "teal" and c not in layer:
+            continue    # a cone layer is not given a teal amount by a scale
         layer[c] = round(v, 6)
     layer["color"] = [round(float(v) * 255.0, 2) for v in FP.color_from_wc(wc)]
 
