@@ -365,6 +365,20 @@ CALIBRATED_LAYERS = tuple(dict.fromkeys(lid for f in FAMILIES.values() for lid i
 
 #: |ln(correction)| per layer below which the layer counts as calibrated.
 TOL = 0.08
+#: A calibrated layer with NO light at all is outside what calibration can do
+#: (see dark_report): it scales a layer's light, and any scale of zero is zero.
+#: Such a layer fails the calibration when the reference asks it for more than
+#: this much light, in code values of band luminance, and that light explains
+#: at least MISSING_EXPLAINED of the residual where the layer reaches.  Both
+#: are set from the shipped rays (D66): zeroing any one of the fourteen, the
+#: reference asks for 3.7-20.5 cv, explaining 0.90-1.00; a zero-light copy of a
+#: calibrated ray, which the reference has no use for, is asked 0.01-0.05 cv.
+MISSING_CV = 1.0
+MISSING_EXPLAINED = 0.5
+#: The white amount a dark layer is probed with.  Its hue is unknown -- it has
+#: none -- so only the luminance rows are read, and the probe is small enough
+#: to stay in the composite's linear range.
+PROBE_WHITE = 0.05
 #: One round moves a layer by at most this factor either way, so a gross
 #: deficit takes several verified rounds rather than one unverified jump.
 ROUND_GAIN = 3.0
@@ -652,6 +666,19 @@ class Lines:
                 parts.append(((m["split"] - t["split"]) @ BAND_WEIGHT.T).ravel())
         return np.concatenate(parts)
 
+    def luma_rows(self):
+        """Mask over residual(): the rows that measure luminance (each band's
+        first BAND_WEIGHT row, and the broad G profile), not chroma."""
+        nw = BAND_WEIGHT.shape[0]
+        mask = []
+        for name in self.fam:
+            f, t = self.fam[name], self.target[name]
+            mask += ([True] + [False] * (nw - 1)) * len(f["bands"])
+            if t["broad"] is not None:
+                mask += [True] * len(t["broad"])
+            mask += ([True] + [False] * (nw - 1)) * (2 * len(f["split"]))
+        return np.array(mask, bool)
+
 
 # --------------------------------------------------------------------------- #
 # the exact composite, over the measurement crop
@@ -804,6 +831,67 @@ def correction(lines, stack, meas):
     return corr, J
 
 
+def dark_report(lines, stack, meas):
+    """{layer: (verdict, asked_cv, explained)} for every calibrated layer with NO light.
+
+    correction() reports a layer no measurement sees as needing nothing (1.0),
+    which is right for a layer that is lit but out of sight -- and was wrong for
+    a layer with no light at all: its Jacobian column is zero because a scale of
+    zero is zero, not because nothing measures it, so a ray whose colour had
+    been zeroed read as perfectly calibrated and the calibration said
+    "converged" with the ray missing (the D66 review finding).
+
+    A dark layer is probed instead: given a small white amount, what would it
+    add to each band's luminance (d), and how much of that does the reference
+    ask for?  The residual's luminance rows are projected on d, non-negatively.
+    The verdict is:
+
+      "missing"       the reference asks for at least MISSING_CV of it, and that
+                      explains at least MISSING_EXPLAINED of the residual where
+                      the layer reaches: the ray is absent from a line that has
+                      it.  Calibration FAILS: it scales light and cannot make it.
+                      Restore the colour (tools/fit_photometry.py --fit-rays, or
+                      the last calibrated file) and calibrate again.
+      "not needed"    the layer reaches the bands but the reference asks nothing
+                      of it (the other layers already carry that light).
+      "unobservable"  no band sees the layer at all.
+
+    Seeding a colour here instead was considered and not done: calibration is
+    multiplicative by design -- it keeps each layer's hue and sets its amount
+    -- and a layer with no light has no hue to keep, so any seed would be a
+    colour decision this tool has no evidence for.
+    """
+    import fit_photometry as FP
+    out = {}
+    dark = [j for j in range(len(CALIBRATED_LAYERS)) if not np.any(stack.WC[stack.idx[j]] > 0.0)]
+    if not dark:
+        return out
+    Y = lines.luma_rows()
+    r = lines.residual(meas)
+    base = lines.residual(lines.measure(stack.image(np.ones(len(stack.idx))), cropped=True))
+    for j in dark:
+        lid, i = CALIBRATED_LAYERS[j], stack.idx[j]
+        WC = stack.WC.copy()
+        WC[i] = 0.0
+        WC[i, 0] = PROBE_WHITE
+        img = FP.composite(stack.A, FP.colors(WC).astype(np.float32), stack.normal) * 255.0
+        d = (lines.residual(lines.measure(img, cropped=True)) - base)[Y]
+        want = -r[Y]                            # light the reference has and the model lacks
+        dd = float(d @ d)
+        if dd < 1e-8:
+            out[lid] = ("unobservable", 0.0, 0.0)
+            continue
+        a = max(0.0, float(d @ want) / dd)
+        fit = a * d
+        reach = np.abs(d) > 0.05 * np.abs(d).max()
+        den = float((want[reach] ** 2).sum())
+        expl = 1.0 - float(((want - fit)[reach] ** 2).sum()) / den if den > 1e-12 else 0.0
+        asked = float(np.abs(fit).max())
+        verdict = "missing" if asked >= MISSING_CV and expl >= MISSING_EXPLAINED else "not needed"
+        out[lid] = (verdict, asked, expl)
+    return out
+
+
 def control(lines, J):
     """Which radial interval each layer controls, from the Jacobian's luminance rows.
 
@@ -914,12 +1002,24 @@ def calibrate(params_path, ref, rounds=8, verbose=True, lines=None, stack=None):
     img = render_full(json.load(open(params_path)))
     meas = lines.measure(img)
     corr, J = correction(lines, stack, meas)
+    # A layer with no light has a zero Jacobian column, which correction()
+    # reads as "needs nothing"; ask the reference instead (dark_report).  A
+    # MISSING layer's correction is unbounded, and the calibration fails.
+    dark = dark_report(lines, stack, meas)
+    for lid, (verdict, _asked, _expl) in dark.items():
+        if verdict == "missing":
+            corr[list(CALIBRATED_LAYERS).index(lid)] = np.inf
     worst = float(np.abs(np.log(np.clip(corr, 1e-3, None))).max() / TOL)
     if verbose:
         report(lines, meas, "verified (full render of %s)" % os.path.basename(params_path))
         ctl = control(lines, first if first is not None else J)
         for lid, c in zip(CALIBRATED_LAYERS, corr):
             fam, span = ctl[lid]
+            if lid in dark:
+                verdict, asked, expl = dark[lid]
+                print("    %-15s %-17s HAS NO LIGHT: %s (the reference asks %.1f cv of it, "
+                      "explaining %.2f of its bands' residual)" % (lid, fam, verdict.upper(), asked, expl))
+                continue
             print("    %-15s %-17s controls %-13s still asks x%.3f"
                   % (lid, fam, ("r %g-%g" % span) if span else "(shared)", c))
     return worst, dict(zip(CALIBRATED_LAYERS, corr))
@@ -945,14 +1045,25 @@ def main():
         if problems:
             print("  warning: " + "\n  warning: ".join(problems))
     ref = np.asarray(Image.open(a.reference).convert("RGB")).astype(np.float64)
-    worst, _corr = calibrate(a.params, ref, rounds=a.rounds)
+    worst, corr = calibrate(a.params, ref, rounds=a.rounds)
+    missing = [lid for lid, c in corr.items() if np.isinf(c)]
     status = "converged" if worst <= 1.0 else "NOT converged"
-    print("  %s: worst remaining correction %.2f of its tolerance (TOL %.2f in ln)"
-          % (status, worst, TOL))
+    if missing:
+        print("  NOT converged: %s %s NO LIGHT where the reference has it (MISSING); a scale "
+              "cannot create light -- restore %s colour (tools/fit_photometry.py --fit-rays, or the "
+              "last calibrated file), then calibrate again"
+              % (", ".join(missing), "has" if len(missing) == 1 else "have",
+                 "its" if len(missing) == 1 else "their"))
+    else:
+        print("  %s: worst remaining correction %.2f of its tolerance (TOL %.2f in ln)"
+              % (status, worst, TOL))
     print("wrote", a.params)
     # The exit status is the whole point of the verification pass: corrections
     # computed on the way are already saved, so a caller that only looked at the
     # file could not tell a calibrated state from an uncalibrated one.
+    if missing:
+        print("  FAILED: a calibrated ray is missing; the saved parameters are NOT calibrated")
+        return 1
     if worst > 1.0:
         print("  FAILED: calibration did not converge; the saved parameters are NOT "
               "calibrated -- re-run with a larger --rounds")

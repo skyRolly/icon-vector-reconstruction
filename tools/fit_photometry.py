@@ -615,14 +615,31 @@ def main():
     WC = fit(Asub, tsub, params_wc(params), W, iters=a.iters, normal=nf, free=free,
              teal_ok=teal_eligible(params))
     store_wc(params, WC, only=free)
-    out = composite(A, colors(WC), nf)
-    print("analytic composite mae=%.4f" % (np.abs(out - target).mean() * 255))
-    for L in params["layers"]:
-        print("  %-18s %s -> rgb%s"
-              % (L["id"], " ".join("%s=%7.4f" % (c, L[c]) for c in COMPONENTS), L["color"]))
+    # The fit is SAVED before anything is reported: until D66 the report came
+    # first and read every component as `L[c]`, so the first cone layer --
+    # which has no `teal` key, because it is not ALLOWED teal -- raised KeyError
+    # and the documented command exited having fitted everything and saved
+    # nothing (the D66 review finding).
     if not a.no_write:
         json.dump(params, open(a.params, "w"), indent=1)
         print("updated", a.params)
+    out = composite(A, colors(WC), nf)
+    print("analytic composite mae=%.4f" % (np.abs(out - target).mean() * 255))
+    for L in params["layers"]:
+        print("  %-18s %s -> rgb%s" % (L["id"], component_text(L), L.get("color")))
+
+
+def component_text(L):
+    """A layer's basis amounts for a report.  An absent component is 0 -- except
+    teal, whose absence means the layer is not ELIGIBLE (see teal_eligible), not
+    that it holds a teal amount of 0, and is shown as such."""
+    parts = []
+    for c in COMPONENTS:
+        if c == "teal" and c not in L:
+            parts.append("teal=    ---")
+        else:
+            parts.append("%s=%7.4f" % (c, float(L.get(c, 0.0))))
+    return " ".join(parts)
 
 
 if __name__ == "__main__":

@@ -103,11 +103,20 @@ out/                     renders, difference images, metrics, validation report
 
 ## Reproducing
 
-Needs Python 3 with `numpy`, `Pillow` and `resvg-py` (`pip install numpy pillow
-resvg-py`) — and nothing else: `tools/test_pipeline.py` checks that every shipped
-module imports only those three plus the standard library, because
-`tools/diagnose.py` once needed SciPy that this line did not mention. Headless
-Chromium is optional and only used for the second opinion in `tools/validate.py`.
+Needs Python 3 with `numpy`, `Pillow` and `resvg-py`, pinned in
+`requirements.txt` (`pip install -r requirements.txt`) — and nothing else:
+`tools/test_pipeline.py` checks that every shipped module imports only those
+three plus the standard library, because `tools/diagnose.py` once needed SciPy
+that this line did not mention. Headless Chromium is optional and only used for
+the second opinion in `tools/validate.py`.
+
+**A clean checkout needs one setup step** before the regression gate:
+`python3 tools/setup_baseline.py` renders the previous accepted release
+(`out/baseline/reconstruction.svg`, pinned by digest in its manifest), which the
+before/after sheet is checked against. It exits 3 on a setup failure, and
+`tools/test_pipeline.py` exits 3 — not 1 — if the setup was skipped, so a
+missing setup step is never reported as a regression. CI and `tools/publish.sh`
+both run it.
 
 **Renderer.** resvg is the acceptance renderer: every number quoted here, and
 every objective the optimiser minimises, is measured on its output at 1024 px.
@@ -122,6 +131,7 @@ python3 tools/validate.py                                   # sizes 256..4096, b
 python3 tools/validate.py --quick --no-chromium              # resvg only, no browser needed
 python3 tools/probe_compare.py out/r.png                     # geometry/alignment probes
 python3 tools/diagnose.py out/r.png                          # flare / lobe / profile reports
+python3 tools/setup_baseline.py                              # once per clean checkout
 python3 tools/test_pipeline.py                               # optimiser correctness checks
 sh tools/optimize_all.sh                                     # refit everything from scratch
 ```

@@ -43,6 +43,41 @@ def centroid(a, thresh=0.02):
     return float((xs * w).sum() / w.sum()), float((ys * w).sum() / w.sum())
 
 
+def preflight(baseline_dir=None):
+    """Setup artefacts the checks read that a clean checkout does not carry ([] if all present).
+
+    The previous accepted release is committed as its SVG only; its 1024-px
+    render is derived, git-ignored, and made by tools/setup_baseline.py (CI's
+    "Baseline setup" step; publish.sh runs it too).  Until D66 CI ran this
+    suite without it, and the published-sheet check then FAILED on a file that
+    had never been generated -- a missing setup step reported as a broken
+    release.  A missing or unverifiable setup artefact is now reported for what
+    it is, before any check runs, with its own exit status (3; a regression is
+    1), so the two cannot be confused.
+    """
+    import render as _R
+    import setup_baseline as _SB
+    bdir = baseline_dir or _SB.BASELINE_DIR
+    try:
+        man = _SB.manifest(bdir)
+    except _SB.SetupError as exc:
+        return [str(exc)]
+    svg = os.path.join(bdir, man.get("svg", "reconstruction.svg"))
+    png = os.path.join(bdir, _SB.RENDER_NAME)
+    rel = os.path.relpath(png, ROOT)
+    if not os.path.exists(svg) or _R.sha256_file(svg) != man["svg_sha256"]:
+        return ["the baseline SVG %s is missing or is not the one the manifest pins"
+                % os.path.relpath(svg, ROOT)]
+    if not os.path.exists(png):
+        return ["%s is absent (a clean checkout does not carry it)" % rel]
+    try:
+        _R.read_provenance(png, require=True, expect_size=_SB.SIZE, expect_renderer=_SB.RENDERER,
+                           expect_svg=svg)
+    except _R.ProvenanceError as exc:
+        return ["%s does not verify as the resvg render of the pinned baseline: %s" % (rel, exc)]
+    return []
+
+
 def main():
     params = json.load(open(os.path.join(ROOT, "src", "params.json")))
 
@@ -1301,6 +1336,90 @@ def main():
                                           _dsp))
         cal["flank"] = (_fl_ok, "; ".join(_fl_notes))
 
+        # (g) DARK (D66 review): a calibrated ray whose light is entirely zero
+        #     has a zero Jacobian column, which correction() read as "needs
+        #     nothing" -- so a ray the reference plainly has could be zeroed and
+        #     the calibration would still say converged.  It must now FAIL when
+        #     the reference asks for the light, and must NOT fail for a dark
+        #     layer the reference has no use for, or one no band can see; a ray
+        #     whose teal is 0 but whose cyan is lit is not dark at all.
+        _dk = []
+
+        def _darken(P, lid):
+            Q = json.loads(json.dumps(P))
+            for L in Q["layers"]:
+                if L["id"] == lid:
+                    for c in ("white", "cyan", "blue", "teal"):
+                        if c in L:
+                            L[c] = 0.0
+                    L["color"] = [0.0, 0.0, 0.0]
+            return Q
+        for _lid in ("flare_ray_ula", "flare_ray_c_fl"):      # alone in its family; in a joint one
+            _pd = os.path.join(_td, "dark.json")
+            json.dump(_darken(star, _lid), open(_pd, "w"), indent=1)
+            _wd, _cd = MFL.calibrate(_pd, _ref, rounds=0, verbose=False, lines=_lines, stack=_stack)
+            if _wd <= 1.0 or not np.isinf(_cd[_lid]):
+                _dk.append("%s at zero light verified as calibrated (worst %.2f)" % (_lid, _wd))
+        _rd = _sp.run([sys.executable, os.path.join(ROOT, "tools", "measure_flare.py"), "--params",
+                       _pd, "--rounds", "0"], capture_output=True, text=True)
+        if _rd.returncode == 0 or "MISSING" not in _rd.stdout:
+            _dk.append("measure_flare.py --rounds 0 on a zero-light ray exited %d%s"
+                       % (_rd.returncode, "" if "MISSING" in _rd.stdout else " without saying MISSING"))
+        # A dark layer the reference has no use for, and one no band can see:
+        # a zero-light copy of the upper-left A ray on its own line, and one
+        # moved off the measured crop, both made members of its family.
+        _q = json.loads(json.dumps(star))
+        _ids = [L["id"] for L in _q["layers"]]
+        _dup = _darken({"layers": [dict(_q["layers"][_ids.index("flare_ray_ula")], id="probe_dup")]},
+                       "probe_dup")["layers"][0]
+        _off = dict(_dup, id="probe_off", cx=40.0, cy=40.0)
+        _q["layers"][_ids.index("flare_ray_ula") + 1:_ids.index("flare_ray_ula") + 1] = [_dup, _off]
+        _fam0, _cl0 = MFL.FAMILIES["upper-left A"], MFL.CALIBRATED_LAYERS
+        try:
+            MFL.FAMILIES["upper-left A"] = dict(_fam0, layers=_fam0["layers"] + ("probe_dup", "probe_off"))
+            MFL.CALIBRATED_LAYERS = tuple(dict.fromkeys(
+                lid for f in MFL.FAMILIES.values() for lid in f["layers"]))
+            _pq = os.path.join(_td, "dark_ok.json")
+            json.dump(_q, open(_pq, "w"), indent=1)
+            _sq = MFL.Stack(_q, _lines.box)
+            _wq, _cq = MFL.calibrate(_pq, _ref, rounds=0, verbose=False, lines=_lines, stack=_sq)
+            _rep = MFL.dark_report(_lines, _sq, _lines.measure(MFL.render_full(json.load(open(_pq)))))
+        finally:
+            MFL.FAMILIES["upper-left A"], MFL.CALIBRATED_LAYERS = _fam0, _cl0
+        if _rep.get("probe_dup", ("?",))[0] != "not needed" or _rep.get("probe_off", ("?",))[0] != "unobservable":
+            _dk.append("dark-layer verdicts %s (want probe_dup not needed, probe_off unobservable)" % _rep)
+        if _wq > 1.0:
+            _dk.append("a dark layer the reference has no use for failed the calibration (worst %.2f)" % _wq)
+        # Teal at 0 is two different things.  flare_ray_lld keeps cyan light:
+        # its colour is recoverable by the colour fit and calibration scales
+        # it as usual.  flare_ray_ur carries ALL its light as teal, so at teal
+        # 0 it is a dark ray -- and must fail as MISSING, because a scale
+        # cannot give it teal back; the colour fit can (see the teal check).
+        def _teal0(P, lid):
+            Q = json.loads(json.dumps(P))
+            for L in Q["layers"]:
+                if L["id"] == lid:
+                    L["teal"] = 0.0
+                    L["color"] = [round(float(v) * 255.0, 2) for v in
+                                  _FPf.color_from_wc([float(L.get(c, 0.0)) for c in MFL.CHANNELS])]
+            return Q
+        _pt = os.path.join(_td, "teal0.json")
+        json.dump(_teal0(star, "flare_ray_lld"), open(_pt, "w"), indent=1)
+        _wt, _ct = MFL.calibrate(_pt, _ref, rounds=4, verbose=False, lines=_lines, stack=_stack)
+        if _wt > 1.0 or MFL.dark_report(_lines, _stack, _lines.measure(MFL.render_full(json.load(open(_pt))))):
+            _dk.append("flare_ray_lld at teal 0 with lit cyan was treated as dark or did not calibrate "
+                       "(worst %.2f)" % _wt)
+        json.dump(_teal0(star, "flare_ray_ur"), open(_pt, "w"), indent=1)
+        _wu, _cu = MFL.calibrate(_pt, _ref, rounds=0, verbose=False, lines=_lines, stack=_stack)
+        if _wu <= 1.0 or not np.isinf(_cu["flare_ray_ur"]):
+            _dk.append("flare_ray_ur at teal 0 -- no light left -- verified as calibrated (worst %.2f)" % _wu)
+        cal["dark"] = (not _dk, "; ".join(_dk) if _dk else
+                       "a zeroed upper-left A ray and a zeroed lower-right flank each fail verification "
+                       "(the CLI exits 1 saying MISSING); a zero-light copy on the line is 'not needed' "
+                       "(asks %.2f cv) and one off the crop 'unobservable', and neither fails; at teal 0, "
+                       "flare_ray_lld (cyan still lit) calibrates (worst %.2f) while flare_ray_ur (all "
+                       "its light was teal) fails as MISSING" % (_rep["probe_dup"][1], _wt))
+
         # (d) the SAVED file reproduces the calibrated result through the
         #     documented build and render commands, not the in-process path.
         svg1, png1 = os.path.join(_td, "r.svg"), os.path.join(_td, "r.png")
@@ -1375,6 +1494,7 @@ def main():
     check("calibrating one segment does not drag the other", *cal["segmented"])
     check("a two-segment ray is calibrated jointly", *cal["joint"])
     check("the lower-right flank is held by the global fit and restored by calibration", *cal["flank"])
+    check("a calibrated ray with no light cannot pass as calibrated", *cal["dark"])
     check("a calibrated file rebuilds to the calibrated profiles", *cal["rebuild"])
     check("flare calibration that does not converge returns nonzero", *cal["fails"])
     check("a calibration stack whose geometry is stale is refreshed, not reused", *cal["stale"])
@@ -1460,6 +1580,59 @@ def main():
           "flare_ray_ur from teal 0 -> %.4f (target %.4f), B/G %.2f off the cone; flare_ray_c "
           "against a teal target stays at 0; without eligibility no teal amount moves"
           % (_got_t, _want_t, _bg))
+
+    # ---- the documented photometric fit runs on every valid layer schema (D66) #
+    # fit_photometry.py's report read every component as L[c]; a cone layer has
+    # no `teal` key -- absence means NOT ELIGIBLE -- so the documented command
+    # (tools/optimize_all.sh: fit_photometry.py --iters 30 --stride 2) raised
+    # KeyError after fitting and before saving.  Run the real CLI, both modes,
+    # on a file holding every schema: cone layers without a teal key, the six
+    # teal-eligible rays with one of them at teal 0, a layer carrying only a
+    # colour (no basis keys at all), and the normal-blended frame layers.
+    _fp_diag = []
+    _fp_src = json.loads(json.dumps(params))
+    for L in _fp_src["layers"]:
+        if L["id"] == "flare_ray_ur":
+            L["teal"] = 0.0                      # eligible, zero-initialised
+        if L["id"] == "field_mid":
+            for _c in ("white", "cyan", "blue"):
+                L.pop(_c, None)                  # colour only
+    _cone0 = {L["id"] for L in _fp_src["layers"] if "teal" not in L}
+    _teal0 = {L["id"] for L in _fp_src["layers"] if "teal" in L}
+    _held = set(MFL.CALIBRATED_LAYERS)
+    with _tf.TemporaryDirectory() as _td6:
+        for _mode in ([], ["--fit-rays"]):
+            _pf = os.path.join(_td6, "fp.json")
+            json.dump(_fp_src, open(_pf, "w"), indent=1)
+            _r6 = _sp.run([sys.executable, os.path.join(ROOT, "tools", "fit_photometry.py"), "--params",
+                           _pf, "--iters", "1", "--stride", "8"] + _mode, capture_output=True, text=True)
+            _tag = "fit_photometry %s" % (" ".join(_mode) or "(documented mode)")
+            if _r6.returncode != 0 or "Traceback" in _r6.stderr:
+                _fp_diag.append("%s exited %d: %s" % (_tag, _r6.returncode,
+                                                      _r6.stderr.strip().splitlines()[-1:]))
+                continue
+            _got = {L["id"]: L for L in json.load(open(_pf))["layers"]}
+            _was = {L["id"]: L for L in _fp_src["layers"]}
+            _moved = [lid for lid in _got if lid not in _held and _got[lid].get("color") != _was[lid].get("color")]
+            if not _moved:
+                _fp_diag.append("%s saved no fitted colour" % _tag)
+            if not _mode and any(_got[lid].get("color") != _was[lid].get("color") for lid in _held):
+                _fp_diag.append("%s moved a calibrated ray" % _tag)
+            if any("teal" in _got[lid] for lid in _cone0):
+                _fp_diag.append("%s gave a cone layer a teal key" % _tag)
+            if any("teal" not in _got[lid] for lid in _teal0):
+                _fp_diag.append("%s dropped an eligible layer's teal key (zero-initialised: %s)"
+                                % (_tag, "teal" in _got["flare_ray_ur"]))
+            if not all(c in _got["field_mid"] for c in ("white", "cyan", "blue")):
+                _fp_diag.append("%s did not store the colour-only layer's amounts" % _tag)
+            if "teal=    ---" not in _r6.stdout:
+                _fp_diag.append("%s reported an ineligible layer as if it held teal" % _tag)
+    check("the documented photometric fit completes and saves on every layer schema",
+          not _fp_diag, "; ".join(_fp_diag) if _fp_diag else
+          "fit_photometry.py (documented mode and --fit-rays) exits 0 and saves, on cone layers "
+          "without a teal key (reported ineligible, never given one), six eligible rays (one at "
+          "teal 0, key kept), a colour-only layer and the normal-blended frame; calibrated rays held "
+          "in the documented mode")
 
     # ---- 6i. the diagnostics refuse inputs they cannot read ---------------- #
 
@@ -1604,6 +1777,80 @@ def main():
           "valid sources pass; a source replaced by another authentic render, a source with "
           "changed bytes, a source without provenance and one whose provenance names another "
           "SVG each fail")
+
+    # ---- the baseline setup is a pinned, verified, reproducible step (D66) - #
+    # A clean checkout carries the previous release's SVG, not its render;
+    # tools/setup_baseline.py makes the render.  It must render only the pinned
+    # SVG, reproduce the image the published sheet was drawn from, and refuse --
+    # as a SETUP failure -- anything else.  Run on a copy of the baseline, so the
+    # real one is never touched.
+    import setup_baseline as _SB
+    import shutil as _sh5
+    import render as _R5
+    _sb_diag = []
+    with _tf.TemporaryDirectory() as _td5:
+        _bd5 = os.path.join(_td5, "baseline")
+        os.makedirs(_bd5)
+        for _f in ("reconstruction.svg", "manifest.json"):
+            _sh5.copy(os.path.join(ROOT, "out", "baseline", _f), _bd5)
+        _pre0 = preflight(_bd5)
+        if not any("absent" in m for m in _pre0):
+            _sb_diag.append("a baseline with no render passed the pre-flight: %s" % _pre0)
+        # a published-sheet record for this copy, naming the committed render's digest
+        _rec5 = json.load(open(os.path.join(ROOT, "out", "flare_parts.png.prov.json")))
+        _want5 = next(c["image_sha256"] for c in _rec5["columns"]
+                      if c.get("svg") == "out/baseline/reconstruction.svg")
+        _svgrel5 = os.path.relpath(os.path.join(_bd5, "reconstruction.svg"), ROOT)
+        _side5 = os.path.join(_td5, "sheet.png")
+
+        def _sheet5(digest):
+            json.dump({"columns": [{"svg": _svgrel5, "svg_sha256": json.load(open(os.path.join(
+                _bd5, "manifest.json")))["svg_sha256"], "image_sha256": digest}]},
+                      open(_side5 + ".prov.json", "w"))
+        _sheet5(_want5)
+        try:
+            _out5 = _SB.setup(_bd5, sheet_path=_side5, verbose=False)
+            if preflight(_bd5):
+                _sb_diag.append("a freshly set-up baseline fails the pre-flight: %s" % preflight(_bd5))
+            if _R5.sha256_file(_out5) != _want5:
+                _sb_diag.append("the setup render is not the image the published sheet recorded")
+        except _SB.SetupError as exc:
+            _sb_diag.append("the pinned baseline did not set up: %s" % exc)
+        # a render that is not the one the sheet recorded -> SETUP failure, and
+        # no render left behind for the gate to misread as a stale sheet
+        _sheet5("0" * 64)
+        try:
+            _SB.setup(_bd5, sheet_path=_side5, verbose=False)
+            _sb_diag.append("a render differing from the sheet's record was accepted")
+        except _SB.SetupError as exc:
+            if "does not reproduce" not in str(exc):
+                _sb_diag.append("wrong reason for a differing render: %s" % exc)
+            if not any("absent" in m for m in preflight(_bd5)):
+                _sb_diag.append("a render the sheet does not describe was left for the gate")
+        _sheet5(_want5)
+        # an SVG that is not the pinned one -> SETUP failure, and nothing rendered from it
+        _svg5 = os.path.join(_bd5, "reconstruction.svg")
+        _orig5 = open(_svg5, "rb").read()
+        open(_svg5, "ab").write(b"\n<!-- not the release -->\n")
+        if os.path.exists(os.path.join(_bd5, _SB.RENDER_NAME)):
+            os.remove(os.path.join(_bd5, _SB.RENDER_NAME))
+        try:
+            _SB.setup(_bd5, sheet_path=_side5, verbose=False)
+            _sb_diag.append("an SVG that is not the pinned one was rendered as the baseline")
+        except _SB.SetupError:
+            if os.path.exists(os.path.join(_bd5, _SB.RENDER_NAME)):
+                _sb_diag.append("a render was left behind from an unpinned SVG")
+        open(_svg5, "wb").write(_orig5)
+        # the CLI says SETUP FAILURE and exits 3, not 1
+        _r5 = _sp.run([sys.executable, os.path.join(ROOT, "tools", "setup_baseline.py"),
+                       "--baseline", os.path.join(_td5, "nowhere")], capture_output=True, text=True)
+        if _r5.returncode != 3 or "SETUP FAILURE" not in _r5.stderr:
+            _sb_diag.append("a missing baseline exits %d without saying SETUP FAILURE" % _r5.returncode)
+    check("the baseline setup renders only the pinned SVG and reproduces the sheet's baseline",
+          not _sb_diag, "; ".join(_sb_diag) if _sb_diag else
+          "no render -> pre-flight reports it absent; the pinned SVG sets up to the published sheet's "
+          "baseline image byte for byte; a differing render, an unpinned SVG and a missing baseline "
+          "are each a SETUP failure (exit 3), with nothing rendered from an unpinned SVG")
 
     # The published sheet is a release artefact (tools/publish.sh regenerates
     # it); a release whose sheet was drawn from anything but this SVG and the
@@ -1909,4 +2156,10 @@ def main():
 
 
 if __name__ == "__main__":
+    _setup = preflight()
+    if _setup:
+        print("SETUP FAILURE: " + "; ".join(_setup))
+        print("Run `python3 tools/setup_baseline.py` first (CI: the \"Baseline setup\" step). "
+              "This is a setup failure, not an artwork regression: no check was run.")
+        sys.exit(3)
     sys.exit(main())

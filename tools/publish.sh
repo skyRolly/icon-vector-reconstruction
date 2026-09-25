@@ -73,7 +73,9 @@ python3 tools/flare_view.py out/render_1024.png --out out/flare_view.png
 # release, kept as its SVG in out/baseline/ with a manifest whose digest ties the
 # two together; flare_parts refuses to draw if the manifest, the baseline render
 # or this release's render does not match the SVG it is labelled as.
-python3 tools/render.py out/baseline/reconstruction.svg out/baseline/render_1024.png
+# The baseline's render is made by the same setup step CI runs (D66): only the
+# SVG the manifest pins is rendered, and a failure there is a SETUP failure.
+python3 tools/setup_baseline.py
 python3 tools/flare_parts.py out/render_1024.png --svg reconstruction.svg \
     --baseline out/baseline --labels "this release" --out out/flare_parts.png
 # ...and prove it: the sheet's provenance sidecar names every input by digest,
