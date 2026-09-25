@@ -437,6 +437,7 @@ class Objective:
         self.fit_iters = fit_iters
         self.cache = {}
         self.K = None
+        self.K_ids = None           # the layer schema self.K's rows belong to (colours())
         self.n_render = 0
 
     def basis(self, params, lid):
@@ -498,6 +499,39 @@ class Objective:
         out = [i for i in idx if params["layers"][i]["id"] not in self.held]
         return None if (free is None and not self.held) else out
 
+    def colours(self, params):
+        """Bring `self.K` up to date with `params` before a fit starts from it.
+
+        `self.K` is the colour state a fit starts from and, for every layer
+        the fit does not free, the colour it scores with.  Its rows are of two
+        kinds:
+        - a movable layer's row is the optimiser's own fitted colour, which
+          `sweep` carries from one accepted move to the next and `main` writes
+          back at the end; reusing it is the point;
+        - a HELD layer's row is never fitted, so it can only ever be what
+          `params` says.
+        Until D67 held rows were seeded once and then kept, so an Objective
+        that scored parameters A and then B -- B differing only in a held
+        ray's colour -- scored B with A's colour (the review finding).  Held
+        rows are now refreshed from `params` on every evaluation.  The whole
+        state is re-seeded when the layer schema changes: the ids or their
+        order (a row count alone cannot tell a reordered stack from the same
+        one), or which layers may use teal -- a movable row that kept a teal
+        amount after its layer lost the permission would have it locked in by
+        the fit, scoring light the parameters forbid.
+        """
+        ids = [L["id"] for L in params["layers"]]
+        schema = (tuple(ids), tuple(bool(t) for t in FP.teal_eligible(params)))
+        wc = FP.params_wc(params)
+        if self.K is None or self.K_ids != schema or self.K.shape[0] != len(ids):
+            self.K, self.K_ids = wc, schema
+            return
+        hidx = [i for i, lid in enumerate(ids) if lid in self.held]
+        if hidx and not np.array_equal(self.K[hidx], wc[hidx]):
+            K = np.array(self.K, copy=True)
+            K[hidx] = wc[hidx]
+            self.K = K
+
     def evaluate(self, params, fit_iters=None, stride=None, full=False, free=None):
         free = self.free_indices(params, free)
         A = np.stack([self.basis(params, L["id"]) for L in params["layers"]])
@@ -505,8 +539,7 @@ class Objective:
         tgt = self.target_full[::st, ::st]
         Asub = A[:, ::st, ::st]
         W = FP.make_weight(tgt)
-        if self.K is None or self.K.shape[0] != A.shape[0]:
-            self.K = FP.params_wc(params)
+        self.colours(params)
         nf = FP.normal_flags(params)
         K = FP.fit(Asub, tgt, self.K, W, iters=fit_iters or self.fit_iters, verbose=False,
                    free=free, normal=nf, teal_ok=FP.teal_eligible(params))

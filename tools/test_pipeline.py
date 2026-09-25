@@ -1611,6 +1611,102 @@ def main():
           % (len(_hs), len(set(_fi) & set(_hidx)), len(set(_hf) & set(_hidx)),
              _moved_free, _moved_held, ", ".join(_unprot) or "none"))
 
+    # ---- the objective scores the parameters it is given (D67) ------------- #
+    # The review case: Objective.K seeded the held rays' colour rows once and
+    # kept them, and the fit never touches a held row, so an Objective that
+    # scored parameters A and then B -- B differing only in a held ray's
+    # colour -- scored B with A's colour.  Each state below is scored by one
+    # REUSED objective and by a FRESH one (sharing only the basis cache, which
+    # is keyed on each layer's markup and so is valid for any parameters);
+    # the two must agree, and the reused objective's held rows must be the
+    # state's own.  B changes one held ray and nothing movable; C changes
+    # three held rays; D returns to A.  Fitted rows of movable layers are the
+    # optimiser's own state (sweep carries them between accepted moves) and
+    # must survive a held-row refresh.  A reordered stack must re-seed, since
+    # a row count cannot tell it from the original.  On the old code B and C
+    # score exactly as A, and the reordered stack scores 15% off.
+    import copy as _cpk
+    _heldK = MFL.CALIBRATED_LAYERS
+    _idsK = [L["id"] for L in params["layers"]]
+    _hK = [i for i, lid in enumerate(_idsK) if lid in _heldK]
+    def _scaledK(ks):
+        q = _cpk.deepcopy(params)
+        byq = {L["id"]: L for L in q["layers"]}
+        for lid, k in ks.items():
+            MFL.scale(byq[lid], k)
+        return q
+    def _freshK(o):
+        f = O.Objective(os.path.join(ROOT, "reference.png"), stride=8, fit_iters=1, held=_heldK)
+        f.cache = o.cache
+        return f
+    _objK = O.Objective(os.path.join(ROOT, "reference.png"), stride=8, fit_iters=1, held=_heldK)
+    _diagK, _sK = [], {}
+    for _nm, _S in (("A", params), ("B", _scaledK({"flare_ray_c": 1.5})),
+                    ("C", _scaledK({"flare_ray_ur": 0.5, "flare_ray_lld": 0.7, "flare_ray_c": 1.2})),
+                    ("D", _cpk.deepcopy(params))):
+        _reK, _, _Kre = _objK.evaluate(_S)
+        _fr = _freshK(_objK).evaluate(_S)[0]
+        _wcK = _FP.params_wc(_S)
+        _sK[_nm] = _fr
+        if _reK != _fr:                  # the same arithmetic: bitwise equal
+            _diagK.append("%s scored %.9g reused against %.9g fresh" % (_nm, _reK, _fr))
+        if not (np.array_equal(_objK.K[_hK], _wcK[_hK]) and np.array_equal(_Kre[_hK], _wcK[_hK])):
+            _diagK.append("%s: held rows are not the state's colours" % _nm)
+    if abs(_sK["A"] - _sK["B"]) <= 1e-4 * abs(_sK["A"]):
+        _diagK.append("vacuous: the held-colour change moved the score by only %.2g"
+                      % abs(_sK["A"] - _sK["B"]))
+    _KfitK = _objK.evaluate(params)[2]
+    _objK.K = _KfitK                     # a sweep's accepted colour state
+    _objK.evaluate(_scaledK({"flare_ray_c": 1.5}))
+    _movK = [i for i in range(len(_idsK)) if i not in _hK]
+    if not np.array_equal(_objK.K[_movK], _KfitK[_movK]):
+        _diagK.append("a held-row refresh discarded the movable layers' fitted colours")
+    # the path sweep actually takes: a trial frees ONE family, and every other
+    # movable layer is scored at the accepted state, not re-read from params
+    _objK.K = _KfitK
+    _famK = _objK.families(params, ["arc_glow2"])
+    _, _, _Kfam = _objK.evaluate(_scaledK({"flare_ray_c": 1.5}), free=_famK)
+    _outK = [i for i in _movK if i not in set(_famK)]
+    if not (_outK and np.array_equal(_objK.K[_outK], _KfitK[_outK])
+            and np.array_equal(_Kfam[_outK], _KfitK[_outK])):
+        _diagK.append("a family-restricted trial did not score the other movable layers "
+                      "at the accepted colours")
+    _swK = _cpk.deepcopy(params)
+    _i1, _i2 = _idsK.index("flare_ray_c"), _idsK.index("arc_glow2")
+    _swK["layers"][_i1], _swK["layers"][_i2] = _swK["layers"][_i2], _swK["layers"][_i1]
+    _reR, _frR = _objK.evaluate(_swK)[0], _freshK(_objK).evaluate(_swK)[0]
+    if _reR != _frR:
+        _diagK.append("a reordered stack scored %.9g reused against %.9g fresh" % (_reR, _frR))
+    # a layer that LOSES the teal permission between two evaluations: with the
+    # rays free (optimize.py --include-rays), a kept teal amount would be
+    # locked in by the fit and scored although the parameters forbid it
+    _objT = O.Objective(os.path.join(ROOT, "reference.png"), stride=8, fit_iters=1, held=())
+    _objT.cache = _objK.cache
+    _objT.evaluate(params)
+    _noT = _cpk.deepcopy(params)
+    for _L in _noT["layers"]:
+        if _L["id"] == "flare_ray_ur":
+            _L.pop("teal")
+            _wcT = _FP.wc_from_color(_L["color"], teal=False)
+            _L["white"], _L["cyan"], _L["blue"] = (round(float(v), 6) for v in _wcT[:3])
+            _L["color"] = [round(float(v) * 255.0, 2) for v in _FP.color_from_wc(_wcT)]
+    _reT, _, _KT = _objT.evaluate(_noT)
+    _fT = O.Objective(os.path.join(ROOT, "reference.png"), stride=8, fit_iters=1, held=())
+    _fT.cache = _objK.cache
+    _frT = _fT.evaluate(_noT)[0]
+    _iur = _idsK.index("flare_ray_ur")
+    if _reT != _frT or _KT[_iur, 3] != 0.0:
+        _diagK.append("a layer that lost teal eligibility scored %.9g reused against %.9g fresh "
+                      "(its teal amount %.4g)" % (_reT, _frT, _KT[_iur, 3]))
+    check("the optimiser's objective scores the held ray colours it is given",
+          not _diagK, "; ".join(_diagK) if _diagK else
+          "4 successive states (one held ray; three held rays; back again) score bitwise "
+          "identically through a reused and a fresh Objective, held rows equal each state's "
+          "colours, the held change moves the score by %.2g%%, fitted movable rows survive the "
+          "refresh (also on a family-restricted trial, as sweep scores them), a reordered stack "
+          "re-seeds, and a layer that loses teal eligibility is scored without teal"
+          % (100 * abs(_sK["A"] - _sK["B"]) / abs(_sK["A"])))
+
     # ---- teal is a PERMISSION, not the current amount (D65) --------------- #
     # The review case: fit() locked the fourth primary on every layer whose
     # teal amount was 0, so an ELIGIBLE ray that had reached 0 could never use
