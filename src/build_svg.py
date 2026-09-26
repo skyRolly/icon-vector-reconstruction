@@ -39,6 +39,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import math
 import os
@@ -293,6 +294,59 @@ def bezier_arc_path(g, side, inset=0.0):
                                            f(pts[2][0], 2), f(pts[2][1], 2),
                                            f(pts[3][0], 2), f(pts[3][1], 2)))
     return " ".join(out)
+
+
+def _blossom(c, t1, t2, t3):
+    """The polar form of the cubic Bezier `c` at (t1, t2, t3)."""
+    pts = [tuple(map(float, q)) for q in c]
+    for t in (t1, t2, t3):
+        pts = [((1 - t) * a[0] + t * b[0], (1 - t) * a[1] + t * b[1]) for a, b in zip(pts[:-1], pts[1:])]
+    return pts[0]
+
+
+def extended_cubics(cps, length):
+    """The curve's cubics with one cubic added at each end: the end cubic's own
+    polynomial continued `length` px of arc length past its end point (its
+    control points on [-tau, 0] and [1, 1 + tau], by blossoming).  The cubics
+    of record are returned unchanged between the two additions.
+
+    A length the continuation cannot reach by tau = 1 (the end cubic's own
+    parameter span) is refused rather than clamped.  The result is cached:
+    the optimiser rebuilds every layer's markup on every evaluation."""
+    key = tuple(tuple((float(q[0]), float(q[1])) for q in c) for c in cps)
+    return [[list(q) for q in c] for c in _extended_cubics(key, float(length))]
+
+
+@functools.lru_cache(maxsize=64)
+def _extended_cubics(cps, length):
+    def piece(c, forward):
+        def seg(tau):
+            a, b = (1.0, 1.0 + tau) if forward else (-tau, 0.0)
+            return [_blossom(c, a, a, a), _blossom(c, a, a, b), _blossom(c, a, b, b), _blossom(c, b, b, b)]
+
+        def arclen(q, n=400):
+            s, prev = 0.0, q[0]
+            for i in range(1, n + 1):
+                t = i / float(n)
+                u = 1.0 - t
+                pt = (u ** 3 * q[0][0] + 3 * u * u * t * q[1][0] + 3 * u * t * t * q[2][0] + t ** 3 * q[3][0],
+                      u ** 3 * q[0][1] + 3 * u * u * t * q[1][1] + 3 * u * t * t * q[2][1] + t ** 3 * q[3][1])
+                s += math.hypot(pt[0] - prev[0], pt[1] - prev[1])
+                prev = pt
+            return s
+        reach = arclen(seg(1.0))
+        if reach < length:
+            raise ValueError("extend %.1f px is past the end cubic's own span (%.1f px at tau = 1)"
+                             % (length, reach))
+        lo, hi = 0.0, 1.0
+        for _ in range(40):
+            mid = 0.5 * (lo + hi)
+            if arclen(seg(mid)) < length:
+                lo = mid
+            else:
+                hi = mid
+        return tuple(seg(0.5 * (lo + hi)))
+    return (piece(cps[0], False),) + cps + (piece(cps[-1], True),)
 
 
 def ribbon_path(g, side, inset, width, table, knot=24.0):
@@ -836,11 +890,20 @@ class Builder:
                     # a variable-width core: one filled offset outline (a
                     # stroke's width is constant along its path)
                     assert not L.get("convex_taper"), "width_taper and convex_taper do not combine"
+                    assert not L.get("extend"), "width_taper and extend do not combine"
                     g = self.p["geometry"]["arc_" + side]
                     rd = ribbon_path(g, side, L.get("inset", 0.0), L["width"], L["width_taper"])
                     out.append('<path d="%s" fill="%s" stroke="none"%s%s%s%s/>'
                                % (rd, paint, filt, cattr, opa, blend))
                     continue
+                if L.get("extend"):
+                    # a tip layer: the stroke runs `extend` px past both ends
+                    # of the curve of record, along the end cubics' own
+                    # continuation (the cubics themselves are not changed)
+                    assert not L.get("convex_taper"), "extend and convex_taper do not combine"
+                    g = dict(self.p["geometry"]["arc_" + side])
+                    g["cubics"] = {side: extended_cubics(g["cubics"][side], float(L["extend"]))}
+                    d = bezier_arc_path(g, side, L.get("inset", 0.0))
                 if L.get("convex_taper"):
                     # directional fade: the concave part keeps the layer's own
                     # taper, the flare-facing part takes `convex_taper`

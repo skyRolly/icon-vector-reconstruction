@@ -9,8 +9,8 @@ rounded-square frame — as a hand-built, parametric SVG.
 | ![reference](out/side_reference.png) | ![reconstruction](out/side_reconstruction.png) | ![difference](out/side_diff.png) |
 
 <!-- DELIVERABLE:START -->
-**Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 54 named
-layers, 127 KB, no embedded bitmap and no traced outlines. Every mark is a
+**Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 55 named
+layers, 134 KB, no embedded bitmap and no traced outlines. Every mark is a
 primitive driven by a named parameter in
 [`src/params.json`](src/params.json): one path for the frame, two cubic-Bézier
 paths for the luminous curves (reused, offset and clipped, by every glow
@@ -25,15 +25,15 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 
 | metric | value | for scale |
 |---|---|---|
-| mean absolute error | **1.699** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 3.152 | |
-| MAE on a 1/2.2 display curve | 5.248 | weights the dark background as the eye does; black scores 59.7 |
-| SSIM (luminance) | **0.9760** | black scores 0.142 |
+| mean absolute error | **1.684** / 255 | a flat black canvas scores 17.89 |
+| RMSE | 3.107 | |
+| MAE on a 1/2.2 display curve | 5.226 | weights the dark background as the eye does; black scores 59.7 |
+| SSIM (luminance) | **0.9764** | black scores 0.142 |
 | worst single-channel error | 67 | |
-| pixels off by more than 2 / 8 / 24 | 33.9% / 3.8% / 0.4% | |
-| mean bias | -0.221 | |
+| pixels off by more than 2 / 8 / 24 | 33.8% / 3.6% / 0.4% | |
+| mean bias | -0.200 | |
 
-Per region (MAE): frame band 2.50, centre 90 px 4.59, bright pixels 7.99, dark background 1.33, everything else 1.54.
+Per region (MAE): frame band 2.50, centre 90 px 4.58, bright pixels 7.85, dark background 1.31, everything else 1.52.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -53,7 +53,7 @@ The two regions a whole-image average cannot police, from
 | left lobe, MAE more than 25 px from the ridge | 1.34 (bias -0.19) |
 | right lobe, MAE more than 25 px from the ridge | 1.31 (bias -0.11) |
 
-Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.691 (SSIM 0.9554); see `out/validation.md` for the resolution sweep.
+Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.693 (SSIM 0.9554); see `out/validation.md` for the resolution sweep.
 <!-- METRICS:END -->
 
 ## What is in here
@@ -203,7 +203,10 @@ restated those numbers drifted out of date twice, so it no longer does.
    from about 6.2 px at the tips to about 8 px at mid-height on both sides of
    its centre-line (the flare-side stroke is D66's). The core itself narrows
    toward its ends as the reference's does, so it is drawn as a filled
-   outline rather than a constant-width stroke (D67).
+   outline rather than a constant-width stroke (D67). Past each end the
+   reference's curve goes on as a narrow cyan tail for another 40-55 px; one
+   more thin stroke draws it, continued along the end cubic's own polynomial,
+   with the cubics of record unchanged (D68).
 5. **Rim** — two frame-ring strokes, a uniform base and a gradient-painted rim,
    because the measured rim brightness peaks at the middle of each edge and the
    top edge is twice as bright as the bottom. Two further layers light the four
@@ -301,9 +304,11 @@ enough to search the geometry.
   lacks WHITE there, not light, so this is not an occluder. The halo now
   carries one fitted gap in that sector (D67), which takes the excess to
   about +7; what remains is the fan's tail and the right curve's white glow,
-  and the gap is at its limit. The core's white is still too even by
-  direction elsewhere (east/south-east short, the other directions long at
-  r 4-12), which only a directional redesign of the core would fix (D67).
+  and the gap is at its limit. The core's white leans east toward the right
+  curve in the reference. Its white layer was moved about 1 px east, narrowed north
+  to south and tilted, at the same total light, which halves the east-south-east
+  deficit at r 4-12 (D68). The north arc at r 12-16 and the south-west are
+  now a little darker than the reference's.
 * **Just past the right curve at the core's height, part of the remaining
   green is the flare's own light**, compact within ~30 px of the core and
   shaped like the fan and halo, not like the curve's glow. The curve's part

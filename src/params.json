@@ -914,12 +914,12 @@
   {
    "blue": 0.0,
    "color": [
-    159.9719,
-    159.9719,
-    159.9719
+    185.308,
+    185.308,
+    185.308
    ],
-   "cx": 532.95,
-   "cy": 513.58,
+   "cx": 533.9,
+   "cy": 513.82,
    "cyan": 0.0,
    "id": "flare_core_w",
    "kind": "radial",
@@ -928,8 +928,8 @@
     "scale": 0.3
    },
    "r": 22.0,
-   "squash": 0.85,
-   "white": 0.627342,
+   "squash": 0.73,
+   "white": 0.726698,
    "bounds": {
     "r": [
      12.0,
@@ -944,7 +944,8 @@
      0.6
     ]
    },
-   "note": "the compact white core (D61): a small white radial on the halo's centre, so the core's white is a compact term plus the broad halo instead of one exposure setting.  Its amplitude is set by the core's own R ring means, not by a global fit: swept 0.50 / 0.42 / 0.35 / 0.28 / 0.20, the R mean at r 0-4 runs 237.7 / 236.6 / 235.8 / 234.8 / 233.6 against the reference's 233.0, the R>=200 extent along the core row and column goes W9 E17 N5 S6 -> W8 E17 N5 S5 (reference W8 E17 N4 S5), and whole-image, flare r<110 and core r<25 MAE all improve monotonically down to 0.20 -- the earlier 0.5 made the core both larger and whiter than the reference's.\nD63: white 0.20 -> 0.76, with flare_halo 1.00 -> 0.87 and its radius 92 -> 84.5, in the joint fit that added the north-west and south arms (flare_ray_a_in, flare_ray_s_in): the core's white moves from the wide squashed halo into the compact core.  The checks that set 0.20 still hold: R mean at r 0-4 228.6 against the reference's 230.8 (231.8 before), R>=200 extent W6 E18 N5 S5 against W7 E18 N5 S5.\nD64: white 0.76 -> 0.63 in the same refit (R mean at r 0-4 232.2 against the reference's 233.0)."
+   "note": "the compact white core (D61): a small white radial on the halo's centre, so the core's white is a compact term plus the broad halo instead of one exposure setting.  Its amplitude is set by the core's own R ring means, not by a global fit: swept 0.50 / 0.42 / 0.35 / 0.28 / 0.20, the R mean at r 0-4 runs 237.7 / 236.6 / 235.8 / 234.8 / 233.6 against the reference's 233.0, the R>=200 extent along the core row and column goes W9 E17 N5 S6 -> W8 E17 N5 S5 (reference W8 E17 N4 S5), and whole-image, flare r<110 and core r<25 MAE all improve monotonically down to 0.20 -- the earlier 0.5 made the core both larger and whiter than the reference's.\nD63: white 0.20 -> 0.76, with flare_halo 1.00 -> 0.87 and its radius 92 -> 84.5, in the joint fit that added the north-west and south arms (flare_ray_a_in, flare_ray_s_in): the core's white moves from the wide squashed halo into the compact core.  The checks that set 0.20 still hold: R mean at r 0-4 228.6 against the reference's 230.8 (231.8 before), R>=200 extent W6 E18 N5 S5 against W7 E18 N5 S5.\nD64: white 0.76 -> 0.63 in the same refit (R mean at r 0-4 232.2 against the reference's 233.0).",
+   "rot": 7.31
   },
   {
    "blue": 0.0,
@@ -3222,6 +3223,37 @@
    "taper": "core_edge",
    "white": 0.36827,
    "width": 1.4
+  },
+  {
+   "id": "arc_core_tip",
+   "kind": "arc",
+   "inset": 0.0,
+   "width": 6.4,
+   "blur": 0.6137416122421083,
+   "extend": 60.0,
+   "taper": "core_tip",
+   "white": 0.106761,
+   "cyan": 0.377992,
+   "blue": 0.012023,
+   "color": [
+    27.22,
+    117.83,
+    126.68
+   ],
+   "bounds": {
+    "inset": [
+     -2.0,
+     2.0
+    ],
+    "width": [
+     3.0,
+     9.0
+    ],
+    "blur": [
+     0.2,
+     3.0
+    ]
+   }
   },
   {
    "blend": "normal",
@@ -5816,6 +5848,368 @@
     ],
     [
      939.8,
+     0.0
+    ]
+   ]
+  },
+  "core_tip": {
+   "kind": "table",
+   "gamma": 1.0,
+   "scale": 1.0,
+   "y_offset": 0.0,
+   "left": [
+    [
+     59.79,
+     0.0
+    ],
+    [
+     65.79,
+     0.0219
+    ],
+    [
+     67.31,
+     0.0187
+    ],
+    [
+     68.9,
+     0.0307
+    ],
+    [
+     70.55,
+     0.0512
+    ],
+    [
+     72.28,
+     0.0508
+    ],
+    [
+     74.08,
+     0.0588
+    ],
+    [
+     75.94,
+     0.0742
+    ],
+    [
+     77.88,
+     0.0882
+    ],
+    [
+     79.87,
+     0.1042
+    ],
+    [
+     81.94,
+     0.1287
+    ],
+    [
+     84.08,
+     0.1537
+    ],
+    [
+     86.3,
+     0.1836
+    ],
+    [
+     88.56,
+     0.1982
+    ],
+    [
+     90.9,
+     0.2125
+    ],
+    [
+     93.29,
+     0.212
+    ],
+    [
+     95.76,
+     0.2012
+    ],
+    [
+     98.28,
+     0.1729
+    ],
+    [
+     100.86,
+     0.1362
+    ],
+    [
+     103.51,
+     0.1618
+    ],
+    [
+     106.22,
+     0.2001
+    ],
+    [
+     117.62,
+     0.0
+    ],
+    [
+     921.13,
+     0.0
+    ],
+    [
+     931.56,
+     0.0391
+    ],
+    [
+     933.99,
+     0.0611
+    ],
+    [
+     936.35,
+     0.0906
+    ],
+    [
+     938.63,
+     0.1285
+    ],
+    [
+     940.83,
+     0.1612
+    ],
+    [
+     942.96,
+     0.1652
+    ],
+    [
+     945.0,
+     0.1578
+    ],
+    [
+     946.96,
+     0.1218
+    ],
+    [
+     948.84,
+     0.1125
+    ],
+    [
+     950.65,
+     0.0909
+    ],
+    [
+     952.35,
+     0.0666
+    ],
+    [
+     953.96,
+     0.0548
+    ],
+    [
+     955.49,
+     0.0348
+    ],
+    [
+     956.93,
+     0.032
+    ],
+    [
+     958.27,
+     0.0204
+    ],
+    [
+     959.53,
+     0.0134
+    ],
+    [
+     960.68,
+     0.0109
+    ],
+    [
+     961.75,
+     0.0118
+    ],
+    [
+     962.72,
+     0.0109
+    ],
+    [
+     963.59,
+     0.0105
+    ],
+    [
+     969.59,
+     0.0
+    ]
+   ],
+   "right": [
+    [
+     59.66,
+     0.0
+    ],
+    [
+     65.66,
+     0.0276
+    ],
+    [
+     67.2,
+     0.026
+    ],
+    [
+     68.82,
+     0.0292
+    ],
+    [
+     70.51,
+     0.0469
+    ],
+    [
+     72.25,
+     0.0569
+    ],
+    [
+     74.08,
+     0.0684
+    ],
+    [
+     75.96,
+     0.0843
+    ],
+    [
+     77.93,
+     0.0999
+    ],
+    [
+     79.93,
+     0.1244
+    ],
+    [
+     82.02,
+     0.1643
+    ],
+    [
+     84.16,
+     0.1815
+    ],
+    [
+     86.39,
+     0.1743
+    ],
+    [
+     88.67,
+     0.155
+    ],
+    [
+     91.01,
+     0.1399
+    ],
+    [
+     93.41,
+     0.1538
+    ],
+    [
+     95.88,
+     0.1534
+    ],
+    [
+     98.4,
+     0.1791
+    ],
+    [
+     100.99,
+     0.2127
+    ],
+    [
+     103.64,
+     0.2457
+    ],
+    [
+     106.35,
+     0.3156
+    ],
+    [
+     117.76,
+     0.0
+    ],
+    [
+     905.08,
+     0.0
+    ],
+    [
+     916.78,
+     0.0873
+    ],
+    [
+     919.56,
+     0.0977
+    ],
+    [
+     922.27,
+     0.1148
+    ],
+    [
+     924.91,
+     0.115
+    ],
+    [
+     927.49,
+     0.1281
+    ],
+    [
+     929.99,
+     0.1313
+    ],
+    [
+     932.43,
+     0.1409
+    ],
+    [
+     934.79,
+     0.1345
+    ],
+    [
+     937.08,
+     0.1507
+    ],
+    [
+     939.3,
+     0.1839
+    ],
+    [
+     941.43,
+     0.1688
+    ],
+    [
+     943.48,
+     0.135
+    ],
+    [
+     945.44,
+     0.1294
+    ],
+    [
+     947.33,
+     0.1057
+    ],
+    [
+     949.11,
+     0.086
+    ],
+    [
+     950.82,
+     0.073
+    ],
+    [
+     952.43,
+     0.0601
+    ],
+    [
+     953.95,
+     0.0562
+    ],
+    [
+     955.37,
+     0.0425
+    ],
+    [
+     956.69,
+     0.0279
+    ],
+    [
+     962.69,
      0.0
     ]
    ]

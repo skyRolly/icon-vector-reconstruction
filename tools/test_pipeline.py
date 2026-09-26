@@ -186,7 +186,7 @@ def main():
     # ever being reported.  That gap cannot be closed by flagging every unbounded
     # number -- 486 of the model's 627 numeric leaves are unbounded on purpose,
     # so a report of all of them reports nothing.  What CAN be pinned is the
-    # inventory: every unbounded number today belongs to one of sixteen kinds,
+    # inventory: every unbounded number today belongs to one of seventeen kinds,
     # each searched by a different mechanism or measured rather than fitted.  A
     # new unbounded field in a NEW kind is the case worth catching, and this
     # fires on it.  `paint/x1..y2` is the one kind that is neither -- eight
@@ -212,6 +212,9 @@ def main():
         "gap": "fitted to the reference and held (D67)",
         # D67: arc_core's width along the curve, measured at the tips and held
         "width_taper": "measured at the curve tips and held (D67)",
+        # D68: how far the tip layer's stroke runs past the curves' ends,
+        # read from the reference's tails and held
+        "extend": "measured past the curve ends and held (D68)",
     }
 
     def _numeric_leaves(node, prefix):
@@ -1904,6 +1907,139 @@ def main():
           "%.2f / %.2f); an arc without a width taper is still a stroke"
           % (_cov[(100, 165)], _cov[(880, 930)], _fac[0], _cov[(220, 810)],
              _cerr["left"][0], _cerr["right"][0], _cerr["left"][1], _cerr["right"][1]))
+
+    # ---- an extended arc runs past its ends only along its own curve (D68) - #
+    # arc_core_tip carries `extend`: its stroke runs that many px of arc length
+    # past both ends of each curve of record, along the end cubic's own
+    # polynomial (build_svg.extended_cubics).  The cubics of record are not
+    # changed.  Checked:
+    # - each added cubic is its end cubic continued: every point of it lies on
+    #   that cubic's polynomial evaluated past [0, 1], it meets the curve at the
+    #   end point, and its arc length is `extend`;
+    # - drawn without its table, the layer lies within a stroke's reach of the
+    #   curve of record and those continuations, and it does reach past both
+    #   ends of both curves;
+    # - without the key it is the plain stroke on the cubics of record;
+    # - `extend` refuses to combine with width_taper or convex_taper, and the
+    #   optimiser counts the tip table's user.
+    _exL = [L["id"] for L in params["layers"] if L.get("extend")]
+    _exd, _exR, _exU = [], {}, []
+    if _exL != ["arc_core_tip"]:
+        _exd.append("layers with an extension: %s (expected arc_core_tip)" % _exL)
+    elif not hasattr(build_svg, "extended_cubics"):
+        # a builder without the option would draw the layer without its tail
+        _exd.append("the builder cannot extend an arc (no build_svg.extended_cubics)")
+    else:
+        _Lx = [L for L in params["layers"] if L["id"] == "arc_core_tip"][0]
+        _ext = float(_Lx["extend"])
+
+        def _bez(P, t):
+            u = 1 - t
+            return (np.outer(u ** 3, P[0]) + np.outer(3 * u * u * t, P[1])
+                    + np.outer(3 * u * t * t, P[2]) + np.outer(t ** 3, P[3]))
+
+        def _arclen(P):
+            q = _bez(P, np.linspace(0, 1, 4001))
+            return float(np.hypot(*np.diff(q, axis=0).T).sum())
+
+        _tt = np.linspace(0, 1, 201)
+        _paths, _plain, _past = [], [], []
+        for _sd in ("left", "right"):
+            _cps = params["geometry"]["arc_" + _sd]["cubics"][_sd]
+            _xc = build_svg.extended_cubics(_cps, _ext)
+            if [[list(map(float, q)) for q in c] for c in _xc[1:-1]] != \
+                    [[list(map(float, q)) for q in c] for c in _cps]:
+                _exd.append("the %s curve's cubics of record are changed" % _sd)
+            for _P, _Q, _fw in ((np.asarray(_cps[-1], float), np.asarray(_xc[-1], float), True),
+                                (np.asarray(_cps[0], float), np.asarray(_xc[0], float), False)):
+                # the added cubic is P on [1, 1 + tau] (or [-tau, 0]); its first
+                # control leg is tau/3 of P's end tangent, which gives tau
+                if _fw:
+                    _tau = 3 * np.hypot(*(_Q[1] - _Q[0])) / np.hypot(*(3 * (_P[3] - _P[2])))
+                    _on = _bez(_P, 1 + _tau * _tt)
+                    _join = np.hypot(*(_Q[0] - _P[3]))
+                else:
+                    _tau = 3 * np.hypot(*(_Q[3] - _Q[2])) / np.hypot(*(3 * (_P[1] - _P[0])))
+                    _on = _bez(_P, -_tau + _tau * _tt)
+                    _join = np.hypot(*(_Q[3] - _P[0]))
+                _off = float(np.hypot(*(_bez(_Q, _tt) - _on).T).max())
+                _len = _arclen(_Q)
+                if _join > 1e-9 or _off > 1e-6 or abs(_len - _ext) > 0.01:
+                    _exd.append("a %s continuation leaves its cubic (join %.2g px, off the polynomial %.2g px, "
+                                "length %.3f of %.1f)" % (_sd, _join, _off, _len, _ext))
+                _exR[_sd + ("S" if _fw == (_P[3][1] > _P[0][1]) else "N")] = (_off, _len)
+                _past.append(_bez(_Q, np.array([0.2, 0.5, 0.8])))
+            _paths.append(np.concatenate([_bez(np.asarray(c, float), np.linspace(0, 1, 400)) for c in _xc]))
+            _plain.append(np.concatenate([_bez(np.asarray(c, float), np.linspace(0, 1, 400)) for c in _cps]))
+
+        def _reach(img, pts):
+            yx = np.argwhere(img > 2.0)
+            px = yx[:, ::-1] + 0.5
+            out = 0.0
+            for _k in range(0, len(px), 2000):
+                d = np.sqrt(((px[_k:_k + 2000, None, :] - pts[None]) ** 2).sum(-1)).min(1)
+                out = max(out, float(d.max()))
+            return out
+
+        # the probe draws the layer at a fixed stroke on the curve itself, so
+        # the check reads the extension's geometry, not the fitted inset, width
+        # or blur (all three are searchable within the layer's bounds)
+        _probe = {"inset": 0.0, "width": 6.4, "blur": 0.6}
+        _pU, _pP = _cpk.deepcopy(params), _cpk.deepcopy(params)
+        for _q in (_pU, _pP):
+            for _L in _q["layers"]:
+                if _L["id"] == "arc_core_tip":
+                    _L.pop("taper", None)
+                    _L.update(_probe)
+                    if _q is _pP:
+                        _L.pop("extend", None)
+        _svU, _svP = build_svg.build(_pU, basis="arc_core_tip"), build_svg.build(_pP, basis="arc_core_tip")
+        _imU = _FP.render_array(_svU, 1024)[..., 0].astype(np.float64) * 255
+        _imP = _FP.render_array(_svP, 1024)[..., 0].astype(np.float64) * 255
+        # half the stroke, three blur sigmas and a pixel's half-diagonal
+        _lim = _probe["width"] / 2 + 3 * _probe["blur"] + 0.75
+        _rU, _rP = _reach(_imU, np.concatenate(_paths)), _reach(_imP, np.concatenate(_plain))
+        if _rU > _lim:
+            _exd.append("the extended layer lights a pixel %.2f px from its path (limit %.2f)" % (_rU, _lim))
+        if _rP > _lim:
+            _exd.append("without `extend` the layer lights a pixel %.2f px from the curve of record" % _rP)
+        _pv = np.concatenate(_past)
+        _atU = _imU[_pv[:, 1].astype(int), _pv[:, 0].astype(int)]
+        _atP = _imP[_pv[:, 1].astype(int), _pv[:, 0].astype(int)]
+        if _atU.min() < 200:
+            _exd.append("the extension is not drawn past every end (%.0f cv at its weakest sample)" % _atU.min())
+        if _atP.max() > 1:
+            _exd.append("without `extend` the layer still reaches past an end (%.0f cv)" % _atP.max())
+        for _sd in ("left", "right"):
+            if ('d="%s"' % build_svg.bezier_arc_path(params["geometry"]["arc_" + _sd], _sd, 0.0)
+                    not in _svP):
+                _exd.append("without `extend` the %s stroke is not the curve of record's path" % _sd)
+        for _extra, _nm in (({"width_taper": [[100.0, 1.0], [900.0, 1.0]]}, "width_taper"),
+                            ({"convex_taper": _Lx["taper"]}, "convex_taper")):
+            _pR = _cpk.deepcopy(params)
+            [_L for _L in _pR["layers"] if _L["id"] == "arc_core_tip"][0].update(_extra)
+            try:
+                build_svg.build(_pR)
+                _exd.append("`extend` with %s builds instead of refusing" % _nm)
+            except AssertionError:
+                pass
+        # a length past the end cubic's own span is refused, not clamped
+        try:
+            build_svg.extended_cubics(params["geometry"]["arc_right"]["cubics"]["right"], 5000.0)
+            _exd.append("an extension past the end cubic's span is clamped instead of refused")
+        except ValueError:
+            pass
+        _exU = [sp["affects"] for sp in O.taper_specs(params) if sp["path"].startswith("tapers/%s/" % _Lx["taper"])]
+        if not _exU or any(u != ["arc_core_tip"] for u in _exU):
+            _exd.append("taper_specs does not search %s for arc_core_tip (%s)" % (_Lx["taper"], _exU))
+    check("an extended arc runs past its ends only along its own curve",
+          not _exd, "; ".join(_exd) if _exd else
+          "arc_core_tip: four continuations on their end cubics' polynomials (max %.1g px off), each %.3f px "
+          "long; lit pixels within %.2f px of the extended path (limit %.2f), %.0f-%.0f cv past every end; "
+          "without the key: the plain stroke, within %.2f px of the curve of record, %.0f cv past the ends; "
+          "refused with width_taper and convex_taper, and past the end cubic's span; %s searched (%d specs)"
+          % (max(v[0] for v in _exR.values()), min(v[1] for v in _exR.values()), _rU, _lim,
+             _atU.min(), _atU.max(), _rP, _atP.max(), _Lx["taper"], len(_exU)))
 
     # ---- teal is a PERMISSION, not the current amount (D65) --------------- #
     # The review case: fit() locked the fourth primary on every layer whose

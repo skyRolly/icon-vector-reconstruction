@@ -348,6 +348,20 @@ measured per-side table (`tapers.glow1b`) at the same time. What remains in
 that band is hue, excess G with B already matched, which an amplitude cannot
 fix.
 
+The reference's curves do not stop at the cubics' end points. Each one goes on
+as a narrow ridge (Gaussian sigma 2.3-3.0 px, as narrow as the core) for
+another 40-55 px toward the frame corner, fading as it goes. Its centre stays
+within about 1 px of the end cubic's own polynomial continued past its end,
+up to 25 px out on three of the four ends. Just inside the ends, the core's
+cyan also outlasts its white: G and B are 15-28 cv short there while R
+matches. One thin stroke carries both, `arc_core_tip` (D68). It has
+`arc_core`'s tip width and blur and `arc_glow1`'s colour, so no new shape or
+colour numbers are fitted. Its per-side table (`tapers.core_tip`) is station
+fits of the reference and is zero over the curves' middle. The builder draws
+it 60 px of arc length past both ends (`extend`), along one extra cubic per
+end that is the end cubic's polynomial on [-tau, 0] and [1, 1 + tau]. The
+cubics of record are not changed.
+
 ### 4c. Light past the ends of the curves: the interior corners
 
 The drawn curves end at \|t\| = 66-69 degrees (the four Bezier endpoints are at
