@@ -9,8 +9,8 @@ rounded-square frame — as a hand-built, parametric SVG.
 | ![reference](out/side_reference.png) | ![reconstruction](out/side_reconstruction.png) | ![difference](out/side_diff.png) |
 
 <!-- DELIVERABLE:START -->
-**Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 35 named
-layers, 76 KB, no embedded bitmap and no traced outlines. Every mark is a
+**Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 55 named
+layers, 134 KB, no embedded bitmap and no traced outlines. Every mark is a
 primitive driven by a named parameter in
 [`src/params.json`](src/params.json): one path for the frame, two cubic-Bézier
 paths for the luminous curves (reused, offset and clipped, by every glow
@@ -25,15 +25,15 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 
 | metric | value | for scale |
 |---|---|---|
-| mean absolute error | **1.842** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 3.974 | |
-| MAE on a 1/2.2 display curve | 5.406 | weights the dark background as the eye does; black scores 59.7 |
-| SSIM (luminance) | **0.9744** | black scores 0.142 |
-| worst single-channel error | 110 | |
-| pixels off by more than 2 / 8 / 24 | 34.3% / 4.5% / 0.7% | |
-| mean bias | -0.185 | |
+| mean absolute error | **1.684** / 255 | a flat black canvas scores 17.89 |
+| RMSE | 3.107 | |
+| MAE on a 1/2.2 display curve | 5.226 | weights the dark background as the eye does; black scores 59.7 |
+| SSIM (luminance) | **0.9764** | black scores 0.142 |
+| worst single-channel error | 67 | |
+| pixels off by more than 2 / 8 / 24 | 33.8% / 3.6% / 0.4% | |
+| mean bias | -0.200 | |
 
-Per region (MAE): frame band 2.50, centre 90 px 7.64, bright pixels 9.36, dark background 1.36, everything else 1.61.
+Per region (MAE): frame band 2.50, centre 90 px 4.58, bright pixels 7.85, dark background 1.31, everything else 1.52.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -44,16 +44,16 @@ The two regions a whole-image average cannot police, from
 
 | targeted measurement | value |
 |---|---|
-| MAE within 110 px of the central light | 6.30 |
-| worst ring of the flare's radial profile | -4.6 code values at r = 30-45 |
-| curve glow, rms relative error over 21 signed-distance bins | 3.0% |
-| the same, resolved along the curve (71 cells) | 5.2% |
+| MAE within 110 px of the central light | 4.04 |
+| worst ring of the flare's radial profile | +1.1 code values at r = 20-30 |
+| curve glow, rms relative error over 21 signed-distance bins | 2.8% |
+| the same, resolved along the curve (71 cells) | 4.8% |
 | light in the four interior corners, rms relative error | 5.0% |
-| worst single bin of that profile | +6.1% at s = -14..-9 px |
-| left lobe, MAE more than 25 px from the ridge | 1.36 (bias -0.17) |
+| worst single bin of that profile | -5.8% at s = -70..-52 px |
+| left lobe, MAE more than 25 px from the ridge | 1.34 (bias -0.19) |
 | right lobe, MAE more than 25 px from the ridge | 1.31 (bias -0.11) |
 
-Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.679 (SSIM 0.9555); see `out/validation.md` for the resolution sweep.
+Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.693 (SSIM 0.9554); see `out/validation.md` for the resolution sweep.
 <!-- METRICS:END -->
 
 ## What is in here
@@ -75,7 +75,7 @@ tools/diagnose.py        targeted reports for the flare, the lobes and the glow 
 tools/ray_report.py      the four diagonal rays: peak, angle and width against the reference
 tools/core_report.py     the flare core's radial falloff, in bands, where a blur would show
 tools/chroma_report.py   colour by distance from a curve ridge, where the paleness is
-tools/measure_flare.py   sets the rays' and flanks' amplitudes from those measurements
+tools/measure_flare.py   the rays' geometry of record, and their calibration against each line's profile
 tools/wedge_report.py    angular modulation west of the flare, where a regional mean is blind
 tools/arm_report.py      the horizontal arms, scored against a matched null along the ridge
 tools/vstreak_report.py  the vertical line through the core, north and south reported apart
@@ -84,7 +84,9 @@ tools/line_shape.py      the long line's transverse spread and colour, rather th
 tools/line_report.py     the three horizontal lines' amplitudes, ridges masked
 tools/compare_sheet.py   reference | render | signed difference, by region and by scale
 tools/flare_view.py      the flare in RGB, luminance and chroma at three scales, side by side
-tools/visual_regression.py  the twelve recurring visual failures, as ratios to the reference
+tools/visual_regression.py  the sixteen recurring visual failures, as ratios to the reference
+tools/ray_lines.py       every named ray as a 2D profile on its measured line, reference beside render
+tools/flare_parts.py     reference | before | after for each named part of the flare
 tools/publish.sh         the one command that produces a reviewable release
 tools/regions.py         the measured anchors and region geometry both of those share
 tools/test_pipeline.py   regression checks that keep optimisation results meaningful
@@ -101,11 +103,20 @@ out/                     renders, difference images, metrics, validation report
 
 ## Reproducing
 
-Needs Python 3 with `numpy`, `Pillow` and `resvg-py` (`pip install numpy pillow
-resvg-py`) — and nothing else: `tools/test_pipeline.py` checks that every shipped
-module imports only those three plus the standard library, because
-`tools/diagnose.py` once needed SciPy that this line did not mention. Headless
-Chromium is optional and only used for the second opinion in `tools/validate.py`.
+Needs Python 3 with `numpy`, `Pillow` and `resvg-py`, pinned in
+`requirements.txt` (`pip install -r requirements.txt`) — and nothing else:
+`tools/test_pipeline.py` checks that every shipped module imports only those
+three plus the standard library, because `tools/diagnose.py` once needed SciPy
+that this line did not mention. Headless Chromium is optional and only used for
+the second opinion in `tools/validate.py`.
+
+**A clean checkout needs one setup step** before the regression gate:
+`python3 tools/setup_baseline.py` renders the previous accepted release
+(`out/baseline/reconstruction.svg`, pinned by digest in its manifest), which the
+before/after sheet is checked against. It exits 3 on a setup failure, and
+`tools/test_pipeline.py` exits 3 — not 1 — if the setup was skipped, so a
+missing setup step is never reported as a regression. CI and `tools/publish.sh`
+both run it.
 
 **Renderer.** resvg is the acceptance renderer: every number quoted here, and
 every objective the optimiser minimises, is measured on its output at 1024 px.
@@ -120,6 +131,7 @@ python3 tools/validate.py                                   # sizes 256..4096, b
 python3 tools/validate.py --quick --no-chromium              # resvg only, no browser needed
 python3 tools/probe_compare.py out/r.png                     # geometry/alignment probes
 python3 tools/diagnose.py out/r.png                          # flare / lobe / profile reports
+python3 tools/setup_baseline.py                              # once per clean checkout
 python3 tools/test_pipeline.py                               # optimiser correctness checks
 sh tools/optimize_all.sh                                     # refit everything from scratch
 ```
@@ -140,29 +152,61 @@ restated those numbers drifted out of date twice, so it no longer does.
 1. **Background** — a flat exterior in three pieces (body, top edge, corners),
    then the frame shape filled with a base colour, two broad radial gradients
    and a vertical ramp.
-2. **Glow** — six blurred copies of each curve's path at effective cross-curve
-   widths from 3.3 to 87 px, four offset inward and two outward. The measured
-   facts they reproduce: the glow is 2.8-3.5x brighter on the concave side, and
-   each component carries its own measured fade along the curve, emitted as the
-   measured stations themselves. A seventh component closing the gap between
-   5.8 and 20.6 px was built and measured; it raises what the basis can achieve
-   beside the ridge but did not improve the render, and is not shipped
-   (docs/DECISIONS.md D19, D22).
-3. **Central light** — thirteen layers: two stretched radial blooms, four
-   horizontal streak components at the three measured line heights, five
-   one-sided rays at their measured angles and widths, and two broad flanks.
+2. **Glow** — eight blurred copies of each curve's path, six offset toward the
+   concave side and two toward the convex side. The measured facts they
+   reproduce: the glow is 2.8-3.5x brighter on the concave side, and each
+   component carries its own measured fade along the curve, emitted as the
+   measured stations themselves. One of the eight (`arc_bloom_w`, D62) is
+   confined to the flare's height: within ~40 px of the core row both curves
+   are whiter on their concave side than the other glow terms draw -- on the
+   left curve, 66 px from the core, as much as on the right -- so that light is
+   the curves' and not the flare's. The narrowest concave term is split into
+   a cyan layer and a white one, and near the flare's rows their fades were
+   measured station by station on each curve (D66): there the reference's
+   glow is white, not cyan, on both curves. The broad inset term
+   (`arc_glow2`) is split at each curve: its flare-facing part has its own
+   fade, measured on that side, because the concave side's fade let its tail
+   reach too far between the curves (D67). A component closing the gap
+   between 5.8 and 20.6 px was built and measured; it raises what the basis
+   can achieve beside the ridge but did not improve the render, and is not
+   shipped (docs/DECISIONS.md D19, D22).
+3. **Central light** — thirty-two layers: five radial blooms (the halo with
+   one fitted gap north-east of the core, where the reference's white has a
+   notch; D67), nine
+   horizontal streak components at the three measured line heights (lines A
+   and B each carry their white in a layer of their own, so white and cyan
+   follow different profiles along the line; D64), the vertical diffraction
+   line, fourteen one-sided ray segments on eight measured lines, and three short
+   white arms of the core itself: north-west and south, where the reference's
+   white leans away from the horizontal (D63), and east, where its white core
+   runs on to the right curve (D65).
    There is no separate glint layer; the brightest pixels come from the streak
-   and bloom stack. The four diagonal rays are each measured rather than
-   assumed: the right-hand pair is at 45.6 and 327.8 degrees and is 4-5 px
-   wide, against the left pair's 8-11 px, so they are not mirror images of each
-   other (D26), and it runs out to r = 170-230 px where the left pair fades by
-   140 (D32). Two of them are a sharp spike on a broad fan, which is why the
-   flanks are their own layers (D29). A different rebuild of this group into
-   fourteen layers is recorded in D14/D21 and is not shipped — it measured
-   worse (D22).
-4. **Curve cores** — a hard-edged bright stroke on each path plus a narrower
-   inset one, because the measured core is 5.8 px at the tips, 8.4 px at
-   mid-height, and asymmetric about its own centre-line.
+   and bloom stack. The rays are measured rather than assumed, and several do
+   not pass through the core (the upper-left pair misses it by 17 and 26 px).
+   A ray whose profile along its line one gradient cannot hold is drawn as
+   segments on the same line -- an inner and an outer lower-left segment, a
+   bright white inner segment, a narrow line and a soft flank that widens
+   with radius on the lower right (D64; the line fades by r ~130 and the
+   flank carries the light beyond it, D65), a white near-core part and a cyan
+   lobe at 229 degrees -- and each segment's
+   geometry of record, including its absolute origin in canvas pixels and
+   where it fades, is the table in `tools/measure_flare.py`, which
+   `--geometry` restores (D61-D65). Their amplitudes are calibrated against
+   each ray's measured profile, jointly per line, not fitted to the whole
+   image. The lower-right line and its flank are calibrated together: past
+   r 88 each band is read with a narrow and a broad template at once, which
+   tells a flank's light from a line's, so the whole-image fits hold the flank
+   and calibration restores it (D65). The westward triangle that two
+   straight-edged flank layers once drew is gone and stays gone (D61).
+4. **Curve cores** — a hard-edged bright core on each path plus two thin
+   mid-tapered strokes, one on each side, because the measured core widens
+   from about 6.2 px at the tips to about 8 px at mid-height on both sides of
+   its centre-line (the flare-side stroke is D66's). The core itself narrows
+   toward its ends as the reference's does, so it is drawn as a filled
+   outline rather than a constant-width stroke (D67). Past each end the
+   reference's curve goes on as a narrow cyan tail for another 40-55 px; one
+   more thin stroke draws it, continued along the end cubic's own polynomial,
+   with the cubics of record unchanged (D68).
 5. **Rim** — two frame-ring strokes, a uniform base and a gradient-painted rim,
    because the measured rim brightness peaks at the middle of each edge and the
    top edge is twice as bright as the bottom. Two further layers light the four
@@ -232,6 +276,44 @@ enough to search the geometry.
   adding matched noise to the render, whose true edges are unchanged. See D38.
 * The reference's JPEG blocking and its low-frequency "smudge" texture are not
   reproduced, by choice: together they set an MAE floor of ~0.6 per channel.
+  The mottling around the core was classified rather than assumed (D62): its
+  8-px block structure matches the render recompressed at about JPEG quality 60,
+  and what remains after that is a weak, only partly grid-aligned white texture
+  of ~2 cv RMS at 4-8 px -- real light, probably, but lumps a vector model could
+  only invent, so it is not modelled.
+* **Four rays are greener than white/cyan/blue can draw, so six of their
+  layers may use a fourth primary, teal (0, 1, 0.7).** The 267-degree ray,
+  upper-left A, the upper-right ray and the 229-degree lobe sit with B below G
+  above their local ramp (B/G 0.73-0.85, against cyan's ~1.06). It is not the
+  compositing: had the reference been composited in linear light, every ray's
+  implied B/G would rise, leaving these green (D63). In a controlled refit of
+  every family's colour, teal and a pure green primary tied. Teal was taken
+  because it reaches the evidence and no further: its floor, B/G 0.7, is the
+  greenest ray measured, while pure green would let a later fit draw rays far
+  greener than anything in the reference. Teal is allowed only on the six
+  layers of record, and every other layer stays in the cone. The permission
+  is the layer's own `teal` key, not its current amount, so a teal ray
+  refitted from zero can take teal back (D65). Those four rays now read B/G
+  0.73 / 0.78 / 0.84 / 0.78 against the reference's 0.73 / 0.78 / 0.85 / 0.74
+  (D65).
+* **The white core's directional shape is drawn, not all of it matched.** The
+  reference's white leans north-west and reaches south of the core; two short
+  white arms fitted to the core's 2D residual now carry that (D63). North of
+  the core, between the vertical line and the right curve, the reference has
+  a notch in its white where the render was ~11 cv too red. The reference
+  lacks WHITE there, not light, so this is not an occluder. The halo now
+  carries one fitted gap in that sector (D67), which takes the excess to
+  about +7; what remains is the fan's tail and the right curve's white glow,
+  and the gap is at its limit. The core's white leans east toward the right
+  curve in the reference. Its white layer was moved about 1 px east, narrowed north
+  to south and tilted, at the same total light, which halves the east-south-east
+  deficit at r 4-12 (D68). The north arc at r 12-16 and the south-west are
+  now a little darker than the reference's.
+* **Just past the right curve at the core's height, part of the remaining
+  green is the flare's own light**, compact within ~30 px of the core and
+  shaped like the fan and halo, not like the curve's glow. The curve's part
+  was fixed at the curve (D66); the flare part is left, since dimming the
+  flare there would trade one error for another.
 * The two dark axial wedges between the diverging curves used to be
   over-predicted by ~4 code values, and this list blamed the additive stack for
   it: "a screen stack can only add light". That was the wrong diagnosis. The

@@ -304,17 +304,63 @@ fit and are data; the two components added above postdate that fit, so reusing
 measurement. They carry their own fades (`tapers.haze`, `tapers.glow2b`) as
 tunable ramps instead.
 
-The core's width is not constant -- 5.8 px at both tips, 8.4 px at mid-height --
-and it is **not symmetric about its own centre-line**: its 50% edges reach
-4.8 px on the concave side but only 3.3 px on the convex side. A single stroke
-cannot do either, so the core is two strokes: a full-length one on the fitted
-centre-line, and a narrower inset one tapered towards mid-height that supplies
-exactly that extra concave-side width.
+The core's width is not constant: measured along the normal of the curve of
+record, its R half-level edges sit at about +-3.1 px at the tips and at
+-3.9..-4.0 px (flare side) / +4.0..+4.2 px (lens side) at mid-height, so it
+widens from about 6.2 px to 7.9-8.1 px, nearly symmetrically. A single stroke
+cannot do that, so the core is three strokes: a full-length one on the fitted
+centre-line (`arc_core`), and two thin strokes tapered towards mid-height that
+supply the extra width, one on the lens side (`arc_core_wide`, inset +2) and
+one on the flare side (`arc_core_edge`, inset -3.4, D66). Until D66 the core
+was described as asymmetric (4.8 px lens side / 3.3 px flare side) and only the
+lens-side stroke existed; against the current curve of record that asymmetry
+is 0.1-0.3 px, and the flare-side edge was 0.4-0.9 px short along the whole
+middle of both curves.
+
+At the other end of that range the full-length stroke was too wide: 6.85 px
+where the reference's core is 6.1-6.4 px (y 110-170) and 5.9-6.3 px (y
+860-930), 0.2-0.45 px too far out on both edges. Narrowing the whole stroke
+does not work, because the cyan edge strokes cannot give back the white it
+removes at mid-height. So `arc_core` carries a width table (`width_taper`,
+D67): 6.832 px from y 210 to 820, narrowing to 6.40 px by y 170 and 860. A
+stroke's width is constant along its path, so a layer with that key is drawn
+as one filled outline, the curve of record offset by +-w(y)/2 along its normal
+with round ends. The outline also follows the curve of record more closely
+than resvg's stroke did: the stroke's flattening of the right curve's long
+upper cubic had put it 0.10-0.26 px toward the lens over y 400-540.
 
 The fades along the arcs are not guessed: the core coverage and each glow term's
 amplitude were measured station by station on both arcs and are carried in
 `src/params.json` as explicit stop tables (`tapers.core`, `tapers.glow1..3`),
 with a tunable gamma and scale on top.
+
+Those stations were read where each term's light is, and for the broad glow
+`arc_glow2` that is the concave side. Between the curves its sigma-19 tail
+then fell off too slowly: G +5.4 / +6.3 at 14-30 px from the left / right
+curve along their whole middle, with the far field right. Since D67 the layer
+is split along its curve, 1.5 px on the flare side inside the bright core:
+the concave part keeps `tapers.glow2`, and the flare-facing part takes
+`tapers.glow2_cv` (`convex_taper`). That is the same table times a per-side
+gain measured station by station on the flare side. The gain is capped at 1,
+and held at 1 on the right curve under the flare, where there is no clean
+data. `arc_glow1b`, which carries the 6-12 px band on that side, got a
+measured per-side table (`tapers.glow1b`) at the same time. What remains in
+that band is hue, excess G with B already matched, which an amplitude cannot
+fix.
+
+The reference's curves do not stop at the cubics' end points. Each one goes on
+as a narrow ridge (Gaussian sigma 2.3-3.0 px, as narrow as the core) for
+another 40-55 px toward the frame corner, fading as it goes. Its centre stays
+within about 1 px of the end cubic's own polynomial continued past its end,
+up to 25 px out on three of the four ends. Just inside the ends, the core's
+cyan also outlasts its white: G and B are 15-28 cv short there while R
+matches. One thin stroke carries both, `arc_core_tip` (D68). It has
+`arc_core`'s tip width and blur and `arc_glow1`'s colour, so no new shape or
+colour numbers are fitted. Its per-side table (`tapers.core_tip`) is station
+fits of the reference and is zero over the curves' middle. The builder draws
+it 60 px of arc length past both ends (`extend`), along one extra cubic per
+end that is the end cubic's polynomial on [-tau, 0] and [1, 1 + tau]. The
+cubics of record are not changed.
 
 ### 4c. Light past the ends of the curves: the interior corners
 
