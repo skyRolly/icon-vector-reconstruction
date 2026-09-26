@@ -1716,6 +1716,83 @@ def main():
           "re-seeds, and a layer that loses teal eligibility is scored without teal"
           % (100 * abs(_sK["A"] - _sK["B"]) / abs(_sK["A"])))
 
+    # ---- a caller's colour edit reaches the objective's movable rows (D69) - #
+    # The review case: colours() refreshed the HELD rows from the parameters
+    # (D67) but carried every movable row, so an objective that scored A and
+    # then B -- B differing only in a movable layer's stored colour -- scored
+    # B with A's colour.  Nothing is freed here (free=[]), so a reused and a
+    # fresh Objective must agree bitwise on every state: arc_glow1 cyan ->
+    # black by its colour alone (the review's example), back to cyan, two
+    # layers at once, and back.  The carried state must still be carried: a
+    # fit's movable rows, assigned to obj.K as sweep assigns them, ride
+    # through a geometry-only successor -- scored as a fresh objective holding
+    # the same rows, not as one seeded from the stored colours -- and an edit
+    # of one layer re-reads that row alone.  On the old code every edited
+    # state scores exactly as the state before it.
+    def _freshM():
+        f = O.Objective(os.path.join(ROOT, "reference.png"), stride=8, fit_iters=1, held=_heldK)
+        f.cache = _objK.cache
+        return f
+    def _recolM(p, edits):
+        q = _cpk.deepcopy(p)
+        for L in q["layers"]:
+            if L["id"] not in edits:
+                continue
+            if edits[L["id"]] == "black":        # the stored colour alone
+                L["color"] = [0.0, 0.0, 0.0]
+                continue
+            wc = _FP.params_wc({"layers": [L]})[0] * edits[L["id"]]
+            for n, v in zip(_FP.COMPONENTS, wc):
+                if n in L:
+                    L[n] = round(float(v), 6)
+            L["color"] = [round(float(v) * 255.0, 2) for v in _FP.color_from_wc(wc)]
+        return q
+    _objM = _freshM()
+    _diagM, _sM = [], {}
+    for _nm, _S in (("A", params), ("B", _recolM(params, {"arc_glow1": "black"})), ("A again", params),
+                    ("C", _recolM(params, {"arc_glow1": 0.0, "field_grad": 0.5})), ("A after C", params)):
+        _reM = _objM.evaluate(_S, free=[])[0]
+        _frM = _freshM().evaluate(_S, free=[])[0]
+        _sM[_nm] = _frM
+        if _reM != _frM:                  # the same arithmetic: bitwise equal
+            _diagM.append("%s scored %.9g reused against %.9g fresh" % (_nm, _reM, _frM))
+    _dB, _dC = (abs(_sM[k] - _sM["A"]) / abs(_sM["A"]) for k in ("B", "C"))
+    if min(_dB, _dC) <= 1e-3:
+        _diagM.append("vacuous: the colour edits moved the score by only %.2g / %.2g" % (_dB, _dC))
+    _movM = [i for i, lid in enumerate(_idsK) if lid not in _heldK]
+    _GM = _cpk.deepcopy(params)
+    for _L in _GM["layers"]:
+        if _L["id"] == "arc_glow2":
+            _L["blur"] = float(_L["blur"]) + 0.5         # geometry only
+    _objM.K = _KfitK                     # a fit's movable rows, as sweep assigns them
+    _reG = _objM.evaluate(_GM, free=[])[0]
+    _hM = _freshM()
+    _hM.colours(_GM)
+    _hM.K = _KfitK
+    _hdG, _sdG = _hM.evaluate(_GM, free=[])[0], _freshM().evaluate(_GM, free=[])[0]
+    if not (np.array_equal(_objM.K[_movM], _KfitK[_movM]) and _reG == _hdG):
+        _diagM.append("a geometry-only successor did not keep the carried rows (%.9g against %.9g)"
+                      % (_reG, _hdG))
+    if _sdG == _reG:
+        _diagM.append("vacuous: the carried rows score as the stored colours do")
+    _BG = _recolM(_GM, {"arc_glow1": "black"})
+    _objM.evaluate(_BG, free=[])
+    _igM = _idsK.index("arc_glow1")
+    _othM = [i for i in _movM if i != _igM]
+    if not np.array_equal(_objM.K[_igM], _FP.params_wc(_BG)[_igM]):
+        _diagM.append("an edit of arc_glow1's colour on the carried state was not read (row %s)"
+                      % np.round(_objM.K[_igM], 4))
+    if not np.array_equal(_objM.K[_othM], _KfitK[_othM]):
+        _diagM.append("an edit of one layer's colour discarded the other carried rows")
+    check("the optimiser's objective scores a movable colour its caller changed",
+          not _diagM, "; ".join(_diagM) if _diagM else
+          "5 successive states (arc_glow1 cyan -> black by its colour alone; back; two layers; back) "
+          "score bitwise identically through a reused and a fresh Objective with nothing freed, and "
+          "the edits move the score by %.1f%% / %.1f%%; a fit's movable rows ride through a "
+          "geometry-only successor (%.9g, as a fresh objective holding them; %.9g seeded from the "
+          "stored colours), and an edit of one layer re-reads that row alone (%d carried rows kept)"
+          % (100 * _dB, 100 * _dC, _reG, _sdG, len(_othM)))
+
     # ---- a radial layer's directional gap only removes its own light (D67) - #
     # The halo carries a fitted gap north-east of the core (a blurred annular
     # sector of its own coverage removed by a luminance mask).  It must stay a

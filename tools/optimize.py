@@ -441,6 +441,7 @@ class Objective:
         self.cache = {}
         self.K = None
         self.K_ids = None           # the layer schema self.K's rows belong to (colours())
+        self.K_seen = None          # the stored colours colours() last read from params
         self.n_render = 0
 
     def basis(self, params, lid):
@@ -522,18 +523,37 @@ class Objective:
         one), or which layers may use teal -- a movable row that kept a teal
         amount after its layer lost the permission would have it locked in by
         the fit, scoring light the parameters forbid.
+
+        A movable row is carried only while its layer's STORED colour is the
+        one this objective last read.  sweep never writes colours into
+        `params`, so during a run nothing is refreshed and the fitted rows
+        ride through every geometry trial.  But a caller that edits a movable
+        layer's stored colour between two evaluations is asking for that
+        colour to be scored, and until D69 the row kept the old one: scored
+        with `free=[]`, A with a cyan `arc_glow1` and then B with it black
+        gave B exactly A's score, where a fresh Objective scores B (the
+        review finding).  So the stored colours read here are kept
+        (`K_seen`), and a movable row whose stored colour differs from the
+        last reading is re-read from `params`; every other movable row keeps
+        its carried state.  The comparison is with the LAST reading, so a
+        caller that assigns `obj.K` must do it straight after evaluating
+        parameters with the same stored colours, as every `sweep` site does:
+        a K restored after scoring different stored colours has those rows
+        re-read.
         """
         ids = [L["id"] for L in params["layers"]]
         schema = (tuple(ids), tuple(bool(t) for t in FP.teal_eligible(params)))
         wc = FP.params_wc(params)
         if self.K is None or self.K_ids != schema or self.K.shape[0] != len(ids):
-            self.K, self.K_ids = wc, schema
+            self.K, self.K_ids, self.K_seen = wc, schema, wc.copy()
             return
-        hidx = [i for i, lid in enumerate(ids) if lid in self.held]
-        if hidx and not np.array_equal(self.K[hidx], wc[hidx]):
+        stale = [i for i, lid in enumerate(ids)
+                 if lid in self.held or not np.array_equal(wc[i], self.K_seen[i])]
+        if stale and not np.array_equal(self.K[stale], wc[stale]):
             K = np.array(self.K, copy=True)
-            K[hidx] = wc[hidx]
+            K[stale] = wc[stale]
             self.K = K
+        self.K_seen = wc
 
     def evaluate(self, params, fit_iters=None, stride=None, full=False, free=None):
         free = self.free_indices(params, free)
