@@ -186,7 +186,7 @@ def main():
     # ever being reported.  That gap cannot be closed by flagging every unbounded
     # number -- 486 of the model's 627 numeric leaves are unbounded on purpose,
     # so a report of all of them reports nothing.  What CAN be pinned is the
-    # inventory: every unbounded number today belongs to one of fifteen kinds,
+    # inventory: every unbounded number today belongs to one of sixteen kinds,
     # each searched by a different mechanism or measured rather than fitted.  A
     # new unbounded field in a NEW kind is the case worth catching, and this
     # fires on it.  `paint/x1..y2` is the one kind that is neither -- eight
@@ -210,6 +210,8 @@ def main():
         # fitted to the core's reference residual and held, like the white
         # arms' shape
         "gap": "fitted to the reference and held (D67)",
+        # D67: arc_core's width along the curve, measured at the tips and held
+        "width_taper": "measured at the curve tips and held (D67)",
     }
 
     def _numeric_leaves(node, prefix):
@@ -1767,6 +1769,141 @@ def main():
           "sector (max %.2f cv); a probe gap over the bright halo (%d px) leaves %.1f%% at depth 1 and "
           "%.1f%% at depth 0.5; no mask without a gap"
           % (_added, _removed, _away, int(_inP.sum()), 100 * _left[1.0], 100 * _left[0.5]))
+
+    # ---- an arc's convex taper acts only on its flare-facing side (D67) ---- #
+    # arc_glow2 is split at each curve (1.5 px towards the flare, inside the
+    # curve's bright core): its concave part keeps the layer's own taper, the
+    # flare-facing part takes `convex_taper`.  Three things must hold:
+    # - the split is a partition: with the convex taper set to the layer's own
+    #   taper, the whole composite equals the unsplit build (the anti-aliased
+    #   seam is screened out by the core);
+    # - the convex taper changes the layer nowhere on the concave side, and
+    #   does change it on the flare side;
+    # - without a convex taper no split is emitted, and the optimiser counts
+    #   the convex taper's user, or it would never search that taper.
+    _cvL = [L["id"] for L in params["layers"] if L.get("convex_taper")]
+    _cvd = []
+    if _cvL != ["arc_glow2"]:
+        _cvd.append("layers with a convex taper: %s (expected arc_glow2)" % _cvL)
+    else:
+        _pcn, _pci = _cpk.deepcopy(params), _cpk.deepcopy(params)
+        for _Lc in _pcn["layers"]:
+            _Lc.pop("convex_taper", None)
+        for _Lc in _pci["layers"]:
+            if _Lc.get("convex_taper"):
+                _Lc["convex_taper"] = _Lc["taper"]
+        _svn = build_svg.build(_pcn)
+        if "url(#cv" in _svn or "url(#cc" in _svn:
+            _cvd.append("a stack without a convex taper still emits a split")
+        _cvI = float(np.abs(_FP.render_array(build_svg.build(_pci), 1024).astype(np.float64)
+                            - _FP.render_array(_svn, 1024).astype(np.float64)).max() * 255)
+        if _cvI > 1.01:
+            _cvd.append("the identity split differs from the unsplit build by %.1f cv" % _cvI)
+        _dS = regions.curve_frame((1024, 1024))[0]      # < 0 on the concave side
+        _cvS = np.abs(_FP.render_array(build_svg.build(params, basis="arc_glow2"), 1024)[..., 0].astype(np.float64)
+                      - _FP.render_array(build_svg.build(_pci, basis="arc_glow2"), 1024)[..., 0]) * 255
+        _cvC, _cvF = float(_cvS[_dS < -1.0].max()), float(_cvS[_dS > 3.0].max())
+        if _cvC > 0.5:
+            _cvd.append("the convex taper changes the concave side (up to %.1f cv)" % _cvC)
+        if _cvF < 3.0:
+            _cvd.append("the convex taper changes nothing on the flare side (max %.1f cv)" % _cvF)
+        _cvU = [sp["affects"] for sp in O.taper_specs(params) if sp["path"].startswith("tapers/glow2_cv/")]
+        if not _cvU or any(u != ["arc_glow2"] for u in _cvU):
+            _cvd.append("taper_specs does not search glow2_cv for arc_glow2 (%s)" % _cvU)
+    check("an arc's convex taper acts only on its flare-facing side",
+          not _cvd, "; ".join(_cvd) if _cvd else
+          "arc_glow2 split at its curves: the identity split matches the unsplit composite (max %.2f cv); "
+          "the shipped convex taper changes the layer by 0 cv on the concave side and up to %.0f cv on the "
+          "flare side; no split without a convex taper; glow2_cv searched (%d specs)"
+          % (_cvI, _cvF, len(_cvU)))
+
+    # ---- a width-tapered arc narrows only where its table says (D67) ------- #
+    # arc_core carries `width_taper`: its width runs 6.832 px between y 210 and
+    # 820 and narrows to 0.9368 of that at the tips, where the reference's core
+    # is narrower.  A stroke's width is constant, so such a layer is drawn as a
+    # filled outline (build_svg.ribbon_path).  Checked:
+    # - its coverage across the curve is the table's factor times the stroke's:
+    #   the factor at the tips, 1 in the middle (coverage integrates the blur,
+    #   so this reads the width itself);
+    # - at factor 1 the outline follows the curve of record (half-level centre
+    #   against the analytic cubics).  It follows it more closely than resvg's
+    #   stroke, whose flattening chords sit up to 0.26 px on the concave side;
+    # - a layer without the key is still a stroke.
+    _wtL = [L["id"] for L in params["layers"] if L.get("width_taper")]
+    _wtd = []
+    if _wtL != ["arc_core"]:
+        _wtd.append("layers with a width taper: %s (expected arc_core)" % _wtL)
+    else:
+        _pws, _pw1 = _cpk.deepcopy(params), _cpk.deepcopy(params)
+        for _Lw in _pws["layers"]:
+            _Lw.pop("width_taper", None)
+        for _Lw in _pw1["layers"]:
+            if _Lw.get("width_taper"):
+                _Lw["width_taper"] = [[_y, 1.0] for _y, _ in _Lw["width_taper"]]
+        _svs = build_svg.build(_pws, basis="arc_core")
+        _svt = build_svg.build(params, basis="arc_core")
+        if 'stroke="none"' in _svs or 'stroke-width' not in _svs:
+            _wtd.append("an arc without a width taper is not drawn as a stroke")
+        if 'stroke="none"' not in _svt:
+            _wtd.append("the width-tapered arc is not drawn as a filled outline")
+        _ws, _w1, _wt = (_FP.render_array(_sv, 1024)[..., 0].astype(np.float64)
+                         for _sv in (_svs, build_svg.build(_pw1, basis="arc_core"), _svt))
+        _near = np.abs(regions.curve_frame((1024, 1024))[0]) < 12
+        _yyw = np.mgrid[0:1024, 0:1024][0] + 0.5
+        _fac = [_f for _y, _f in [L for L in params["layers"] if L["id"] == "arc_core"][0]["width_taper"]]
+        _cov = {}
+        for (_y0, _y1), _want, _tol in (((100, 165), _fac[0], 0.003), ((880, 930), _fac[-1], 0.003),
+                                        ((220, 810), 1.0, 0.002)):
+            _mw = _near & (_yyw >= _y0) & (_yyw < _y1)
+            _cov[(_y0, _y1)] = float(_wt[_mw].sum() / _ws[_mw].sum())
+            if abs(_cov[(_y0, _y1)] - _want) > _tol:
+                _wtd.append("coverage at y %d-%d is %.4f of the stroke's (expected %.4f)"
+                            % (_y0, _y1, _cov[(_y0, _y1)], _want))
+
+        def _half_centre(row, lo, hi):
+            seg = row[lo:hi]
+            k = int(np.argmax(seg))
+            h = seg[k] / 2
+            i = k
+            while i > 0 and seg[i] > h:
+                i -= 1
+            j = k
+            while j < len(seg) - 1 and seg[j] > h:
+                j += 1
+            xl = i + (h - seg[i]) / (seg[i + 1] - seg[i])
+            xr = j - 1 + (seg[j - 1] - h) / (seg[j - 1] - seg[j])
+            return lo + (xl + xr) / 2 + 0.5
+
+        def _curve_x(side, yq):
+            for seg in params["geometry"]["arc_" + side]["cubics"][side]:
+                t = np.linspace(0, 1, 20001)
+                u = 1 - t
+                P = np.asarray(seg, float)
+                x = u ** 3 * P[0, 0] + 3 * u * u * t * P[1, 0] + 3 * u * t * t * P[2, 0] + t ** 3 * P[3, 0]
+                y = u ** 3 * P[0, 1] + 3 * u * u * t * P[1, 1] + 3 * u * t * t * P[2, 1] + t ** 3 * P[3, 1]
+                if y.min() <= yq <= y.max():
+                    o = np.argsort(y)
+                    return float(np.interp(yq, y[o], x[o]))
+            return None
+        _cerr = {}
+        for _sd, (_lo, _hi) in (("left", (150, 530)), ("right", (533, 900))):
+            _e1, _es = [], []
+            for _y in range(110, 930, 10):
+                _xa = _curve_x(_sd, _y + 0.5)
+                if _xa is None:
+                    continue
+                _e1.append(abs(_half_centre(_w1[_y], _lo, _hi) - _xa))
+                _es.append(abs(_half_centre(_ws[_y], _lo, _hi) - _xa))
+            _cerr[_sd] = (max(_e1), max(_es))
+            if max(_e1) > 0.15:
+                _wtd.append("the outline strays %.2f px from the %s curve of record" % (max(_e1), _sd))
+    check("a width-tapered arc narrows only where its table says",
+          not _wtd, "; ".join(_wtd) if _wtd else
+          "arc_core's outline: coverage %.4f / %.4f of the stroke's at the tips (table %.4f), %.4f in the middle; "
+          "at factor 1 its centre stays within %.2f / %.2f px of the curve of record (left / right; resvg's stroke "
+          "%.2f / %.2f); an arc without a width taper is still a stroke"
+          % (_cov[(100, 165)], _cov[(880, 930)], _fac[0], _cov[(220, 810)],
+             _cerr["left"][0], _cerr["right"][0], _cerr["left"][1], _cerr["right"][1]))
 
     # ---- teal is a PERMISSION, not the current amount (D65) --------------- #
     # The review case: fit() locked the fourth primary on every layer whose

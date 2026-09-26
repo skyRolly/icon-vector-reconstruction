@@ -10,7 +10,7 @@ rounded-square frame — as a hand-built, parametric SVG.
 
 <!-- DELIVERABLE:START -->
 **Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 54 named
-layers, 106 KB, no embedded bitmap and no traced outlines. Every mark is a
+layers, 127 KB, no embedded bitmap and no traced outlines. Every mark is a
 primitive driven by a named parameter in
 [`src/params.json`](src/params.json): one path for the frame, two cubic-Bézier
 paths for the luminous curves (reused, offset and clipped, by every glow
@@ -25,15 +25,15 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 
 | metric | value | for scale |
 |---|---|---|
-| mean absolute error | **1.732** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 3.283 | |
-| MAE on a 1/2.2 display curve | 5.285 | weights the dark background as the eye does; black scores 59.7 |
-| SSIM (luminance) | **0.9756** | black scores 0.142 |
-| worst single-channel error | 79 | |
-| pixels off by more than 2 / 8 / 24 | 34.2% / 4.0% / 0.4% | |
-| mean bias | -0.157 | |
+| mean absolute error | **1.699** / 255 | a flat black canvas scores 17.89 |
+| RMSE | 3.152 | |
+| MAE on a 1/2.2 display curve | 5.248 | weights the dark background as the eye does; black scores 59.7 |
+| SSIM (luminance) | **0.9760** | black scores 0.142 |
+| worst single-channel error | 67 | |
+| pixels off by more than 2 / 8 / 24 | 33.9% / 3.8% / 0.4% | |
+| mean bias | -0.221 | |
 
-Per region (MAE): frame band 2.50, centre 90 px 4.70, bright pixels 8.16, dark background 1.36, everything else 1.57.
+Per region (MAE): frame band 2.50, centre 90 px 4.59, bright pixels 7.99, dark background 1.33, everything else 1.54.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -44,16 +44,16 @@ The two regions a whole-image average cannot police, from
 
 | targeted measurement | value |
 |---|---|
-| MAE within 110 px of the central light | 4.17 |
-| worst ring of the flare's radial profile | +1.3 code values at r = 65-90 |
+| MAE within 110 px of the central light | 4.04 |
+| worst ring of the flare's radial profile | +1.1 code values at r = 20-30 |
 | curve glow, rms relative error over 21 signed-distance bins | 2.8% |
-| the same, resolved along the curve (71 cells) | 4.9% |
+| the same, resolved along the curve (71 cells) | 4.8% |
 | light in the four interior corners, rms relative error | 5.0% |
 | worst single bin of that profile | -5.8% at s = -70..-52 px |
 | left lobe, MAE more than 25 px from the ridge | 1.34 (bias -0.19) |
 | right lobe, MAE more than 25 px from the ridge | 1.31 (bias -0.11) |
 
-Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.692 (SSIM 0.9554); see `out/validation.md` for the resolution sweep.
+Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.691 (SSIM 0.9554); see `out/validation.md` for the resolution sweep.
 <!-- METRICS:END -->
 
 ## What is in here
@@ -163,7 +163,10 @@ restated those numbers drifted out of date twice, so it no longer does.
    the curves' and not the flare's. The narrowest concave term is split into
    a cyan layer and a white one, and near the flare's rows their fades were
    measured station by station on each curve (D66): there the reference's
-   glow is white, not cyan, on both curves. A component closing the gap
+   glow is white, not cyan, on both curves. The broad inset term
+   (`arc_glow2`) is split at each curve: its flare-facing part has its own
+   fade, measured on that side, because the concave side's fade let its tail
+   reach too far between the curves (D67). A component closing the gap
    between 5.8 and 20.6 px was built and measured; it raises what the basis
    can achieve beside the ridge but did not improve the render, and is not
    shipped (docs/DECISIONS.md D19, D22).
@@ -195,10 +198,12 @@ restated those numbers drifted out of date twice, so it no longer does.
    tells a flank's light from a line's, so the whole-image fits hold the flank
    and calibration restores it (D65). The westward triangle that two
    straight-edged flank layers once drew is gone and stays gone (D61).
-4. **Curve cores** — a hard-edged bright stroke on each path plus two thin
-   mid-tapered ones, one on each side, because the measured core widens from
-   about 6.2 px at the tips to about 8 px at mid-height on both sides of its
-   centre-line (the flare-side stroke is D66's).
+4. **Curve cores** — a hard-edged bright core on each path plus two thin
+   mid-tapered strokes, one on each side, because the measured core widens
+   from about 6.2 px at the tips to about 8 px at mid-height on both sides of
+   its centre-line (the flare-side stroke is D66's). The core itself narrows
+   toward its ends as the reference's does, so it is drawn as a filled
+   outline rather than a constant-width stroke (D67).
 5. **Rim** — two frame-ring strokes, a uniform base and a gradient-painted rim,
    because the measured rim brightness peaks at the middle of each edge and the
    top edge is twice as bright as the bottom. Two further layers light the four
@@ -291,14 +296,14 @@ enough to search the geometry.
 * **The white core's directional shape is drawn, not all of it matched.** The
   reference's white leans north-west and reaches south of the core; two short
   white arms fitted to the core's 2D residual now carry that (D63). North of
-  the core, between the vertical line and the right curve, the render is still
-  ~15 cv too red where the reference is dark. The reference lacks WHITE there,
-  not light (G and B match the south's), so this is not an occluder: the
-  core's symmetric white (halo and fan) would have to become directional, a
-  redesign not attempted (D64). Moving the fan's centre south, the one local
-  lever, changed nothing measurable (D65). Every other existing lever trades
-  the north against the south or damages the core (D66), and the right curve's
-  whiter concave glow (D66) adds about 2 cv of red there.
+  the core, between the vertical line and the right curve, the reference has
+  a notch in its white where the render was ~11 cv too red. The reference
+  lacks WHITE there, not light, so this is not an occluder. The halo now
+  carries one fitted gap in that sector (D67), which takes the excess to
+  about +7; what remains is the fan's tail and the right curve's white glow,
+  and the gap is at its limit. The core's white is still too even by
+  direction elsewhere (east/south-east short, the other directions long at
+  r 4-12), which only a directional redesign of the core would fix (D67).
 * **Just past the right curve at the core's height, part of the remaining
   green is the flare's own light**, compact within ~30 px of the core and
   shaped like the fan and halo, not like the curve's glow. The curve's part

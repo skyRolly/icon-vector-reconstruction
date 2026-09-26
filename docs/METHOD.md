@@ -317,10 +317,36 @@ lens-side stroke existed; against the current curve of record that asymmetry
 is 0.1-0.3 px, and the flare-side edge was 0.4-0.9 px short along the whole
 middle of both curves.
 
+At the other end of that range the full-length stroke was too wide: 6.85 px
+where the reference's core is 6.1-6.4 px (y 110-170) and 5.9-6.3 px (y
+860-930), 0.2-0.45 px too far out on both edges. Narrowing the whole stroke
+does not work, because the cyan edge strokes cannot give back the white it
+removes at mid-height. So `arc_core` carries a width table (`width_taper`,
+D67): 6.832 px from y 210 to 820, narrowing to 6.40 px by y 170 and 860. A
+stroke's width is constant along its path, so a layer with that key is drawn
+as one filled outline, the curve of record offset by +-w(y)/2 along its normal
+with round ends. The outline also follows the curve of record more closely
+than resvg's stroke did: the stroke's flattening of the right curve's long
+upper cubic had put it 0.10-0.26 px toward the lens over y 400-540.
+
 The fades along the arcs are not guessed: the core coverage and each glow term's
 amplitude were measured station by station on both arcs and are carried in
 `src/params.json` as explicit stop tables (`tapers.core`, `tapers.glow1..3`),
 with a tunable gamma and scale on top.
+
+Those stations were read where each term's light is, and for the broad glow
+`arc_glow2` that is the concave side. Between the curves its sigma-19 tail
+then fell off too slowly: G +5.4 / +6.3 at 14-30 px from the left / right
+curve along their whole middle, with the far field right. Since D67 the layer
+is split along its curve, 1.5 px on the flare side inside the bright core:
+the concave part keeps `tapers.glow2`, and the flare-facing part takes
+`tapers.glow2_cv` (`convex_taper`). That is the same table times a per-side
+gain measured station by station on the flare side. The gain is capped at 1,
+and held at 1 on the right curve under the flare, where there is no clean
+data. `arc_glow1b`, which carries the 6-12 px band on that side, got a
+measured per-side table (`tapers.glow1b`) at the same time. What remains in
+that band is hue, excess G with B already matched, which an amplitude cannot
+fix.
 
 ### 4c. Light past the ends of the curves: the interior corners
 

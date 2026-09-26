@@ -323,7 +323,10 @@ SHAPE_BOUNDS = {
 def taper_specs(params):
     out = []
     for name, t in params["tapers"].items():
-        users = [L["id"] for L in params["layers"] if L.get("taper") == name]
+        # a layer uses a taper through `taper`, or through `convex_taper` for
+        # its flare-facing part (build_svg: an arc split at its curve)
+        users = [L["id"] for L in params["layers"]
+                 if name in (L.get("taper"), L.get("convex_taper"))]
         if not users:
             continue
         for k, (lo, hi, st) in (("y0", (20, 500, 6)), ("y1", (60, 520, 10)),
