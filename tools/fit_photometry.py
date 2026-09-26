@@ -256,6 +256,12 @@ def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=No
     idx = list(range(n)) if free is None else list(free)
     isnorm = [bool(normal[i]) if normal is not None else False for i in range(n)]
     WC = np.array(WC0, np.float64).copy()
+    if not idx:
+        # Nothing is free -- e.g. a stack pruned down to its calibrated rays,
+        # which `held_free` holds.  There is no Jacobian to build (stacking zero
+        # columns raised, and prune_layers aborted before saving), and the
+        # answer is the colours given, returned as a fitted result would be.
+        return WC.astype(np.float32)
     # Only a layer ELIGIBLE for the fourth primary may use it (see TEAL); every
     # other layer's teal column is held.  Eligibility is the layer's `teal` key,
     # never its current amount: D64 keyed this on the amount, so an eligible ray

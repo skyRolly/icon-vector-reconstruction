@@ -2025,6 +2025,94 @@ def main():
           "no light at all, key kept), a colour-only layer and the normal-blended frame; calibrated "
           "rays held in the documented mode")
 
+    # ---- pruning down to the calibrated rays completes and saves (D68) ---- #
+    # The review case (prune_layers.py:42): once pruning has removed every
+    # layer the colour fit may move, `held_free` is empty, and fit() stacked
+    # zero Jacobian columns and raised -- the command exited before saving.
+    # It takes a stack whose protected survivors are all CALIBRATED.  The
+    # protected set is every ray of record, and three of those (the white arms
+    # flare_ray_a_in, _s_in, _east_in) are not calibrated, so on the shipped
+    # file they stay free and the set never empties; every file before the
+    # arms (D63, D65) had that shape.  So: the shipped calibrated rays plus
+    # two prunable layers, pruned by the real CLI with --keep "" and a
+    # threshold nothing can exceed.  The fit's own contract is checked too: an
+    # empty free set returns the colours given, and a non-empty one still
+    # moves exactly its free rows.
+    _pr_diag = []
+    _rs = np.random.RandomState(7)
+    _Apr = _rs.uniform(0.0, 1.0, (3, 12, 12)).astype(np.float32)
+    _tpr = _rs.uniform(0.0, 1.0, (12, 12, 3)).astype(np.float32)
+    _wpr0 = np.array([[0.2, 0.3, 0.1, 0.0], [0.1, 0.5, 0.2, 0.0], [0.4, 0.1, 0.3, 0.0]], np.float32)
+    _wone = np.ones((12, 12), np.float32)
+    for _it, _w0 in ((0, _wpr0), (6, _wpr0), (6, _wpr0.astype(np.float64)), (6, _wpr0.tolist())):
+        try:
+            _we = _FP.fit(_Apr, _tpr, _w0, _wone, iters=_it, verbose=False, free=[])
+        except Exception as _e:
+            _pr_diag.append("fit with nothing free (iters %d) raised %s: %s" % (_it, type(_e).__name__, _e))
+            continue
+        # returned as a fitted result is: a float32 copy, whatever it was given
+        if (_we.dtype != np.float32 or _we.shape != _wpr0.shape or not np.array_equal(_we, _wpr0)
+                or (isinstance(_w0, np.ndarray) and np.shares_memory(_we, _w0))):
+            _pr_diag.append("fit with nothing free (iters %d, %s) did not return a float32 copy of the "
+                            "colours given" % (_it, type(_w0).__name__ if not isinstance(_w0, np.ndarray)
+                                               else _w0.dtype))
+    _wn = _FP.fit(_Apr, _tpr, _wpr0, _wone, iters=6, verbose=False, free=[1])
+    if not (np.array_equal(_wn[[0, 2]], _wpr0[[0, 2]]) and not np.array_equal(_wn[1], _wpr0[1])
+            and _FP.weighted_sse(_FP.composite(_Apr, _FP.colors(_wn)) - _tpr, _wone)
+            < _FP.weighted_sse(_FP.composite(_Apr, _FP.colors(_wpr0)) - _tpr, _wone)):
+        _pr_diag.append("fit with one free layer no longer moves exactly that layer and lowers the error")
+    _pr_src = json.loads(json.dumps(params))
+    _pr_src["layers"] = [L for L in _pr_src["layers"]
+                         if L["id"] in MFL.CALIBRATED_LAYERS or L["id"] in ("field_base", "flare_halo")]
+    _pr_rays = sorted(L["id"] for L in _pr_src["layers"] if L["id"] in MFL.CALIBRATED_LAYERS)
+    _pr_mae = float("nan")
+    with _tf.TemporaryDirectory() as _td7:
+        _pp = os.path.join(_td7, "prune.json")
+        json.dump(_pr_src, open(_pp, "w"), indent=1)
+        _r7 = _sp.run([sys.executable, os.path.join(ROOT, "tools", "prune_layers.py"), "--params", _pp,
+                       "--apply", "--max-cost", "1e9", "--keep", ""], capture_output=True, text=True)
+        if _r7.returncode != 0 or "Traceback" in _r7.stderr:
+            _pr_diag.append("prune_layers exited %d: %s"
+                            % (_r7.returncode, _r7.stderr.strip().splitlines()[-1:]))
+        else:
+            _pr_saved = json.load(open(_pp))
+            _pr_ids = sorted(L["id"] for L in _pr_saved["layers"])
+            _was = {L["id"]: L for L in _pr_src["layers"]}
+            _removed = [ln for ln in _r7.stdout.splitlines() if ln.startswith("removed ")]
+            if _pr_ids != _pr_rays:
+                _pr_diag.append("saved layers %s, expected exactly the calibrated rays" % _pr_ids)
+            if len(_removed) != 2 or "wrote " not in _r7.stdout:
+                _pr_diag.append("expected two removals and a save, got: %s" % _removed)
+            if any(L != _was[L["id"]] for L in _pr_saved["layers"]):
+                _pr_diag.append("a held ray's stored colour changed")
+            _pr_img = _FP.render_array(build_svg.build(_pr_saved), 1024)
+            _pr_mae, _ = _PL.evaluate(_pr_saved, np.minimum(_ref / 255.0, 254.4 / 255.0).astype(np.float32))
+            _said = [float(ln.rsplit("mae", 1)[1]) for ln in _r7.stdout.splitlines() if ln.startswith("wrote ")]
+            if not (np.isfinite(_pr_img).all() and _pr_img.max() > 0 and np.isfinite(_pr_mae)
+                    and _said and abs(_said[0] - _pr_mae) < 1e-3):
+                _pr_diag.append("the saved rays-only file does not render and score as reported "
+                                "(scored %.4f, reported %s)" % (_pr_mae, _said))
+        # The same class of failure one step further (found in review): with
+        # NOTHING protected, removing the last layer left an empty stack that
+        # basis_stack could not build.  The last layer is never offered.
+        _pl = os.path.join(_td7, "prune_last.json")
+        json.dump(dict(_pr_src, layers=[L for L in _pr_src["layers"] if L["id"] in ("field_base", "flare_halo")]),
+                  open(_pl, "w"), indent=1)
+        _r8 = _sp.run([sys.executable, os.path.join(ROOT, "tools", "prune_layers.py"), "--params", _pl,
+                       "--apply", "--max-cost", "1e9", "--keep", ""], capture_output=True, text=True)
+        if _r8.returncode != 0 or "Traceback" in _r8.stderr:
+            _pr_diag.append("pruning a stack with nothing protected exited %d: %s"
+                            % (_r8.returncode, _r8.stderr.strip().splitlines()[-1:]))
+        elif len(json.load(open(_pl))["layers"]) != 1:
+            _pr_diag.append("pruning a stack with nothing protected did not stop at one layer")
+    check("pruning down to the calibrated rays completes and saves",
+          not _pr_diag, "; ".join(_pr_diag) if _pr_diag else
+          "fit returns a float32 copy of the colours given when nothing is free (float32, float64 or "
+          "list) and still moves exactly its free rows otherwise; prune_layers --keep '' on %d calibrated "
+          "rays + 2 layers removes both, exits 0, saves exactly the rays with their colours untouched, "
+          "and the saved file renders and scores %.4f as reported; with nothing protected it stops at "
+          "the last layer" % (len(_pr_rays), _pr_mae))
+
     # ---- 6i. the diagnostics refuse inputs they cannot read ---------------- #
 
     # ray_lines sampled whatever it was given: a 512-px render came back as a

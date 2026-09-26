@@ -77,7 +77,9 @@ def main():
     while True:
         costs = []
         for L in params["layers"]:
-            if L["id"] in keep:
+            # the last layer is never offered: an empty stack has nothing to
+            # render or score (only reachable when nothing is protected)
+            if L["id"] in keep or len(params["layers"]) == 1:
                 continue
             trial = copy.deepcopy(params)
             trial["layers"] = [q for q in trial["layers"] if q["id"] != L["id"]]
