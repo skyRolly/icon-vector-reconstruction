@@ -8644,3 +8644,787 @@ These are consequences, not the criterion. The per-item readings in (c) and
   - the gate before setup exits 3;
   - then setup, the gate (69 of 69), validation and the SVG rebuild all
     pass.
+
+## D69. The optimiser's objective made to score a movable colour its caller changed; then the remaining local items re-read: the north tips' core fade re-measured, the rest left on the evidence
+
+This pass had the same two jobs as D66 to D68, in the same order: a
+correctness fix first, proved not to touch the artwork, then local
+refinement. Each item was judged on its own reading of `reference.png`.
+"Base" below is D68 (5a1fa0c), the rollback baseline. Whole-image numbers are
+consequences, not the criterion.
+
+As before, each decision records the **evidence**, the **alternatives**, the
+**action**, the **measured** and **visible** effect, and what stays
+**uncertain**.
+
+### Stage 1: the tools
+
+**0. The D68 baseline reproduces.** On 5a1fa0c:
+- `src/params.json` rebuilt `reconstruction.svg` byte for byte (SVG sha256
+  461515aa...);
+- an independent render was byte-identical to `out/render_1024.png`
+  (a1f87ac9...);
+- `out/metrics.json`, `out/diagnostics.json`, `out/validation.json`, the
+  render's sidecar and `out/flare_parts.png`'s provenance all name that SVG;
+- `flare_parts.py --verify` confirmed the before/after sheet;
+- `tools/test_pipeline.py` passed 69 of 69.
+
+The eight numbers: MAE 1.6839, RMSE 3.107, SSIM 0.97645, edge IoU 0.7009,
+centre-region MAE 4.584, flare r<110 MAE 4.041, core r<25 MAE 3.690,
+bright-region MAE 7.854.
+
+**1. The objective kept a movable layer's old colour after its caller changed
+it (Devin finding, `tools/optimize.py` `Objective.colours`).**
+- *Evidence:*
+  - `Objective.colours()` brings `self.K`, the colour state a fit starts from
+    and the colour every layer the fit does not free is scored with, up to
+    date before each evaluation. D67 made it re-read the HELD rows (the
+    calibrated rays) from the parameters every time. Every MOVABLE row was
+    still carried: seeded from the parameters once, then kept.
+  - So an objective that scored A and then B, B differing only in a movable
+    layer's stored colour, scored B with A's colour. Reproduced on the
+    shipped parameters with the real `Objective` (stride 8, the calibrated
+    rays held, nothing freed), against a fresh `Objective` sharing only the
+    content-addressed basis cache:
+
+    | A -> B | reused | fresh |
+    |---|---|---|
+    | `arc_glow1` cyan -> black, by its `color` alone (the review's example) | 0.000200067 (= A) | 0.000236596 |
+    | the same, amounts and colour together | 0.000200067 (= A) | 0.000236596 |
+    | `arc_glow1` black -> cyan | 0.000236596 (= A) | 0.000200067 |
+    | two layers: `arc_glow1` -> 0, `field_grad` x0.5 | 0.000200067 (= A) | 0.000279207 |
+    | the two back | 0.000279207 (= A) | 0.000200067 |
+
+    Each edited state scored exactly as the state before it.
+  - The carried rows are legitimate state, not a bug in themselves. `sweep`
+    assigns each accepted trial's fitted colours to `obj.K` and never writes
+    colours into the parameters (`main` writes them back once, at the end),
+    so the fitted movable rows must ride through every geometry trial. D67's
+    check already required that.
+- *Scope:* only a caller that edits a movable layer's stored colour between
+  two evaluations of the same `Objective`. `optimize.py` itself never does:
+  its runs, and `optimize_all.sh`'s, start a fresh `Objective` per process
+  and never write colours mid-run. The shipped artwork was never scored this
+  way.
+- *Alternatives:*
+  - Re-seeding every row from the parameters on every evaluation: it would
+    discard the optimiser's carried colours on every trial, which is the state
+    `sweep` relies on.
+  - Re-reading a row whenever it differs from the stored colour: a carried
+    fitted row always differs, so this is the same as re-seeding.
+  - Asking callers to build a fresh `Objective` after an edit: it leaves the
+    contract unstated and the next caller exposed.
+- *Action:* `colours()` keeps the stored colours it last read (`K_seen`,
+  reset whenever the schema re-seeds). A movable row is re-read from the
+  parameters only when that layer's stored colour differs from the last
+  reading; every other movable row keeps its carried state. Held rows are
+  re-read every time, as before.
+- *Regression:* "the optimiser's objective scores a movable colour its caller
+  changed".
+  - Five successive states (A; `arc_glow1` cyan -> black by its colour alone;
+    back; two layers at once; back) score bitwise identically through a
+    reused and a fresh `Objective` with nothing freed. The edits move the
+    score by 18.3% and 39.6%, so the check is not vacuous.
+  - A fit's movable rows, assigned to `obj.K` as `sweep` assigns them, ride
+    through a geometry-only successor (`arc_glow2`'s blur +0.5): scored as a
+    fresh objective holding the same rows (0.000194591077), not as one seeded
+    from the stored colours (0.000199596689).
+  - An edit of one layer's colour on that carried state re-reads that row
+    alone; the other 40 carried rows are kept.
+
+  It fails on the D68 code at the two edited states and at the one-layer edit.
+  D67's check (held rows, carried rows on a family-restricted trial, a
+  reordered stack, a layer losing teal) passes unchanged.
+- *Optimiser runs are unchanged:* the same real `optimize.py` run writes
+  byte-identical parameters with the D68 module and the fixed one, and prints
+  the same log apart from its timing and output path. The run:
+  `--spec shapes --only "arc_core_tip,flare_halo"` (a prefix match, so
+  `flare_halo_far` too), one sweep, stride 8: 10 parameters, 6 accepted
+  moves, 2 colour re-baselines (one per family), then the final
+  full-resolution fit. During a run the stored colours never change, so no
+  row is ever re-read.
+- *Artwork:* unchanged. `publish.sh` on the fixed tree rebuilt and re-rendered
+  the D68 artwork byte for byte. After the run git saw only the two tool files
+  as changed: every artefact it rewrote was identical to D68's (SVG, render,
+  metrics, diagnostics, validation, previews, the before/after sheet, the
+  README).
+- *Reviewed independently:* not refuted.
+  - The new check fails on the old code, and would also catch the plausible
+    wrong fixes: always re-reading, comparing with `self.K` instead of the last
+    reading, updating `K_seen` only on a re-seed, re-reading every row on any
+    edit.
+  - 4,800 randomised `colours()` steps matched a model of the design with no
+    failure. They covered colour-only, amounts-only and sub-resolution edits,
+    held rays, reverts, reorders, teal toggles, layer removal, `store_wc`
+    write-backs and external `obj.K` assignments. `K_seen` never shared memory
+    with `K` or with a caller's array.
+  - A real sweep matched the D68 logic bitwise at every `colours()` call, and
+    none of the 360 search paths changes a stored colour or the schema.
+  - One contract subtlety was noted and is now in the docstring. A row is
+    compared with the LAST reading, so `obj.K` must be assigned right after
+    evaluating parameters with the same stored colours, as all three `sweep`
+    sites and the tests do. A K restored after scoring different stored
+    colours has those rows re-read.
+
+### Stage 2: the artwork
+
+Only after stage 1 was proved not to touch the artwork were the remaining D68
+items taken up, in the brief's order. There were five independent
+investigations: the core, the curves' flare-side green, the lower-right
+segment, the tips' geometry and the tips' colour. (e) to (g) were not
+re-measured, for the reasons given there. The one change recommended
+went to two independent reviewers, one on evidence and one visual, told to
+refute it with their own code.
+
+D69 changes one thing, (d6): three stations of `arc_core`'s own fade at the
+north tips. Every other item was left, each with its reason.
+
+**(a) The core's remaining structure (P1): D68's core stays. Its robust
+remainders have no clean lever, so no change.**
+- *Evidence:* directional x radial maps about (531, 513.5).
+  - Grid: 16 and 32 sectors at two phases; 1-px rings to r 24, then 2-px
+    rings to r 80.
+  - Channels: R, G, B and luma, and the white / cyan split.
+  - The 14 calibrated rays, the streak rows and the vertical line are masked
+    where they carry >= 3 cv of luma, from r 12 outward (six mask variants).
+    The white arms are not masked.
+  - Checked against JPEG round-trips of D68's own render (4:2:0 q 60-90) and
+    the four 8-px block-phase halves.
+  - **D68 against D67.** D68 is better inside r 12 (RGB MAE r 4-8 -0.39, r
+    8-12 -0.24) and slightly worse at r 12-16 (+0.15). On balance it is
+    better (summed error over its 848 pixels -3.7%), so it stays.
+  - **A white deficit north of the core at r 12-22** (R, model minus
+    reference):
+    - the north arc at r 12-16: -3.8;
+    - the north-north-west crescent (th 90-120, r 12-18): -6.8;
+    - north at r 16-20: -6.8;
+    - west-north-west at r 14-22: -3.0.
+
+    In the crescent G, B and luma are short too, so it is missing white. It
+    keeps its sign in every one of 14-17 variants (sector rotation, masks,
+    block phases, smoothing). It is 2-10x what a JPEG round-trip of the model
+    changes in the same cells.
+  - Removal renders give it to the north-north-west white arm
+    `flare_ray_a_in`: it explains 0.52-0.74 of the error energy, against
+    0.26-0.52 for the fan and halo. Along the arm's line (116.4 degrees):
+    - the reference wants a plateau of extra light at s 16-23 (+31..+33 R),
+      from s ~10 to ~33;
+    - the arm starts at s 6.8, peaks at s 21-23 and runs to s 40;
+    - model minus reference is -3..-8 at s 11-17 and +4..+14 at s 21-40.
+
+    D68 (c) deepened this deficit by 1.3-2.0.
+  - **The outer white tail (r 25-70) is not uniformly too long.**
+    - North / north-north-west (pooled), at r 28-40 / 40-56: R +5.1 / +2.4,
+      but G -5.9 / -3.6, B -7.8 / -6.8 and luma -2.8 / -2.2. That is hue:
+      too white, short of cyan.
+    - West / south-west: short of white at r 24-36 (R -4.0, G +4.3) and too
+      white at r 40-60 (R +4.9, G -3.9, B -6.6).
+    - Removal renders put these on missing cyan layers (`flare_glow_lens`,
+      `flare_halo_far`, `arc_glow2`: 0.30-0.46 each), with the R coming from
+      `arc_glow2b`, `arc_glow1w` and `field_grad` (1.0-2.5 R each). The core's
+      whites explain at most 0.02 in the west / south-west at r 24-36.
+    - Only the north-west at r 32-48 (R +8.5, G +0.3, B -2.6) is the core's
+      own white tail (halo, fan, cloud). A white-only trim there costs B, as
+      D68 (a) found.
+    - A JPEG round-trip of the model moves these cells by -0.3..+0.9 in this
+      pass's pooled sectors. D68 (a) found that a round-trip lowered the
+      model's R by about 1.3 in its north pedestal box (about 40% of that
+      box's R). So part of the north R may sit at the compression floor, but
+      the G/B deficit does not.
+  - **The bridge east of the core** (E r 4-10 -4.9, the south-east box -3.9,
+    the bridge -2.5; D67 -7.9 / -7.5 / -6.6). The east arm explains 0.60. Its
+    refits were rejected in D67 (f) and D68 (d), and there is no new evidence.
+  - **At the size of the compression's own effect:**
+    - the east overshoot at r 2-4 (+2.5): round-trips of an unchanged model
+      give -0.1..+4.4 there;
+    - the junction's north flank, R -4.7: round-trips give -5.8..-1.2. Its
+      G/B +4.5 / +4.9 is the right curve's cyan glows (`arc_glow1b`,
+      `arc_glow2`).
+  - **Junction columns 540-541** are the right curve's own flare-side edge: a
+    strip along x 539-541 from dy +5 to +35.
+  - **South-west at r 8-12** (-3.2; D67 -0.6) is the cost of D68's `cx`
+    shift. It is only about 1.2 cv beyond its JPEG-expected range.
+- *Alternatives:*
+  - **The arm moved in and widened** (C3, the best-balanced variant):
+    - crescent -6.8 -> -2.4, closer in 16 of 16 variants;
+    - north arc -3.8 -> -1.4, north r 16-20 -6.8 -> -2.1;
+    - core r < 25 MAE 3.690 -> 3.658.
+
+    But every channel of the north box moves away from the reference (R/G/B
+    +6.5 / +1.5 / -0.1 -> +7.1 / +1.8 / +0.2). So does the vertical line's R
+    (mean |dR| 4.00 -> 4.63 on columns 527-532 at |dy| 20-36). Both are
+    neighbours the brief protects, so it was not taken, although by dE76 it
+    is a slight net gain even there.
+  - **The arm's light pulled inward, or its fade shortened:** an R-for-G/B
+    trade in the tail, which is cyan in the reference. G/B are 5-19% worse on
+    the north-west half, and dE76 at north r 20-36 goes 2.941 -> 3.10-3.29.
+  - **An arm fit that forbids any worse north box, line or north-west G/B:**
+    it can only brighten, and R rises 9.7% over the north-west half.
+  - **South-arm refits:** the cost falls only 3.5-12%, and S r 4-12 gets
+    worse.
+  - **A wider fan cross-section:** it darkens the core (rings r 0-12 -2.2..
+    -5.8 R), and the south-west at r 8-12 goes to -8.3 / -11.0.
+  - **`flare_core_w`'s profile with a raised tail:** north arc better, but N/S
+    r 4-12 go to +4.6..+5.1 and ring r 8-12 overshoots.
+  - **`flare_core_w` squash 0.76 / 0.79** (D68 rejected 0.78): ring r 4-8
+    overshoots. **`cx` 533.6 / 533.3** gives back D68's east gain. **`rot` and
+    `cy`** trade north for south.
+  - **Undoing D68's core change:** D68 is better inside r 12, so it is
+    preserved.
+- *Action:* none. The classifications:
+  - D68's core change: preserved.
+  - The north deficit: deferred. It is a real, attributed error with no clean
+    lever: a radially ramped arm cannot add light at r 12-20 without lighting
+    r 20-35 near the line and the north box, where the reference needs cyan,
+    not white.
+  - The outer tail: deferred. It is mostly curve spill and the background's
+    cyan. Only the north-west at r 32-48 is the core's own white tail, and a
+    white-only trim there costs B. This revises D68's "the core white's
+    radial tail is too long in R at r 44-72" for every direction but the
+    north-west.
+  - The bridge: deferred, with no new evidence.
+  - The east overshoot and the junction's north flank: JPEG-limited.
+  - The junction columns: the curve's own edge.
+  - The south-west at r 8-12: recorded as D68's cost, partly at the JPEG
+    level.
+- *Uncertain:*
+  - The east beyond the right curve (its lens side) was masked as curve and
+    not re-read.
+  - The tail's carriers are not unique: several cyan layers explain
+    0.30-0.46 each.
+  - JPEG-limited means no finer than the compression, not proved to be an
+    artefact.
+
+**(b) The curves' flare-side green (P2): the error is hue, no layer has its
+shape, and the carrier is not unique. Deferred.**
+- *Evidence:*
+  - **What.** There is no excess light in the band 14-30 px out. B matches
+    (-0.74 / -0.26, left / right) while G is +2.62 / +3.07. What is wrong is
+    the component no change to a cyan layer's amount or shape can move: h = dG
+    - 0.94 dB, about +3 cv. The reference's light 14-40 px out is bluer, B/G
+    1.41-1.53 against the model's 1.24-1.33.
+  - **Where, across the band** (middle lengths, r >= 150):
+    - h is negative at s 4-8 (-2.3 / -2.9) and crosses 0 at s 9-11;
+    - it peaks at s 16-24 (+2.7..+3.7);
+    - it is back to 0 at s ~40-44 (centroid 25.7 / 22.7 px).
+  - **Where, along each curve:** h <= 0 at the tips and +1..+5.4 over y
+    280-800. It is the same size near the flare (r 60-150) and far from it
+    (r >= 150).
+  - **Robust.** At s 16-20, h reads +3.0..+4.0 (left) and +3.0..+3.7 (right)
+    over 8 block-phase subsets and Gaussian 1 and 2. JPEG round-trips of the
+    model move h by at most ±0.9 at s 8-40 (one bin +1.36), so the band is 3-4x the
+    compression floor. The small negative tail beyond s ~42 is at the floor.
+  - **Who lights the band.** Exact screen removals on a 69-part split stack,
+    which reproduces the render to 0.51 cv:
+    - far from the flare: `arc_glow2b` 38%, `arc_glow2`'s convex part
+      (`glow2_cv`) 32%, `field_mid` 13-15%, the blue floor 6-7%, `field_grad`
+      4.5%;
+    - near the flare: `glow2_cv`, `field_mid` and `arc_glow2b` about a quarter
+      each.
+
+    Every carrier but the floor is cyan (removal B/G 1.02-1.04).
+  - **No carrier has the residual's shape:**
+    - `glow2_cv` peaks within 10 px of the curve, 4-7 px nearer than h;
+    - `arc_glow2b` is a plateau to s 60, still 7-8 cv of G at s 44-50 where h
+      <= 0;
+    - `field_mid` is flat across the band and zero at y > 780, where h is
+      +2..+3;
+    - the flare's layers are 0 at r >= 150.
+- *Alternatives:*
+  - **Shape and amount levers** leave h unchanged:
+    - `glow2_cv`'s table refitted (±30%, 40-px knots): h +3.30 / +3.44 ->
+      +3.31 / +3.44, so D67's table is already at the G+B optimum;
+    - `arc_glow2b`'s ramp as a per-side table: its G falls only as its B
+      does;
+    - the blurs, widths and insets of `arc_glow2`, `arc_glow2b` and
+      `arc_glow1b`, and `field_mid`'s radius, squash and centre: at most 0.058
+      of the flare-side (G, B) error explained.
+  - **Whole-layer colour on `arc_glow2b`** (22.6% of its cyan made blue): the
+    band is fixed (+2.62 / +3.07 -> +0.23 / +0.82), but the near and far
+    bands lose about 1.8-2.0 G. The tips' G MAE rises by up to 1.5-1.6, and the
+    lower-left rays' calibration margin goes 0.51 -> 0.92.
+  - **Whole-layer colour on `field_mid`:** the near and far bands each lose
+    about 1.6-1.9 G, and it is zero below y 780.
+  - **Whole-layer colour on `arc_glow2`:** the near band's G goes to -4.65 /
+    -4.52, and the concave G MAE rises up to 6.24.
+  - **All of one layer's own levers at once:** at best 14% of the flare-side
+    h, and each such fit damages the near, far or concave band.
+  - **A free colour per 40-px station** (D68's refuted tint's freedom):
+    0.52 / 0.57 of h on `glow2_cv` (0.61 / 0.43 on `arc_glow2b`), with a sign
+    change between the tips and the middle.
+- *Action:* none; deferred. A fix would need flare-side light with its own
+  bluer colour and a profile peaking 18-24 px out and gone by 40 px: a new
+  colour or geometry structure, which the brief excludes.
+- *Measured worth:* an idealised correction (the smoothed h removed from G,
+  s 6-48) moves 44,360 pixels by 1.9 cv on average and MAE 1.6839 -> 1.6799.
+  It cannot be told from D68 at 1x.
+- *Uncertain:*
+  - The joint fits are linearised and some hit their bounds. The three best
+    colour levers were rendered and read.
+  - A separate hue pattern on the concave sides (greener at the upper middle,
+    bluer in the lower halves) keeps any whole-layer colour on `arc_glow2` or
+    `arc_glow2b` from being clean.
+  - How the artwork made the bluish zone is not known.
+
+**(c) The lower-right inner segment (P3): the errors are the segment
+family's, and the fix they ask for cannot be calibrated yet. Deferred; the
+translation is preserved.**
+- *Evidence:* cross-section and longitudinal profiles, removal composites,
+  three real removal renders, and background fits constrained by the flanks.
+  - **The four D68 (e) errors belong to the family, not the background.**
+    Flank-constrained corrections of `arc_bloom_w`, `arc_glow1w` and a halo +
+    fan radial cut (5 sets x 2 windows) move the on-line errors by at most
+    1.5 cv.
+  - **Onset.** `c_in` and `flare_ray_c` both ramp linearly from their origin,
+    reaching 0.62 of peak at r 21 and r 29.7. At r 30-38 the reference's
+    background-subtracted flux is G x0.70 and B x0.55 of the family's. The
+    model's own JPEG copies read 0.87-1.05 there.
+  - **Shape.** The reference concentrates the white that the model spreads:
+    - at r 40-50 its white is about 1.5x the model's (R flux x1.52;
+      fixed-template 15.2-19.4 against 10.0-11.3 at r 42-46);
+    - its tails are weaker: x0.80 at r 30-38 and x0.67 at r 52-62;
+    - G there matches (x0.98).
+
+    The peak radius differs by only 0-3 px (r 43-45 against r 42-44). So the
+    "peak too far in" of D67 (d) (about 5 px) and D68 (e) (about 3 px) is
+    mostly spread, not displacement.
+  - **Colour.** The reference turns from nearly pure white (R/G flux ~1.0 at
+    r 44-46) to cyan (0.2-0.4 by r 50-52) within about 6 px. The model goes
+    0.64 -> 0.33, and `c_in`'s one colour (R/G 0.54) cannot follow.
+  - **The R onset excess at r 32-36** (+3.1 / +3.2) is as large as
+    `arc_bloom_w`'s own contribution there (+3.0 / +4.1). As in D68, it cannot
+    be pinned on the segment.
+  - **Position.** Across the line the R centre agrees within -0.2..+1.1 px at
+    r 40-48, so the translation stays.
+- *Alternatives:*
+  - **D1, the one single-layer shape derived from the measurement** (`c_in`
+    onset r 33, peak r 45, end r 57; `flare_ray_c` onset r 24), calibrated:
+    `flare_ray_c` x1.031 (over the 2% limit) and `c_in` x1.453. Its one
+    colour brings 1.5x cyan with 1.5x white, so G/B/luma overshoot at r 44-48.
+  - **A white / cyan split:** what the reference shows, but a new layer that
+    D67 (1.45 of tolerance) and D68 (`flare_ray_c` +3-10%) could not
+    calibrate. `c_in`'s scale is also tied to the unresolved background by
+    ±5-10%.
+  - **A width change of `flare_ray_c`:** not robust, and outside the item.
+  - **D68's K1-K3 and delayed onsets:** not repeated, with no new evidence.
+- *Action:* none. The translation and the D65 calibration contract are kept.
+- *Uncertain:*
+  - The reference's white spot sits on the corner of four 8x8 blocks at (568,
+    536).
+  - The calibration figures are a linearised estimate.
+  - A later pass needs this order, which refines D68 (e)'s:
+    1. settle the right curve's concave glow at rows 528-544 and the core
+       white's tail at r ~44, each of which moves `c_in`'s calibration by up
+       to ±10%;
+    2. then refit the family's segments together: a white-only, concentrated
+       inner part and a later cyan onset, with `flare_ray_c`'s rise and the
+       narrow-to-flank hand-over, calibrated with a reading that tells the
+       inner part from `flare_ray_c`.
+
+**(d) The curves' tips (P4), end by end: one change, (d6); the rest
+deferred, JPEG-limited or preserved.** The D68 tail layer and its structural
+check are unchanged. u is arc length from a cubic's end (u > 0 past the
+end); n is the normal offset, n > 0 on the flare side.
+
+*(d1) The tail's cross-section tilt: deferred.*
+- *Evidence:*
+  - **The tilt is the paint.** `tapers.core_tip` is a gradient along y, and
+    the tails meet its rows at 26.6 degrees at the ends, 30-37 degrees at u
+    -20..-60 and 9.5-17.7 degrees at u 55. So past the ends the alpha varies
+    across the stroke 2-6x faster than along it (1.3-1.7x at u -20..-60). The tip layer's own cross-section sits
+    0.1-0.9 px lens-ward past the end (fitted centres up to 1.2-1.7 px at u
+    45-55).
+  - **A tangent paint removes it.** A prototype builder option paints each
+    chosen end's stations along that end's own outward tangent. It removes
+    the tilt (0.10-0.21 px, against 0.58-0.88 on the same probe) and keeps
+    the centre-line fade within 0.8 cv.
+  - **But the reference's tails leave the continuation in opposite
+    directions:**
+    - north tails lens-ward: LN up to -1.4 px (one median near 0 at u 25),
+      RN -0.5..-2.4 px at u 5-50 (57-variant medians);
+    - south tails flare-ward: LS +0.5..+3.4 px at u 5-35 (all six
+      block-phase subsets), RS +0.1..+2.2 (robust at u 25-50).
+
+    The y-paint's lens-ward skew happens to match the north tails and pushes
+    the south tails further off. The tangent paint is robustly better on LS
+    and RS (every u bin past the end, all 7 phase subsets) and robustly worse
+    on LN and RN (all 7 subsets). This revises D68 (g), which recorded the
+    tilt as a cost and suggested the tangent paint as its fix: across the ends
+    it is a trade, not a fix.
+- *Alternatives:*
+  - **All four ends on the tangent:** LN and RN get worse.
+  - **The south ends only:** robust, but 0.3-2 px of tail centre on a 2-20
+    cv tail, at most 4 cv per pixel on 1,315 pixels. It is invisible at 1x
+    and 3x and barely perceptible at 8x stretched, and it costs about 245
+    lines of builder and test code. It would also keep the y-paint on the
+    north ends only because that paint's skew imitates the reference's north
+    paths: a paint artefact standing in for geometry.
+  - **A flare-ward inset of the whole tip layer:** mixed by end (at -0.5, LS
+    -4.2%, RS -1.2%, LN +0.1%, RN +2.6%), and layer-wide.
+  - **Moving the tail paths:** excluded by D68's contract, and new fitted
+    geometry for a 2-10 cv tail.
+- *Action:* none. What remains on every end is the tails' path, which D68's
+  contract fixes to the end cubic's own continuation. If a later pass
+  re-paths the tails, the tangent paint becomes a prerequisite; the prototype
+  and its mutation-tested check are kept with the investigation's files.
+
+*(d2) The south-west tail under-drawn: deferred with (d1).*
+- *Evidence:* its flux is 0.68-0.82 of the reference at u 15-30 (24 of 24
+  variants). The cause is the path: the reference's LS ridge is 1-3.4 px
+  flare-ward of the continuation.
+- *Alternatives:* raising the LS stations puts light where the reference has
+  none: worse in all 7 subsets.
+- *Action:* none.
+
+*(d3) Fade timing: preserved.*
+- *Evidence:* RS matches (50% / 25% fall-off at u 21.5 / 38.1, against 22.8
+  / 38.1). LN and RN fade "late" only against their local background. In
+  absolute terms their ridge centre is right (LN) or dark (RN): the
+  background around the north tails is 0.6-3.1 cv G too dark, which is D18's
+  rejected broad corner glow. The two readings disagree in sign.
+- *Action:* no station change.
+
+*(d4) The tail slightly too blue: JPEG-limited.*
+- *Evidence:*
+  - The ridge past each end is `arc_core_tip` alone.
+  - The reference reads B/G 0.66-0.92 over u 5-40 at the four ends; the
+    model 0.98-1.07.
+  - The model's own render through JPEG 4:2:0 at q 60-90 reads 0.71-1.19 per
+    cell. The mean B excess falls from +2.97 cv to +0.73..+1.50. The evidence
+    reviewer found JPEG removes 63-71% of the relative B excess at q 60-80,
+    37% at q 90, and about 2% at 4:4:4 q 90. At 4:4:4 q 75 the investigator's
+    round-trip took the B excess from +2.97 to +1.36.
+  - The white / cyan / blue cone cannot go below B/G 1.045 at R/G 0.3, and
+    teal on this layer would be a policy change.
+- *Alternatives:* dropping the layer's blue amount (0.012 -> 0) moves B by
+  only 0.2-0.6 cv.
+- *Action:* none.
+
+*(d5) The lens-side core edge too bright at u -35..-5: cause revised,
+deferred.*
+- *Evidence:* real and robust at all four ends (16 variants), and it survives
+  JPEG round-trips.
+  - Excess R/G/B:
+    - LN +10.2 / +6.5 / +8.6;
+    - RN +10.8 / +4.4 / +9.1;
+    - LS +5.6 / +2.0 / +2.4;
+    - RS +8.2 / +2.1 / +3.5.
+
+    The flare-side edge is G-short (LN -5.7, RN -4.1, LS -5.0, RS 0).
+  - **The main cause is `arc_core` itself.** Its table `tapers.core` is also
+    a y-gradient, and the tips cross it obliquely, so the core is tilted:
+    - lens / flare contribution 1.1-1.3 at u -60..-40, 1.4-2.5 at u -30..-10,
+      and up to 17 at u -5;
+    - the model's half-level core centre drifts lens-ward toward every end
+      (-0.1 -> -0.76 px);
+    - the reference's stays on the curve of record at u > -30 (-0.1..+0.2
+      px).
+
+    This revises D68's "the reference's tip core sits about half a pixel
+    flare-ward". Near the ends the offset is the model's own drift. At u
+    -80..-50 the reference does sit 0.04-0.19 px flare-ward, about half the
+    offset there.
+- *Alternatives:*
+  - **A flare-ward inset of `arc_core_tip`** (-0.25..-1.0): it improves every
+    end's lens edge inside, but the north tails past the ends get worse (u
+    0..60 G MAE LN 1.82 -> 1.88-2.27, RN 2.50 -> 2.64-3.17), and it is
+    layer-wide.
+  - **`tapers.core` painted along each end's own direction** (the root
+    cause), simulated only: the lens edge drops 4-5.5 cv and the flare edge
+    rises 4 cv at every end. Together with (d6) the north corridors improve
+    7.1% / 14.6% against D68, but LS and RS get 1.1% / 2.4% worse. It needs
+    the same kind of builder option as (d1).
+- *Action:* none; deferred with (d1). Both are one kind of fix: painting a
+  table along each end's own direction, which pays off only end by end.
+
+*(d6) The white shortfall just inside the north tips: changed.*
+- *Evidence:*
+  - **Robust over 14 variants** (tangential windows, plateau widths, four
+    block-phase halves, Gaussian 1), all the same sign:
+    - LN u -60..-50: R/G/B -11.3 / -16.3 / -12.6;
+    - RN u -80..-70: -24.3 / -20.6 / -19.2.
+  - **Missing light, not a narrower reference core.** The cross-section flux
+    (|n| <= 6), model over reference, is 0.82-0.96 at LN u -70..-50 and
+    0.84-0.95 over RN u -130..-40, in all channels. It does not change under
+    JPEG round-trips.
+  - **The carrier.** The missing light is white-ish (LN u -50: dR/dG 0.97),
+    which the cyan tip layer cannot supply. The carrier is `arc_core` through
+    `tapers.core`: the reference's white holds longer, then drops faster,
+    than its 20-px stations draw.
+  - **The south ends.** LS's deficit is a white / cyan balance that
+    `arc_core`'s colour cannot fix. RS's fit asks +3-4%, with ranges spanning
+    the base.
+  - **This revisits D68 (g)'s rejected raise of the right curve's north-end
+    core table.** D68 declined it because the same ask continues over the
+    right curve's outer thirds, making it a whole-table re-measurement. The
+    new evidence is that the local shortfall at u -130..-40 is all-channel
+    and 2.5-3x the ask that continues beyond y 160. What continues is recorded
+    under the costs below, and in the Remaining list.
+- *Alternatives:*
+  - **10-px knots:** about 1% more gain, for three new numbers, and a worse
+    lens edge.
+  - **A joint refit of new tip stations at u -55..-45:** not robust (LN
+    0.22-0.74 across variants).
+  - **Station 100 lowered:** the G deficit gets worse.
+  - **South-end stations:** not supported.
+  - **`arc_glow1` raised at the north ends:** it adds G/B to an edge already
+    too bright, and D68 rejected it over the outer thirds.
+- *Action:* three stations of `tapers.core`, each the median of 14 fit
+  variants with station 100 held:
+  - left y 120: 0.5769 -> 0.6182;
+  - right y 120: 0.5498 -> 0.6275;
+  - right y 140: 0.7402 -> 0.7891.
+
+  Nothing else in the file changes.
+- *Measured* (D68 -> D69):
+  - **The core body** (|n| < 1.5, u -90..-40), R/G/B:
+    - LN -5.1 / -8.7 / -5.2 -> +0.5 / -2.6 / +0.6;
+    - RN -14.2 / -13.8 / -11.2 -> -2.1 / -1.1 / +1.3.
+  - **The robust readings:** LN u -60..-50 G -16.3 -> -9.5; RN u -80..-70 R
+    -24.3 -> -9.7.
+  - **Flux** (|n| <= 6), model over reference:
+    - LN u -50: 0.89 / 0.82 / 0.85 -> 0.94 / 0.86 / 0.89;
+    - RN u -80: 0.85 / 0.84 / 0.84 -> 0.94 / 0.92 / 0.92.
+  - **Corridors:**
+    - |n| <= 8, u -140..0: summed |err| LN -4.6%, RN -14.4%;
+    - D68's per-end corridor: LN 3.81 -> 3.60, RN 3.79 -> 3.55, LS and RS
+      unchanged.
+  - **What changed:** 1,382 pixels, all brighter, by at most 18 cv, at y
+    100-159 (LN u -98..-27, RN u -126..-26, |n| <= 5.2).
+    - Their summed |err| goes 17,553 -> 13,740: 844 better, 500 worse.
+    - Nothing else moves. Every curve-glow reading is identical, and no pixel
+      changes within r 200 of the core.
+    - Calibration verifies at 0.51 with the file unchanged, and
+      `visual_regression`'s output is identical to D68's.
+- *Visible:* at 1x the upper third of each north arc reads slightly brighter
+  and whiter, its white reaching further toward the corners, as the
+  reference's does.
+  - RN: subtle but perceptible (mean dE76 2.6 against D68).
+  - LN: near the threshold (1.6).
+  - No seam, step, knee, band, blob or new texture at 1x-10x.
+- *Verified independently:* two reviewers, evidence and visual, could not
+  refute it (both minor). Each rebuilt it byte for byte. The evidence
+  reviewer's own station fit put the plateau optima at the same values; its
+  whole-cross-section optima were slightly higher (0.63 / 0.65 / 0.82), so
+  the candidate is conservative.
+- *Costs, recorded:*
+  - **The lens-side soft edge** (n -3.5..-2.5, u -90..-40), already too
+    bright, gets brighter. That is (d5)'s tilt scaling with the plateau.
+    - R/G/B: LN +16.0 / +9.0 / +12.3 -> +19.5 / +12.9 / +15.9; RN +14.7 /
+      +6.5 / +9.7 -> +22.6 / +14.9 / +17.8.
+    - dE76: 7.23 -> 7.62 and 7.74 -> 7.97, against the body's 4.99 -> 3.96
+      and 6.09 -> 3.83.
+  - **The inner boundary bin** u -40..-30 gets 2.5-3.1% worse (R/B overshoot
+    1-3 cv).
+  - **LN's dip is only about 43% closed** in G at u -60..-50, with a +2..+4
+    overshoot at u -78..-58. In 8x8 block tallies LN's body is near-neutral
+    (8 better / 7 worse); RN's is 19 / 3.
+  - **RN's body** B overshoots +3..+5 at u -120..-90 while R is still -1..-4.
+  - **LN's body** overshoots +1..+4 luma at u -95..-70. The R flux reaches
+    1.02-1.04 of the reference at LN u -80..-60 and 1.06-1.07 at RN u -70..-50.
+  - **RN's shortfall continues beyond station 140** at about a third of the
+    strength: at u -190..-120 it asks R +7..+11% and G/B +3..+7%. That needs
+    a joint 140 / 160 refit, since +5% at 160 alone overshoots u -120..-100.
+- *Uncertain:*
+  - The reference's peaks fall between the 20-px knots, so robust residuals
+    remain (LN u -60..-40 G -8..-9.5; RN u -90..-70 R -9..-10).
+  - About 0.1-0.2 px of the north cores' lens-side position is at the curve
+    of record's own accuracy.
+
+**(e) North of the core, red (P5): not re-measured; the reading stands.** D69
+changes no pixel within r 200 of the core, so the north box reads +6.5 / +1.5
+/ -0.1 as in D68. (a)'s findings do not change the interpretation, and they
+support it:
+- the north tail is a hue error carried by the background's missing cyan and
+  by the curve and field whites;
+- the one lever that fills the north-north-west crescent makes the north box
+  redder.
+
+**(f) The vertical line (P6): unchanged.** No pixel of it changes, so D68
+(f)'s channel-aware reading stands. Its luma matches on both sides. Its
+chroma gap at |dy| 24-32 is dCr -2.2..-4.6, against a JPEG round-trip spread
+of -6.2..+5.7. No new analysis gave a reason to reopen it, and no chromatic
+correction was made from an averaged reading.
+
+**(g) Upper-left B's hue (P7): deferred.** As in D68 (h), the reference does
+not determine it within B/G 1.1-1.8, and no basis or layer was added for it.
+
+**(h) Saturation: no global operation.** On D69 the region table is D68's,
+except that the curve ridges' luma deficit shrinks (-2.9 -> -2.5).
+- **Less saturated than the reference:**
+  - the ring at r 12-40: -1.7;
+  - the mid flare: -2.4;
+  - the lower-left rays: -1.8;
+  - outside the curves: -0.6.
+- **More saturated than the reference:**
+  - the far lens: +1.5;
+  - the outer field: +1.5;
+  - the ridges: +0.9;
+  - the upper-left rays: +0.4;
+  - the core: +0.3.
+
+The signs still disagree, so a global change would push half the image the
+wrong way.
+
+### What was preserved
+
+- **The west triangle stays absent.** The west check reads 0.782, as before,
+  and no pixel at x < 250 changes.
+- **Every reference-supported structure D68 listed is kept:**
+  - the upper-left rays;
+  - the lower-left segments and the 229-degree lobe;
+  - the upper-right line and slab;
+  - the lower-right translation, line and flank;
+  - the vertical line and the soft horizontal lines;
+  - the core's three white arms, its compactness, and D68's directional white
+    (`visual_regression` reads its white-core size at 0.978 of the
+    reference's, as in D68);
+  - the curves, their D67 flare-side fade and narrowed tips, D68's tail
+    continuation, and the frame.
+- **Layers:** 55 named, none added or removed.
+- **Rays:** none moved or recoloured (RAY_GEOMETRY untouched). Calibration
+  verifies at 0.51 with the file byte-unchanged. Teal stays on the six layers
+  of record.
+- **Geometry:** the curves of record, the lens ellipses and the flare centre
+  are unchanged. D68's `extend` continuation and its regression are
+  untouched.
+- **The deliverable** is still vector only, with no bitmap and no JPEG
+  texture. The only artwork change is three numbers in `tapers.core`, and
+  1,382 pixels at the north tips.
+- **The builder** is D68's, byte for byte. The one tooling change is in
+  `tools/optimize.py`, with its regression in `tools/test_pipeline.py` (69 ->
+  70 checks). It is proved not to change an optimiser run or the artwork
+  (stage 1).
+
+### How the decisions were made
+
+- **The brief's order.** First the Devin finding: reproduced on the real
+  `Objective`, fixed, regression-tested, reviewed, and shown not to touch
+  the artwork (publish byte-identical), then committed and pushed on its own.
+  Only then the visual items, in priority order.
+- **Five investigations,** one per item (the tips split into geometry and
+  colour). Each built directional, radial, cross-section and longitudinal
+  profiles for its item. Each did its attribution with removal renders: real
+  ones, or exact algebraic removals from a split stack. The readings each
+  decision rests on were checked across windows, templates, offsets,
+  channels, 8-px block phases and JPEG round-trips of the model's own render,
+  before any candidate was built.
+- **The rule for a change.** A candidate was kept only if its item's own
+  reading improved over a contiguous region, robustly, and no neighbour the
+  brief protects got worse. Four investigations ended in deferral.
+  - The core arm improved its own reading but made protected neighbours
+    worse: the north box and the line.
+  - The south tails' tangent paint passed the rule but was not worth its
+    complexity: 245 lines for a change invisible at 1x.
+  - The green and the lower-right segment had no candidate that met the
+    rule.
+
+  (d6)'s own costs, the lens edge and the u -40..-30 bin, are inside its item,
+  not protected neighbours. They are recorded there.
+- **Independent review.** The one recommended change went to two reviewers
+  told to refute it with their own code. Neither did. Their costs and
+  corrections are written into (d4), (d5) and (d6).
+- **Whole-image metrics** were consequences, never the criterion.
+
+### What the numbers did
+
+    measure                 D66 (dbb0087)   D67 (1c46a7d)   D68 (5a1fa0c)   D69 final
+    MAE                     1.7323          1.6986          1.6839          1.6803
+    RMSE                    3.284           3.152           3.107           3.090
+    SSIM                    0.97561         0.97603         0.97645         0.97646
+    edge IoU                0.6947          0.6981          0.7009          0.7006
+    centre-region MAE       4.706           4.589           4.584           4.584
+    flare r<110 MAE         4.184           4.044           4.041           4.041
+    core r<25 MAE           3.902           3.747           3.690           3.690
+    bright-region MAE       8.159           7.994           7.854           7.712
+
+These are consequences, not the criterion.
+- The fix of stage 1 changes none of them.
+- (d6) moves only pixels at the north tips. That is why MAE, RMSE and the
+  bright-region MAE fall while the centre, flare and core numbers do not
+  move.
+- Edge IoU dips by 0.0003, because the brighter north cores move the edge
+  map slightly.
+
+### Remaining, with the reason
+
+- **North-north-west of the core at r 12-22,** a white deficit (R -3..-7):
+  real and attributed to the north-north-west white arm. The one lever that
+  fills it makes the north box and the vertical line redder ((a)).
+- **The outer white tail** at r 25-70 is mostly a hue error of the
+  background's cyan layers and the curve and field whites. Only the
+  north-west at r 32-48 is the core's own white tail, and trimming it costs
+  B. It waits on the west / north cyan deficit ((a), D68 (a)).
+- **North of the core,** R about +6.5 in the box: D68's reading stands ((e)).
+- **The core's east bridge** (E r 4-10 -4.9), and the costs of D68's core
+  change: the south-west at r 8-12 (-3.2), the top of the white 0.7 px east,
+  and the east overshoot at r 2-4, the last at the compression's size ((a)).
+- **The junction:** the right curve's own flare-side edge, and its north flank
+  at the size of the compression ((a)).
+- **Just past the right curve at the core's height,** G about +3.2: the
+  flare's own light, as D67 and D68 recorded.
+- **Between the curves,** a bluer zone 14-40 px out on the flare side (h
+  about +3 cv), which no existing layer has the shape or colour to draw ((b)).
+- **The lower-right inner segment:** its white is spread where the
+  reference's is concentrated, and its cyan starts early. The fix is a white /
+  cyan split that cannot be calibrated until the background under it is
+  settled ((c)).
+- **The tips:**
+  - The tails' paths: the north tails lie lens-ward and the south tails
+    flare-ward of the continuation D68 draws, so LS is under-drawn ((d1),
+    (d2)).
+  - The tails' hue, mostly at the compression's size ((d4)).
+  - The lens-side core edge, too bright at u -35..-5 from `arc_core`'s own
+    y-paint tilt ((d5)). (d6) brightens that edge further at u -90..-40 (+3.5
+    to +8.4 cv).
+  - The north plateau's remaining dips between stations ((d6)).
+  - D67's 0.1-0.4 px width residual and the mixed-sign edge softness.
+- **The right curve's core over its outer thirds** (D68 (g)'s "5-17% dim"):
+  - RN at u -300..-200 is R-only, a white / cyan balance `arc_core`'s colour
+    cannot correct;
+  - RN at u -190..-120 is all-channel, at about a third of the dip (d6)
+    fixed;
+  - RS at u -200..-140 is all-channel, -5..-10%.
+
+  A `tapers.core` / colour pass, not a tip item.
+- **The vertical line's** near-core chroma, at the compression's size ((f)).
+- **Upper-left B's** hue, undetermined by the reference ((g)).
+- **The curves' concave glow** at the flare's rows fades on too late in the
+  north and lasts too long in the south (D68 (e)).
+- **D67 (c)'s and D68's recorded costs:**
+  - B along three ray corridors and in the south-west flare zone;
+  - the left curve's edge foot;
+  - the north-east flare sector;
+  - the concave near glow, weak in pure cyan over the curves' outer thirds.
+- **Saturation** differs by region in both signs ((h)).
+
+This is not a pixel-perfect reconstruction, and not every residual listed is
+one to correct.
+
+### Validation
+
+- `sh tools/publish.sh`: **PUBLISH OK**, on the stage-1 tree and again on the
+  final one. That includes:
+  - the cross-engine check (resvg against Chromium, MAE 2.693, as D68);
+  - the before/after sheet's `--verify` step;
+  - the reproducibility step.
+- `tools/test_pipeline.py`: all 70 checks pass (69 in D68). The new one is
+  "the optimiser's objective scores a movable colour its caller changed" (1).
+  It fails on the D68 code; D67's held-row check passes unchanged.
+- The stage-1 fix alone rebuilt every published artefact byte-identically to
+  D68's. The same `optimize.py` run wrote byte-identical parameters with the
+  old module and the new one.
+- `measure_flare` calibration verifies as converged, worst correction 0.51
+  of tolerance, and leaves the file byte-unchanged.
+- `visual_regression`: 0 of 16 structural checks fail, with output identical
+  to D68's. The west check reads 0.782, so the west triangle stays absent.
+- `src/params.json` rebuilds `reconstruction.svg` byte for byte. The published
+  render is byte-identical to the reviewed candidate, and
+  `out/flare_parts.png`'s provenance names this release's SVG.
+- GitHub CI (`checks`, `regression-gate`) was green on the stage-1 commit
+  316c5e0, on both the push and the pull-request runs.
+- The CI workflow's steps were run in a fresh clone of this commit with a
+  fresh virtual environment:
+  - the gate before setup exits 3;
+  - then setup, the gate (70 of 70), validation and the SVG rebuild all
+    pass.

@@ -25,15 +25,15 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 
 | metric | value | for scale |
 |---|---|---|
-| mean absolute error | **1.684** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 3.107 | |
-| MAE on a 1/2.2 display curve | 5.226 | weights the dark background as the eye does; black scores 59.7 |
-| SSIM (luminance) | **0.9764** | black scores 0.142 |
+| mean absolute error | **1.680** / 255 | a flat black canvas scores 17.89 |
+| RMSE | 3.090 | |
+| MAE on a 1/2.2 display curve | 5.224 | weights the dark background as the eye does; black scores 59.7 |
+| SSIM (luminance) | **0.9765** | black scores 0.142 |
 | worst single-channel error | 67 | |
-| pixels off by more than 2 / 8 / 24 | 33.8% / 3.6% / 0.4% | |
-| mean bias | -0.200 | |
+| pixels off by more than 2 / 8 / 24 | 33.8% / 3.6% / 0.3% | |
+| mean bias | -0.193 | |
 
-Per region (MAE): frame band 2.50, centre 90 px 4.58, bright pixels 7.85, dark background 1.31, everything else 1.52.
+Per region (MAE): frame band 2.50, centre 90 px 4.58, bright pixels 7.71, dark background 1.31, everything else 1.52.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -204,9 +204,12 @@ restated those numbers drifted out of date twice, so it no longer does.
    its centre-line (the flare-side stroke is D66's). The core itself narrows
    toward its ends as the reference's does, so it is drawn as a filled
    outline rather than a constant-width stroke (D67). Past each end the
-   reference's curve goes on as a narrow cyan tail for another 40-55 px; one
-   more thin stroke draws it, continued along the end cubic's own polynomial,
-   with the cubics of record unchanged (D68).
+   reference has a narrow cyan ridge for another 40-55 px, along the curve's
+   continuation; one more thin stroke draws it, continued along the end
+   cubic's own polynomial, with the cubics of record unchanged (D68). At the
+   two north ends the reference's white also holds further toward the corners
+   than the core's measured fade drew, so three of its stations were
+   re-measured there (D69).
 5. **Rim** — two frame-ring strokes, a uniform base and a gradient-painted rim,
    because the measured rim brightness peaks at the middle of each edge and the
    top edge is twice as bright as the bottom. Two further layers light the four

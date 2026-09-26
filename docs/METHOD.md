@@ -332,7 +332,11 @@ upper cubic had put it 0.10-0.26 px toward the lens over y 400-540.
 The fades along the arcs are not guessed: the core coverage and each glow term's
 amplitude were measured station by station on both arcs and are carried in
 `src/params.json` as explicit stop tables (`tapers.core`, `tapers.glow1..3`),
-with a tunable gamma and scale on top.
+with a tunable gamma and scale on top. Three of `tapers.core`'s stations at
+the north ends were re-measured in D69 (left y 120, right y 120 and 140).
+Just inside those ends the reference's white holds further toward the corners
+than the stations of record drew. Each station is the median of 14 fit
+variants.
 
 Those stations were read where each term's light is, and for the broad glow
 `arc_glow2` that is the concave side. Between the curves its sigma-19 tail
