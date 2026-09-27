@@ -39,6 +39,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import bisect
 import functools
 import json
 import math
@@ -274,26 +275,33 @@ def bezier_arc_path(g, side, inset=0.0):
     `inset` moves every control point that many pixels towards the curve's own
     ellipse centre; the wide glow layers use it to bias their light inwards.
     """
-    cps = g["cubics"][side]
-    cx, cy = g["insetcentre"][side]
-
-    def T(q):
-        if not inset:
-            return q
-        dx, dy = q[0] - cx, q[1] - cy
-        d = math.hypot(dx, dy) or 1.0
-        k = max(0.0, 1.0 - inset / d)
-        return (cx + dx * k, cy + dy * k)
-
     out = []
-    for i, seg in enumerate(cps):
-        pts = [T(q) for q in seg]
+    for i, pts in enumerate(inset_cubics(g, side, inset)):
         if i == 0:
             out.append("M%s,%s" % (f(pts[0][0], 2), f(pts[0][1], 2)))
         out.append("C%s,%s %s,%s %s,%s" % (f(pts[1][0], 2), f(pts[1][1], 2),
                                            f(pts[2][0], 2), f(pts[2][1], 2),
                                            f(pts[3][0], 2), f(pts[3][1], 2)))
     return " ".join(out)
+
+
+def inset_cubics(g, side, inset=0.0):
+    """The curve's cubics with every control point moved `inset` px toward the
+    curve's own ellipse centre (`insetcentre`): the path an inset layer draws."""
+    cps = g["cubics"][side]
+    if not inset:
+        return cps
+    cx, cy = g["insetcentre"][side]
+    out = []
+    for seg in cps:
+        pts = []
+        for q in seg:
+            dx, dy = q[0] - cx, q[1] - cy
+            d = math.hypot(dx, dy) or 1.0
+            k = max(0.0, 1.0 - inset / d)
+            pts.append((cx + dx * k, cy + dy * k))
+        out.append(pts)
+    return out
 
 
 def _blossom(c, t1, t2, t3):
@@ -378,20 +386,9 @@ def ribbon_path(g, side, inset, width, table, knot=24.0):
                 return width * (tf[i - 1] + u * (tf[i] - tf[i - 1]))
         return width * tf[-1]
 
-    cps = g["cubics"][side]
-    cx, cy = g["insetcentre"][side]
-
-    def T(q):
-        if not inset:
-            return q
-        dx, dy = q[0] - cx, q[1] - cy
-        d = math.hypot(dx, dy) or 1.0
-        k = max(0.0, 1.0 - inset / d)
-        return (cx + dx * k, cy + dy * k)
-
     samples = []            # (x, y, tx, ty) along the whole curve, about 1 px apart
-    for si, seg in enumerate(cps):
-        p0, p1, p2, p3 = [T(q) for q in seg]
+    for si, seg in enumerate(inset_cubics(g, side, inset)):
+        p0, p1, p2, p3 = seg
         chord = (math.hypot(p1[0] - p0[0], p1[1] - p0[1]) + math.hypot(p2[0] - p1[0], p2[1] - p1[1])
                  + math.hypot(p3[0] - p2[0], p3[1] - p2[1]))
         n = max(16, int(math.ceil(chord)))
@@ -518,6 +515,144 @@ def taper_stops(t, side="left", n=24):
     if out[-1][0] < 1:
         out.append((1.0, out[-1][1]))
     return out
+
+
+def curve_axis_stops(t, side, cps, which, reach):
+    """One curve end's share of a table taper, painted along the curve.
+
+    `taper_stops` paints a table as a gradient along y.  Its rows are square to
+    a curve only where the curve is vertical (the apex).  Toward the ends the
+    curves run at 21-27 degrees to the horizontal, so the rows cross the stroke
+    obliquely and tilt the fade across it: the concave (lens) edge, which lies
+    toward the curve's middle rows, takes more of the table than the flare
+    edge, at every end (D69 (d1), (d5)).  Painted along the curve, the table's
+    value is constant on the curve's normals.
+
+    SVG has no gradient along a path.  To first order in the offset from the
+    curve, two linear gradients and a weight reach it:
+      - Y, the table along y, as `taper_stops` paints it;
+      - T, Y's centre-line values along the END's own outward unit tangent,
+        square to the curve at the end, where Y is most oblique;
+      - w, T's weight.  With tau and nu the curve's local unit tangent and
+        normal, Y changes across the stroke a = nu_y / tau_y times as fast as
+        along it, and T b = (nu . T) / (tau . T) times.  Between the end and
+        the apex the two have opposite signs, and w = a / (a - b) makes
+        (1 - w) a + w b = 0.  Past the end, on the continuation, w is 1.
+    The weight hands the end back to Y: it holds until the curve has turned a
+    quarter of the way from its end direction to vertical, and falls smoothly
+    to 0 by halfway, where the two paints tilt equally.  The end's ZONE is the
+    rows from that point to the end, rounded away from the end to a multiple
+    of 4 px (whole pixel rows at every render size that is a multiple of 256
+    px; `Builder.curve_axis_paint` cuts it so that its edge shows at no size);
+    beyond it the layer is the y-paint.
+
+    `which` is "north" (the first cubic, whose start t = 0 is the curve's top
+    end) or "south" (the last cubic, t = 1, the bottom end); `cps` are the
+    cubics the layer draws (`inset_cubics`).
+    The samples run from the half-turn point to `reach` px of arc length past
+    the end, along the end cubic's own polynomial (the path an `extend` layer
+    draws).  Returns (E, T, stops, y_zone): the end point, the outward unit
+    tangent, [(s, alpha, w), ...] with s = (P - E) . T ascending, reduced to the
+    stops whose linear interpolation holds alpha within `tol_a` and w within
+    `tol_w`, and the zone's inner row.  Alpha is Y's value where the centre
+    line crosses its row, so along the centre line the fade is Y's.  The
+    result is cached, as `extended_cubics`' is.
+    """
+    assert t.get("kind") == "table", "a curve-axis taper needs a table"
+    tab = (tuple((float(y), float(a)) for y, a in t[side]), float(t.get("gamma", 1.0)),
+           float(t.get("scale", 1.0)), float(t.get("y_offset", 0.5)))
+    end = tuple((float(q[0]), float(q[1])) for q in (cps[0] if which == "north" else cps[-1]))
+    E, T, st, y_zone = _curve_axis_stops(tab, end, which, float(reach))
+    return E, T, list(st), y_zone
+
+
+@functools.lru_cache(maxsize=64)
+def _curve_axis_stops(tab, c, which, reach, tol_a=0.0015, tol_w=0.004):
+    north = which == "north"
+
+    def pt(u):
+        v = 1.0 - u
+        return (v ** 3 * c[0][0] + 3 * v * v * u * c[1][0] + 3 * v * u * u * c[2][0] + u ** 3 * c[3][0],
+                v ** 3 * c[0][1] + 3 * v * v * u * c[1][1] + 3 * v * u * u * c[2][1] + u ** 3 * c[3][1])
+
+    def der(u):
+        v = 1.0 - u
+        return (3 * v * v * (c[1][0] - c[0][0]) + 6 * v * u * (c[2][0] - c[1][0]) + 3 * u * u * (c[3][0] - c[2][0]),
+                3 * v * v * (c[1][1] - c[0][1]) + 6 * v * u * (c[2][1] - c[1][1]) + 3 * u * u * (c[3][1] - c[2][1]))
+
+    def angle(u):       # to the horizontal, in degrees
+        d = der(u)
+        return math.degrees(math.atan2(abs(d[1]), abs(d[0])))
+
+    te = 0.0 if north else 1.0
+    E, d0 = pt(te), der(te)
+    n0 = math.hypot(*d0)
+    T = ((-d0[0] if north else d0[0]) / n0, (-d0[1] if north else d0[1]) / n0)
+    a_end = angle(te)
+    a_q, a_h = a_end + (90.0 - a_end) / 4.0, a_end + (90.0 - a_end) / 2.0
+    # the half-turn point (each half is one convex cubic, vertical at the apex,
+    # so its angle rises monotonically from the end)
+    lo, hi = 0.0, 1.0
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        if (angle(mid) < a_h) == north:
+            lo = mid
+        else:
+            hi = mid
+    t_h = 0.5 * (lo + hi)
+    y_h = pt(t_h)[1]
+    assert (E[1] < y_h) if north else (E[1] > y_h), \
+        "the %s end does not lie outward of its own half-turn; it cannot be painted along the curve" % which
+    y_zone = 4.0 * (math.ceil(y_h / 4.0) if north else math.floor(y_h / 4.0))
+    assert 0.0 < y_zone < 1024.0, "the %s end's zone edge (y %.0f) is off the canvas" % (which, y_zone)
+    n_in = 4000
+    us = [t_h + (te - t_h) * i / n_in for i in range(n_in + 1)]
+    step, arc, prev, u = us[-1] - us[-2], 0.0, E, te
+    while arc < reach:
+        u += step
+        q = pt(u)
+        arc += math.hypot(q[0] - prev[0], q[1] - prev[1])
+        prev = q
+        us.append(u)
+    st = taper_stops({"kind": "table", "t": tab[0], "gamma": tab[1], "scale": tab[2], "y_offset": tab[3]}, "t")
+    ox, oa = [o * 1024.0 for o, _ in st], [a for _, a in st]
+
+    def alpha_y(y):
+        k = min(max(bisect.bisect_right(ox, y), 1), len(ox) - 1)
+        f_ = min(1.0, max(0.0, (y - ox[k - 1]) / ((ox[k] - ox[k - 1]) or 1.0)))
+        return oa[k - 1] + (oa[k] - oa[k - 1]) * f_
+
+    S, A, W = [], [], []
+    for u in us:
+        p, d = pt(u), der(u)
+        nd = math.hypot(*d) or 1.0
+        tau = (d[0] / nd, d[1] / nd)
+        nu = (-tau[1], tau[0])
+        b = (nu[0] * T[0] + nu[1] * T[1]) / (tau[0] * T[0] + tau[1] * T[1])
+        a = nu[1] / tau[1] if abs(tau[1]) > 1e-12 else None
+        w = 1.0 if a is None or a == b else a / (a - b)
+        x = (angle(u) - a_q) / (a_h - a_q)
+        if x > 0.0:
+            x = min(1.0, x)
+            w *= 1.0 - x * x * (3.0 - 2.0 * x)
+        S.append((p[0] - E[0]) * T[0] + (p[1] - E[1]) * T[1])
+        A.append(alpha_y(p[1]))
+        W.append(min(1.0, max(0.0, w)))
+    assert all(s1 > s0 for s0, s1 in zip(S, S[1:])), \
+        "the %s end is not monotone along its own tangent; it cannot be painted along it" % which
+    keep, todo = {0, len(S) - 1}, [(0, len(S) - 1)]
+    while todo:
+        i, j = todo.pop()
+        worst, wi = 1.0, None
+        for k in range(i + 1, j):
+            f_ = (S[k] - S[i]) / (S[j] - S[i])
+            e = max(abs(A[i] + f_ * (A[j] - A[i]) - A[k]) / tol_a, abs(W[i] + f_ * (W[j] - W[i]) - W[k]) / tol_w)
+            if e > worst:
+                worst, wi = e, k
+        if wi is not None:
+            keep.add(wi)
+            todo += [(i, wi), (wi, j)]
+    return E, T, tuple((S[k], A[k], W[k]) for k in sorted(keep)), y_zone
 
 
 #: Streak cross-section: source rect height as a multiple of its blur sigma.
@@ -760,6 +895,89 @@ class Builder:
             '<linearGradient id="%s" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1024">%s</linearGradient>'
             % (gid, body), gid)
 
+    def curve_axis_paint(self, gid, name, color, side, cps, axes, reach):
+        """A table taper painted along the curve at the ends `axes` names
+        ({"north"|"south": "curve"}), as (paint, mask id) for one element.
+
+        Inside each named end's zone (`curve_axis_stops`) the element is drawn
+        in its solid colour through a mask carrying (1 - w) Y + w T: Y and T
+        in grey, T at opacity w, so that source-over IS that blend (two
+        screen-blended elements would not add).  Outside the zones the paint
+        is `taper_paint`'s own gradient and the mask white, so there the layer
+        is the y-paint (to a level, where a zone edge splits one of the
+        table's gradient segments).  The grey is moved into the mask's alpha
+        under a white colour: resvg reads the luminance of a grey one level
+        high at 23 of 256 levels, of white exactly.
+
+        The zones are cut by hard gradient stops, in the paint and the mask
+        alike, never by a shape's edge.  A gradient is read at each pixel's
+        centre, so at any render size a row that a zone edge crosses falls
+        wholly on one side of it in both.  A shape's edge is anti-aliased
+        instead: in such a row it would mix the mask's two sides under the
+        paint's one, and the fade would be applied twice (a dark line of up to
+        50 levels at 1000 px).  T needs no cut: its weight is 0 at the zone
+        edge and beyond it along the curve, and its rect only keeps it off the
+        rows outside the zone."""
+        t = self.p["tapers"][name]
+        stops = taper_stops(t, side)
+        zone, ends = {}, []
+        for which in ("north", "south"):
+            if axes.get(which) == "curve":
+                ends.append((which,) + curve_axis_stops(t, side, cps, which, reach))
+                zone[which] = ends[-1][4]
+        lo, hi = zone.get("north", 0.0) / 1024.0, zone.get("south", 1024.0) / 1024.0
+        assert lo < hi, "the %s curve's north and south zones overlap" % side
+
+        def at(o):
+            k = bisect.bisect_right([s[0] for s in stops], o)
+            (o0, a0), (o1, a1) = stops[k - 1], stops[min(k, len(stops) - 1)]
+            return a0 + (a1 - a0) * (o - o0) / ((o1 - o0) or 1.0)
+
+        def vgrad(i, color, rows):
+            """a gradient down the canvas from rows (offset, opacity, cut), a
+            cut's stop printed to the precision the paint's are"""
+            return self.add_def(
+                '<linearGradient id="%s" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1024">%s'
+                '</linearGradient>' % (i, "".join('<stop offset="%s" stop-color="%s" stop-opacity="%s"/>'
+                                                  % ((f(o, 8), color, f(a, 7)) if cut else (f(o, 5), color, f(a, 4)))
+                                                  for o, a, cut in rows)), i)
+        # the mask: white; black in the zones; Y in the zones, white at the
+        # table's opacities (a grey over the black); then each zone's T
+        black = ([(0.0, 1.0, 1), (lo, 1.0, 1), (lo, 0.0, 1)] if "north" in zone else [(0.0, 0.0, 1)]) + \
+                ([(hi, 0.0, 1), (hi, 1.0, 1), (1.0, 1.0, 1)] if "south" in zone else [(1.0, 0.0, 1)])
+        ys = [(o, a, 0) for o, a in stops if "north" in zone and o < lo]
+        ys += [(lo, at(lo), 1), (lo, 0.0, 1)] if "north" in zone else [(0.0, 0.0, 1)]
+        ys += [(hi, 0.0, 1), (hi, at(hi), 1)] if "south" in zone else [(1.0, 0.0, 1)]
+        ys += [(o, a, 0) for o, a in stops if "south" in zone and o > hi]
+        rects = ['<rect width="1024" height="1024" fill="%s"/>' % v for v in
+                 ("#ffffff", "url(#%s)" % vgrad(gid + "k", "#000000", black),
+                  "url(#%s)" % vgrad(gid + "y", "#ffffff", ys))]
+        for which, E, T, st, yz in ends:
+            s0, s1 = st[0][0], st[-1][0]
+            tid = self.add_def(
+                '<linearGradient id="%s" gradientUnits="userSpaceOnUse" x1="%s" y1="%s" x2="%s" y2="%s">%s'
+                '</linearGradient>' % (gid + which[0], f(E[0] + s0 * T[0]), f(E[1] + s0 * T[1]),
+                                       f(E[0] + s1 * T[0]), f(E[1] + s1 * T[1]),
+                                       "".join('<stop offset="%s" stop-color="%s" stop-opacity="%s"/>'
+                                               % (f((s - s0) / (s1 - s0), 5), hexc((255 * a,) * 3), f(w, 4))
+                                               for s, a, w in st)), gid + which[0])
+            # (T's grey is 8-bit, as the mask it is drawn into is)
+            box = 'y="%s" width="1024" height="%s"' % ((0, f(yz)) if which == "north" else (f(yz), f(1024 - yz)))
+            rects.append('<rect %s fill="url(#%s)"/>' % (box, tid))
+        self.add_def('<filter id="g2a" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024" '
+                     'color-interpolation-filters="sRGB"><feColorMatrix type="matrix" '
+                     'values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 1 0 0 0"/></filter>', "g2a")
+        mid = self.add_def('<mask id="%s" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">'
+                           '<g filter="url(#g2a)">%s</g></mask>' % ("m" + gid, "".join(rects)), "m" + gid)
+        # the paint: opaque inside the zones (the mask carries the fade there),
+        # taper_paint's own stops between them, cut at the zone rows
+        body = [(0.0, 1.0, 1), (lo, 1.0, 1), (lo, at(lo), 1)] if "north" in zone else []
+        body += [(o, a, 0) for o, a in stops if lo < o < hi or (o == lo and "north" not in zone)
+                 or (o == hi and "south" not in zone)]
+        body += [(hi, at(hi), 1), (hi, 1.0, 1), (1.0, 1.0, 1)] if "south" in zone else []
+        pid = vgrad(gid + "p", color, body)
+        return "url(#%s)" % pid, mid
+
     def radial_paint(self, gid, color, cx, cy, r, profile, squash=1.0, rot=0.0):
         body = "".join(
             '<stop offset="%s" stop-color="%s" stop-opacity="%s"/>' % (f(o, 5), color, f(a, 5))
@@ -835,6 +1053,7 @@ class Builder:
         filt = ' filter="url(#%s)"' % self.blur(L["blur"]) if L.get("blur") else ""
         opa = "" if op >= 1.0 else ' opacity="%s"' % f(op, 4)
         gid = "g_" + L["id"]
+        assert kind == "arc" or "taper_axis" not in L, "taper_axis is a key of arc layers only"
 
         if kind == "canvas":
             # `region: "outside"` confines the layer to the area outside the
@@ -872,13 +1091,38 @@ class Builder:
             return '<use href="#frame" fill="url(#%s)"%s%s%s/>' % (gid, filt, opa, blend)
 
         if kind == "arc":
+            # `taper_axis`: "curve" paints the table along the curve at an end
+            # instead of along y (curve_axis_stops); a string names both ends,
+            # a dict {"north": .., "south": ..} each, "y" is the default
+            tax = L.get("taper_axis")
+            tax = {} if tax is None else {"north": tax, "south": tax} if isinstance(tax, str) else tax
+            assert isinstance(tax, dict) and set(tax) <= {"north", "south"} and \
+                set(tax.values()) <= {"y", "curve"}, "taper_axis is 'y', 'curve' or {'north'|'south': 'y'|'curve'}"
+            if "curve" in tax.values():
+                assert L.get("taper") and self.p["tapers"][L["taper"]].get("kind") == "table", \
+                    "taper_axis needs a table taper"
+                assert not L.get("convex_taper"), "taper_axis and convex_taper do not combine"
             out = []
             for side in ("left", "right"):
                 if L.get("side") and L["side"] != side:
                     continue
                 d = self.arc_d(side, L.get("inset", 0.0))
-                paint = ("url(#%s)" % self.taper_paint(gid + side[0], L["taper"], col, side)
-                         if L.get("taper") else col)
+                mask = None
+                if "curve" in tax.values():
+                    g = self.p["geometry"]["arc_" + side]
+                    assert "cubics" in g, "taper_axis needs the cubic curve geometry"
+                    # the stations run past the end as far as anything is drawn:
+                    # the continuation, then the stroke's half-width (a ribbon's
+                    # widest) and a margin
+                    wt = L.get("width_taper")
+                    wmax = max([1.0] + [float(v) for _, v in ((wt[side] if isinstance(wt, dict) else wt)
+                                                                if wt else [])])
+                    paint, mask = self.curve_axis_paint(
+                        gid + side[0], L["taper"], col, side, inset_cubics(g, side, L.get("inset", 0.0)), tax,
+                        float(L.get("extend", 0.0)) + 0.5 * float(L["width"]) * wmax + 4.0)
+                else:
+                    paint = ("url(#%s)" % self.taper_paint(gid + side[0], L["taper"], col, side)
+                             if L.get("taper") else col)
                 cl = L.get("clip", "frame")
                 if cl == "lens":
                     cattr = ' clip-path="url(#lens%s)"' % side[0].upper()
@@ -886,6 +1130,11 @@ class Builder:
                     cattr = ""
                 else:
                     cattr = ' clip-path="url(#fc)"'
+                # a masked element: the mask on the path and everything else on
+                # a group around it, so it is masked before its blur, as a paint
+                # is (the group carries its own blend: not the isolated-group
+                # case of the module docstring)
+                grp = '<g%s%s%s%s>%%s</g>' % (filt, cattr, opa, blend)
                 if L.get("width_taper"):
                     # a variable-width core: one filled offset outline (a
                     # stroke's width is constant along its path)
@@ -893,6 +1142,9 @@ class Builder:
                     assert not L.get("extend"), "width_taper and extend do not combine"
                     g = self.p["geometry"]["arc_" + side]
                     rd = ribbon_path(g, side, L.get("inset", 0.0), L["width"], L["width_taper"])
+                    if mask:
+                        out.append(grp % ('<path d="%s" fill="%s" stroke="none" mask="url(#%s)"/>' % (rd, paint, mask)))
+                        continue
                     out.append('<path d="%s" fill="%s" stroke="none"%s%s%s%s/>'
                                % (rd, paint, filt, cattr, opa, blend))
                     continue
@@ -914,6 +1166,10 @@ class Builder:
                         out.append(
                             '<path d="%s" fill="none" stroke="%s" stroke-width="%s" stroke-linecap="%s"%s clip-path="url(#%s)"%s%s/>'
                             % (d, pt, f(L["width"]), L.get("linecap", "round"), filt, cid, opa, blend))
+                    continue
+                if mask:
+                    out.append(grp % ('<path d="%s" fill="none" stroke="%s" stroke-width="%s" stroke-linecap="%s" '
+                                      'mask="url(#%s)"/>' % (d, paint, f(L["width"]), L.get("linecap", "round"), mask)))
                     continue
                 out.append(
                     '<path d="%s" fill="none" stroke="%s" stroke-width="%s" stroke-linecap="%s"%s%s%s%s/>'
