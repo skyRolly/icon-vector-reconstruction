@@ -72,9 +72,10 @@ def layer_index(params, lid):
 
 
 def layer_specs(params, keys=("width", "blur", "inset", "r", "squash", "rot",
-                              "half_len", "height", "len", "peak_at", "onset", "cx", "cy",
+                              "half_len", "height", "len", "peak_at", "onset", "tail", "cx", "cy",
                               "sigma_y", "sigma_x", "blur_x", "blur_y", "spread", "dx", "dy",
-                              "scale", "inner", "east_gain", "south_gain")):
+                              "scale", "inner", "east_gain", "south_gain"),
+                hold=()):
     """One spec per tunable shape number on each layer.
 
     Per-layer `bounds` in params.json win over the global defaults.  They are
@@ -92,9 +93,19 @@ def layer_specs(params, keys=("width", "blur", "inset", "r", "squash", "rot",
     values they were first guessed at.  `verify_searchable()` now fails the
     regression suite if any bounded parameter is unreachable, so the list
     cannot fall behind the model again.
+
+    `hold` names layers whose shape is NOT searched.  main() passes the rays of
+    record (tools/measure_flare.py RAY_GEOMETRY) unless --include-rays is given:
+    their geometry is a measurement that `measure_flare.py --geometry` restores,
+    so a search that moved them would either be undone by the next rebuild or,
+    worse, ship a ray displaced from its measured line.  The bounds audit calls
+    this with hold=() on purpose -- it asks whether a bound COULD be searched.
     """
     out = []
+    held = set(hold)
     for i, L in enumerate(params["layers"]):
+        if L["id"] in held:
+            continue
         b = L.get("bounds", {})
         for k in keys:
             if k not in L:
@@ -288,6 +299,9 @@ SHAPE_BOUNDS = {
     "height": (2.0, 200.0, None),
     "len": (30.0, 400.0, None),
     "peak_at": (0.05, 0.8, 0.03),
+    #: A ray's fade: where it reaches 0.42 of peak, as a fraction of `len` past
+    #: `peak_at` (src/build_svg.py; absent means 0.35 and emits no spec).
+    "tail": (0.05, 0.64, 0.03),
     "width": (0.2, 900.0, None),
     #: `blur` is QUANTISED by the acceptance renderer, and the step below can be
     #: smaller than the quantum.  Measured on the upper-left ray: every value
@@ -309,7 +323,10 @@ SHAPE_BOUNDS = {
 def taper_specs(params):
     out = []
     for name, t in params["tapers"].items():
-        users = [L["id"] for L in params["layers"] if L.get("taper") == name]
+        # a layer uses a taper through `taper`, or through `convex_taper` for
+        # its flare-facing part (build_svg: an arc split at its curve)
+        users = [L["id"] for L in params["layers"]
+                 if name in (L.get("taper"), L.get("convex_taper"))]
         if not users:
             continue
         for k, (lo, hi, st) in (("y0", (20, 500, 6)), ("y1", (60, 520, 10)),
@@ -409,14 +426,22 @@ def field_specs(params):
 # objective
 # --------------------------------------------------------------------------- #
 class Objective:
-    def __init__(self, reference, stride=2, fit_iters=3, size=1024):
+    def __init__(self, reference, stride=2, fit_iters=3, size=1024, held=()):
         ref = np.asarray(Image.open(reference).convert("RGB")).astype(np.float32) / 255.0
         self.size = size
+        # Layers whose colours this objective never re-fits: the rays of record,
+        # whose amplitudes are calibrated against their own measured profiles
+        # (tools/measure_flare.py).  A whole-image fit moves light into them
+        # that belongs to a broad glow -- D61 caught it drawing a lower-left ray
+        # 2.5x the reference -- so they are held, not merely down-weighted.
+        self.held = set(held)
         self.target_full = np.minimum(ref, 254.4 / 255.0)
         self.stride = stride
         self.fit_iters = fit_iters
         self.cache = {}
         self.K = None
+        self.K_ids = None           # the layer schema self.K's rows belong to (colours())
+        self.K_seen = None          # the stored colours colours() last read from params
         self.n_render = 0
 
     def basis(self, params, lid):
@@ -472,17 +497,75 @@ class Objective:
         fams = {lid.split("_")[0] for lid in affects}
         return [i for i, L in enumerate(params["layers"]) if L["id"].split("_")[0] in fams] or None
 
+    def free_indices(self, params, free):
+        """`free` (None = every layer) minus the held layers."""
+        idx = range(len(params["layers"])) if free is None else free
+        out = [i for i in idx if params["layers"][i]["id"] not in self.held]
+        return None if (free is None and not self.held) else out
+
+    def colours(self, params):
+        """Bring `self.K` up to date with `params` before a fit starts from it.
+
+        `self.K` is the colour state a fit starts from and, for every layer
+        the fit does not free, the colour it scores with.  Its rows are of two
+        kinds:
+        - a movable layer's row is the optimiser's own fitted colour, which
+          `sweep` carries from one accepted move to the next and `main` writes
+          back at the end; reusing it is the point;
+        - a HELD layer's row is never fitted, so it can only ever be what
+          `params` says.
+        Until D67 held rows were seeded once and then kept, so an Objective
+        that scored parameters A and then B -- B differing only in a held
+        ray's colour -- scored B with A's colour (the review finding).  Held
+        rows are now refreshed from `params` on every evaluation.  The whole
+        state is re-seeded when the layer schema changes: the ids or their
+        order (a row count alone cannot tell a reordered stack from the same
+        one), or which layers may use teal -- a movable row that kept a teal
+        amount after its layer lost the permission would have it locked in by
+        the fit, scoring light the parameters forbid.
+
+        A movable row is carried only while its layer's STORED colour is the
+        one this objective last read.  sweep never writes colours into
+        `params`, so during a run nothing is refreshed and the fitted rows
+        ride through every geometry trial.  But a caller that edits a movable
+        layer's stored colour between two evaluations is asking for that
+        colour to be scored, and until D69 the row kept the old one: scored
+        with `free=[]`, A with a cyan `arc_glow1` and then B with it black
+        gave B exactly A's score, where a fresh Objective scores B (the
+        review finding).  So the stored colours read here are kept
+        (`K_seen`), and a movable row whose stored colour differs from the
+        last reading is re-read from `params`; every other movable row keeps
+        its carried state.  The comparison is with the LAST reading, so a
+        caller that assigns `obj.K` must do it straight after evaluating
+        parameters with the same stored colours, as every `sweep` site does:
+        a K restored after scoring different stored colours has those rows
+        re-read.
+        """
+        ids = [L["id"] for L in params["layers"]]
+        schema = (tuple(ids), tuple(bool(t) for t in FP.teal_eligible(params)))
+        wc = FP.params_wc(params)
+        if self.K is None or self.K_ids != schema or self.K.shape[0] != len(ids):
+            self.K, self.K_ids, self.K_seen = wc, schema, wc.copy()
+            return
+        stale = [i for i, lid in enumerate(ids)
+                 if lid in self.held or not np.array_equal(wc[i], self.K_seen[i])]
+        if stale and not np.array_equal(self.K[stale], wc[stale]):
+            K = np.array(self.K, copy=True)
+            K[stale] = wc[stale]
+            self.K = K
+        self.K_seen = wc
+
     def evaluate(self, params, fit_iters=None, stride=None, full=False, free=None):
+        free = self.free_indices(params, free)
         A = np.stack([self.basis(params, L["id"]) for L in params["layers"]])
         st = 1 if full else (stride or self.stride)
         tgt = self.target_full[::st, ::st]
         Asub = A[:, ::st, ::st]
         W = FP.make_weight(tgt)
-        if self.K is None or self.K.shape[0] != A.shape[0]:
-            self.K = FP.params_wc(params)
+        self.colours(params)
         nf = FP.normal_flags(params)
         K = FP.fit(Asub, tgt, self.K, W, iters=fit_iters or self.fit_iters, verbose=False,
-                   free=free, normal=nf)
+                   free=free, normal=nf, teal_ok=FP.teal_eligible(params))
         out = FP.composite(Asub, FP.colors(K), nf)
         sse = FP.weighted_sse(out - tgt, W) / (Asub.shape[1] * Asub.shape[2])
         mae = float(np.abs(out - tgt).mean() * 255)
@@ -522,6 +605,19 @@ def merge_specs(specs):
         elif cur["affects"] != sp["affects"]:
             cur["affects"] = sorted(set(cur["affects"]) | set(sp["affects"]))
     return [by_path[k] for k in order]
+
+
+def ray_profile_ok(params, path):
+    """False if `path` is a ray's longitudinal stop and its current value is one
+    the builder would clamp (tools/measure_flare.py profile_problems)."""
+    parts = path.split("/")
+    if len(parts) != 3 or parts[0] != "layers" or parts[2] not in ("onset", "peak_at", "tail", "len"):
+        return True
+    L = params["layers"][int(parts[1])]
+    if L.get("kind") != "ray":
+        return True
+    import measure_flare as MFL
+    return not MFL.profile_problems(L["id"], L)
 
 
 def sweep(obj, params, specs, log=print, accept_tol=2e-7):
@@ -587,6 +683,16 @@ def sweep(obj, params, specs, log=print, accept_tol=2e-7):
                 if not (sp["lo"] <= v <= sp["hi"]):
                     continue
                 set_path(params, sp["path"], v)
+                if not ray_profile_ok(params, sp["path"]):
+                    # onset, peak_at and tail are searched as independent
+                    # intervals, but the builder clamps the onset to 0.95 of
+                    # the peak and the 0.42 stop to the ray's end.  A trial past
+                    # either clamp renders exactly like the clamp, so it cannot
+                    # win on the image -- and if it tied, it would write a
+                    # value that is never drawn, which is how flare_ray_b came
+                    # to hold an onset after its own peak (D63).  Skip it.
+                    set_path(params, sp["path"], v0)
+                    continue
                 obj.invalidate(sp["affects"])
                 sse, mae, Kt = obj.evaluate(params, free=free)
                 if sse < best_sse - accept_tol:
@@ -618,18 +724,27 @@ def main():
     ap.add_argument("--fit-iters", type=int, default=3)
     ap.add_argument("--only", default=None,
                     help="restrict to specs touching layers whose id starts with this")
+    ap.add_argument("--include-rays", action="store_true",
+                    help="also search the rays' shapes and re-fit their colours; by default "
+                         "both are held (measure_flare.py owns them), see D62")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
 
     params = json.load(open(a.params))
-    obj = Objective(a.reference, stride=a.stride, fit_iters=a.fit_iters)
-    builders = {"shapes": layer_specs, "tapers": taper_specs,
+    import measure_flare as MFL
+    held = () if a.include_rays else MFL.CALIBRATED_LAYERS
+    shape_hold = () if a.include_rays else tuple(MFL.RAY_GEOMETRY)
+    obj = Objective(a.reference, stride=a.stride, fit_iters=a.fit_iters, held=held)
+    builders = {"shapes": lambda p: layer_specs(p, hold=shape_hold), "tapers": taper_specs,
                 "geometry": geometry_specs, "field": field_specs}
     if a.spec == "all":
         specs = merge_specs(sum((builders[k](params)
                                  for k in ("shapes", "tapers", "field", "geometry")), []))
     else:
         specs = builders[a.spec](params)
+    if held:
+        print("holding %d ray layers (shape and colour): %s" % (len(set(held) | set(shape_hold)),
+              ", ".join(sorted(set(held) | set(shape_hold)))))
     if a.only:
         pre = tuple(x.strip() for x in a.only.split(","))
         specs = [sp for sp in specs
@@ -643,7 +758,7 @@ def main():
         sweep(obj, params, specs)
     # final full-resolution colour fit
     sse, mae, K = obj.evaluate(params, fit_iters=12, full=True)
-    FP.store_wc(params, K)
+    FP.store_wc(params, K, only=obj.free_indices(params, None))
     print("final: sse=%.6g mae=%.4f  (%.1fs, %d renders)" % (sse, mae, time.time() - t0, obj.n_render))
     json.dump(params, open(a.out or a.params, "w"), indent=1)
     print("wrote", a.out or a.params)

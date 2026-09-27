@@ -17,6 +17,13 @@ python3 -u tools/optimize.py --spec geometry --sweeps 1 --stride 4
 python3 -u tools/optimize.py --spec field    --sweeps 1 --stride 4
 python3 -u tools/optimize.py --spec shapes   --sweeps 1 --stride 3 --fit-iters 6
 python3 -u tools/fit_photometry.py --iters 30 --stride 2
+# The rays last, because they are measured, not searched (D62).  Every stage
+# above HOLDS them -- their shapes are not in the search and their colours are
+# not re-fitted -- and this restores the geometry of record and then calibrates
+# their amplitudes against their own measured profiles, over the background the
+# stages above just settled.  A non-zero exit here stops the cycle: a release
+# with uncalibrated rays is not a release.
+python3 -u tools/measure_flare.py --geometry
 # Everything from the rebuild onwards is the publish cycle, which is defined
 # once in tools/publish.sh and used both here and on its own.  Keeping it in one
 # place is what stops "the documented full cycle" and "what actually produces a

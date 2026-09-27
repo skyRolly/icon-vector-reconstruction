@@ -10,3 +10,8 @@ out/render_4096.png
 # intermediate numeric dumps from tools/isolate.py: 12 MB each, and one
 # command regenerates them
 out/*.npy
+# the accepted-baseline render is derived: tools/setup_baseline.py makes it from
+# out/baseline/reconstruction.svg (pinned by out/baseline/manifest.json); CI and
+# publish.sh both run it
+out/baseline/render_1024.png
+out/baseline/render_1024.png.prov.json

@@ -1,0 +1,8 @@
+# The documented dependencies (README, "Reproducing"), pinned.  The pin is part
+# of the reproducibility contract, not a convenience: tools/setup_baseline.py
+# re-renders the previous release's SVG in a clean checkout and requires the
+# PNG to be byte-for-byte the image out/flare_parts.png was drawn from, which
+# holds for a given resvg-py; and every acceptance number is resvg's.
+numpy==2.4.6
+pillow==12.3.0
+resvg-py==0.5.0

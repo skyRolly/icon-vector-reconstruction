@@ -120,7 +120,8 @@ def isolate(params, ref, drop_prefixes, refit_mask=None, iters=25):
     nf = FP.normal_flags(base)
     if refit_mask is not None:
         w = FP.make_weight(ref) * refit_mask.astype(np.float32)
-        WC = FP.fit(A, ref, FP.params_wc(base), w, iters=iters, verbose=False, normal=nf)
+        WC = FP.fit(A, ref, FP.params_wc(base), w, iters=iters, verbose=False, normal=nf,
+                    teal_ok=FP.teal_eligible(base))
         base = json.loads(json.dumps(base))
         FP.store_wc(base, WC)
     K = FP.colors(FP.params_wc(base))

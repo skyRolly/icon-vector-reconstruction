@@ -3,7 +3,7 @@
 # was missing while nothing guaranteed the dependency was ever installed: a
 # regression gate that cannot execute under its own documented requirements is
 # not a gate.  This installs exactly what README.md's "Reproducing" section
-# names -- numpy, Pillow and resvg-py -- and nothing else, so the
+# names -- numpy, Pillow and resvg-py, pinned in requirements.txt -- and nothing else, so the
 # "shipped tools import only documented dependencies" check is also a live
 # statement about this environment rather than a claim about a developer's.
 #
@@ -32,13 +32,26 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install the documented dependencies, and only those
-        run: python -m pip install --upgrade pip numpy pillow resvg-py
+      - name: Install the documented dependencies, pinned, and only those
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
 
       - name: The acceptance renderer is actually importable
         run: python -c "import resvg_py, numpy, PIL; print('resvg-py ok')"
 
-      - name: Regression gate
+      # SETUP, REGRESSION and VALIDATION are separate steps with separate exit
+      # codes, so a failed run says which one failed.  A clean checkout carries
+      # the previous release's SVG but not its render (git-ignored, derived);
+      # the gate's published-sheet check needs it, and until D66 this job never
+      # made it -- the gate then failed on a file that had never been
+      # generated, which read as a broken release.  setup_baseline.py renders
+      # ONLY the pinned SVG (manifest digest) and requires the result to be the
+      # image the published sheet recorded; it exits 3 on any setup failure.
+      - name: Baseline setup (exit 3 = setup failure, nothing tested)
+        run: python tools/setup_baseline.py
+
+      - name: Regression gate (exit 1 = a regression; exit 3 = setup incomplete)
         run: python -u tools/test_pipeline.py
 
       - name: Diagnostics run from an unrelated working directory

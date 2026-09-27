@@ -11,6 +11,7 @@ all.  Run after any change to tools/optimize.py or src/build_svg.py.
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 
@@ -40,6 +41,25 @@ def centroid(a, thresh=0.02):
     ys, xs = np.nonzero(m)
     w = a[m]
     return float((xs * w).sum() / w.sum()), float((ys * w).sum() / w.sum())
+
+
+def preflight(baseline_dir=None):
+    """Setup artefacts the checks read that a clean checkout does not carry ([] if all present).
+
+    The previous accepted release is committed as its SVG only; its 1024-px
+    render is derived, git-ignored, and made by tools/setup_baseline.py (CI's
+    "Baseline setup" step; publish.sh runs it too).  Until D66 CI ran this
+    suite without it, and the published-sheet check then FAILED on a file that
+    had never been generated -- a missing setup step reported as a broken
+    release.  A missing or unverifiable setup artefact is now reported for what
+    it is, before any check runs, with its own exit status (3; a regression is
+    1), so the two cannot be confused.  The checks are setup_baseline.verify(),
+    the very ones the setup step applies -- including that the render is the
+    image the published sheet recorded, so a leftover render from another
+    renderer version is a setup failure here too, not a stale-sheet FAIL.
+    """
+    import setup_baseline as _SB
+    return _SB.verify(baseline_dir or _SB.BASELINE_DIR)
 
 
 def main():
@@ -166,7 +186,7 @@ def main():
     # ever being reported.  That gap cannot be closed by flagging every unbounded
     # number -- 486 of the model's 627 numeric leaves are unbounded on purpose,
     # so a report of all of them reports nothing.  What CAN be pinned is the
-    # inventory: every unbounded number today belongs to one of thirteen kinds,
+    # inventory: every unbounded number today belongs to one of seventeen kinds,
     # each searched by a different mechanism or measured rather than fitted.  A
     # new unbounded field in a NEW kind is the case worth catching, and this
     # fires on it.  `paint/x1..y2` is the one kind that is neither -- eight
@@ -175,6 +195,8 @@ def main():
     _KNOWN_UNBOUNDED = {
         "white": "photometric fit", "cyan": "photometric fit",
         "blue": "photometric fit", "color": "derived from the coefficients",
+        # D64: the fourth primary, carried only by the TEAL_LAYERS of record
+        "teal": "photometric fit",
         "profile": "tabulated from the reference",
         "profile_e": "tabulated from the reference",
         "profile_s": "tabulated from the reference",
@@ -184,6 +206,15 @@ def main():
         "paint/x2": "frozen canvas gradient extent (D55)",
         "paint/y1": "frozen canvas gradient extent (D55)",
         "paint/y2": "frozen canvas gradient extent (D55)",
+        # D67: a radial layer's directional gap (build_svg Builder.gap_mask),
+        # fitted to the core's reference residual and held, like the white
+        # arms' shape
+        "gap": "fitted to the reference and held (D67)",
+        # D67: arc_core's width along the curve, measured at the tips and held
+        "width_taper": "measured at the curve tips and held (D67)",
+        # D68: how far the tip layer's stroke runs past the curves' ends,
+        # read from the reference's tails and held
+        "extend": "measured past the curve ends and held (D68)",
     }
 
     def _numeric_leaves(node, prefix):
@@ -355,7 +386,12 @@ def main():
     WC = FP.params_wc(params)
     nfl = FP.normal_flags(params)
     worst = (0.0, None)
-    for lid in ("arc_core", "arc_glow1", "frame_rim"):
+    # flare_ray_ur's R is exactly 0: a channel at its lower BOUND, not clipped
+    # (amounts are non-negative, so it can only rise).  There only the
+    # one-sided derivative exists, and fit() must use it (D66: it used to call
+    # it zero, which froze any dark layer); it is compared with a forward
+    # difference, everything else with a central one.
+    for lid in ("arc_core", "arc_glow1", "frame_rim", "flare_ray_ur"):
         li = [k for k, L in enumerate(params["layers"]) if L["id"] == lid]
         if not li:
             continue
@@ -364,7 +400,10 @@ def main():
             h = 1e-4
             wp, wm = WC.astype(np.float64).copy(), WC.astype(np.float64).copy()
             wp[li, j] += h
-            wm[li, j] -= h
+            _kr = WC[li].astype(np.float64) @ FP.BASIS.astype(np.float64)
+            _bound = bool(np.any((_kr == 0.0) & (FP.BASIS[j] > 0)) or WC[li, j] == 0.0)
+            if not _bound:
+                wm[li, j] -= h
             def f(w):
                 # float64 throughout: the central difference of a float32 sum
                 # of 3e5 terms loses the signal to cancellation, which is what
@@ -373,14 +412,47 @@ def main():
                                  FP.colors(w).astype(np.float64), nfl)
                 e = (M - tsub.astype(np.float64)) * Wsub.astype(np.float64)[..., None]
                 return float((e * e).sum())
-            num = (f(wp) - f(wm)) / (2 * h)
+            num = (f(wp) - f(wm)) / (h if _bound else 2 * h)
             ana = FP.analytic_grad(Asub, tsub, WC, Wsub, nfl, li, j)
             den = max(abs(num), 1e-9)
             rel = abs(ana - num) / den
             if rel > worst[0]:
                 worst = (rel, "%s/%s" % (lid, FP.COMPONENTS[j]))
-    check("the analytic gradient matches the objective, clipped colours included",
+    check("the analytic gradient matches the objective, clipped and zero channels included",
           worst[0] < 0.02, "worst relative error %.4f at %s" % worst)
+
+    # ---- 5b'. the fit is a PROJECTED solve (D66 review) ------------------- #
+    # Once the derivative at a channel's lower bound was made exact (so a dark
+    # layer can be fitted back), an amount AT its bound whose gradient points
+    # out of the box kept pulling every LM step outside it; each clipped step
+    # failed its line search and the documented fit stalled (30 iterations:
+    # sse 13.67 against 13.40 before and 13.34 with the active set).  Two cyan
+    # layers against a target with R = 0 everywhere: every white amount sits
+    # at 0 with an outward gradient.  The fit must reach its floor quickly.
+    _rng = np.random.default_rng(0)
+    _As = np.stack([np.clip(_rng.random((16, 16)) * 1.2, 0, 1),
+                    np.clip(_rng.random((16, 16)) * 1.2, 0, 1)]).astype(np.float32)
+    _ts = FP.composite(_As, np.array([[0.0, 0.40, 0.55], [0.0, 0.25, 0.20]], np.float32),
+                       [False, False]).astype(np.float32)
+    _w0s = np.array([[0.0, 0.2, 0.0, 0.0], [0.0, 0.1, 0.0, 0.0]], np.float32)
+
+    def _rms_after(k):
+        _w = FP.fit(_As, _ts, _w0s, np.ones((16, 16), np.float32), iters=k, verbose=False,
+                    normal=[False, False], teal_ok=np.array([False, False]))
+        return float(np.sqrt(((FP.composite(_As, FP.colors(_w), [False, False]) - _ts) ** 2).mean()))
+    _r6, _r40 = _rms_after(6), _rms_after(40)
+    # ... and the UPPER bound is the same kind of edge: a channel exactly at 1
+    # (a white layer clipped to its amount limit) was treated as clipped, so
+    # its whole Jacobian was zero and it could never come back down.
+    _A1 = np.ones((1, 8, 8), np.float32)
+    _t1 = FP.composite(_A1, np.array([[0.5, 0.5, 0.5]], np.float32), [False]).astype(np.float32)
+    _w1 = FP.fit(_A1, _t1, np.array([[1.0, 0.0, 0.0, 0.0]], np.float32), np.ones((8, 8), np.float32),
+                 iters=20, verbose=False, normal=[False], teal_ok=np.array([False]))
+    check("the photometric fit is a projected solve: amounts at a bound do not stall it",
+          _r6 <= 1.01 * _r40 and abs(float(_w1[0, 0]) - 0.5) < 0.01,
+          "rms after 6 iterations %.3e, after 40 %.3e (a stalled solve is still >5%% above its floor "
+          "after 12); a white layer starting at the clip (1.0) against a 0.5 target reaches %.3f"
+          % (_r6, _r40, float(_w1[0, 0])))
 
     # ---- 5b. the documentation names layers that actually exist ---------- #
 
@@ -411,7 +483,11 @@ def main():
                   # removed in this iteration and named in the record OF its
                   # removal: a flat-topped quadrilateral standing in for the
                   # broad west lobe, replaced by `flare_arm_w2`
-                  "flare_ray_d"}
+                  "flare_ray_d",
+                  # removed in D61 and named in the record of their removal:
+                  # the two straight-edged flank wedges that drew the false
+                  # triangle west of the core (measure_flare.RETIRED_FLANKS)
+                  "flare_flank_dl", "flare_flank_ul"}
     import re as _re
     named, missing = set(), {}
     for doc in ("README.md", os.path.join("docs", "METHOD.md"),
@@ -459,7 +535,7 @@ def main():
         raise SystemExit(
             "the regression gate needs the acceptance renderer: %s\n"
             "README.md documents the dependencies; install them with\n"
-            "  pip install numpy pillow resvg-py" % exc)
+            "  pip install -r requirements.txt" % exc)
     real = np.asarray(Image.open(io.BytesIO(png)).convert("RGB")).astype(np.float32) / 255.0
     d = float(np.abs(an - real).mean() * 255)
     check("objective composite matches the rebuilt SVG render", d < 1.0, "MAE %.4f code values" % d)
@@ -683,42 +759,89 @@ def main():
 
     # `measure_flare.py --geometry` WRITES this table into the params, so a stale
     # entry silently reverts shipped work.  It did: the table held 45.6/215 and
-    # 327.8/185 for the right-hand rays after both had been superseded, so running
-    # --geometry would have undone an axis correction and re-lengthened a ray that
-    # measurement had shortened.
+    # 327.8/185 for the right-hand rays after both had been superseded.  And until
+    # D62 it covered only the original four rays: the nine added in D61 had no
+    # entry, so a rebuild restored four rays and left nine wherever the last
+    # shape search had put them, and it rewrote flare_ray_b's measured narrow
+    # bounds to generic wide ones on the way.  Every key of every ray is checked.
     import measure_flare as MFL
-    drift = []
-    for lid, (th, fwhm, h, sp, ln, pk, dx, dy) in MFL.RAY_GEOMETRY.items():
-        L = next((x for x in params["layers"] if x["id"] == lid), None)
-        if L is None:
-            drift.append("%s missing from params" % lid); continue
-        for name, want, got in (("rot", -th, L.get("rot")), ("height", h, L.get("height")),
-                                ("blur", round(MFL.blur_for(fwhm, h), 4), L.get("blur")),
-                                ("spread", sp, L.get("spread")), ("len", ln, L.get("len")),
-                                ("peak_at", pk, L.get("peak_at")),
-                                # absent dx/dy mean zero to the builder, so the
-                                # preset and the params agree when both say "no
-                                # offset" in their own way
-                                ("dx", dx, L.get("dx", 0.0)), ("dy", dy, L.get("dy", 0.0))):
-            if got is None or abs(float(want) - float(got)) > 1e-6:
-                drift.append("%s/%s preset %.4g vs shipped %s" % (lid, name, want, got))
-    # The FLANKS template is the other half of --geometry's promise: it INSERTS
-    # a flank that has been deleted, so a stale entry silently ships a different
-    # model.  It did -- rot -234.0 against the measured and committed -240.0 --
-    # and no calibration afterwards can move a rotation.  Colour is excluded on
-    # purpose: the photometric fit rewrites it by design, so asserting it would
-    # fire on every legitimate refit.
+    import copy as _cp
+    import contextlib as _clf, io as _iof
+    import build_svg as _BS
+    drift = ["%s/%s record %s vs shipped %s" % t for t in MFL.drift(params)]
+    gprob = MFL.geometry_problems(params)
+    # Perturb every key of the contract on every ray -- GEOMETRY_KEYS is every
+    # key the builder reads for a ray, including the ones the record says must
+    # be ABSENT (an offset or an onset a search added has to be removed again)
+    # -- rebuild, and require the layer to come back EXACTLY, bounds included.
+    gfail, gcount = [], 0
+    for lid in MFL.RAY_GEOMETRY:
+        orig = next(x for x in params["layers"] if x["id"] == lid)
+        for k in MFL.GEOMETRY_KEYS:
+            trial = _cp.deepcopy(params)
+            L = next(x for x in trial["layers"] if x["id"] == lid)
+            L[k] = float(L.get(k) or 0.0) + 0.37
+            with _clf.redirect_stdout(_iof.StringIO()):
+                MFL.apply_geometry(trial)
+            L = next(x for x in trial["layers"] if x["id"] == lid)
+            gcount += 1
+            if L != orig:
+                gfail.append("%s/%s not restored" % (lid, k))
+    # The rays' positions are ABSOLUTE (D63).  The geometry stage of the
+    # optimiser searches the flare centre +-30 px; until D63 every ray was an
+    # offset from it, so moving the centre moved all of them off their measured
+    # lines and --geometry, which wrote the same offsets back, could not undo it.
+    # Moving the centre must now leave every ray's coverage exactly as it was,
+    # and a rebuild must find nothing to repair.
+    _moved = _cp.deepcopy(params)
+    _moved["flare"]["cx"] = float(_moved["flare"]["cx"]) + 3.0
+    _moved["flare"]["cy"] = float(_moved["flare"]["cy"]) - 3.0
+    _dep = [x for x in _BS.flare_dependent_layers(_moved) if x in MFL.RAY_GEOMETRY]
+    if _dep:
+        gfail.append("rays still anchored to the flare centre: %s" % ", ".join(_dep))
+    _rk = [lid for lid in MFL.RAY_GEOMETRY
+           if MFL.basis_key(_moved, lid) != MFL.basis_key(params, lid)]
+    if _rk:
+        gfail.append("moving the flare centre moved %s" % ", ".join(_rk))
+    if MFL.drift(_moved):
+        gfail.append("--geometry would 'repair' rays after a flare-centre move: %s" % MFL.drift(_moved)[:2])
+    # And the rebuild must not widen, narrow or otherwise touch any search
+    # space: flare_ray_b's rotation window is +-3 deg around its measured line,
+    # not the generic +-6 it was once rewritten to -- and so on for every ray.
+    _t = _cp.deepcopy(params)
+    with _clf.redirect_stdout(_iof.StringIO()):
+        MFL.apply_geometry(_t)
+    for _L0, _L1 in zip(params["layers"], _t["layers"]):
+        if _L0.get("kind") == "ray" and _L0.get("bounds") != _L1.get("bounds"):
+            gfail.append("%s's bounds were rewritten by --geometry" % _L0["id"])
+    # A canonical value outside a layer's own search bounds is refused, since
+    # the optimiser would clip it on its first trial.
+    _t = _cp.deepcopy(params)
+    next(x for x in _t["layers"] if x["id"] == "flare_ray_b")["bounds"]["len"] = [10.0, 20.0]
+    try:
+        with _clf.redirect_stdout(_iof.StringIO()):
+            MFL.apply_geometry(_t)
+        gfail.append("--geometry accepted a canonical len outside the layer's bounds")
+    except SystemExit:
+        pass
+    # The flank template WAS the other half of --geometry's promise: it
+    # re-inserted a deleted flank, so a stale entry shipped a different model --
+    # and once the flanks were found to BE the false triangle west of the core
+    # (D61), keeping the template would have re-drawn it on the next geometry
+    # rebuild.  The guard is now that they stay gone: not in the params, and
+    # --geometry refusing a params file that has one.
     fdrift = []
-    for tpl in MFL.FLANKS:
-        L = next((x for x in params["layers"] if x["id"] == tpl["id"]), None)
-        if L is None:
-            fdrift.append("%s missing from params" % tpl["id"]); continue
-        for name in ("kind", "rot", "height", "spread", "len", "peak_at", "blur"):
-            want, got = tpl.get(name), L.get(name)
-            same = (want == got if isinstance(want, str)
-                    else got is not None and abs(float(want) - float(got)) <= 1e-6)
-            if not same:
-                fdrift.append("%s/%s template %s vs shipped %s" % (tpl["id"], name, want, got))
+    for rid in MFL.RETIRED_FLANKS:
+        if any(x["id"] == rid for x in params["layers"]):
+            fdrift.append("%s is back in params.json" % rid)
+    _probe = json.loads(json.dumps(params))
+    _probe["layers"].append({"id": MFL.RETIRED_FLANKS[0], "kind": "ray"})
+    try:
+        with _clf.redirect_stdout(_iof.StringIO()):
+            MFL.apply_geometry(_probe)
+        fdrift.append("--geometry accepted a params file carrying %s" % MFL.RETIRED_FLANKS[0])
+    except SystemExit:
+        pass
     # A bound is only "reachable" if a spec targets THAT parameter.  Raw prefix
     # matching let a sibling stand in for it -- a blur_x spec satisfied an
     # unreachable blur bound, and profile_e satisfied profile -- so the guard
@@ -1026,44 +1149,1476 @@ def main():
           "a layer with bounds.blur but only blur_x emitted reports unreachable %s"
           % (_pun or "nothing"))
 
-    check("the flank insertion template matches the shipped flanks",
+    check("the retired flank wedges stay retired",
           not fdrift,
           "; ".join(fdrift) if fdrift
-          else "all %d flank layers agree on every structural field" % len(MFL.FLANKS))
+          else "%s absent from params; --geometry refuses a file that has one"
+          % " and ".join(MFL.RETIRED_FLANKS))
 
     check("the ray geometry preset matches the shipped params",
-          not drift, "; ".join(drift) if drift else "all %d ray layers agree" % len(MFL.RAY_GEOMETRY))
+          not drift, "; ".join(drift) if drift else "all %d ray layers agree on all %d keys"
+          % (len(MFL.RAY_GEOMETRY), len(MFL.GEOMETRY_KEYS)))
 
-    # ---- 6g. calibration that does not converge reports failure ----------- #
+    check("every ray layer has geometry of record inside its own bounds",
+          not gprob, "; ".join(gprob) if gprob else "%d ray layers, each with a contract; "
+          "every canonical value lies inside the layer's search bounds" % len(MFL.RAY_GEOMETRY))
 
-    # Any corrections computed on the way are saved, so a caller that only looked
-    # at the file could not tell a calibrated state from an uncalibrated one.
-    # Returning 0 regardless meant automation accepted parameters that had never
-    # met their tolerance.
+    check("--geometry restores every displaced ray and leaves its bounds alone",
+          not gfail, "; ".join(gfail[:6]) if gfail else "%d perturbations of %d rays over all "
+          "%d contract keys restored exactly; a 3 px flare-centre move moves no ray; no ray's "
+          "bounds touched; an out-of-bounds canonical value refused"
+          % (gcount, len(MFL.RAY_GEOMETRY), len(MFL.GEOMETRY_KEYS)))
+
+    # ---- 6f2. every stored onset and tail is one the builder draws -------- #
+
+    # The builder clamps a ray's onset to 0.95 x peak_at and its 0.42 stop to
+    # 0.999 of its length.  D62's record held flare_ray_b at onset 0.4463,
+    # peak_at 0.4011 -- an onset after its own peak -- which rendered as 0.381,
+    # and nothing noticed: the table described a ray that was never drawn and
+    # a search moving the onset above the clamp changed nothing.  So: the
+    # record and the shipped layers have no clamped value; the builder writes
+    # flare_ray_b's onset as stored; moving it inside its valid range changes
+    # the render, while two values past the clamp render identically (the
+    # failure itself); and a record holding the D62 values is refused.
+    _onset = []
+    _bg = MFL.RAY_GEOMETRY["flare_ray_b"]
+    if _bg["onset"] > MFL.ONSET_CLAMP * _bg["peak_at"]:
+        _onset.append("flare_ray_b's recorded onset is past the clamp")
+    _clamped = [m for lid, g in MFL.RAY_GEOMETRY.items() for m in MFL.profile_problems(lid, g)]
+    _clamped += [m for L in params["layers"] if L.get("kind") == "ray"
+                 for m in MFL.profile_problems(L["id"], L)]
+    _onset += _clamped
+    import re as _re2
+    _svg = _BS.build(params)
+    _gm = _re2.search(r'<linearGradient id="g_flare_ray_b"[^>]*>(.*?)</linearGradient>', _svg)
+    _offs = [float(v) for v in _re2.findall(r'offset="([0-9.]+)"', _gm.group(1))] if _gm else []
+    if len(_offs) != 6 or abs(_offs[1] - _bg["onset"]) > 1e-4 or abs(_offs[3] - _bg["peak_at"]) > 1e-4:
+        _onset.append("the builder did not draw flare_ray_b's stored onset/peak (stops %s)" % _offs)
+
+    def _ray_cov(P, **kw):
+        Q = _cp.deepcopy(P)
+        Lb = next(x for x in Q["layers"] if x["id"] == "flare_ray_b")
+        Lb.update(kw)
+        return FP.render_array(_BS.build(Q, basis="flare_ray_b"))[..., 0].astype(np.float64)
+    _c0 = _ray_cov(params)
+    _inside = [float(np.abs(_ray_cov(params, onset=_bg["onset"] + d) - _c0).max()) for d in (-0.03, 0.03)]
+    if min(_inside) < 0.01:
+        _onset.append("moving the onset inside its valid range did not change the render (%s)" % _inside)
+    _past = float(np.abs(_ray_cov(params, onset=0.95 * _bg["peak_at"] + 0.01)
+                         - _ray_cov(params, onset=0.95 * _bg["peak_at"] + 0.05)).max())
+    if _past != 0.0:
+        _onset.append("two onsets past the clamp rendered differently (%g): the clamp is not where "
+                      "the validator thinks it is" % _past)
+    _saved = MFL.RAY_GEOMETRY["flare_ray_b"]
+    try:
+        MFL.RAY_GEOMETRY["flare_ray_b"] = dict(_saved, onset=0.4463, peak_at=0.4011)
+        if not any("onset" in m for m in MFL.geometry_problems(params)):
+            _onset.append("a record holding the D62 onset/peak is not reported")
+        try:
+            with _clf.redirect_stdout(_iof.StringIO()):
+                MFL.apply_geometry(_cp.deepcopy(params))
+            _onset.append("--geometry applied a record whose onset the builder would clamp")
+        except SystemExit:
+            pass
+    finally:
+        MFL.RAY_GEOMETRY["flare_ray_b"] = _saved
+    # The same pair in the PARAMS, the other place it could live (a review
+    # re-reported it against an older commit, D64): drift() must name it, and
+    # --geometry must put back the reachable record so that what is emitted
+    # and drawn is the record again, pixel for pixel.
+    _dv = _cp.deepcopy(params)
+    _Ld = next(x for x in _dv["layers"] if x["id"] == "flare_ray_b")
+    _Ld.update(onset=0.4463, peak_at=0.4011)
+    if not any(d[0] == "flare_ray_b" and d[1] == "profile" for d in MFL.drift(_dv)):
+        _onset.append("the D62 onset/peak in the params is not reported by drift()")
+    try:
+        with _clf.redirect_stdout(_iof.StringIO()):
+            MFL.apply_geometry(_dv)
+    except SystemExit as _e:
+        _onset.append("--geometry refused to repair the params: %s" % str(_e).splitlines()[0])
+    _gm2 = _re2.search(r'<linearGradient id="g_flare_ray_b"[^>]*>(.*?)</linearGradient>', _BS.build(_dv))
+    _offs2 = [float(v) for v in _re2.findall(r'offset="([0-9.]+)"', _gm2.group(1))] if _gm2 else []
+    _rep = float(np.abs(_ray_cov(_dv) - _c0).max())
+    if (MFL.drift(_dv) or len(_offs2) != 6 or abs(_offs2[1] - _bg["onset"]) > 1e-4
+            or abs(_offs2[3] - _bg["peak_at"]) > 1e-4 or _rep != 0.0):
+        _onset.append("--geometry did not repair the D62 onset/peak in the params (stops %s, "
+                      "render delta %g)" % (_offs2, _rep))
+    check("every stored onset and tail is one the builder draws",
+          not _onset, "; ".join(_onset[:4]) if _onset else
+          "no clamped onset or tail in the record or the shipped rays; flare_ray_b's onset %.4f is "
+          "drawn as stored; +-0.03 inside its range moves the render by %.3f / %.3f, two values "
+          "past the clamp render identically; the D62 record (onset after peak) is refused, and "
+          "the same pair in the params is reported and repaired by --geometry to the shipped render"
+          % (_bg["onset"], _inside[0], _inside[1]))
+
+    # ---- 6g. flare calibration: profile-aware, segment-aware, verified ---- #
+
+    # Until D62 the calibration scaled ONE layer per ray to a pooled chord-excess
+    # peak.  A ray drawn as an inner and an outer segment was then scaled by the
+    # peak of the pair, which moves the inner segment's part of the profile and
+    # leaves the outer's where it was -- a calibration step that could destroy a
+    # correctly fitted profile.  It now solves every layer that puts light on
+    # every measured line jointly, band by band.  These checks use the shipped
+    # layers, not a toy.
     import subprocess as _sp
     import tempfile as _tf
+    _ref = np.asarray(Image.open(os.path.join(ROOT, "reference.png")).convert("RGB")).astype(np.float64)
+    with _clf.redirect_stdout(_iof.StringIO()):
+        _lines = MFL.Lines(_ref)
+        _stack = MFL.Stack(params, _lines.box)
+
+    def _amp(P, lid):
+        L = next(x for x in P["layers"] if x["id"] == lid)
+        return sum(float(L.get(c, 0.0)) for c in ("white", "cyan", "blue", "teal"))
+
+    def _scaled(P, factors):
+        Q = json.loads(json.dumps(P))
+        for L in Q["layers"]:
+            if L["id"] in factors:
+                MFL.scale(L, factors[L["id"]])
+        return Q
+
+    cal = {}
     with _tf.TemporaryDirectory() as _td:
-        bad = json.loads(json.dumps(params))
-        for L in bad["layers"]:
-            if L["id"] in MFL.RAY_LAYER.values():
-                L["color"] = [round(v * 0.05, 5) for v in L["color"]]
-                for ch in ("white", "cyan", "blue"):
-                    if ch in L:
-                        L[ch] = round(float(L[ch]) * 0.05, 6)
+        # (a) the shipped parameters are calibrated: a verify-only pass asks no
+        #     layer for a correction beyond TOL.
+        p0 = os.path.join(_td, "shipped.json")
+        json.dump(params, open(p0, "w"), indent=1)
+        w0, _c0 = MFL.calibrate(p0, _ref, rounds=0, verbose=False, lines=_lines, stack=_stack)
+        cal["shipped"] = (w0 <= 1.0, "shipped worst %.2f of TOL" % w0)
+        # The calibrated state every recovery below is measured against is the
+        # CONVERGED solve of the shipped file, not the shipped file times the
+        # one-step correction a verify pass reports: that step is a
+        # linearisation and lands within TOL of the solution, not on it.
+        pc = os.path.join(_td, "calibrated.json")
+        json.dump(params, open(pc, "w"), indent=1)
+        MFL.calibrate(pc, _ref, rounds=4, verbose=False, lines=_lines, stack=_stack)
+        star = json.load(open(pc))
+        _base_meas = _lines.measure(MFL.render_full(star))
+
+        # (b) SEGMENTED: halve only the INNER lower-left segment.  Calibration
+        #     must bring it back and must not drag the outer segment with it.
+        p1 = os.path.join(_td, "inner_halved.json")
+        json.dump(_scaled(star, {"flare_ray_b": 0.5}), open(p1, "w"), indent=1)
+        w1, _c1 = MFL.calibrate(p1, _ref, rounds=4, verbose=False, lines=_lines, stack=_stack)
+        s1 = json.load(open(p1))
+        dev = {lid: abs(math.log(_amp(s1, lid) / _amp(star, lid))) for lid in MFL.CALIBRATED_LAYERS}
+        m1 = _lines.measure(MFL.render_full(s1))
+        dprof = float(np.abs(m1["lower-left"]["bands"][:, 1] - _base_meas["lower-left"]["bands"][:, 1]).max())
+        cal["segmented"] = (w1 <= 1.0 and dev["flare_ray_b"] <= 0.04 and dev["flare_ray_b2"] <= 0.04
+                            and max(dev.values()) <= 0.04 and dprof <= 1.0,
+                            "inner restored to %.3f and outer held at %.3f of the calibrated state "
+                            "(worst layer %.3f in ln), lower-left profile within %.2f cv"
+                            % (math.exp(dev["flare_ray_b"]), math.exp(dev["flare_ray_b2"]),
+                               max(dev.values()), dprof))
+
+        # (c) JOINT: the lower-right's two segments pushed in opposite directions.
+        p2 = os.path.join(_td, "lr_split.json")
+        json.dump(_scaled(star, {"flare_ray_c_in": 0.5, "flare_ray_c": 1.6}), open(p2, "w"), indent=1)
+        w2, _c2 = MFL.calibrate(p2, _ref, rounds=4, verbose=False, lines=_lines, stack=_stack)
+        s2 = json.load(open(p2))
+        d2 = [abs(math.log(_amp(s2, lid) / _amp(star, lid))) for lid in ("flare_ray_c_in", "flare_ray_c")]
+        cal["joint"] = (w2 <= 1.0 and max(d2) <= 0.04,
+                        "inner %.3f, tail %.3f of the calibrated state after 0.5x / 1.6x"
+                        % tuple(math.exp(v) for v in d2))
+
+        # (f) FLANK (D65 review): the lower-right ray is a narrow line inside a
+        #     soft flank.  The flank used to sit outside every family, so a
+        #     global fit could move it and calibration then re-balanced only
+        #     the narrow segments around the wrong flank.  It is now in the
+        #     family and read by the split templates: displaced alone (0.4x)
+        #     or against the line (2.0x with the line 1.3x), all three segments
+        #     and the combined profile -- narrow AND broad readings -- come back.
+        _lr = ("flare_ray_c_in", "flare_ray_c", "flare_ray_c_fl")
+        _fl_notes = []
+        _fl_ok = "flare_ray_c_fl" in MFL.CALIBRATED_LAYERS and "split" in MFL.FAMILIES["lower-right"]
+        if not _fl_ok:
+            _fl_notes.append("flare_ray_c_fl is not calibrated with a split reading")
+        _split0 = _base_meas["lower-right"]["split"]
+        import fit_photometry as _FPf
+        for _tag, _fac in (("flank 0.4x", {"flare_ray_c_fl": 0.4}),
+                           ("flank 2.0x, line 1.3x", {"flare_ray_c_fl": 2.0, "flare_ray_c": 1.3})):
+            _pp = os.path.join(_td, "lr_flank.json")
+            _pert = _scaled(star, _fac)
+            json.dump(_pert, open(_pp, "w"), indent=1)
+            # The global fit runs first, as the documented cycle would: it may
+            # move every other layer but must leave all three segments exactly
+            # where the displacement put them -- it can neither move the flank
+            # further nor "repair" it behind calibration's back.
+            _gy0, _gy1, _gx0, _gx1 = _lines.box
+            _gt = np.minimum(_ref[_gy0:_gy1, _gx0:_gx1] / 255.0, 254.4 / 255.0).astype(np.float32)[::4, ::4]
+            _gW0 = _FPf.params_wc(_pert)
+            _gW1 = _FPf.fit(_stack.A[:, ::4, ::4], _gt, _gW0, np.ones(_gt.shape[:2], np.float32), iters=2,
+                            verbose=False, free=_FPf.held_free(_pert), normal=_FPf.normal_flags(_pert),
+                            teal_ok=_FPf.teal_eligible(_pert))
+            _gi = [[L["id"] for L in _pert["layers"]].index(lid) for lid in _lr]
+            _gmoved = float(np.abs(_gW1[_gi] - _gW0[_gi]).max())
+            _gfree = float(np.abs(_gW1 - _gW0).max())
+            if _gmoved != 0.0:
+                _fl_ok = False
+                _fl_notes.append("%s: the global fit moved a lower-right segment by %.3g" % (_tag, _gmoved))
+            _wf, _cf2 = MFL.calibrate(_pp, _ref, rounds=6, verbose=False, lines=_lines, stack=_stack)
+            _sf = json.load(open(_pp))
+            _dl = [abs(math.log(_amp(_sf, lid) / _amp(star, lid))) for lid in _lr]
+            _ms = _lines.measure(MFL.render_full(_sf))["lower-right"]["split"]
+            _dsp = float(np.abs(_ms[..., 1] - _split0[..., 1]).max()) if len(_split0) else 99.0
+            _ok = _wf <= 1.0 and max(_dl) <= 0.04 and _dsp <= 0.5
+            _fl_ok = _fl_ok and _ok
+            _fl_notes.append("%s: global fit moved the segments by %.3g (other layers up to %.3g), then "
+                             "calibration -> inner/line/flank %s of the calibrated state, split G within "
+                             "%.2f cv" % (_tag, _gmoved, _gfree, "/".join("%.3f" % math.exp(v) for v in _dl),
+                                          _dsp))
+        cal["flank"] = (_fl_ok, "; ".join(_fl_notes))
+
+        # (g) DARK (D66 review): a calibrated ray whose light is entirely zero
+        #     has a zero Jacobian column, which correction() read as "needs
+        #     nothing" -- so a ray the reference plainly has could be zeroed and
+        #     the calibration would still say converged.  It must now FAIL when
+        #     the reference asks for the light, and must NOT fail for a dark
+        #     layer the reference has no use for, or one no band can see; a ray
+        #     whose teal is 0 but whose cyan is lit is not dark at all.
+        _dk = []
+
+        def _darken(P, lid):
+            Q = json.loads(json.dumps(P))
+            for L in Q["layers"]:
+                if L["id"] == lid:
+                    for c in ("white", "cyan", "blue", "teal"):
+                        if c in L:
+                            L[c] = 0.0
+                    L["color"] = [0.0, 0.0, 0.0]
+            return Q
+        for _lid in ("flare_ray_ula", "flare_ray_c_fl"):      # alone in its family; in a joint one
+            _pd = os.path.join(_td, "dark.json")
+            json.dump(_darken(star, _lid), open(_pd, "w"), indent=1)
+            _wd, _cd = MFL.calibrate(_pd, _ref, rounds=0, verbose=False, lines=_lines, stack=_stack)
+            if _wd <= 1.0 or not np.isinf(_cd[_lid]):
+                _dk.append("%s at zero light verified as calibrated (worst %.2f)" % (_lid, _wd))
+        _rd = _sp.run([sys.executable, os.path.join(ROOT, "tools", "measure_flare.py"), "--params",
+                       _pd, "--rounds", "0"], capture_output=True, text=True)
+        if _rd.returncode == 0 or "MISSING" not in _rd.stdout:
+            _dk.append("measure_flare.py --rounds 0 on a zero-light ray exited %d%s"
+                       % (_rd.returncode, "" if "MISSING" in _rd.stdout else " without saying MISSING"))
+        # The DEFAULT path solves first -- and the solve pushed a dark ray's light
+        # onto its lit neighbours (zero flare_ray_e and round 0 took flare_ray_ur
+        # x2.09), after which the leftover no longer asked for the ray and the
+        # calibration converged (D66 review).  A dark ray is now judged before
+        # anything is solved, and the file is left exactly as it was.
+        json.dump(_darken(star, "flare_ray_e"), open(_pd, "w"), indent=1)
+        _before = open(_pd, "rb").read()
+        _we, _ce = MFL.calibrate(_pd, _ref, rounds=8, verbose=False, lines=_lines, stack=_stack)
+        if _we <= 1.0 or not np.isinf(_ce["flare_ray_e"]):
+            _dk.append("flare_ray_e at zero light converged on the default (solving) path (worst %.2f)" % _we)
+        if open(_pd, "rb").read() != _before:
+            _dk.append("the solve ran and saved over a file with a missing ray")
+        # ... and a file ALREADY absorbed that way (as the pre-fix code saved it:
+        # flare_ray_e dark, flare_ray_ur x2.09) is still judged missing, because
+        # the evidence is what the lit layers' re-scaling cannot supply.
+        _ab = _darken(star, "flare_ray_e")
+        for L in _ab["layers"]:
+            if L["id"] == "flare_ray_ur":
+                MFL.scale(L, 2.09)
+        json.dump(_ab, open(_pd, "w"), indent=1)
+        _wa, _ca = MFL.calibrate(_pd, _ref, rounds=0, verbose=False, lines=_lines, stack=_stack)
+        if _wa <= 1.0 or not np.isinf(_ca["flare_ray_e"]):
+            _dk.append("an already-absorbed file (flare_ray_e dark, flare_ray_ur x2.09) verified as "
+                       "calibrated (worst %.2f)" % _wa)
+        # A ray scaled to next to nothing is as missing as one at exactly 0 --
+        # 1e-4 of its light survives the file's rounding (amounts to 1e-6) as
+        # non-zero amounts, which is the point: it is not exactly dark.  And a
+        # LIT ray at 5% of its light is not dark at all: a scale recovers it.
+        _fa = json.loads(json.dumps(star))
+        for L in _fa["layers"]:
+            if L["id"] == "flare_ray_ula":
+                MFL.scale(L, 1e-4)
+                _faint_sum = sum(float(L.get(c, 0.0)) for c in MFL.CHANNELS)
+        json.dump(_fa, open(_pd, "w"), indent=1)
+        _wf2, _cf3 = MFL.calibrate(_pd, _ref, rounds=0, verbose=False, lines=_lines, stack=_stack)
+        if not _faint_sum > 0.0:
+            _dk.append("the faint-ray case rounded to exactly zero and tests nothing")
+        if _wf2 <= 1.0 or not np.isinf(_cf3["flare_ray_ula"]):
+            _dk.append("flare_ray_ula at 1e-4 of its light (amounts %.1e) verified as calibrated (worst %.2f)"
+                       % (_faint_sum, _wf2))
+        _lo = json.loads(json.dumps(star))
+        for L in _lo["layers"]:
+            if L["id"] == "flare_ray_ula":
+                MFL.scale(L, 0.05)
+        json.dump(_lo, open(_pd, "w"), indent=1)
+        _wl, _cl = MFL.calibrate(_pd, _ref, rounds=0, verbose=False, lines=_lines, stack=_stack)
+        if np.isinf(_cl["flare_ray_ula"]) or _cl["flare_ray_ula"] < 5.0:
+            _dk.append("flare_ray_ula at 5%% of its light was called dark, or not asked to scale up "
+                       "(asks x%.3g)" % _cl["flare_ray_ula"])
+        # A dark layer the reference has no use for, and one no band can see:
+        # a zero-light copy of the upper-left A ray on its own line, and one
+        # moved off the measured crop, both made members of its family.
+        _q = json.loads(json.dumps(star))
+        _ids = [L["id"] for L in _q["layers"]]
+        _dup = _darken({"layers": [dict(_q["layers"][_ids.index("flare_ray_ula")], id="probe_dup")]},
+                       "probe_dup")["layers"][0]
+        _off = dict(_dup, id="probe_off", cx=40.0, cy=40.0)
+        _q["layers"][_ids.index("flare_ray_ula") + 1:_ids.index("flare_ray_ula") + 1] = [_dup, _off]
+        _fam0, _cl0 = MFL.FAMILIES["upper-left A"], MFL.CALIBRATED_LAYERS
+        try:
+            MFL.FAMILIES["upper-left A"] = dict(_fam0, layers=_fam0["layers"] + ("probe_dup", "probe_off"))
+            MFL.CALIBRATED_LAYERS = tuple(dict.fromkeys(
+                lid for f in MFL.FAMILIES.values() for lid in f["layers"]))
+            _pq = os.path.join(_td, "dark_ok.json")
+            json.dump(_q, open(_pq, "w"), indent=1)
+            _sq = MFL.Stack(_q, _lines.box)
+            _wq, _cq = MFL.calibrate(_pq, _ref, rounds=0, verbose=False, lines=_lines, stack=_sq)
+            _rep = MFL.dark_report(_lines, _sq, _lines.measure(MFL.render_full(json.load(open(_pq)))))
+        finally:
+            MFL.FAMILIES["upper-left A"], MFL.CALIBRATED_LAYERS = _fam0, _cl0
+        if _rep.get("probe_dup", ("?",))[0] != "not needed" or _rep.get("probe_off", ("?",))[0] != "unobservable":
+            _dk.append("dark-layer verdicts %s (want probe_dup not needed, probe_off unobservable)" % _rep)
+        if _wq > 1.0:
+            _dk.append("a dark layer the reference has no use for failed the calibration (worst %.2f)" % _wq)
+        # Teal at 0 is two different things.  flare_ray_lld keeps cyan light:
+        # its colour is recoverable by the colour fit and calibration scales
+        # it as usual.  flare_ray_ur carries ALL its light as teal, so at teal
+        # 0 it is a dark ray -- and must fail as MISSING, because a scale
+        # cannot give it teal back; the colour fit can (see the teal check).
+        def _teal0(P, lid):
+            Q = json.loads(json.dumps(P))
+            for L in Q["layers"]:
+                if L["id"] == lid:
+                    L["teal"] = 0.0
+                    L["color"] = [round(float(v) * 255.0, 2) for v in
+                                  _FPf.color_from_wc([float(L.get(c, 0.0)) for c in MFL.CHANNELS])]
+            return Q
+        _pt = os.path.join(_td, "teal0.json")
+        json.dump(_teal0(star, "flare_ray_lld"), open(_pt, "w"), indent=1)
+        _wt, _ct = MFL.calibrate(_pt, _ref, rounds=4, verbose=False, lines=_lines, stack=_stack)
+        if _wt > 1.0 or MFL.dark_report(_lines, _stack, _lines.measure(MFL.render_full(json.load(open(_pt))))):
+            _dk.append("flare_ray_lld at teal 0 with lit cyan was treated as dark or did not calibrate "
+                       "(worst %.2f)" % _wt)
+        json.dump(_teal0(star, "flare_ray_ur"), open(_pt, "w"), indent=1)
+        _wu, _cu = MFL.calibrate(_pt, _ref, rounds=0, verbose=False, lines=_lines, stack=_stack)
+        if _wu <= 1.0 or not np.isinf(_cu["flare_ray_ur"]):
+            _dk.append("flare_ray_ur at teal 0 -- no light left -- verified as calibrated (worst %.2f)" % _wu)
+        cal["dark"] = (not _dk, "; ".join(_dk) if _dk else
+                       "a zeroed upper-left A ray and a zeroed lower-right flank each fail verification "
+                       "(the CLI exits 1 saying MISSING); a zeroed upper-right slab fails on the default "
+                       "solving path too, with the file left untouched, and so does a file its neighbour "
+                       "already absorbed (x2.09); a ray at 1e-4 of its light counts as dark and fails, "
+                       "while one at 5%% is lit and simply asked to scale up; "
+                       "a zero-light copy on the line is 'not needed' "
+                       "(asks %.2f cv) and one off the crop 'unobservable', and neither fails; at teal 0, "
+                       "flare_ray_lld (cyan still lit) calibrates (worst %.2f) while flare_ray_ur (all "
+                       "its light was teal) fails as MISSING" % (_rep["probe_dup"][1], _wt))
+
+        # (d) the SAVED file reproduces the calibrated result through the
+        #     documented build and render commands, not the in-process path.
+        svg1, png1 = os.path.join(_td, "r.svg"), os.path.join(_td, "r.png")
+        _sp.run([sys.executable, os.path.join(ROOT, "src", "build_svg.py"), "--params", p1,
+                 "--out", svg1], check=True, capture_output=True)
+        _sp.run([sys.executable, os.path.join(ROOT, "tools", "render.py"), svg1, png1],
+                check=True, capture_output=True)
+        mcli = _lines.measure(np.asarray(Image.open(png1).convert("RGB")).astype(np.float64))
+        dcli = max(float(np.abs(mcli[f]["bands"] - m1[f]["bands"]).max()) for f in mcli)
+        # ... and so does the recalibrated FLANK file of (f), split readings included
+        _sp.run([sys.executable, os.path.join(ROOT, "src", "build_svg.py"), "--params", _pp,
+                 "--out", svg1], check=True, capture_output=True)
+        _sp.run([sys.executable, os.path.join(ROOT, "tools", "render.py"), svg1, png1],
+                check=True, capture_output=True)
+        _mcf = _lines.measure(np.asarray(Image.open(png1).convert("RGB")).astype(np.float64))
+        _mif = _lines.measure(MFL.render_full(json.load(open(_pp))))
+        dcli = max(dcli, max(float(np.abs(_mcf[f]["bands"] - _mif[f]["bands"]).max()) for f in _mcf),
+                   max(float(np.abs(_mcf[f]["split"] - _mif[f]["split"]).max()) if len(_mif[f]["split"])
+                       else 0.0 for f in _mcf))
+        cal["rebuild"] = (dcli <= 0.01, "rebuilt from the saved files (a segment and the flank "
+                          "recalibrated), every band and split reading within %.3g cv" % dcli)
+
+        # (e) a calibration that does not converge says so and exits nonzero,
+        #     and still SAVES the corrections it computed: one round cannot
+        #     recover a 20x deficit, because a round moves a layer at most 3x.
+        bad = _scaled(params, {lid: 0.05 for lid in MFL.CALIBRATED_LAYERS})
         pf = os.path.join(_td, "uncalibrated.json")
         json.dump(bad, open(pf, "w"), indent=1)
-        # One round cannot recover a 20x deficit: the per-round gain is clipped at 3x.
         r = _sp.run([sys.executable, os.path.join(ROOT, "tools", "measure_flare.py"),
-                     "--params", pf, "--rays-only", "--rounds", "1"],
-                    capture_output=True, text=True)
+                     "--params", pf, "--rounds", "1"], capture_output=True, text=True)
         saved = json.load(open(pf))
-        moved = any(x["color"] != y["color"] for x, y in zip(saved["layers"], bad["layers"]))
-        check("flare calibration that does not converge returns nonzero",
-              r.returncode != 0 and "NOT converged" in r.stdout,
-              "exit %d; %s; corrections were %ssaved"
-              % (r.returncode,
-                 "reported NOT converged" if "NOT converged" in r.stdout else "reported success",
-                 "" if moved else "NOT "))
+        moved = all(_amp(saved, lid) > 2.0 * _amp(bad, lid) for lid in MFL.CALIBRATED_LAYERS)
+        cal["fails"] = (r.returncode != 0 and "NOT converged" in r.stdout and moved,
+                        "exit %d; %s; corrections %ssaved"
+                        % (r.returncode, "reported NOT converged" if "NOT converged" in r.stdout
+                           else "reported success", "" if moved else "NOT "))
+
+        # (f) a STALE stack: until D63 a supplied stack was reused whenever the
+        #     layer names matched, so a caller that reshaped a ray and then
+        #     calibrated was solved on the old ray's coverage.  Reshape one ray
+        #     (names unchanged), calibrate with the old stack, and require that
+        #     exactly that layer was re-rendered and that the result equals a
+        #     fresh stack's; then change only a colour and require no re-render.
+        _st = _cp.copy(_stack)
+        _st.A, _st.keys = _stack.A.copy(), list(_stack.keys)
+        _geo = json.loads(json.dumps(params))
+        next(x for x in _geo["layers"] if x["id"] == "flare_ray_c")["len"] = 150.0
+        pg = os.path.join(_td, "reshaped.json")
+        json.dump(_geo, open(pg, "w"), indent=1)
+        _r0 = _st.renders
+        _ws, _cs = MFL.calibrate(pg, _ref, rounds=0, verbose=False, lines=_lines, stack=_st)
+        _geo_renders = _st.renders - _r0
+        _wf, _cf = MFL.calibrate(pg, _ref, rounds=0, verbose=False, lines=_lines, stack=None)
+        _same = max(abs(_cs[k] - _cf[k]) for k in _cf)
+        _col = _scaled(_geo, {"flare_ray_c": 1.3})
+        pc2 = os.path.join(_td, "recoloured.json")
+        json.dump(_col, open(pc2, "w"), indent=1)
+        _r1 = _st.renders
+        _wc2, _cc2 = MFL.calibrate(pc2, _ref, rounds=0, verbose=False, lines=_lines, stack=_st)
+        _col_renders = _st.renders - _r1
+        _wf2, _cf2 = MFL.calibrate(pc2, _ref, rounds=0, verbose=False, lines=_lines, stack=None)
+        _same2 = max(abs(_cc2[k] - _cf2[k]) for k in _cf2)
+        _wrongbox = not _st.matches(_geo, (0, 10, 0, 10))
+        cal["stale"] = (_geo_renders == 1 and _same < 1e-9 and _col_renders == 0 and _same2 < 1e-9
+                        and _wrongbox,
+                        "a reshaped ray re-rendered %d layer(s) of the stale stack and matched a fresh "
+                        "stack to %.1e; a colour-only change re-rendered %d and matched to %.1e; a "
+                        "stack for another crop is not reused: %s"
+                        % (_geo_renders, _same, _col_renders, _same2, _wrongbox))
+
+    check("the shipped rays are calibrated to their measured profiles", *cal["shipped"])
+    check("calibrating one segment does not drag the other", *cal["segmented"])
+    check("a two-segment ray is calibrated jointly", *cal["joint"])
+    check("the lower-right flank is held by the global fit and restored by calibration", *cal["flank"])
+    check("a calibrated ray with no light cannot pass as calibrated", *cal["dark"])
+    check("a calibrated file rebuilds to the calibrated profiles", *cal["rebuild"])
+    check("flare calibration that does not converge returns nonzero", *cal["fails"])
+    check("a calibration stack whose geometry is stale is refreshed, not reused", *cal["stale"])
+
+    # ---- 6h. the global fits hold the calibrated rays ---------------------- #
+
+    # optimize.py and fit_photometry.py fit every layer's colour to a
+    # whole-image objective, and until D62 that included the rays: any run of
+    # the documented full cycle rewrote the profile-calibrated amplitudes with
+    # the objective D61 caught drawing a lower-left ray 2.5x the reference.
+    # They now hold the rays -- shape out of the search, colour out of the fit
+    # -- and prune_layers never offers a ray for removal.
+    import fit_photometry as _FP
+    import prune_layers as _PL
+    _hs = [sp["path"] for sp in O.layer_specs(params, hold=tuple(MFL.RAY_GEOMETRY))
+           if any(a in MFL.RAY_GEOMETRY for a in sp.get("affects", []) if isinstance(a, str))]
+    _obj = O.Objective(os.path.join(ROOT, "reference.png"), held=MFL.CALIBRATED_LAYERS)
+    _fi = _obj.free_indices(params, None)
+    _hidx = [i for i, L in enumerate(params["layers"]) if L["id"] in MFL.CALIBRATED_LAYERS]
+    _hf = _FP.held_free(params)
+    _y0, _y1, _x0, _x1 = _lines.box
+    _tgt = np.minimum(_ref[_y0:_y1, _x0:_x1] / 255.0, 254.4 / 255.0).astype(np.float32)[::4, ::4]
+    _WC0 = _FP.params_wc(params)
+    _WC1 = _FP.fit(_stack.A[:, ::4, ::4], _tgt, _WC0, np.ones(_tgt.shape[:2], np.float32), iters=2,
+                   verbose=False, free=_hf, normal=_FP.normal_flags(params),
+                   teal_ok=_FP.teal_eligible(params))
+    _moved_free = float(np.abs(_WC1[_hf] - _WC0[_hf]).max())
+    _moved_held = float(np.abs(_WC1[_hidx] - _WC0[_hidx]).max())
+    _unprot = sorted(set(MFL.RAY_GEOMETRY) - _PL.protected("exterior"))
+    check("the global fits never move a calibrated ray",
+          not _hs and not (set(_fi) & set(_hidx)) and not (set(_hf) & set(_hidx))
+          and _moved_held == 0.0 and _moved_free > 0.0 and not _unprot,
+          "ray shape specs emitted when held: %d; held rays in the optimiser's free set: %d, "
+          "in fit_photometry's: %d; a real fit moved the free layers by %.3g and the rays by %g; "
+          "rays prune could remove: %s"
+          % (len(_hs), len(set(_fi) & set(_hidx)), len(set(_hf) & set(_hidx)),
+             _moved_free, _moved_held, ", ".join(_unprot) or "none"))
+
+    # ---- the objective scores the parameters it is given (D67) ------------- #
+    # The review case: Objective.K seeded the held rays' colour rows once and
+    # kept them, and the fit never touches a held row, so an Objective that
+    # scored parameters A and then B -- B differing only in a held ray's
+    # colour -- scored B with A's colour.  Each state below is scored by one
+    # REUSED objective and by a FRESH one (sharing only the basis cache, which
+    # is keyed on each layer's markup and so is valid for any parameters);
+    # the two must agree, and the reused objective's held rows must be the
+    # state's own.  B changes one held ray and nothing movable; C changes
+    # three held rays; D returns to A.  Fitted rows of movable layers are the
+    # optimiser's own state (sweep carries them between accepted moves) and
+    # must survive a held-row refresh.  A reordered stack must re-seed, since
+    # a row count cannot tell it from the original.  On the old code B and C
+    # score exactly as A, and the reordered stack scores 15% off.
+    import copy as _cpk
+    _heldK = MFL.CALIBRATED_LAYERS
+    _idsK = [L["id"] for L in params["layers"]]
+    _hK = [i for i, lid in enumerate(_idsK) if lid in _heldK]
+    def _scaledK(ks):
+        q = _cpk.deepcopy(params)
+        byq = {L["id"]: L for L in q["layers"]}
+        for lid, k in ks.items():
+            MFL.scale(byq[lid], k)
+        return q
+    def _freshK(o):
+        f = O.Objective(os.path.join(ROOT, "reference.png"), stride=8, fit_iters=1, held=_heldK)
+        f.cache = o.cache
+        return f
+    _objK = O.Objective(os.path.join(ROOT, "reference.png"), stride=8, fit_iters=1, held=_heldK)
+    _diagK, _sK = [], {}
+    for _nm, _S in (("A", params), ("B", _scaledK({"flare_ray_c": 1.5})),
+                    ("C", _scaledK({"flare_ray_ur": 0.5, "flare_ray_lld": 0.7, "flare_ray_c": 1.2})),
+                    ("D", _cpk.deepcopy(params))):
+        _reK, _, _Kre = _objK.evaluate(_S)
+        _fr = _freshK(_objK).evaluate(_S)[0]
+        _wcK = _FP.params_wc(_S)
+        _sK[_nm] = _fr
+        if _reK != _fr:                  # the same arithmetic: bitwise equal
+            _diagK.append("%s scored %.9g reused against %.9g fresh" % (_nm, _reK, _fr))
+        if not (np.array_equal(_objK.K[_hK], _wcK[_hK]) and np.array_equal(_Kre[_hK], _wcK[_hK])):
+            _diagK.append("%s: held rows are not the state's colours" % _nm)
+    if abs(_sK["A"] - _sK["B"]) <= 1e-4 * abs(_sK["A"]):
+        _diagK.append("vacuous: the held-colour change moved the score by only %.2g"
+                      % abs(_sK["A"] - _sK["B"]))
+    _KfitK = _objK.evaluate(params)[2]
+    _objK.K = _KfitK                     # a sweep's accepted colour state
+    _objK.evaluate(_scaledK({"flare_ray_c": 1.5}))
+    _movK = [i for i in range(len(_idsK)) if i not in _hK]
+    if not np.array_equal(_objK.K[_movK], _KfitK[_movK]):
+        _diagK.append("a held-row refresh discarded the movable layers' fitted colours")
+    # the path sweep actually takes: a trial frees ONE family, and every other
+    # movable layer is scored at the accepted state, not re-read from params
+    _objK.K = _KfitK
+    _famK = _objK.families(params, ["arc_glow2"])
+    _, _, _Kfam = _objK.evaluate(_scaledK({"flare_ray_c": 1.5}), free=_famK)
+    _outK = [i for i in _movK if i not in set(_famK)]
+    if not (_outK and np.array_equal(_objK.K[_outK], _KfitK[_outK])
+            and np.array_equal(_Kfam[_outK], _KfitK[_outK])):
+        _diagK.append("a family-restricted trial did not score the other movable layers "
+                      "at the accepted colours")
+    _swK = _cpk.deepcopy(params)
+    _i1, _i2 = _idsK.index("flare_ray_c"), _idsK.index("arc_glow2")
+    _swK["layers"][_i1], _swK["layers"][_i2] = _swK["layers"][_i2], _swK["layers"][_i1]
+    _reR, _frR = _objK.evaluate(_swK)[0], _freshK(_objK).evaluate(_swK)[0]
+    if _reR != _frR:
+        _diagK.append("a reordered stack scored %.9g reused against %.9g fresh" % (_reR, _frR))
+    # a layer that LOSES the teal permission between two evaluations: with the
+    # rays free (optimize.py --include-rays), a kept teal amount would be
+    # locked in by the fit and scored although the parameters forbid it
+    _objT = O.Objective(os.path.join(ROOT, "reference.png"), stride=8, fit_iters=1, held=())
+    _objT.cache = _objK.cache
+    _objT.evaluate(params)
+    _noT = _cpk.deepcopy(params)
+    for _L in _noT["layers"]:
+        if _L["id"] == "flare_ray_ur":
+            _L.pop("teal")
+            _wcT = _FP.wc_from_color(_L["color"], teal=False)
+            _L["white"], _L["cyan"], _L["blue"] = (round(float(v), 6) for v in _wcT[:3])
+            _L["color"] = [round(float(v) * 255.0, 2) for v in _FP.color_from_wc(_wcT)]
+    _reT, _, _KT = _objT.evaluate(_noT)
+    _fT = O.Objective(os.path.join(ROOT, "reference.png"), stride=8, fit_iters=1, held=())
+    _fT.cache = _objK.cache
+    _frT = _fT.evaluate(_noT)[0]
+    _iur = _idsK.index("flare_ray_ur")
+    if _reT != _frT or _KT[_iur, 3] != 0.0:
+        _diagK.append("a layer that lost teal eligibility scored %.9g reused against %.9g fresh "
+                      "(its teal amount %.4g)" % (_reT, _frT, _KT[_iur, 3]))
+    check("the optimiser's objective scores the held ray colours it is given",
+          not _diagK, "; ".join(_diagK) if _diagK else
+          "4 successive states (one held ray; three held rays; back again) score bitwise "
+          "identically through a reused and a fresh Objective, held rows equal each state's "
+          "colours, the held change moves the score by %.2g%%, fitted movable rows survive the "
+          "refresh (also on a family-restricted trial, as sweep scores them), a reordered stack "
+          "re-seeds, and a layer that loses teal eligibility is scored without teal"
+          % (100 * abs(_sK["A"] - _sK["B"]) / abs(_sK["A"])))
+
+    # ---- a caller's colour edit reaches the objective's movable rows (D69) - #
+    # The review case: colours() refreshed the HELD rows from the parameters
+    # (D67) but carried every movable row, so an objective that scored A and
+    # then B -- B differing only in a movable layer's stored colour -- scored
+    # B with A's colour.  Nothing is freed here (free=[]), so a reused and a
+    # fresh Objective must agree bitwise on every state: arc_glow1 cyan ->
+    # black by its colour alone (the review's example), back to cyan, two
+    # layers at once, and back.  The carried state must still be carried: a
+    # fit's movable rows, assigned to obj.K as sweep assigns them, ride
+    # through a geometry-only successor -- scored as a fresh objective holding
+    # the same rows, not as one seeded from the stored colours -- and an edit
+    # of one layer re-reads that row alone.  On the old code every edited
+    # state scores exactly as the state before it.
+    def _freshM():
+        f = O.Objective(os.path.join(ROOT, "reference.png"), stride=8, fit_iters=1, held=_heldK)
+        f.cache = _objK.cache
+        return f
+    def _recolM(p, edits):
+        q = _cpk.deepcopy(p)
+        for L in q["layers"]:
+            if L["id"] not in edits:
+                continue
+            if edits[L["id"]] == "black":        # the stored colour alone
+                L["color"] = [0.0, 0.0, 0.0]
+                continue
+            wc = _FP.params_wc({"layers": [L]})[0] * edits[L["id"]]
+            for n, v in zip(_FP.COMPONENTS, wc):
+                if n in L:
+                    L[n] = round(float(v), 6)
+            L["color"] = [round(float(v) * 255.0, 2) for v in _FP.color_from_wc(wc)]
+        return q
+    _objM = _freshM()
+    _diagM, _sM = [], {}
+    for _nm, _S in (("A", params), ("B", _recolM(params, {"arc_glow1": "black"})), ("A again", params),
+                    ("C", _recolM(params, {"arc_glow1": 0.0, "field_grad": 0.5})), ("A after C", params)):
+        _reM = _objM.evaluate(_S, free=[])[0]
+        _frM = _freshM().evaluate(_S, free=[])[0]
+        _sM[_nm] = _frM
+        if _reM != _frM:                  # the same arithmetic: bitwise equal
+            _diagM.append("%s scored %.9g reused against %.9g fresh" % (_nm, _reM, _frM))
+    _dB, _dC = (abs(_sM[k] - _sM["A"]) / abs(_sM["A"]) for k in ("B", "C"))
+    if min(_dB, _dC) <= 1e-3:
+        _diagM.append("vacuous: the colour edits moved the score by only %.2g / %.2g" % (_dB, _dC))
+    _movM = [i for i, lid in enumerate(_idsK) if lid not in _heldK]
+    _GM = _cpk.deepcopy(params)
+    for _L in _GM["layers"]:
+        if _L["id"] == "arc_glow2":
+            _L["blur"] = float(_L["blur"]) + 0.5         # geometry only
+    _objM.K = _KfitK                     # a fit's movable rows, as sweep assigns them
+    _reG = _objM.evaluate(_GM, free=[])[0]
+    _hM = _freshM()
+    _hM.colours(_GM)
+    _hM.K = _KfitK
+    _hdG, _sdG = _hM.evaluate(_GM, free=[])[0], _freshM().evaluate(_GM, free=[])[0]
+    if not (np.array_equal(_objM.K[_movM], _KfitK[_movM]) and _reG == _hdG):
+        _diagM.append("a geometry-only successor did not keep the carried rows (%.9g against %.9g)"
+                      % (_reG, _hdG))
+    if _sdG == _reG:
+        _diagM.append("vacuous: the carried rows score as the stored colours do")
+    _BG = _recolM(_GM, {"arc_glow1": "black"})
+    _objM.evaluate(_BG, free=[])
+    _igM = _idsK.index("arc_glow1")
+    _othM = [i for i in _movM if i != _igM]
+    if not np.array_equal(_objM.K[_igM], _FP.params_wc(_BG)[_igM]):
+        _diagM.append("an edit of arc_glow1's colour on the carried state was not read (row %s)"
+                      % np.round(_objM.K[_igM], 4))
+    if not np.array_equal(_objM.K[_othM], _KfitK[_othM]):
+        _diagM.append("an edit of one layer's colour discarded the other carried rows")
+    check("the optimiser's objective scores a movable colour its caller changed",
+          not _diagM, "; ".join(_diagM) if _diagM else
+          "5 successive states (arc_glow1 cyan -> black by its colour alone; back; two layers; back) "
+          "score bitwise identically through a reused and a fresh Objective with nothing freed, and "
+          "the edits move the score by %.1f%% / %.1f%%; a fit's movable rows ride through a "
+          "geometry-only successor (%.9g, as a fresh objective holding them; %.9g seeded from the "
+          "stored colours), and an edit of one layer re-reads that row alone (%d carried rows kept)"
+          % (100 * _dB, 100 * _dC, _reG, _sdG, len(_othM)))
+
+    # ---- a radial layer's directional gap only removes its own light (D67) - #
+    # The halo carries a fitted gap north-east of the core (a blurred annular
+    # sector of its own coverage removed by a luminance mask).  It must stay a
+    # directional LAYER, never a darkening one.  On the shipped file, rendered
+    # alone, the halo with its gap may never exceed the halo without it and
+    # must be unchanged away from the sector.  The shipped sector lies where
+    # the halo is faint (<= 7/255), so the mechanism is also checked with a
+    # probe gap over the halo's bright part: depth 1 removes (all but) all of
+    # it inside, depth 0.5 about half (resvg reads a luminance mask linearly).
+    # A layer without a gap must emit no mask at all.
+    _gapL = [L for L in params["layers"] if L.get("gap")]
+    _gd = []
+    _yy, _xx = np.mgrid[0:1024, 0:1024] + 0.5
+    def _halo(pp):
+        return _FP.render_array(build_svg.build(pp, basis="flare_halo"), 1024)[..., 0].astype(np.float64)
+    def _sector(g, pad_th, pad_r):
+        rr = np.hypot(_xx - g["cx"], _yy - g["cy"])
+        th = np.degrees(np.arctan2(-(_yy - g["cy"]), _xx - g["cx"]))
+        return (th > g["th0"] + pad_th) & (th < g["th1"] - pad_th) & (rr > g["r0"] + pad_r) & (rr < g["r1"] - pad_r)
+    if [L["id"] for L in _gapL] != ["flare_halo"]:
+        _gd.append("layers with a gap: %s (expected flare_halo)" % [L["id"] for L in _gapL])
+    else:
+        _g = _gapL[0]["gap"]
+        _pn = _cpk.deepcopy(params)
+        for _Lg in _pn["layers"]:
+            _Lg.pop("gap", None)
+        if "<mask" in build_svg.build(_pn):
+            _gd.append("a stack without gaps still emits a mask")
+        _cw, _cn = _halo(params), _halo(_pn)
+        _added = float((_cw - _cn).max() * 255)
+        _away = float(np.abs(_cw - _cn)[~_sector(_g, -12, -6 * _g["blur"])].max() * 255)
+        _removed = float((_cn - _cw).max() * 255)
+        if _added > 1.0:
+            _gd.append("the gap ADDS light (up to %.1f cv)" % _added)
+        if _away > 1.0:
+            _gd.append("the halo changed away from its gap (up to %.1f cv)" % _away)
+        if _removed < 3.0:
+            _gd.append("the shipped gap removes nothing (max %.1f cv)" % _removed)
+        _probe = {"cx": _g["cx"], "cy": _g["cy"], "th0": -20.0, "th1": 20.0, "r0": 4.0, "r1": 30.0, "blur": 1.0}
+        _inP = _sector(_probe, 6, 3) & (_cn > 40 / 255.0)
+        _left = {}
+        for _dep in (1.0, 0.5):
+            _pp = _cpk.deepcopy(_pn)
+            for _Lg in _pp["layers"]:
+                if _Lg["id"] == "flare_halo":
+                    _Lg["gap"] = dict(_probe, depth=_dep)
+            _left[_dep] = float(_halo(_pp)[_inP].sum() / _cn[_inP].sum())
+        if not (_inP.sum() > 100 and _left[1.0] < 0.03 and 0.42 < _left[0.5] < 0.58):
+            _gd.append("probe gap over the bright halo (%d px) leaves %.3f at depth 1 and %.3f at depth 0.5"
+                       % (int(_inP.sum()), _left[1.0], _left[0.5]))
+    check("a radial layer's gap removes only its own light, only in its sector",
+          not _gd, "; ".join(_gd) if _gd else
+          "shipped halo gap: never brighter (max %+.2f cv), removes up to %.0f cv, identical away from its "
+          "sector (max %.2f cv); a probe gap over the bright halo (%d px) leaves %.1f%% at depth 1 and "
+          "%.1f%% at depth 0.5; no mask without a gap"
+          % (_added, _removed, _away, int(_inP.sum()), 100 * _left[1.0], 100 * _left[0.5]))
+
+    # ---- an arc's convex taper acts only on its flare-facing side (D67) ---- #
+    # arc_glow2 is split at each curve (1.5 px towards the flare, inside the
+    # curve's bright core): its concave part keeps the layer's own taper, the
+    # flare-facing part takes `convex_taper`.  Three things must hold:
+    # - the split is a partition: with the convex taper set to the layer's own
+    #   taper, the whole composite equals the unsplit build (the anti-aliased
+    #   seam is screened out by the core);
+    # - the convex taper changes the layer nowhere on the concave side, and
+    #   does change it on the flare side;
+    # - without a convex taper no split is emitted, and the optimiser counts
+    #   the convex taper's user, or it would never search that taper.
+    _cvL = [L["id"] for L in params["layers"] if L.get("convex_taper")]
+    _cvd = []
+    if _cvL != ["arc_glow2"]:
+        _cvd.append("layers with a convex taper: %s (expected arc_glow2)" % _cvL)
+    else:
+        _pcn, _pci = _cpk.deepcopy(params), _cpk.deepcopy(params)
+        for _Lc in _pcn["layers"]:
+            _Lc.pop("convex_taper", None)
+        for _Lc in _pci["layers"]:
+            if _Lc.get("convex_taper"):
+                _Lc["convex_taper"] = _Lc["taper"]
+        _svn = build_svg.build(_pcn)
+        if "url(#cv" in _svn or "url(#cc" in _svn:
+            _cvd.append("a stack without a convex taper still emits a split")
+        _cvI = float(np.abs(_FP.render_array(build_svg.build(_pci), 1024).astype(np.float64)
+                            - _FP.render_array(_svn, 1024).astype(np.float64)).max() * 255)
+        if _cvI > 1.01:
+            _cvd.append("the identity split differs from the unsplit build by %.1f cv" % _cvI)
+        _dS = regions.curve_frame((1024, 1024))[0]      # < 0 on the concave side
+        _cvS = np.abs(_FP.render_array(build_svg.build(params, basis="arc_glow2"), 1024)[..., 0].astype(np.float64)
+                      - _FP.render_array(build_svg.build(_pci, basis="arc_glow2"), 1024)[..., 0]) * 255
+        _cvC, _cvF = float(_cvS[_dS < -1.0].max()), float(_cvS[_dS > 3.0].max())
+        if _cvC > 0.5:
+            _cvd.append("the convex taper changes the concave side (up to %.1f cv)" % _cvC)
+        if _cvF < 3.0:
+            _cvd.append("the convex taper changes nothing on the flare side (max %.1f cv)" % _cvF)
+        _cvU = [sp["affects"] for sp in O.taper_specs(params) if sp["path"].startswith("tapers/glow2_cv/")]
+        if not _cvU or any(u != ["arc_glow2"] for u in _cvU):
+            _cvd.append("taper_specs does not search glow2_cv for arc_glow2 (%s)" % _cvU)
+    check("an arc's convex taper acts only on its flare-facing side",
+          not _cvd, "; ".join(_cvd) if _cvd else
+          "arc_glow2 split at its curves: the identity split matches the unsplit composite (max %.2f cv); "
+          "the shipped convex taper changes the layer by 0 cv on the concave side and up to %.0f cv on the "
+          "flare side; no split without a convex taper; glow2_cv searched (%d specs)"
+          % (_cvI, _cvF, len(_cvU)))
+
+    # ---- a width-tapered arc narrows only where its table says (D67) ------- #
+    # arc_core carries `width_taper`: its width runs 6.832 px between y 210 and
+    # 820 and narrows to 0.9368 of that at the tips, where the reference's core
+    # is narrower.  A stroke's width is constant, so such a layer is drawn as a
+    # filled outline (build_svg.ribbon_path).  Checked:
+    # - its coverage across the curve is the table's factor times the stroke's:
+    #   the factor at the tips, 1 in the middle (coverage integrates the blur,
+    #   so this reads the width itself);
+    # - at factor 1 the outline follows the curve of record (half-level centre
+    #   against the analytic cubics).  It follows it more closely than resvg's
+    #   stroke, whose flattening chords sit up to 0.26 px on the concave side;
+    # - a layer without the key is still a stroke.
+    _wtL = [L["id"] for L in params["layers"] if L.get("width_taper")]
+    _wtd = []
+    if _wtL != ["arc_core"]:
+        _wtd.append("layers with a width taper: %s (expected arc_core)" % _wtL)
+    else:
+        _pws, _pw1 = _cpk.deepcopy(params), _cpk.deepcopy(params)
+        for _Lw in _pws["layers"]:
+            _Lw.pop("width_taper", None)
+        for _Lw in _pw1["layers"]:
+            if _Lw.get("width_taper"):
+                _Lw["width_taper"] = [[_y, 1.0] for _y, _ in _Lw["width_taper"]]
+        _svs = build_svg.build(_pws, basis="arc_core")
+        _svt = build_svg.build(params, basis="arc_core")
+        if 'stroke="none"' in _svs or 'stroke-width' not in _svs:
+            _wtd.append("an arc without a width taper is not drawn as a stroke")
+        if 'stroke="none"' not in _svt:
+            _wtd.append("the width-tapered arc is not drawn as a filled outline")
+        _ws, _w1, _wt = (_FP.render_array(_sv, 1024)[..., 0].astype(np.float64)
+                         for _sv in (_svs, build_svg.build(_pw1, basis="arc_core"), _svt))
+        _near = np.abs(regions.curve_frame((1024, 1024))[0]) < 12
+        _yyw = np.mgrid[0:1024, 0:1024][0] + 0.5
+        _fac = [_f for _y, _f in [L for L in params["layers"] if L["id"] == "arc_core"][0]["width_taper"]]
+        _cov = {}
+        for (_y0, _y1), _want, _tol in (((100, 165), _fac[0], 0.003), ((880, 930), _fac[-1], 0.003),
+                                        ((220, 810), 1.0, 0.002)):
+            _mw = _near & (_yyw >= _y0) & (_yyw < _y1)
+            _cov[(_y0, _y1)] = float(_wt[_mw].sum() / _ws[_mw].sum())
+            if abs(_cov[(_y0, _y1)] - _want) > _tol:
+                _wtd.append("coverage at y %d-%d is %.4f of the stroke's (expected %.4f)"
+                            % (_y0, _y1, _cov[(_y0, _y1)], _want))
+
+        def _half_centre(row, lo, hi):
+            seg = row[lo:hi]
+            k = int(np.argmax(seg))
+            h = seg[k] / 2
+            i = k
+            while i > 0 and seg[i] > h:
+                i -= 1
+            j = k
+            while j < len(seg) - 1 and seg[j] > h:
+                j += 1
+            xl = i + (h - seg[i]) / (seg[i + 1] - seg[i])
+            xr = j - 1 + (seg[j - 1] - h) / (seg[j - 1] - seg[j])
+            return lo + (xl + xr) / 2 + 0.5
+
+        def _curve_x(side, yq):
+            for seg in params["geometry"]["arc_" + side]["cubics"][side]:
+                t = np.linspace(0, 1, 20001)
+                u = 1 - t
+                P = np.asarray(seg, float)
+                x = u ** 3 * P[0, 0] + 3 * u * u * t * P[1, 0] + 3 * u * t * t * P[2, 0] + t ** 3 * P[3, 0]
+                y = u ** 3 * P[0, 1] + 3 * u * u * t * P[1, 1] + 3 * u * t * t * P[2, 1] + t ** 3 * P[3, 1]
+                if y.min() <= yq <= y.max():
+                    o = np.argsort(y)
+                    return float(np.interp(yq, y[o], x[o]))
+            return None
+        _cerr = {}
+        for _sd, (_lo, _hi) in (("left", (150, 530)), ("right", (533, 900))):
+            _e1, _es = [], []
+            for _y in range(110, 930, 10):
+                _xa = _curve_x(_sd, _y + 0.5)
+                if _xa is None:
+                    continue
+                _e1.append(abs(_half_centre(_w1[_y], _lo, _hi) - _xa))
+                _es.append(abs(_half_centre(_ws[_y], _lo, _hi) - _xa))
+            _cerr[_sd] = (max(_e1), max(_es))
+            if max(_e1) > 0.15:
+                _wtd.append("the outline strays %.2f px from the %s curve of record" % (max(_e1), _sd))
+    check("a width-tapered arc narrows only where its table says",
+          not _wtd, "; ".join(_wtd) if _wtd else
+          "arc_core's outline: coverage %.4f / %.4f of the stroke's at the tips (table %.4f), %.4f in the middle; "
+          "at factor 1 its centre stays within %.2f / %.2f px of the curve of record (left / right; resvg's stroke "
+          "%.2f / %.2f); an arc without a width taper is still a stroke"
+          % (_cov[(100, 165)], _cov[(880, 930)], _fac[0], _cov[(220, 810)],
+             _cerr["left"][0], _cerr["right"][0], _cerr["left"][1], _cerr["right"][1]))
+
+    # ---- an extended arc runs past its ends only along its own curve (D68) - #
+    # arc_core_tip carries `extend`: its stroke runs that many px of arc length
+    # past both ends of each curve of record, along the end cubic's own
+    # polynomial (build_svg.extended_cubics).  The cubics of record are not
+    # changed.  Checked:
+    # - each added cubic is its end cubic continued: every point of it lies on
+    #   that cubic's polynomial evaluated past [0, 1], it meets the curve at the
+    #   end point, and its arc length is `extend`;
+    # - drawn without its table, the layer lies within a stroke's reach of the
+    #   curve of record and those continuations, and it does reach past both
+    #   ends of both curves;
+    # - without the key it is the plain stroke on the cubics of record;
+    # - `extend` refuses to combine with width_taper or convex_taper, and the
+    #   optimiser counts the tip table's user.
+    _exL = [L["id"] for L in params["layers"] if L.get("extend")]
+    _exd, _exR, _exU = [], {}, []
+    if _exL != ["arc_core_tip"]:
+        _exd.append("layers with an extension: %s (expected arc_core_tip)" % _exL)
+    elif not hasattr(build_svg, "extended_cubics"):
+        # a builder without the option would draw the layer without its tail
+        _exd.append("the builder cannot extend an arc (no build_svg.extended_cubics)")
+    else:
+        _Lx = [L for L in params["layers"] if L["id"] == "arc_core_tip"][0]
+        _ext = float(_Lx["extend"])
+
+        def _bez(P, t):
+            u = 1 - t
+            return (np.outer(u ** 3, P[0]) + np.outer(3 * u * u * t, P[1])
+                    + np.outer(3 * u * t * t, P[2]) + np.outer(t ** 3, P[3]))
+
+        def _arclen(P):
+            q = _bez(P, np.linspace(0, 1, 4001))
+            return float(np.hypot(*np.diff(q, axis=0).T).sum())
+
+        _tt = np.linspace(0, 1, 201)
+        _paths, _plain, _past = [], [], []
+        for _sd in ("left", "right"):
+            _cps = params["geometry"]["arc_" + _sd]["cubics"][_sd]
+            _xc = build_svg.extended_cubics(_cps, _ext)
+            if [[list(map(float, q)) for q in c] for c in _xc[1:-1]] != \
+                    [[list(map(float, q)) for q in c] for c in _cps]:
+                _exd.append("the %s curve's cubics of record are changed" % _sd)
+            for _P, _Q, _fw in ((np.asarray(_cps[-1], float), np.asarray(_xc[-1], float), True),
+                                (np.asarray(_cps[0], float), np.asarray(_xc[0], float), False)):
+                # the added cubic is P on [1, 1 + tau] (or [-tau, 0]); its first
+                # control leg is tau/3 of P's end tangent, which gives tau
+                if _fw:
+                    _tau = 3 * np.hypot(*(_Q[1] - _Q[0])) / np.hypot(*(3 * (_P[3] - _P[2])))
+                    _on = _bez(_P, 1 + _tau * _tt)
+                    _join = np.hypot(*(_Q[0] - _P[3]))
+                else:
+                    _tau = 3 * np.hypot(*(_Q[3] - _Q[2])) / np.hypot(*(3 * (_P[1] - _P[0])))
+                    _on = _bez(_P, -_tau + _tau * _tt)
+                    _join = np.hypot(*(_Q[3] - _P[0]))
+                _off = float(np.hypot(*(_bez(_Q, _tt) - _on).T).max())
+                _len = _arclen(_Q)
+                if _join > 1e-9 or _off > 1e-6 or abs(_len - _ext) > 0.01:
+                    _exd.append("a %s continuation leaves its cubic (join %.2g px, off the polynomial %.2g px, "
+                                "length %.3f of %.1f)" % (_sd, _join, _off, _len, _ext))
+                _exR[_sd + ("S" if _fw == (_P[3][1] > _P[0][1]) else "N")] = (_off, _len)
+                _past.append(_bez(_Q, np.array([0.2, 0.5, 0.8])))
+            _paths.append(np.concatenate([_bez(np.asarray(c, float), np.linspace(0, 1, 400)) for c in _xc]))
+            _plain.append(np.concatenate([_bez(np.asarray(c, float), np.linspace(0, 1, 400)) for c in _cps]))
+
+        def _reach(img, pts):
+            yx = np.argwhere(img > 2.0)
+            px = yx[:, ::-1] + 0.5
+            out = 0.0
+            for _k in range(0, len(px), 2000):
+                d = np.sqrt(((px[_k:_k + 2000, None, :] - pts[None]) ** 2).sum(-1)).min(1)
+                out = max(out, float(d.max()))
+            return out
+
+        # the probe draws the layer at a fixed stroke on the curve itself, so
+        # the check reads the extension's geometry, not the fitted inset, width
+        # or blur (all three are searchable within the layer's bounds)
+        _probe = {"inset": 0.0, "width": 6.4, "blur": 0.6}
+        _pU, _pP = _cpk.deepcopy(params), _cpk.deepcopy(params)
+        for _q in (_pU, _pP):
+            for _L in _q["layers"]:
+                if _L["id"] == "arc_core_tip":
+                    _L.pop("taper", None)
+                    _L.update(_probe)
+                    if _q is _pP:
+                        _L.pop("extend", None)
+        _svU, _svP = build_svg.build(_pU, basis="arc_core_tip"), build_svg.build(_pP, basis="arc_core_tip")
+        _imU = _FP.render_array(_svU, 1024)[..., 0].astype(np.float64) * 255
+        _imP = _FP.render_array(_svP, 1024)[..., 0].astype(np.float64) * 255
+        # half the stroke, three blur sigmas and a pixel's half-diagonal
+        _lim = _probe["width"] / 2 + 3 * _probe["blur"] + 0.75
+        _rU, _rP = _reach(_imU, np.concatenate(_paths)), _reach(_imP, np.concatenate(_plain))
+        if _rU > _lim:
+            _exd.append("the extended layer lights a pixel %.2f px from its path (limit %.2f)" % (_rU, _lim))
+        if _rP > _lim:
+            _exd.append("without `extend` the layer lights a pixel %.2f px from the curve of record" % _rP)
+        _pv = np.concatenate(_past)
+        _atU = _imU[_pv[:, 1].astype(int), _pv[:, 0].astype(int)]
+        _atP = _imP[_pv[:, 1].astype(int), _pv[:, 0].astype(int)]
+        if _atU.min() < 200:
+            _exd.append("the extension is not drawn past every end (%.0f cv at its weakest sample)" % _atU.min())
+        if _atP.max() > 1:
+            _exd.append("without `extend` the layer still reaches past an end (%.0f cv)" % _atP.max())
+        for _sd in ("left", "right"):
+            if ('d="%s"' % build_svg.bezier_arc_path(params["geometry"]["arc_" + _sd], _sd, 0.0)
+                    not in _svP):
+                _exd.append("without `extend` the %s stroke is not the curve of record's path" % _sd)
+        for _extra, _nm in (({"width_taper": [[100.0, 1.0], [900.0, 1.0]]}, "width_taper"),
+                            ({"convex_taper": _Lx["taper"]}, "convex_taper")):
+            _pR = _cpk.deepcopy(params)
+            [_L for _L in _pR["layers"] if _L["id"] == "arc_core_tip"][0].update(_extra)
+            try:
+                build_svg.build(_pR)
+                _exd.append("`extend` with %s builds instead of refusing" % _nm)
+            except AssertionError:
+                pass
+        # a length past the end cubic's own span is refused, not clamped
+        try:
+            build_svg.extended_cubics(params["geometry"]["arc_right"]["cubics"]["right"], 5000.0)
+            _exd.append("an extension past the end cubic's span is clamped instead of refused")
+        except ValueError:
+            pass
+        _exU = [sp["affects"] for sp in O.taper_specs(params) if sp["path"].startswith("tapers/%s/" % _Lx["taper"])]
+        if not _exU or any(u != ["arc_core_tip"] for u in _exU):
+            _exd.append("taper_specs does not search %s for arc_core_tip (%s)" % (_Lx["taper"], _exU))
+    check("an extended arc runs past its ends only along its own curve",
+          not _exd, "; ".join(_exd) if _exd else
+          "arc_core_tip: four continuations on their end cubics' polynomials (max %.1g px off), each %.3f px "
+          "long; lit pixels within %.2f px of the extended path (limit %.2f), %.0f-%.0f cv past every end; "
+          "without the key: the plain stroke, within %.2f px of the curve of record, %.0f cv past the ends; "
+          "refused with width_taper and convex_taper, and past the end cubic's span; %s searched (%d specs)"
+          % (max(v[0] for v in _exR.values()), min(v[1] for v in _exR.values()), _rU, _lim,
+             _atU.min(), _atU.max(), _rP, _atP.max(), _Lx["taper"], len(_exU)))
+
+    # ---- teal is a PERMISSION, not the current amount (D65) --------------- #
+    # The review case: fit() locked the fourth primary on every layer whose
+    # teal amount was 0, so an ELIGIBLE ray that had reached 0 could never use
+    # it again and `--fit-rays` could not restore it.  On the real stack: the
+    # upper-right narrow ray is eligible; zero its teal (keeping its best cone
+    # colour) and fit it alone against the shipped composite, whose colour
+    # needs teal -- it must come back.  The lower-right narrow ray is not
+    # eligible; give the TARGET a teal version of it -- it must stay in the cone.
+    _nfT = _FP.normal_flags(params)
+    _AT = _stack.A[:, ::2, ::2]
+    _okT = _FP.teal_eligible(params)
+    _WCs = _FP.params_wc(params).astype(np.float64)
+    _Kt = _FP.colors(_WCs).astype(np.float32)
+    _tgtT = _FP.composite(_AT, _Kt, _nfT)
+    _iu = [L["id"] for L in params["layers"]].index("flare_ray_ur")
+    _ic = [L["id"] for L in params["layers"]].index("flare_ray_c")
+    _teal_diag = []
+    _w0 = _WCs.copy()
+    _w0[_iu] = _FP.wc_from_color(np.asarray(params["layers"][_iu]["color"]), teal=False)
+    # D65 read the slow approach here (12 / 40 / 120 iterations reached 0.020 /
+    # 0.049 / 0.088 of 0.109) as cyan and teal being nearly collinear.  It was
+    # the stall 5b' describes -- a bound amount pulling every step outside the
+    # box -- and with the projected solve 40 iterations reach the target (D66).
+    _wfit = _FP.fit(_AT, _tgtT, _w0, np.ones(_tgtT.shape[:2], np.float32), iters=40, verbose=False,
+                    free=[_iu], normal=_nfT, teal_ok=_okT)
+    _want_t = float(_WCs[_iu, _FP.CONE])
+    _got_t = float(_wfit[_iu, _FP.CONE])
+    _cf = np.asarray(_FP.color_from_wc(_wfit[_iu]), float)
+    _bg = float(_cf[2] / max(_cf[1], 1e-9))
+    if not _okT[_iu] or _w0[_iu, _FP.CONE] != 0.0 or _got_t < 0.9 * _want_t or _bg > 0.8:
+        _teal_diag.append("flare_ray_ur (eligible) from teal 0 reached %.4f of the target's %.4f, "
+                          "B/G %.2f" % (_got_t, _want_t, _bg))
+    _wlock = _FP.fit(_AT, _tgtT, _w0, np.ones(_tgtT.shape[:2], np.float32), iters=40, verbose=False,
+                     free=[_iu], normal=_nfT)
+    if float(_wlock[_iu, _FP.CONE]) != 0.0:
+        _teal_diag.append("with no eligibility given, fit() still moved a teal amount")
+    _Kc = _Kt.copy()
+    _Kc[_ic] = np.clip(np.asarray(_FP.color_from_wc([0.0, 0.0, 0.0, 0.15]), np.float32), 0, 1)
+    _tgtC = _FP.composite(_AT, _Kc, _nfT)
+    _wc = _FP.fit(_AT, _tgtC, _WCs, np.ones(_tgtC.shape[:2], np.float32), iters=40, verbose=False,
+                  free=[_ic], normal=_nfT, teal_ok=_okT)
+    if _okT[_ic] or float(_wc[_ic, _FP.CONE]) != 0.0:
+        _teal_diag.append("flare_ray_c (not eligible) took teal %.4f" % float(_wc[_ic, _FP.CONE]))
+    # ... and from NO LIGHT AT ALL (D66 review): fit() treated a channel at 0
+    # as clipped, so every derivative of a dark layer was zero and it could
+    # never be fitted back.  flare_ray_ur carries all its light as teal, so at
+    # teal 0 it is dark; against a target that has it, it must come back.
+    _wd = _WCs.copy()
+    _wd[_iu] = 0.0
+    _wdf = _FP.fit(_AT, _tgtT, _wd, np.ones(_tgtT.shape[:2], np.float32), iters=20, verbose=False,
+                   free=[_iu], normal=_nfT, teal_ok=_okT)
+    _dk_t = float(_wdf[_iu, _FP.CONE])
+    _dk_c = np.asarray(_FP.color_from_wc(_wdf[_iu]), float) * 255.0
+    _dk_w = np.asarray(_FP.color_from_wc(_WCs[_iu]), float) * 255.0
+    if _dk_t < 0.9 * _want_t or np.abs(_dk_c - _dk_w).max() > 1.0:
+        _teal_diag.append("flare_ray_ur from NO light reached teal %.4f, colour %s against %s"
+                          % (_dk_t, np.round(_dk_c, 1), np.round(_dk_w, 1)))
+    check("an eligible layer recovers teal from zero; an ineligible one never gains it",
+          not _teal_diag, "; ".join(_teal_diag) if _teal_diag else
+          "flare_ray_ur from teal 0 -> %.4f (target %.4f), B/G %.2f off the cone, and from no light "
+          "at all -> teal %.4f, colour within %.1f cv of the target's; flare_ray_c against a teal "
+          "target stays at 0; without eligibility no teal amount moves"
+          % (_got_t, _want_t, _bg, _dk_t, float(np.abs(_dk_c - _dk_w).max())))
+
+    # ---- the documented photometric fit runs on every valid layer schema (D66) #
+    # fit_photometry.py's report read every component as L[c]; a cone layer has
+    # no `teal` key -- absence means NOT ELIGIBLE -- so the documented command
+    # (tools/optimize_all.sh: fit_photometry.py --iters 30 --stride 2) raised
+    # KeyError after fitting and before saving.  Run the real CLI, both modes,
+    # on a file holding every schema: cone layers without a teal key, the six
+    # teal-eligible rays with one of them holding no light at all (all amounts
+    # and its colour 0: zero-initialised, still eligible), a layer carrying
+    # only a colour (no basis keys at all), and the normal-blended frame.
+    _fp_diag = []
+    _fp_src = json.loads(json.dumps(params))
+    for L in _fp_src["layers"]:
+        if L["id"] == "flare_ray_ur":            # eligible, zero-initialised: NO light at all
+            for _c in ("white", "cyan", "blue", "teal"):
+                L[_c] = 0.0
+            L["color"] = [0.0, 0.0, 0.0]
+        if L["id"] == "field_mid":
+            for _c in ("white", "cyan", "blue"):
+                L.pop(_c, None)                  # colour only
+    _cone0 = {L["id"] for L in _fp_src["layers"] if "teal" not in L}
+    _teal0 = {L["id"] for L in _fp_src["layers"] if "teal" in L}
+    _held = set(MFL.CALIBRATED_LAYERS)
+    with _tf.TemporaryDirectory() as _td6:
+        for _mode in ([], ["--fit-rays"]):
+            _pf = os.path.join(_td6, "fp.json")
+            json.dump(_fp_src, open(_pf, "w"), indent=1)
+            _r6 = _sp.run([sys.executable, os.path.join(ROOT, "tools", "fit_photometry.py"), "--params",
+                           _pf, "--iters", "1", "--stride", "8"] + _mode, capture_output=True, text=True)
+            _tag = "fit_photometry %s" % (" ".join(_mode) or "(documented mode)")
+            if _r6.returncode != 0 or "Traceback" in _r6.stderr:
+                _fp_diag.append("%s exited %d: %s" % (_tag, _r6.returncode,
+                                                      _r6.stderr.strip().splitlines()[-1:]))
+                continue
+            _got = {L["id"]: L for L in json.load(open(_pf))["layers"]}
+            _was = {L["id"]: L for L in _fp_src["layers"]}
+            _moved = [lid for lid in _got if lid not in _held and _got[lid].get("color") != _was[lid].get("color")]
+            if not _moved:
+                _fp_diag.append("%s saved no fitted colour" % _tag)
+            if not _mode and any(_got[lid].get("color") != _was[lid].get("color") for lid in _held):
+                _fp_diag.append("%s moved a calibrated ray" % _tag)
+            if any("teal" in _got[lid] for lid in _cone0):
+                _fp_diag.append("%s gave a cone layer a teal key" % _tag)
+            if any("teal" not in _got[lid] for lid in _teal0):
+                _fp_diag.append("%s dropped an eligible layer's teal key (zero-initialised: %s)"
+                                % (_tag, "teal" in _got["flare_ray_ur"]))
+            if not all(c in _got["field_mid"] for c in ("white", "cyan", "blue")):
+                _fp_diag.append("%s did not store the colour-only layer's amounts" % _tag)
+            if "teal=    ---" not in _r6.stdout:
+                _fp_diag.append("%s reported an ineligible layer as if it held teal" % _tag)
+    check("the documented photometric fit completes and saves on every layer schema",
+          not _fp_diag, "; ".join(_fp_diag) if _fp_diag else
+          "fit_photometry.py (documented mode and --fit-rays) exits 0 and saves, on cone layers "
+          "without a teal key (reported ineligible, never given one), six eligible rays (one with "
+          "no light at all, key kept), a colour-only layer and the normal-blended frame; calibrated "
+          "rays held in the documented mode")
+
+    # ---- pruning down to the calibrated rays completes and saves (D68) ---- #
+    # The review case (prune_layers.py:42): once pruning has removed every
+    # layer the colour fit may move, `held_free` is empty, and fit() stacked
+    # zero Jacobian columns and raised -- the command exited before saving.
+    # It takes a stack whose protected survivors are all CALIBRATED.  The
+    # protected set is every ray of record, and three of those (the white arms
+    # flare_ray_a_in, _s_in, _east_in) are not calibrated, so on the shipped
+    # file they stay free and the set never empties; every file before the
+    # arms (D63, D65) had that shape.  So: the shipped calibrated rays plus
+    # two prunable layers, pruned by the real CLI with --keep "" and a
+    # threshold nothing can exceed.  The fit's own contract is checked too: an
+    # empty free set returns the colours given, and a non-empty one still
+    # moves exactly its free rows.
+    _pr_diag = []
+    _rs = np.random.RandomState(7)
+    _Apr = _rs.uniform(0.0, 1.0, (3, 12, 12)).astype(np.float32)
+    _tpr = _rs.uniform(0.0, 1.0, (12, 12, 3)).astype(np.float32)
+    _wpr0 = np.array([[0.2, 0.3, 0.1, 0.0], [0.1, 0.5, 0.2, 0.0], [0.4, 0.1, 0.3, 0.0]], np.float32)
+    _wone = np.ones((12, 12), np.float32)
+    for _it, _w0 in ((0, _wpr0), (6, _wpr0), (6, _wpr0.astype(np.float64)), (6, _wpr0.tolist())):
+        try:
+            _we = _FP.fit(_Apr, _tpr, _w0, _wone, iters=_it, verbose=False, free=[])
+        except Exception as _e:
+            _pr_diag.append("fit with nothing free (iters %d) raised %s: %s" % (_it, type(_e).__name__, _e))
+            continue
+        # returned as a fitted result is: a float32 copy, whatever it was given
+        if (_we.dtype != np.float32 or _we.shape != _wpr0.shape or not np.array_equal(_we, _wpr0)
+                or (isinstance(_w0, np.ndarray) and np.shares_memory(_we, _w0))):
+            _pr_diag.append("fit with nothing free (iters %d, %s) did not return a float32 copy of the "
+                            "colours given" % (_it, type(_w0).__name__ if not isinstance(_w0, np.ndarray)
+                                               else _w0.dtype))
+    _wn = _FP.fit(_Apr, _tpr, _wpr0, _wone, iters=6, verbose=False, free=[1])
+    if not (np.array_equal(_wn[[0, 2]], _wpr0[[0, 2]]) and not np.array_equal(_wn[1], _wpr0[1])
+            and _FP.weighted_sse(_FP.composite(_Apr, _FP.colors(_wn)) - _tpr, _wone)
+            < _FP.weighted_sse(_FP.composite(_Apr, _FP.colors(_wpr0)) - _tpr, _wone)):
+        _pr_diag.append("fit with one free layer no longer moves exactly that layer and lowers the error")
+    _pr_src = json.loads(json.dumps(params))
+    _pr_src["layers"] = [L for L in _pr_src["layers"]
+                         if L["id"] in MFL.CALIBRATED_LAYERS or L["id"] in ("field_base", "flare_halo")]
+    _pr_rays = sorted(L["id"] for L in _pr_src["layers"] if L["id"] in MFL.CALIBRATED_LAYERS)
+    _pr_mae = float("nan")
+    with _tf.TemporaryDirectory() as _td7:
+        _pp = os.path.join(_td7, "prune.json")
+        json.dump(_pr_src, open(_pp, "w"), indent=1)
+        _r7 = _sp.run([sys.executable, os.path.join(ROOT, "tools", "prune_layers.py"), "--params", _pp,
+                       "--apply", "--max-cost", "1e9", "--keep", ""], capture_output=True, text=True)
+        if _r7.returncode != 0 or "Traceback" in _r7.stderr:
+            _pr_diag.append("prune_layers exited %d: %s"
+                            % (_r7.returncode, _r7.stderr.strip().splitlines()[-1:]))
+        else:
+            _pr_saved = json.load(open(_pp))
+            _pr_ids = sorted(L["id"] for L in _pr_saved["layers"])
+            _was = {L["id"]: L for L in _pr_src["layers"]}
+            _removed = [ln for ln in _r7.stdout.splitlines() if ln.startswith("removed ")]
+            if _pr_ids != _pr_rays:
+                _pr_diag.append("saved layers %s, expected exactly the calibrated rays" % _pr_ids)
+            if len(_removed) != 2 or "wrote " not in _r7.stdout:
+                _pr_diag.append("expected two removals and a save, got: %s" % _removed)
+            if any(L != _was[L["id"]] for L in _pr_saved["layers"]):
+                _pr_diag.append("a held ray's stored colour changed")
+            _pr_img = _FP.render_array(build_svg.build(_pr_saved), 1024)
+            _pr_mae, _ = _PL.evaluate(_pr_saved, np.minimum(_ref / 255.0, 254.4 / 255.0).astype(np.float32))
+            _said = [float(ln.rsplit("mae", 1)[1]) for ln in _r7.stdout.splitlines() if ln.startswith("wrote ")]
+            if not (np.isfinite(_pr_img).all() and _pr_img.max() > 0 and np.isfinite(_pr_mae)
+                    and _said and abs(_said[0] - _pr_mae) < 1e-3):
+                _pr_diag.append("the saved rays-only file does not render and score as reported "
+                                "(scored %.4f, reported %s)" % (_pr_mae, _said))
+        # The same class of failure one step further (found in review): with
+        # NOTHING protected, removing the last layer left an empty stack that
+        # basis_stack could not build.  The last layer is never offered.
+        _pl = os.path.join(_td7, "prune_last.json")
+        json.dump(dict(_pr_src, layers=[L for L in _pr_src["layers"] if L["id"] in ("field_base", "flare_halo")]),
+                  open(_pl, "w"), indent=1)
+        _r8 = _sp.run([sys.executable, os.path.join(ROOT, "tools", "prune_layers.py"), "--params", _pl,
+                       "--apply", "--max-cost", "1e9", "--keep", ""], capture_output=True, text=True)
+        if _r8.returncode != 0 or "Traceback" in _r8.stderr:
+            _pr_diag.append("pruning a stack with nothing protected exited %d: %s"
+                            % (_r8.returncode, _r8.stderr.strip().splitlines()[-1:]))
+        elif len(json.load(open(_pl))["layers"]) != 1:
+            _pr_diag.append("pruning a stack with nothing protected did not stop at one layer")
+    check("pruning down to the calibrated rays completes and saves",
+          not _pr_diag, "; ".join(_pr_diag) if _pr_diag else
+          "fit returns a float32 copy of the colours given when nothing is free (float32, float64 or "
+          "list) and still moves exactly its free rows otherwise; prune_layers --keep '' on %d calibrated "
+          "rays + 2 layers removes both, exits 0, saves exactly the rays with their colours untouched, "
+          "and the saved file renders and scores %.4f as reported; with nothing protected it stops at "
+          "the last layer" % (len(_pr_rays), _pr_mae))
+
+    # ---- 6i. the diagnostics refuse inputs they cannot read ---------------- #
+
+    # ray_lines sampled whatever it was given: a 512-px render came back as a
+    # column of plausible numbers read off the wrong pixels, and past the image
+    # off one replicated edge row.  The canvas is 1024 and everything that
+    # places structures in canvas pixels now says so and exits 2.
+    import ray_lines as _RL
+    import shutil as _sh2
+    _diag = []
+    with _tf.TemporaryDirectory() as _td3:
+        _small = os.path.join(_td3, "small.png")
+        Image.open(os.path.join(ROOT, "out", "render_1024.png")).resize((512, 512)).save(_small)
+        for _tool, _args in (("ray_lines.py", [_small]), ("visual_regression.py", [_small]),
+                             ("flare_parts.py", [_small, "--out", os.path.join(_td3, "fp.png")])):
+            _r = _sp.run([sys.executable, os.path.join(ROOT, "tools", _tool)] + _args,
+                         capture_output=True, text=True, cwd=ROOT)
+            if _r.returncode != 2 or "1024" not in _r.stderr:
+                _diag.append("%s on a 512-px image: exit %d" % (_tool, _r.returncode))
+        try:
+            _RL.profile(np.zeros((512, 512, 3)), *_RL.LINES["lower-right"][:4])
+            _diag.append("ray_lines.profile read a 512-px array")
+        except ValueError:
+            pass
+        try:
+            _RL._bilinear(np.zeros((1024, 1024)), np.array([1030.0]), np.array([5.0]))
+            _diag.append("ray_lines sampled outside the image instead of refusing")
+        except ValueError:
+            pass
+        # The before/after sheet is a publish artefact: built from a baseline
+        # whose manifest names its SVG by digest and from renders whose
+        # provenance matches the SVGs they are labelled as -- and refused
+        # otherwise.
+        _bd = os.path.join(_td3, "baseline")
+        os.makedirs(_bd)
+        for _f in ("reconstruction.svg", "manifest.json"):
+            _sh2.copy(os.path.join(ROOT, "out", "baseline", _f), _bd)
+        _sp.run([sys.executable, os.path.join(ROOT, "tools", "render.py"),
+                 os.path.join(_bd, "reconstruction.svg"), os.path.join(_bd, "render_1024.png")],
+                check=True, capture_output=True)
+        _fp_args = [os.path.join(ROOT, "out", "render_1024.png"), "--svg",
+                    os.path.join(ROOT, "reconstruction.svg"), "--baseline", _bd,
+                    "--labels", "this release", "--out", os.path.join(_td3, "sheet.png")]
+        _r = _sp.run([sys.executable, os.path.join(ROOT, "tools", "flare_parts.py")] + _fp_args,
+                     capture_output=True, text=True, cwd=ROOT)
+        if _r.returncode != 0:
+            _diag.append("flare_parts refused the shipped release: %s" % _r.stderr.strip()[:160])
+        # ... and it says what it was drawn from, so a stale sheet is caught.
+        import flare_parts as _FPT
+        _sheet = os.path.join(_td3, "sheet.png")
+        # (Only if it was drawn: a refusal above is already a failure, and
+        # copying a sheet that does not exist would abort the whole suite.)
+        if os.path.exists(_sheet):
+            _fresh = _FPT.sheet_problems(_sheet, os.path.join(ROOT, "reconstruction.svg"), _bd,
+                                         os.path.join(ROOT, "reference.png"))
+            if _fresh:
+                _diag.append("a sheet drawn just now reads as stale: %s" % _fresh[0])
+            if not _FPT.sheet_problems(_sheet, os.path.join(_bd, "reconstruction.svg"), _bd):
+                _diag.append("a sheet checked against a different SVG was not reported stale")
+            _sh2.copy(_sheet, _sheet + ".t.png")
+            _sh2.copy(_sheet + ".prov.json", _sheet + ".t.png.prov.json")
+            open(_sheet + ".t.png", "ab").write(b"\0")
+            if not _FPT.sheet_problems(_sheet + ".t.png", os.path.join(ROOT, "reconstruction.svg"), _bd):
+                _diag.append("a sheet whose bytes changed was not caught")
+        _man = json.load(open(os.path.join(_bd, "manifest.json")))
+        _man["svg_sha256"] = "0" * 64
+        json.dump(_man, open(os.path.join(_bd, "manifest.json"), "w"))
+        _r = _sp.run([sys.executable, os.path.join(ROOT, "tools", "flare_parts.py")] + _fp_args,
+                     capture_output=True, text=True, cwd=ROOT)
+        if _r.returncode != 2:
+            _diag.append("flare_parts drew a sheet whose baseline manifest does not name its SVG")
+    check("the diagnostics refuse inputs they cannot read",
+          not _diag, "; ".join(_diag) if _diag else
+          "ray_lines, visual_regression and flare_parts exit 2 on a 512-px image; no sample "
+          "outside the canvas; the before/after sheet verifies its baseline and its release, and "
+          "its provenance catches a stale or altered sheet")
+
+    # ---- a sheet cannot vouch for a source image it no longer shows (D65) -- #
+    # The review case: the sidecar recorded each column's image digest, but
+    # sheet_problems compared only SVG digests, so replacing a source render
+    # after the sheet was drawn left the sheet "verified" while it showed
+    # pixels that were no longer there.  Run on COPIES of the sources, so the
+    # repository's own renders are never touched.
+    import flare_parts as _FPS
+    import shutil as _sh4
+    _src_diag = []
+    with _tf.TemporaryDirectory() as _td4:
+        _rel = os.path.join(_td4, "release.png")
+        for _ext in ("", ".prov.json"):
+            _sh4.copy(os.path.join(ROOT, "out", "render_1024.png") + _ext, _rel + _ext)
+        _bd4 = os.path.join(_td4, "baseline")
+        os.makedirs(_bd4)
+        for _f in ("reconstruction.svg", "manifest.json"):
+            _sh4.copy(os.path.join(ROOT, "out", "baseline", _f), _bd4)
+        _sp.run([sys.executable, os.path.join(ROOT, "tools", "render.py"),
+                 os.path.join(_bd4, "reconstruction.svg"), os.path.join(_bd4, "render_1024.png")],
+                check=True, capture_output=True)
+        _sheet4 = os.path.join(_td4, "sheet.png")
+        _r4 = _sp.run([sys.executable, os.path.join(ROOT, "tools", "flare_parts.py"), _rel,
+                       "--svg", os.path.join(ROOT, "reconstruction.svg"), "--baseline", _bd4,
+                       "--labels", "this release", "--out", _sheet4],
+                      capture_output=True, text=True, cwd=ROOT)
+        _p4 = lambda: _FPS.sheet_problems(_sheet4, os.path.join(ROOT, "reconstruction.svg"),  # noqa: E731
+                                          _bd4, os.path.join(ROOT, "reference.png"))
+        _keep = {q: open(q, "rb").read() for q in (_rel, _rel + ".prov.json")}
+
+        def _restore():
+            for q, b in _keep.items():
+                open(q, "wb").write(b)
+        if _r4.returncode != 0:
+            _src_diag.append("the sheet was not drawn: %s" % _r4.stderr.strip()[:160])
+        elif _p4():
+            _src_diag.append("(1) a fresh sheet with untouched sources reads as stale: %s" % _p4()[0])
+        else:
+            # (2) another AUTHENTIC render, with its own valid sidecar, put in its place
+            for _ext in ("", ".prov.json"):
+                _sh4.copy(os.path.join(_bd4, "render_1024.png") + _ext, _rel + _ext)
+            if not any("no longer there" in m for m in _p4()):
+                _src_diag.append("(2) a source render replaced by another authentic render passed")
+            _restore()
+            # (3) same filename, different bytes, sidecar left alone
+            open(_rel, "ab").write(b"\0")
+            if not _p4():
+                _src_diag.append("(3) a source render with changed bytes passed")
+            _restore()
+            # (4a) the render's provenance removed
+            os.remove(_rel + ".prov.json")
+            if not any("no provenance" in m for m in _p4()):
+                _src_diag.append("(4a) a source render without provenance passed")
+            _restore()
+            # (4b) provenance naming a different SVG (the render itself unchanged)
+            _pv = json.loads(_keep[_rel + ".prov.json"])
+            _pv["svg_sha256"] = "0" * 64
+            open(_rel + ".prov.json", "w").write(json.dumps(_pv))
+            if not _p4():
+                _src_diag.append("(4b) a source render whose provenance names another SVG passed")
+            _restore()
+            if _p4():
+                _src_diag.append("restored sources still read as stale: %s" % _p4()[0])
+    check("a before/after sheet re-verifies every source image it was drawn from",
+          not _src_diag, "; ".join(_src_diag) if _src_diag else
+          "valid sources pass; a source replaced by another authentic render, a source with "
+          "changed bytes, a source without provenance and one whose provenance names another "
+          "SVG each fail")
+
+    # ---- the baseline setup is a pinned, verified, reproducible step (D66) - #
+    # A clean checkout carries the previous release's SVG, not its render;
+    # tools/setup_baseline.py makes the render.  It must render only the pinned
+    # SVG, reproduce the image the published sheet was drawn from, and refuse --
+    # as a SETUP failure -- anything else; the gate's pre-flight must catch what
+    # the setup would.  Run on a copy of the baseline and a stand-in sheet
+    # record, so neither the real baseline nor the real sheet is touched.
+    import setup_baseline as _SB
+    import shutil as _sh5
+    import render as _R5
+    _sb_diag = []
+    with _tf.TemporaryDirectory() as _td5:
+        _bd5 = os.path.join(_td5, "baseline")
+        os.makedirs(_bd5)
+        for _f in ("reconstruction.svg", "manifest.json"):
+            _sh5.copy(os.path.join(ROOT, "out", "baseline", _f), _bd5)
+        _pin5 = json.load(open(os.path.join(_bd5, "manifest.json")))["svg_sha256"]
+        _side5 = os.path.join(_td5, "sheet.png")
+
+        def _sheet5(digest):
+            json.dump({"columns": [{"svg": "somewhere/else/reconstruction.svg",   # matched by content
+                                    "svg_sha256": _pin5, "image_sha256": digest}]},
+                      open(_side5 + ".prov.json", "w"))
+
+        def _pre5():
+            return _SB.verify(_bd5, sheet_path=_side5)
+        # The image this environment should make: the published sheet's record
+        # for this baseline, when the sheet names it (after a new baseline is
+        # installed the sheet names the old one, and publish.sh redraws it).
+        _want5, _wnote5 = _SB.sheet_expectation(_pin5)
+        _real5 = os.path.join(ROOT, "out", "baseline", _SB.RENDER_NAME)
+        if _want5 is None and os.path.exists(_real5):
+            _want5 = _R5.sha256_file(_real5)
+        if not _want5:
+            _sb_diag.append("no recorded or set-up baseline image to compare with (%s)" % _wnote5)
+        else:
+            _sheet5(_want5)
+            if not any("absent" in m for m in _pre5()):
+                _sb_diag.append("a baseline with no render passed the pre-flight: %s" % _pre5())
+            try:
+                _out5 = _SB.setup(_bd5, sheet_path=_side5, verbose=False)
+                if _pre5():
+                    _sb_diag.append("a freshly set-up baseline fails the pre-flight: %s" % _pre5())
+                if _R5.sha256_file(_out5) != _want5:
+                    _sb_diag.append("the setup render is not the image the sheet recorded")
+                # a leftover render with valid provenance but other bytes (another
+                # encoder or renderer version) is a SETUP failure, not a stale sheet
+                _png5 = os.path.join(_bd5, _SB.RENDER_NAME)
+                Image.open(_png5).save(_png5, compress_level=1)
+                _R5.write_provenance(_png5, os.path.join(_bd5, "reconstruction.svg"),
+                                     open(_png5, "rb").read(), _SB.SIZE, _SB.RENDERER)
+                if not any("not the image the published sheet" in m for m in _pre5()):
+                    _sb_diag.append("a re-encoded leftover render passed the pre-flight: %s" % _pre5())
+            except _SB.SetupError as exc:
+                _sb_diag.append("the pinned baseline did not set up: %s" % exc)
+            # a render that is not the one the sheet recorded -> SETUP failure,
+            # and no render left behind; --for-publish skips that comparison
+            _sheet5("0" * 64)
+            try:
+                _SB.setup(_bd5, sheet_path=_side5, verbose=False)
+                _sb_diag.append("a render differing from the sheet's record was accepted")
+            except _SB.SetupError as exc:
+                if "does not reproduce" not in str(exc):
+                    _sb_diag.append("wrong reason for a differing render: %s" % exc)
+                if not any("absent" in m for m in _pre5()):
+                    _sb_diag.append("a render the sheet does not describe was left for the gate")
+            try:
+                _SB.setup(_bd5, sheet_path=_side5, compare_sheet=False, verbose=False)
+            except _SB.SetupError as exc:
+                _sb_diag.append("--for-publish still compared with the old sheet: %s" % exc)
+            # ... but a publisher on another resvg-py than the pin is refused:
+            # the sheet it drew could not be reproduced by CI
+            _inst5 = _SB.installed_renderer
+            try:
+                _SB.installed_renderer = lambda: "0.0.0-not-the-pin"
+                _SB.setup(_bd5, sheet_path=_side5, compare_sheet=False, verbose=False)
+                _sb_diag.append("--for-publish accepted a renderer other than the pinned one")
+            except _SB.SetupError as exc:
+                if "pins" not in str(exc):
+                    _sb_diag.append("wrong reason for an unpinned publisher: %s" % exc)
+            finally:
+                _SB.installed_renderer = _inst5
+            _sheet5(_want5)
+            # an SVG that is not the pinned one -> SETUP failure, nothing rendered from it
+            _svg5 = os.path.join(_bd5, "reconstruction.svg")
+            _orig5 = open(_svg5, "rb").read()
+            open(_svg5, "ab").write(b"\n<!-- not the release -->\n")
+            try:
+                _SB.setup(_bd5, sheet_path=_side5, verbose=False)
+                _sb_diag.append("an SVG that is not the pinned one was rendered as the baseline")
+            except _SB.SetupError:
+                if os.path.exists(os.path.join(_bd5, _SB.RENDER_NAME)):
+                    _sb_diag.append("a render was left behind from an unpinned SVG")
+            open(_svg5, "wb").write(_orig5)
+        # the CLI says SETUP FAILURE and exits 3, not 1
+        _r5 = _sp.run([sys.executable, os.path.join(ROOT, "tools", "setup_baseline.py"),
+                       "--baseline", os.path.join(_td5, "nowhere")], capture_output=True, text=True)
+        if _r5.returncode != 3 or "SETUP FAILURE" not in _r5.stderr:
+            _sb_diag.append("a missing baseline exits %d without saying SETUP FAILURE" % _r5.returncode)
+        # a directory that is not a baseline (no manifest) is refused UNTOUCHED:
+        # `--baseline out` must not delete the committed out/render_1024.png
+        _nb5 = os.path.join(_td5, "not_a_baseline")
+        os.makedirs(_nb5)
+        open(os.path.join(_nb5, _SB.RENDER_NAME), "wb").write(b"keep me")
+        _r5 = _sp.run([sys.executable, os.path.join(ROOT, "tools", "setup_baseline.py"),
+                       "--baseline", _nb5], capture_output=True, text=True)
+        if _r5.returncode != 3 or open(os.path.join(_nb5, _SB.RENDER_NAME), "rb").read() != b"keep me":
+            _sb_diag.append("setup on a directory without a manifest exited %d and%s left its render alone"
+                            % (_r5.returncode, "" if os.path.exists(os.path.join(_nb5, _SB.RENDER_NAME))
+                               else " did not"))
+        # git is asked only about THIS checkout: an enclosing repository (a
+        # source export inside another work tree) is not a clone of this one
+        _outer5 = os.path.join(_td5, "outer")
+        os.makedirs(os.path.join(_outer5, "export"))
+        if _sp.run(["git", "init", "-q", _outer5], capture_output=True).returncode == 0:
+            _ok5, _note5 = _SB.check_commit({"commit": "0" * 40, "svg": "reconstruction.svg"}, _pin5,
+                                            os.path.join(_outer5, "export"))
+            if not _ok5:
+                _sb_diag.append("an enclosing repository was taken for this checkout: %s" % _note5)
+        # a manifest naming a commit this (full) clone lacks fails verify() too
+        _shallow5 = _sp.run(["git", "-C", ROOT, "rev-parse", "--is-shallow-repository"],
+                            capture_output=True, text=True).stdout.strip() == "true"
+        _man5 = json.load(open(os.path.join(_bd5, "manifest.json")))
+        json.dump(dict(_man5, commit="0" * 40), open(os.path.join(_bd5, "manifest.json"), "w"))
+        _v5 = _SB.verify(_bd5, sheet_path=_side5)
+        if not _shallow5 and not any("does not have" in m for m in _v5):
+            _sb_diag.append("verify() passed a manifest naming a commit this full clone lacks: %s" % _v5)
+        json.dump(_man5, open(os.path.join(_bd5, "manifest.json"), "w"))
+    check("the baseline setup renders only the pinned SVG and reproduces the sheet's baseline",
+          not _sb_diag, "; ".join(_sb_diag) if _sb_diag else
+          "no render -> pre-flight reports it absent; the pinned SVG sets up to the recorded baseline "
+          "image byte for byte (sheet column found by content); a re-encoded leftover render, a "
+          "differing render, an unpinned SVG and a missing baseline are each a SETUP failure (exit 3), "
+          "nothing left behind; a directory without a manifest is refused untouched; an enclosing "
+          "repository is not taken for this checkout, and a manifest naming a commit a full clone "
+          "lacks fails verify(); --for-publish skips only the sheet comparison, and refuses a "
+          "renderer other than the pinned one")
+
+    # The published sheet is a release artefact (tools/publish.sh regenerates
+    # it); a release whose sheet was drawn from anything but this SVG and the
+    # documented baseline is not a release (D63).
+    import flare_parts as _FPT2
+    _pub = _FPT2.sheet_problems(os.path.join(ROOT, "out", "flare_parts.png"),
+                                os.path.join(ROOT, "reconstruction.svg"),
+                                os.path.join(ROOT, "out", "baseline"),
+                                os.path.join(ROOT, "reference.png"))
+    check("the published before/after sheet is this release's", not _pub,
+          "; ".join(_pub) if _pub else "out/flare_parts.png was drawn from verified renders of "
+          "reconstruction.svg and the documented baseline, and is byte-for-byte that sheet")
 
     # ---- 7. the lobe banding has not come back ---------------------------- #
 
@@ -1155,21 +2710,54 @@ def main():
     # (flare_spike is [256.9, 372.9, 455.0]) is not a violation: split_color
     # clamps it to white and the coefficients say white.
     import fit_photometry as _FP
+    #
+    # D64 added a fourth primary, TEAL, for six ray layers whose own lines are
+    # greener than the cone.  It is a decision made where the cone is defined
+    # (fit_photometry TEAL, measure_flare TEAL_LAYERS), so this also requires
+    # that exactly those layers carry it and that no other layer's colour has
+    # left the white/cyan/blue cone.
+    import measure_flare as _MF2
     off_cone = []
     for L in params["layers"]:
         c = L.get("color")
         if c is None:
             continue
         want = np.clip(np.asarray(_FP.color_from_wc(
-            [L.get("white", 0.0), L.get("cyan", 0.0), L.get("blue", 0.0)]), float) * 255.0, 0, 255)
+            [L.get(k, 0.0) for k in _FP.COMPONENTS]), float) * 255.0, 0, 255)
         got = np.clip(np.asarray(c, float), 0, 255)
         d = float(np.abs(want - got).max())
         if d > 0.05:
             off_cone.append("%s (%.1f cv)" % (L["id"], d))
-    check("every layer's colour is reachable from its white/cyan/blue",
+        # A layer without a `teal` key is drawn from white/cyan/blue alone
+        # (L.get("teal", 0.0) above), so passing the comparison above already
+        # puts it inside the cone.  Re-decomposing the stored colour instead
+        # would misfire on a colour clipped at 255 (arc_core's G).
+    _teal = sorted(L["id"] for L in params["layers"] if "teal" in L)
+    if _teal != sorted(_MF2.TEAL_LAYERS):
+        off_cone.append("teal carried by %s, of record %s" % (_teal, sorted(_MF2.TEAL_LAYERS)))
+    check("every layer's colour is reachable from its white/cyan/blue(/teal)",
           not off_cone,
-          "%d layers; off-cone: %s" % (len(params["layers"]),
-                                       ", ".join(off_cone) or "none"))
+          "%d layers, %d of them teal layers of record; off-cone: %s"
+          % (len(params["layers"]), len(_teal), ", ".join(off_cone) or "none"))
+
+    # ---- a horizontal line drawn as two colours is still ONE line ----------- #
+    # Lines A and B each carry their white in a layer of its own (flare_streak_w,
+    # and since D64 flare_spike_w) so white and cyan can follow different
+    # longitudinal profiles.  That is only one line if both layers sit on the
+    # same row and run the same length; a search that moved one of the pair
+    # would draw two thin lines where the reference has one.  (Widths may
+    # differ: line A's white is measured narrower than its cyan.)
+    _byid = {L["id"]: L for L in params["layers"]}
+    _pair_bad = []
+    for _cy, _w in (("flare_streak", "flare_streak_w"), ("flare_spike", "flare_spike_w")):
+        if _cy not in _byid or _w not in _byid:
+            _pair_bad.append("%s/%s missing" % (_cy, _w))
+            continue
+        for _k in ("cy", "dy", "half_len"):
+            if _byid[_cy].get(_k) != _byid[_w].get(_k):
+                _pair_bad.append("%s %s %r != %s %r" % (_cy, _k, _byid[_cy].get(_k), _w, _byid[_w].get(_k)))
+    check("each two-colour horizontal line is one line (same row and length)",
+          not _pair_bad, "; ".join(_pair_bad) or "line A and line B pairs agree")
 
     # ---- render provenance cannot authenticate a raster it does not describe #
     # The three-step case the review asks for, run for real rather than
@@ -1324,4 +2912,10 @@ def main():
 
 
 if __name__ == "__main__":
+    _setup = preflight()
+    if _setup:
+        print("SETUP FAILURE: " + "; ".join(_setup))
+        print("Run `python3 tools/setup_baseline.py` first (CI: the \"Baseline setup\" step). "
+              "This is a setup failure, not an artwork regression: no check was run.")
+        sys.exit(3)
     sys.exit(main())

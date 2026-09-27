@@ -68,12 +68,30 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # point of fitting in this basis rather than in free RGB: a shape error can no
 # longer be hidden by inventing a green or magenta glow layer, which is what
 # free-RGB fitting did.
+#
+# A FOURTH primary, TEAL (0, 1, 0.7), exists for six ray layers only (D64).
+# Four of the reference's rays -- upper-left A, the upper-right pair, the
+# 267-degree pair and the 229-degree lobe's cyan segment -- carry B BELOW G
+# above their local ramp (B/G 0.73-0.86, measured on their own lines), which
+# no non-negative mix of the three can draw: the cone's floor is cyan's 1.06.
+# Tested before adding: blending in linear light does not explain it (it moves
+# every ray the same way), and a controlled fit of every ray family in three
+# bases -- the cone, the cone + (0, 1, 0.8), the cone + pure green -- put the
+# new primary on exactly those four families and nowhere it was not
+# interchangeable with cyan.  (0, 1, 0.7) is the greenest ray measured, so the
+# extension reaches the evidence and no further.  A layer may use it only if
+# it carries a "teal" key (TEAL_LAYERS in tools/measure_flare.py, checked by
+# test_pipeline); for every other layer the cone argument above still holds,
+# and `fit` cannot move one into it.
 WHITE = np.array([1.0, 1.0, 1.0], np.float32)
 CYAN = np.array([0.0, 0.94, 1.0], np.float32)
 BLUE = np.array([0.0, 0.0, 1.0], np.float32)
-BASIS = np.stack([WHITE, CYAN, BLUE])    # (3, 3)
+TEAL = np.array([0.0, 1.0, 0.7], np.float32)
+BASIS = np.stack([WHITE, CYAN, BLUE, TEAL])    # (4, 3)
 NB = BASIS.shape[0]
-COMPONENTS = ("white", "cyan", "blue")
+COMPONENTS = ("white", "cyan", "blue", "teal")
+#: the cone's own primaries; a layer without a "teal" key is decomposed in these
+CONE = 3
 
 
 def render_array(svg_text: str, size: int = 1024) -> np.ndarray:
@@ -98,28 +116,34 @@ def basis_stack(params, size=1024, cache=None):
     return np.stack(out), names
 
 
-def wc_from_color(color):
+def wc_from_color(color, teal=False):
     """Exact non-negative basis amounts for an sRGB 0..255 colour.
 
-    Three basis vectors, so the active-set enumeration is only seven cases.
+    Without `teal` only the three cone primaries are used (the fourth amount is
+    0); with it all four.  Smaller active sets are tried first and a later one
+    replaces an earlier only if strictly better, so a colour the cone can draw
+    exactly keeps its cone decomposition even on a teal layer.
     """
     import itertools
 
     k = np.asarray(color, np.float64) / 255.0
     B = BASIS.T.astype(np.float64)
+    use = NB if teal else CONE
     best = None
-    for r in range(1, NB + 1):
-        for comb in itertools.combinations(range(NB), r):
+    for r in range(1, use + 1):
+        for comb in itertools.combinations(range(use), r):
             sol, *_ = np.linalg.lstsq(B[:, comb], k, rcond=None)
             if (sol < -1e-9).any():
                 continue
             full = np.zeros(NB)
             full[list(comb)] = sol
             e = float(np.abs(B @ full - k).sum())
-            if best is None or e < best[0]:
+            if best is None or e < best[0] - 1e-6:
                 best = (e, full)
     if best is None:
-        return np.clip(np.linalg.lstsq(B, k, rcond=None)[0], 0.0, None)
+        full = np.zeros(NB)
+        full[:use] = np.clip(np.linalg.lstsq(B[:, :use], k, rcond=None)[0], 0.0, None)
+        return full
     return best[1]
 
 
@@ -128,7 +152,7 @@ def color_from_wc(wc):
 
 
 def colors(WC):
-    """(n,2) white/cyan amounts -> (n,3) premultiplied colours in 0..1."""
+    """(n,NB) basis amounts -> (n,3) premultiplied colours in 0..1."""
     return np.clip(WC @ BASIS, 0.0, 1.0)
 
 
@@ -182,7 +206,7 @@ def analytic_grad(A, target, WC, weight, normal, layer, comp):
     isnorm = [bool(normal[i]) if normal is not None else False for i in range(n)]
     Kraw = np.asarray(WC, np.float64) @ B
     K = np.clip(Kraw, 0.0, 1.0).astype(np.float32)
-    live = ((Kraw > 0.0) & (Kraw < 1.0)).astype(np.float32)
+    live = (Kraw <= 1.0).astype(np.float32)       # see fit(): 0 and 1 are edges, not clips
     P = Af.shape[1]
     out = np.zeros((P, 3), np.float32)
     before = np.empty((n, P, 3), np.float32)
@@ -207,8 +231,13 @@ def analytic_grad(A, target, WC, weight, normal, layer, comp):
 
 
 def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=None,
-        normal=None):
+        normal=None, teal_ok=None):
     """Levenberg-Marquardt on the per-layer basis amounts.
+
+    `teal_ok` (one bool per layer, `teal_eligible(params)`) says which layers
+    MAY use the fourth primary.  It is permission, not the current amount: an
+    eligible layer whose teal is 0 is still fitted in it (D65).  Without it no
+    layer may move its teal amount.
 
     The composite is affine in the accumulated colour at every layer (see
     `composite`), so both the value and the exact derivative with respect to any
@@ -227,6 +256,19 @@ def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=No
     idx = list(range(n)) if free is None else list(free)
     isnorm = [bool(normal[i]) if normal is not None else False for i in range(n)]
     WC = np.array(WC0, np.float64).copy()
+    if not idx:
+        # Nothing is free -- e.g. a stack pruned down to its calibrated rays,
+        # which `held_free` holds.  There is no Jacobian to build (stacking zero
+        # columns raised, and prune_layers aborted before saving), and the
+        # answer is the colours given, returned as a fitted result would be.
+        return WC.astype(np.float32)
+    # Only a layer ELIGIBLE for the fourth primary may use it (see TEAL); every
+    # other layer's teal column is held.  Eligibility is the layer's `teal` key,
+    # never its current amount: D64 keyed this on the amount, so an eligible ray
+    # whose teal had reached 0 was locked into the cone and no refit could bring
+    # it back (D65).
+    teal_lock = (np.ones(n, bool) if teal_ok is None
+                 else ~np.asarray(teal_ok, bool).reshape(n))
     Af = A.reshape(n, -1).astype(np.float32)
     Tf = target.reshape(-1, 3).astype(np.float32)
     Wf = weight.reshape(-1).astype(np.float32)
@@ -240,7 +282,16 @@ def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=No
         # the clip made the analytic gradient of a saturated layer 1.6x too
         # large (measured on arc_core, whose unclipped blue channel is 1.0014),
         # which LM's line search absorbs but which is still a wrong Jacobian.
-        live = ((Kraw > 0.0) & (Kraw < 1.0)).astype(np.float32)
+        # The LOWER bound is not a clip: amounts and primaries are
+        # non-negative, so Kraw >= 0 and a channel AT 0 can only increase --
+        # its derivative in the feasible direction is BASIS[j, ch].  Treating
+        # 0 as clipped (until D66) zeroed every derivative of a layer with no
+        # light, so a dark layer could never be fitted back -- and it dropped a
+        # cyan layer's R term from its white amount's gradient.  A channel AT 1
+        # is the other edge: its derivative going down is BASIS[j, ch] (only
+        # going up is clipped, and the line search sees that), so it counts too
+        # -- else a layer clipped to exactly 1 could never come back down.
+        live = (Kraw <= 1.0).astype(np.float32)
         P = Af.shape[1]
         before = np.empty((n, P, 3), np.float32)
         out = np.zeros((P, 3), np.float32)
@@ -273,8 +324,21 @@ def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=No
             if not isnorm[i]:
                 g = g * (1.0 - before[i])
             for bi in range(NB):
+                if bi >= CONE and teal_lock[i]:
+                    cols.append(np.zeros(g.size, np.float32))
+                    continue
                 cols.append((g * (B[bi] * live[i])[None, :] * Wf[:, None]).reshape(-1))
         J = np.stack(cols, 1)
+        # Active set: an amount AT a bound whose gradient points out of the
+        # feasible box is held for this iteration.  Counting its derivative
+        # (which D66 made exact at 0, so a dark layer can be fitted back) and
+        # then clipping the step made every step fail its line search until
+        # LM had damped the whole solve into a crawl; the solve must be the
+        # projected one.  A dark layer the target wants lit has an INWARD
+        # gradient and stays free.
+        wv = WC[idx].reshape(-1)
+        g0 = J.T @ r
+        J[:, ((wv <= 0.0) & (g0 > 0.0)) | ((wv >= hi) & (g0 < 0.0))] = 0.0
         G = J.T @ J
         g2 = J.T @ r
         m = len(idx)
@@ -511,13 +575,61 @@ def normal_flags(params):
     return [L.get("blend", "screen") == "normal" for L in params["layers"]]
 
 
+def teal_eligible(params):
+    """Which layers may use the TEAL primary: exactly those carrying a `teal`
+    key (tools/measure_flare.py TEAL_LAYERS), whatever their current amount."""
+    return np.array(["teal" in L for L in params["layers"]], bool)
+
+
 def params_wc(params):
-    return np.array([wc_from_color(L.get("color", [128, 128, 128])) for L in params["layers"]], np.float32)
+    """Every layer's basis amounts, (n, NB).
+
+    The STORED amounts are used whenever they reproduce the stored colour (to
+    0.02 cv); only a layer without them, or whose amounts disagree with its
+    colour, is decomposed from the colour.  Decomposing always (until D66) lost
+    information twice: a colour clipped at 255 has no unique pre-clip amounts,
+    so arc_core (216.24, 255, 255) came back as amounts that re-compose to
+    (216.24, 253.77, 255) and every fit_photometry run rewrote it by 1.23 cv
+    even when nothing was fitted; and with four primaries a teal layer's colour
+    has many decompositions, so a fit started from different amounts than the
+    ones the calibration scales.  The rendered colour is the same either way.
+    """
+    out = []
+    for L in params["layers"]:
+        teal = "teal" in L
+        color = L.get("color", [128, 128, 128])
+        names = COMPONENTS if teal else COMPONENTS[:CONE]
+        if all(c in L for c in names):
+            wc = np.array([float(L[c]) for c in names] + ([] if teal else [0.0]))
+            if (wc >= 0).all() and np.abs(color_from_wc(wc) * 255.0 - np.asarray(color, float)).max() <= 0.02:
+                out.append(wc)
+                continue
+        out.append(wc_from_color(color, teal=teal))
+    return np.array(out, np.float32)
 
 
-def store_wc(params, WC):
-    for L, wc in zip(params["layers"], WC):
+def held_free(params):
+    """Indices this fit may move: every layer except the calibrated rays.
+
+    The rays' amplitudes are calibrated against their own measured profiles
+    (tools/measure_flare.py CALIBRATED_LAYERS).  This fit's whole-image
+    objective is the wrong question for a structure a few code values tall over
+    a few hundred pixels, so it holds them rather than overwriting them.
+    """
+    import measure_flare as MFL
+    return [i for i, L in enumerate(params["layers"]) if L["id"] not in MFL.CALIBRATED_LAYERS]
+
+
+def store_wc(params, WC, only=None):
+    """Write fitted amounts back.  `only` (indices) leaves every other layer's
+    stored colour byte-for-byte as it was, instead of re-deriving it."""
+    keep = None if only is None else set(only)
+    for i, (L, wc) in enumerate(zip(params["layers"], WC)):
+        if keep is not None and i not in keep:
+            continue
         for name, v in zip(COMPONENTS, wc):
+            if name == "teal" and name not in L:
+                continue    # a cone layer stays a cone layer (see TEAL)
             L[name] = round(float(v), 5)
         L["color"] = [round(float(v) * 255.0, 2) for v in color_from_wc(wc)]
 
@@ -532,6 +644,9 @@ def main():
                     help="fit without lifting the flare and lobe regions")
     ap.add_argument("--stride", type=int, default=2)
     ap.add_argument("--no-write", action="store_true")
+    ap.add_argument("--fit-rays", action="store_true",
+                    help="also re-fit the calibrated ray layers' colours (held by default: "
+                         "tools/measure_flare.py calibrates them against their own profiles)")
     a = ap.parse_args()
 
     params = json.load(open(a.params))
@@ -543,16 +658,35 @@ def main():
     W = make_weight(tsub, a.weight, emphasis=not a.no_emphasis)
     print("fitting %d layers x %s  [stride %d]" % (len(names), str(COMPONENTS), st))
     nf = normal_flags(params)
-    WC = fit(Asub, tsub, params_wc(params), W, iters=a.iters, normal=nf)
-    store_wc(params, WC)
-    out = composite(A, colors(WC), nf)
-    print("analytic composite mae=%.4f" % (np.abs(out - target).mean() * 255))
-    for L in params["layers"]:
-        print("  %-18s %s -> rgb%s"
-              % (L["id"], " ".join("%s=%7.4f" % (c, L[c]) for c in COMPONENTS), L["color"]))
+    free = None if a.fit_rays else held_free(params)
+    WC = fit(Asub, tsub, params_wc(params), W, iters=a.iters, normal=nf, free=free,
+             teal_ok=teal_eligible(params))
+    store_wc(params, WC, only=free)
+    # The fit is SAVED before anything is reported: until D66 the report came
+    # first and read every component as `L[c]`, so the first cone layer --
+    # which has no `teal` key, because it is not ALLOWED teal -- raised KeyError
+    # and the documented command exited having fitted everything and saved
+    # nothing (the D66 review finding).
     if not a.no_write:
         json.dump(params, open(a.params, "w"), indent=1)
         print("updated", a.params)
+    out = composite(A, colors(WC), nf)
+    print("analytic composite mae=%.4f" % (np.abs(out - target).mean() * 255))
+    for L in params["layers"]:
+        print("  %-18s %s -> rgb%s" % (L["id"], component_text(L), L.get("color")))
+
+
+def component_text(L):
+    """A layer's basis amounts for a report.  An absent component is 0 -- except
+    teal, whose absence means the layer is not ELIGIBLE (see teal_eligible), not
+    that it holds a teal amount of 0, and is shown as such."""
+    parts = []
+    for c in COMPONENTS:
+        if c == "teal" and c not in L:
+            parts.append("teal=    ---")
+        else:
+            parts.append("%s=%7.4f" % (c, float(L.get(c, 0.0))))
+    return " ".join(parts)
 
 
 if __name__ == "__main__":

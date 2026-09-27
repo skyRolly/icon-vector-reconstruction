@@ -36,9 +36,25 @@ def evaluate(params, ref, stride=2, iters=14, cache=None):
     Asub = A[:, ::stride, ::stride]
     W = FP.make_weight(tgt)
     nf = FP.normal_flags(params)
-    WC = FP.fit(Asub, tgt, FP.params_wc(params), W, iters=iters, verbose=False, normal=nf)
+    # The calibrated rays keep their profile-calibrated colours (fit_photometry.
+    # held_free): re-fitting them here would score each removal against rays
+    # the whole-image objective had re-shaped.
+    WC = FP.fit(Asub, tgt, FP.params_wc(params), W, iters=iters, verbose=False, normal=nf,
+                free=FP.held_free(params), teal_ok=FP.teal_eligible(params))
     out = FP.composite(Asub, FP.colors(WC), nf)
     return float(np.abs(out - tgt).mean() * 255), WC
+
+
+def protected(keep_arg):
+    """Layers never offered for removal: --keep, plus every ray of record.
+
+    A ray is a few code values over a few hundred pixels, so removing one
+    costs well under --max-cost of MAE while deleting a structure the reference
+    plainly has.  Its evidence is its measured profile (tools/ray_lines.py),
+    not a whole-image error, so this tool is the wrong judge of it.
+    """
+    import measure_flare as MFL
+    return set(x.strip() for x in keep_arg.split(",") if x.strip()) | set(MFL.RAY_GEOMETRY)
 
 
 def main():
@@ -54,14 +70,16 @@ def main():
     params = json.load(open(a.params))
     ref = np.asarray(Image.open(a.reference).convert("RGB")).astype(np.float32) / 255.0
     ref = np.minimum(ref, 254.4 / 255.0)
-    keep = set(x.strip() for x in a.keep.split(","))
+    keep = protected(a.keep)
     cache = {}
     base, _ = evaluate(params, ref, cache=cache)
     print("baseline mae = %.4f (%d layers)" % (base, len(params["layers"])))
     while True:
         costs = []
         for L in params["layers"]:
-            if L["id"] in keep:
+            # the last layer is never offered: an empty stack has nothing to
+            # render or score (only reachable when nothing is protected)
+            if L["id"] in keep or len(params["layers"]) == 1:
                 continue
             trial = copy.deepcopy(params)
             trial["layers"] = [q for q in trial["layers"] if q["id"] != L["id"]]
@@ -75,11 +93,11 @@ def main():
         c, lid = costs[0]
         params["layers"] = [q for q in params["layers"] if q["id"] != lid]
         base, WC = evaluate(params, ref, cache=cache)
-        FP.store_wc(params, WC)
+        FP.store_wc(params, WC, only=FP.held_free(params))
         print("removed %s -> mae %.4f (%d layers)" % (lid, base, len(params["layers"])))
     if a.apply:
         base, WC = evaluate(params, ref, iters=25, cache=cache)
-        FP.store_wc(params, WC)
+        FP.store_wc(params, WC, only=FP.held_free(params))
         json.dump(params, open(a.params, "w"), indent=1)
         print("wrote %s: %d layers, mae %.4f" % (a.params, len(params["layers"]), base))
 

@@ -39,6 +39,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import math
 import os
@@ -295,6 +296,151 @@ def bezier_arc_path(g, side, inset=0.0):
     return " ".join(out)
 
 
+def _blossom(c, t1, t2, t3):
+    """The polar form of the cubic Bezier `c` at (t1, t2, t3)."""
+    pts = [tuple(map(float, q)) for q in c]
+    for t in (t1, t2, t3):
+        pts = [((1 - t) * a[0] + t * b[0], (1 - t) * a[1] + t * b[1]) for a, b in zip(pts[:-1], pts[1:])]
+    return pts[0]
+
+
+def extended_cubics(cps, length):
+    """The curve's cubics with one cubic added at each end: the end cubic's own
+    polynomial continued `length` px of arc length past its end point (its
+    control points on [-tau, 0] and [1, 1 + tau], by blossoming).  The cubics
+    of record are returned unchanged between the two additions.
+
+    A length the continuation cannot reach by tau = 1 (the end cubic's own
+    parameter span) is refused rather than clamped.  The result is cached:
+    the optimiser rebuilds every layer's markup on every evaluation."""
+    key = tuple(tuple((float(q[0]), float(q[1])) for q in c) for c in cps)
+    return [[list(q) for q in c] for c in _extended_cubics(key, float(length))]
+
+
+@functools.lru_cache(maxsize=64)
+def _extended_cubics(cps, length):
+    def piece(c, forward):
+        def seg(tau):
+            a, b = (1.0, 1.0 + tau) if forward else (-tau, 0.0)
+            return [_blossom(c, a, a, a), _blossom(c, a, a, b), _blossom(c, a, b, b), _blossom(c, b, b, b)]
+
+        def arclen(q, n=400):
+            s, prev = 0.0, q[0]
+            for i in range(1, n + 1):
+                t = i / float(n)
+                u = 1.0 - t
+                pt = (u ** 3 * q[0][0] + 3 * u * u * t * q[1][0] + 3 * u * t * t * q[2][0] + t ** 3 * q[3][0],
+                      u ** 3 * q[0][1] + 3 * u * u * t * q[1][1] + 3 * u * t * t * q[2][1] + t ** 3 * q[3][1])
+                s += math.hypot(pt[0] - prev[0], pt[1] - prev[1])
+                prev = pt
+            return s
+        reach = arclen(seg(1.0))
+        if reach < length:
+            raise ValueError("extend %.1f px is past the end cubic's own span (%.1f px at tau = 1)"
+                             % (length, reach))
+        lo, hi = 0.0, 1.0
+        for _ in range(40):
+            mid = 0.5 * (lo + hi)
+            if arclen(seg(mid)) < length:
+                lo = mid
+            else:
+                hi = mid
+        return tuple(seg(0.5 * (lo + hi)))
+    return (piece(cps[0], False),) + cps + (piece(cps[-1], True),)
+
+
+def ribbon_path(g, side, inset, width, table, knot=24.0):
+    """A variable-width arc: the region between the curve of record (moved
+    `inset` as in `bezier_arc_path`) offset by +-w(y)/2 along its normal, with
+    round ends, as ONE closed path to be filled.  A stroke's width is constant
+    along its path; the curves' cores are not (about 6.2 px at the tips, wider
+    toward mid-height), so a layer carrying `width_taper` is drawn this way.
+
+    `table` is [[y, factor], ...] (both curves) or {"left": [...], "right":
+    [...]}: w(y) = width * factor, linear in y between knots and held beyond
+    the first and last.  Each edge is sampled every px of arc length and
+    emitted as cubic Hermite pieces every `knot` px (their deviation from the
+    sampled offset is far below 0.01 px at these radii).  A layer without the
+    key is still drawn as a stroke, so existing files render exactly as before.
+    """
+    pts_tab = table[side] if isinstance(table, dict) else table
+    ty = [float(y) for y, _ in pts_tab]
+    tf = [float(v) for _, v in pts_tab]
+
+    def w_at(y):
+        if y <= ty[0]:
+            return width * tf[0]
+        if y >= ty[-1]:
+            return width * tf[-1]
+        for i in range(1, len(ty)):
+            if y <= ty[i]:
+                u = (y - ty[i - 1]) / (ty[i] - ty[i - 1])
+                return width * (tf[i - 1] + u * (tf[i] - tf[i - 1]))
+        return width * tf[-1]
+
+    cps = g["cubics"][side]
+    cx, cy = g["insetcentre"][side]
+
+    def T(q):
+        if not inset:
+            return q
+        dx, dy = q[0] - cx, q[1] - cy
+        d = math.hypot(dx, dy) or 1.0
+        k = max(0.0, 1.0 - inset / d)
+        return (cx + dx * k, cy + dy * k)
+
+    samples = []            # (x, y, tx, ty) along the whole curve, about 1 px apart
+    for si, seg in enumerate(cps):
+        p0, p1, p2, p3 = [T(q) for q in seg]
+        chord = (math.hypot(p1[0] - p0[0], p1[1] - p0[1]) + math.hypot(p2[0] - p1[0], p2[1] - p1[1])
+                 + math.hypot(p3[0] - p2[0], p3[1] - p2[1]))
+        n = max(16, int(math.ceil(chord)))
+        for i in range(0 if si == 0 else 1, n + 1):
+            t = i / n
+            u = 1.0 - t
+            x = u ** 3 * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t ** 3 * p3[0]
+            y = u ** 3 * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t ** 3 * p3[1]
+            dx = 3 * u * u * (p1[0] - p0[0]) + 6 * u * t * (p2[0] - p1[0]) + 3 * t * t * (p3[0] - p2[0])
+            dy = 3 * u * u * (p1[1] - p0[1]) + 6 * u * t * (p2[1] - p1[1]) + 3 * t * t * (p3[1] - p2[1])
+            dn = math.hypot(dx, dy) or 1.0
+            samples.append((x, y, dx / dn, dy / dn))
+
+    def edge(sign):
+        return [(x - sign * ty_ * 0.5 * w_at(y), y + sign * tx_ * 0.5 * w_at(y)) for x, y, tx_, ty_ in samples]
+
+    def hermite(pts):
+        """cubic pieces through every `knot`-th point, tangents by central differences"""
+        n = len(pts)
+        step = max(2, int(round(knot)))
+        ks = list(range(0, n - 1, step)) + [n - 1]
+        if len(ks) > 2 and ks[-1] - ks[-2] < step // 2:
+            del ks[-2]
+
+        def der(i):
+            a, b = pts[max(0, i - 1)], pts[min(n - 1, i + 1)]
+            return ((b[0] - a[0]) / (min(n - 1, i + 1) - max(0, i - 1)),
+                    (b[1] - a[1]) / (min(n - 1, i + 1) - max(0, i - 1)))
+        out = []
+        for a, b in zip(ks[:-1], ks[1:]):
+            da, db = der(a), der(b)
+            m = (b - a) / 3.0
+            out.append("C%s,%s %s,%s %s,%s" % (
+                f(pts[a][0] + da[0] * m, 3), f(pts[a][1] + da[1] * m, 3),
+                f(pts[b][0] - db[0] * m, 3), f(pts[b][1] - db[1] * m, 3),
+                f(pts[b][0], 3), f(pts[b][1], 3)))
+        return out
+
+    fwd, back = edge(1.0), edge(-1.0)[::-1]
+    he, hs = 0.5 * w_at(samples[-1][1]), 0.5 * w_at(samples[0][1])
+    # round ends: half circles from one edge to the other, bulging along the
+    # end tangent (sweep 0 turns the normal toward +tangent at the far end and
+    # toward -tangent at the near end in SVG's y-down user space)
+    return ("M%s,%s " % (f(fwd[0][0], 3), f(fwd[0][1], 3)) + " ".join(hermite(fwd))
+            + " A%s,%s 0 0 0 %s,%s " % (f(he, 3), f(he, 3), f(back[0][0], 3), f(back[0][1], 3))
+            + " ".join(hermite(back))
+            + " A%s,%s 0 0 0 %s,%s Z" % (f(hs, 3), f(hs, 3), f(fwd[0][0], 3), f(fwd[0][1], 3)))
+
+
 def arc_path(g, side, inset=0.0):
     """Elliptical-arc path for one luminous curve.
 
@@ -479,6 +625,14 @@ class Builder:
         for side in ("left", "right"):
             g = p["geometry"]["arc_" + side]
             self.defs.append('<path id="a%s" d="%s"/>' % (side[0], self.arc_d(side)))
+            # A layer with a `convex_taper` is split at its curve into the
+            # concave part (its own taper) and the flare-facing convex part
+            # (the convex taper).  The split runs `split` px on the flare side
+            # of the curve of record, inside the curve's bright core, so the
+            # seam sits where the core screens it out.
+            for split in sorted({float(L.get("split", 1.5)) for L in p["layers"]
+                                 if L.get("kind") == "arc" and L.get("convex_taper")}):
+                self.defs.extend(self.side_clips(side, split))
             # The broad glow lives only on the concave side of each arc, so it
             # is clipped to that arc's own ellipse intersected with the frame
             # (a clipPath carrying its own clip-path intersects -- verified
@@ -492,6 +646,36 @@ class Builder:
                 '<ellipse cx="%s" cy="%s" rx="%s" ry="%s"/></clipPath>'
                 % (side[0].upper(), f(le["cx"]), f(le["cy"]),
                    f(le["rx"] + grow), f(le["ry"] + grow)))
+
+    def split_id(self, side, split, convex):
+        return "%s%s_%s" % ("cv" if convex else "cc", side[0].upper(), f(split, 2).replace(".", "p").replace("-", "n"))
+
+    def side_clips(self, side, split):
+        """Two complementary clips for one curve: its concave side and its
+        convex (flare-facing) side, divided along the curve of record moved
+        `split` px towards the flare, each intersected with the frame.  The
+        dividing line is the curve itself, extended straight along its end
+        tangents past the frame, and the concave region is closed far out on
+        the concave side; the convex region is the canvas minus it
+        (even-odd)."""
+        g = self.p["geometry"]["arc_" + side]
+        d = bezier_arc_path(g, side, -split)
+        cps = g["cubics"][side]
+        (t0, t1), (b2, b3) = (cps[0][0], cps[0][1]), (cps[-1][2], cps[-1][3])
+        def ext(a, b):      # point far beyond `b` along a->b
+            dx, dy = b[0] - a[0], b[1] - a[1]
+            n = math.hypot(dx, dy) or 1.0
+            return (b[0] + 4000 * dx / n, b[1] + 4000 * dy / n)
+        tf, bf = ext(t1, t0), ext(b2, b3)
+        far = -9000.0 if side == "left" else 9000.0
+        body = d.replace("M", "", 1)
+        region = "M%s,%s L%s L%s,%s L%s,%s L%s,%s Z" % (f(tf[0], 1), f(tf[1], 1), body, f(bf[0], 1), f(bf[1], 1),
+                                                   f(far, 1), f(9000.0, 1), f(far, 1), f(-9000.0, 1))
+        return ['<clipPath id="%s" clip-path="url(#fc)"><path d="%s"/></clipPath>'
+                % (self.split_id(side, split, False), region),
+                '<clipPath id="%s" clip-path="url(#fc)" clip-rule="evenodd">'
+                '<path clip-rule="evenodd" d="M-9500,-9500 H9500 V9500 H-9500 Z %s"/></clipPath>'
+                % (self.split_id(side, split, True), region)]
 
     def arc_d(self, side, inset=0.0):
         g = self.p["geometry"]["arc_" + side]
@@ -594,6 +778,34 @@ class Builder:
             '<radialGradient id="%s" gradientUnits="userSpaceOnUse" cx="%s" cy="%s" r="%s"%s>%s</radialGradient>'
             % (gid, f(cx), f(cy), f(r), tr, body), gid)
 
+    def gap_mask(self, gid, g):
+        """A luminance mask that removes a blurred annular sector from one layer.
+
+        `gap` = {cx, cy, th0, th1, r0, r1, depth, blur}: the sector between the
+        angles th0..th1 (degrees, counter-clockwise from east with y UP, so 90
+        is due north) and the radii r0..r1 about (cx, cy), blurred by `blur`,
+        is multiplied by (1 - depth).  It only ever lowers the layer's own
+        coverage, so the composite stays a screen of non-negative layers: this
+        is a directional layer, not a darkening one.  resvg reads a luminance
+        mask linearly in sRGB values (a #808080 mask passes exactly half).
+        The mask is in the element's user space, so on a layer with `rot` the
+        gap turns with it.  A layer without `gap` emits exactly what it did.
+        """
+        n = 24
+        t0, t1 = math.radians(g["th0"]), math.radians(g["th1"])
+        ts = [t0 + (t1 - t0) * i / (n - 1.0) for i in range(n)]
+        cx, cy, r0, r1 = g["cx"], g["cy"], g["r0"], g["r1"]
+        pts = ([(cx + r0 * math.cos(t), cy - r0 * math.sin(t)) for t in ts] +
+               [(cx + r1 * math.cos(t), cy - r1 * math.sin(t)) for t in reversed(ts)])
+        d = "M" + " L".join("%s,%s" % (f(x, 2), f(y, 2)) for x, y in pts) + " Z"
+        filt = ' filter="url(#%s)"' % self.blur(g["blur"]) if g.get("blur") else ""
+        mid = "m_" + gid
+        return self.add_def(
+            '<mask id="%s" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">'
+            '<rect width="1024" height="1024" fill="#ffffff"/>'
+            '<path d="%s" fill="#000000" fill-opacity="%s"%s/></mask>'
+            % (mid, d, f(g.get("depth", 1.0), 4), filt), mid)
+
     # -- one layer --------------------------------------------------------- #
     def layer(self, L, white=False):
         """Return the SVG element for layer L (white/full opacity when fitting).
@@ -674,6 +886,35 @@ class Builder:
                     cattr = ""
                 else:
                     cattr = ' clip-path="url(#fc)"'
+                if L.get("width_taper"):
+                    # a variable-width core: one filled offset outline (a
+                    # stroke's width is constant along its path)
+                    assert not L.get("convex_taper"), "width_taper and convex_taper do not combine"
+                    assert not L.get("extend"), "width_taper and extend do not combine"
+                    g = self.p["geometry"]["arc_" + side]
+                    rd = ribbon_path(g, side, L.get("inset", 0.0), L["width"], L["width_taper"])
+                    out.append('<path d="%s" fill="%s" stroke="none"%s%s%s%s/>'
+                               % (rd, paint, filt, cattr, opa, blend))
+                    continue
+                if L.get("extend"):
+                    # a tip layer: the stroke runs `extend` px past both ends
+                    # of the curve of record, along the end cubics' own
+                    # continuation (the cubics themselves are not changed)
+                    assert not L.get("convex_taper"), "extend and convex_taper do not combine"
+                    g = dict(self.p["geometry"]["arc_" + side])
+                    g["cubics"] = {side: extended_cubics(g["cubics"][side], float(L["extend"]))}
+                    d = bezier_arc_path(g, side, L.get("inset", 0.0))
+                if L.get("convex_taper"):
+                    # directional fade: the concave part keeps the layer's own
+                    # taper, the flare-facing part takes `convex_taper`
+                    assert cl == "frame" and L.get("taper"), "convex_taper needs a tapered, frame-clipped arc layer"
+                    sp = float(L.get("split", 1.5))
+                    pcv = "url(#%s)" % self.taper_paint(gid + side[0] + "x", L["convex_taper"], col, side)
+                    for pt, cid in ((paint, self.split_id(side, sp, False)), (pcv, self.split_id(side, sp, True))):
+                        out.append(
+                            '<path d="%s" fill="none" stroke="%s" stroke-width="%s" stroke-linecap="%s"%s clip-path="url(#%s)"%s%s/>'
+                            % (d, pt, f(L["width"]), L.get("linecap", "round"), filt, cid, opa, blend))
+                    continue
                 out.append(
                     '<path d="%s" fill="none" stroke="%s" stroke-width="%s" stroke-linecap="%s"%s%s%s%s/>'
                     % (d, paint, f(L["width"]), L.get("linecap", "round"), filt, cattr, opa, blend)
@@ -687,8 +928,9 @@ class Builder:
                               L.get("squash", 1.0), L.get("rot", 0.0))
             rx = L["r"]; ry = L["r"] * L.get("squash", 1.0)
             tr = ' transform="rotate(%s %s %s)"' % (f(L["rot"]), f(cx), f(cy)) if L.get("rot") else ""
-            return ('<ellipse cx="%s" cy="%s" rx="%s" ry="%s" fill="url(#%s)"%s%s%s%s%s/>'
-                    % (f(cx), f(cy), f(rx), f(ry), gid, tr, filt, clip, opa, blend))
+            mk = ' mask="url(#%s)"' % self.gap_mask(gid, L["gap"]) if L.get("gap") else ""
+            return ('<ellipse cx="%s" cy="%s" rx="%s" ry="%s" fill="url(#%s)"%s%s%s%s%s%s/>'
+                    % (f(cx), f(cy), f(rx), f(ry), gid, tr, filt, clip, mk, opa, blend))
 
         if kind == "streak":
             # One member of the central light's horizontal streak family.
@@ -846,6 +1088,10 @@ class Builder:
             # pass did, and reverted -- over-corrects inside r 70 and
             # under-corrects beyond r 150, because a rotation gives a CONSTANT
             # angular offset and the measured one is constant in PIXELS.
+            # Since D63 every ray of record pins its origin with its own
+            # `cx`/`cy` (its measured foot, tools/measure_flare.py) and carries
+            # no dx/dy: an origin relative to the flare centre moved with the
+            # optimiser's search of that centre.  dx/dy remain an offset on top.
             cx = L.get("cx", fl["cx"]) + float(L.get("dx", 0.0))
             cy = L.get("cy", fl["cy"]) + float(L.get("dy", 0.0))
             ln, h, pk = L["len"], L["height"], L.get("peak_at", 0.3)
@@ -870,14 +1116,26 @@ class Builder:
             # whole element outward -- which puts its near end on a curve ridge
             # and trips the banding check.  A ray's inner extent is a measurable
             # property of the reference and now has a parameter of its own.
+            #
+            # `tail` is where the fade reaches 0.42 of peak, as a fraction of
+            # `len` past `peak_at`.  It was a constant 0.35, which TIED a ray's
+            # fade to its peak: a ray peaking at 0.62 of its length had to reach
+            # 0.42 at 0.97 and then drop to zero in the last 3% -- the upper-left
+            # inner ray fell from 42% to nothing between r 97 and r 100 where the
+            # reference fades out over r 90-120 -- and a lobe whose peak sits
+            # right could not also end where the reference ends.  The fade is a
+            # measurable property of each ray (tools/ray_lines.py) and now has
+            # its own parameter; absent means 0.35, which reproduces every
+            # existing ray exactly.
             on = float(L.get("onset", 0.0))
+            tl = float(L.get("tail", 0.35))
             if on > 0.0:
                 on = min(on, pk * 0.95)
                 ramp = ((0.0, 0.0), (on, 0.0), (on + (pk - on) * 0.5, 0.62), (pk, 1.0),
-                        (min(0.999, pk + 0.35), 0.42), (1.0, 0.0))
+                        (min(0.999, pk + tl), 0.42), (1.0, 0.0))
             else:
                 ramp = ((0.0, 0.0), (pk * 0.5, 0.62), (pk, 1.0),
-                        (min(0.999, pk + 0.35), 0.42), (1.0, 0.0))
+                        (min(0.999, pk + tl), 0.42), (1.0, 0.0))
             body = "".join('<stop offset="%s" stop-color="%s" stop-opacity="%s"/>' % (f(o, 4), col, f(av, 4))
                            for o, av in ramp)
             self.add_def('<linearGradient id="%s" gradientUnits="userSpaceOnUse" x1="%s" y1="%s" '
