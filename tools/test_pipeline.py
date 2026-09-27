@@ -2382,7 +2382,15 @@ def main():
                                          os.path.join(ROOT, "reference.png"))
             if _fresh:
                 _diag.append("a sheet drawn just now reads as stale: %s" % _fresh[0])
-            if not _FPT.sheet_problems(_sheet, os.path.join(_bd, "reconstruction.svg"), _bd):
+            # The different SVG is made here: the release with a comment
+            # appended, so its digest differs.  It used to be the baseline's
+            # SVG, which on a commit that only re-pins the baseline to this
+            # release IS this release -- the probe then compared the release
+            # with itself and failed a sound sheet.
+            _other = os.path.join(_td3, "other.svg")
+            open(_other, "wb").write(open(os.path.join(ROOT, "reconstruction.svg"), "rb").read()
+                                     + b"<!-- not the release -->\n")
+            if not _FPT.sheet_problems(_sheet, _other, _bd):
                 _diag.append("a sheet checked against a different SVG was not reported stale")
             _sh2.copy(_sheet, _sheet + ".t.png")
             _sh2.copy(_sheet + ".prov.json", _sheet + ".t.png.prov.json")
@@ -2422,6 +2430,18 @@ def main():
         _sp.run([sys.executable, os.path.join(ROOT, "tools", "render.py"),
                  os.path.join(_bd4, "reconstruction.svg"), os.path.join(_bd4, "render_1024.png")],
                 check=True, capture_output=True)
+        # (2)'s other authentic render is made here too, by render.py so it has
+        # its own sidecar: the release with a mark drawn on it, so its pixels
+        # differ (a comment alone changes the SVG's digest and not one pixel).
+        # It used to be the baseline's render, which on a commit that only
+        # re-pins the baseline to this release IS this render, byte for byte.
+        _osvg, _opng = os.path.join(_td4, "other.svg"), os.path.join(_td4, "other.png")
+        _svg4 = open(os.path.join(ROOT, "reconstruction.svg"), "rb").read()
+        _end4 = _svg4.rindex(b"</svg>")
+        open(_osvg, "wb").write(_svg4[:_end4] + b'<rect width="16" height="16" fill="#f0f"/>\n'
+                                + _svg4[_end4:])
+        _sp.run([sys.executable, os.path.join(ROOT, "tools", "render.py"), _osvg, _opng],
+                check=True, capture_output=True)
         _sheet4 = os.path.join(_td4, "sheet.png")
         _r4 = _sp.run([sys.executable, os.path.join(ROOT, "tools", "flare_parts.py"), _rel,
                        "--svg", os.path.join(ROOT, "reconstruction.svg"), "--baseline", _bd4,
@@ -2441,7 +2461,7 @@ def main():
         else:
             # (2) another AUTHENTIC render, with its own valid sidecar, put in its place
             for _ext in ("", ".prov.json"):
-                _sh4.copy(os.path.join(_bd4, "render_1024.png") + _ext, _rel + _ext)
+                _sh4.copy(_opng + _ext, _rel + _ext)
             if not any("no longer there" in m for m in _p4()):
                 _src_diag.append("(2) a source render replaced by another authentic render passed")
             _restore()
