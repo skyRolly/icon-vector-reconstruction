@@ -10,7 +10,7 @@ rounded-square frame — as a hand-built, parametric SVG.
 
 <!-- DELIVERABLE:START -->
 **Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 55 named
-layers, 134 KB, no embedded bitmap and no traced outlines. Every mark is a
+layers, 146 KB, no embedded bitmap and no traced outlines. Every mark is a
 primitive driven by a named parameter in
 [`src/params.json`](src/params.json): one path for the frame, two cubic-Bézier
 paths for the luminous curves (reused, offset and clipped, by every glow
@@ -25,15 +25,15 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 
 | metric | value | for scale |
 |---|---|---|
-| mean absolute error | **1.680** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 3.090 | |
-| MAE on a 1/2.2 display curve | 5.224 | weights the dark background as the eye does; black scores 59.7 |
+| mean absolute error | **1.673** / 255 | a flat black canvas scores 17.89 |
+| RMSE | 3.060 | |
+| MAE on a 1/2.2 display curve | 5.219 | weights the dark background as the eye does; black scores 59.7 |
 | SSIM (luminance) | **0.9765** | black scores 0.142 |
 | worst single-channel error | 67 | |
 | pixels off by more than 2 / 8 / 24 | 33.8% / 3.6% / 0.3% | |
-| mean bias | -0.193 | |
+| mean bias | -0.182 | |
 
-Per region (MAE): frame band 2.50, centre 90 px 4.58, bright pixels 7.71, dark background 1.31, everything else 1.52.
+Per region (MAE): frame band 2.50, centre 90 px 4.58, bright pixels 7.48, dark background 1.31, everything else 1.51.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -209,7 +209,12 @@ restated those numbers drifted out of date twice, so it no longer does.
    cubic's own polynomial, with the cubics of record unchanged (D68). At the
    two north ends the reference's white also holds further toward the corners
    than the core's measured fade drew, so three of its stations were
-   re-measured there (D69).
+   re-measured there (D69). These fades are measured along the curves but
+   painted as gradients along y, whose rows cross the curves' oblique ends and
+   tilt the fade toward the lens. Where the reference's light lies across the
+   curve itself, at the core's two north ends and the tip stroke's two south
+   ends, the fade is painted along the curve instead. Six of the right curve's
+   stations over its south outer third were then re-measured (D70).
 5. **Rim** — two frame-ring strokes, a uniform base and a gradient-painted rim,
    because the measured rim brightness peaks at the middle of each edge and the
    top edge is twice as bright as the bottom. Two further layers light the four

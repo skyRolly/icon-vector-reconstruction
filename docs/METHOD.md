@@ -366,6 +366,40 @@ it 60 px of arc length past both ends (`extend`), along one extra cubic per
 end that is the end cubic's polynomial on [-tau, 0] and [1, 1 + tau]. The
 cubics of record are not changed.
 
+A table taper is painted as a gradient along y (`taper_stops`), and its rows
+are square to a curve only where the curve is vertical. Toward the ends the
+curves run at 21-27 degrees to the horizontal, so there the rows cross the
+stroke obliquely. The fade changes across the stroke 2-2.5 times as fast as
+along it, and its light leans toward the concave side, which lies toward the
+curve's middle rows. At every end, the model's core and tip light sat up to
+0.5-0.9 px toward the lens. A layer's `taper_axis` can paint its table along
+the curve instead, at chosen ends (`curve_axis_stops`). Inside an end zone
+the layer is drawn through a mask carrying (1 - w) Y + w T:
+- Y is the y-paint;
+- T carries the same centre-line values along the end's own tangent;
+- the weight w = a / (a - b) comes from the local tangent, where a and b are
+  the two paints' across-to-along ratios. It cancels the tilt to first order.
+
+The weight is 1 past the end. It holds until the curve has turned a quarter
+of the way to vertical, and falls to 0 by halfway. Outside the zone the layer
+is the y-paint. The zone is cut by hard gradient stops in both the mask and
+the paint, never by a shape's edge. A gradient is read at each pixel's centre,
+so at any render size a pixel row that the zone edge crosses falls wholly on
+one side of it. A shape's anti-aliased edge would mix the two sides and leave
+a line at render sizes that are not multiples of 256 px.
+
+The reference supports this at two sets of ends:
+- the core's two north ends, where its core stays on the curve of record
+  while the model's leaned lens-ward;
+- the tip stroke's two south ends, where its tails lie flare-ward of the
+  continuation.
+
+It does not support it at the core's south ends, whose lens-side excess is
+in white only, or at the north tails, which themselves lie lens-ward of the
+continuation. Those keep the y-paint. After the change, six of `tapers.core`'s
+right stations (y 740-840) were re-measured. Over the right curve's south
+outer third, the core's light was 6-12% short in all three channels (D70).
+
 ### 4c. Light past the ends of the curves: the interior corners
 
 The drawn curves end at \|t\| = 66-69 degrees (the four Bezier endpoints are at

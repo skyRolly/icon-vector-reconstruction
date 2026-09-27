@@ -3140,6 +3140,9 @@
    "inset": 0.0,
    "kind": "arc",
    "taper": "core",
+   "taper_axis": {
+    "north": "curve"
+   },
    "white": 0.84799,
    "width": 6.832,
    "width_taper": [
@@ -3160,7 +3163,7 @@
      0.9368
     ]
    ],
-   "note": "D67 (curve tips): drawn as a variable-width ribbon (width_taper): 6.832 px from y 210 to 820, narrowing linearly to 6.4 px by y 170 and 860 and held beyond.  Measured along the normal of the curve of record, both curves' core edges sat 0.2-0.45 px too far out on both sides at the tips (y < 170, > 850), where the reference's core is about 6.1-6.3 px wide; a narrower full-length stroke would have cost the mid-height edges, which the cyan edge strokes cannot give back."
+   "note": "D67 (curve tips): drawn as a variable-width ribbon (width_taper): 6.832 px from y 210 to 820, narrowing linearly to 6.4 px by y 170 and 860 and held beyond.  Measured along the normal of the curve of record, both curves' core edges sat 0.2-0.45 px too far out on both sides at the tips (y < 170, > 850), where the reference's core is about 6.1-6.3 px wide; a narrower full-length stroke would have cost the mid-height edges, which the cyan edge strokes cannot give back. D70: its table is painted along the curve at the two north ends (taper_axis; build_svg.curve_axis_stops), where the y-gradient's rows crossed the oblique ends and leaned the core toward the lens; the reference's core there stays on the curve. The south ends keep the y-paint: their lens-side excess is white only."
   },
   {
    "blue": 0.06856,
@@ -3232,6 +3235,9 @@
    "blur": 0.6137416122421083,
    "extend": 60.0,
    "taper": "core_tip",
+   "taper_axis": {
+    "south": "curve"
+   },
    "white": 0.106761,
    "cyan": 0.377992,
    "blue": 0.012023,
@@ -3669,27 +3675,27 @@
     ],
     [
      740,
-     0.7812
+     0.8258
     ],
     [
      760,
-     0.8271
+     0.8762
     ],
     [
      780,
-     0.8479
+     0.9139
     ],
     [
      800,
-     0.8901
+     0.9496
     ],
     [
      820,
-     0.8197
+     0.8894
     ],
     [
      840,
-     0.7934
+     0.867
     ],
     [
      860,
@@ -5273,7 +5279,7 @@
    "y2": 545.9039999999999,
    "y3": 940.0
   },
-  "note": "core/glow1..3 are the measured station-by-station fades of the core coverage and of the three glow gaussians' G amplitudes (out/analysis/arc_photometry.json). core_wide is the extra width the core gains towards mid-height. | haze and glow2b are ramps, not measured tables: both layers postdate the station-by-station cross-section fit, so reusing glow3's table for them would be an assumption dressed as a measurement. Resolving the profile error by |t| band showed exactly why it matters: at |t| 40-62 deg the concave side was +13 to +27% too bright and the convex side 9-15% too dark, i.e. the glow is less one-sided towards the tips than glow3's fade allows. | D67: glow2_cv is arc_glow2's flare-facing fade (its convex_taper), glow2's table times a per-side gain measured on the flare side; glow1b is now a measured per-side table (arc_glow1b's flare-side band), no longer a ramp.",
+  "note": "core/glow1..3 are the measured station-by-station fades of the core coverage and of the three glow gaussians' G amplitudes (out/analysis/arc_photometry.json). core_wide is the extra width the core gains towards mid-height. | haze and glow2b are ramps, not measured tables: both layers postdate the station-by-station cross-section fit, so reusing glow3's table for them would be an assumption dressed as a measurement. Resolving the profile error by |t| band showed exactly why it matters: at |t| 40-62 deg the concave side was +13 to +27% too bright and the convex side 9-15% too dark, i.e. the glow is less one-sided towards the tips than glow3's fade allows. | D67: glow2_cv is arc_glow2's flare-facing fade (its convex_taper), glow2's table times a per-side gain measured on the flare side; glow1b is now a measured per-side table (arc_glow1b's flare-side band), no longer a ramp. | D70: core's right stations 740-840 re-measured over the right curve's south outer third, where the core body was short of light in all three channels (each the median of 16 fits).",
   "glow1w": {
    "kind": "table",
    "gamma": 1.0,
