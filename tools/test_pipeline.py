@@ -2672,6 +2672,36 @@ def main():
           "and the saved file renders and scores %.4f as reported; with nothing protected it stops at "
           "the last layer" % (len(_pr_rays), _pr_mae))
 
+    # The before/after sheet's probes (6i and D65's) run against two
+    # baselines.  One is the pinned one, out/baseline/.  The other is this
+    # release pinned as its own baseline, which is what a commit that only
+    # re-pins the baseline looks like (out/baseline/manifest.json asks for
+    # that once a release is accepted): until D71 two probes used the pinned
+    # baseline as their "other" SVG and render, and so failed a sound sheet
+    # whenever the two were the same release.  Each probe now makes its own
+    # other input, and this keeps them honest whether or not they differ.
+    def _sheet_baselines(td):
+        import hashlib as _hl
+        import shutil as _shb
+        out = []
+        for say, own in (("", False), ("with the release as its own baseline: ", True)):
+            d = os.path.join(td, "baseline_own" if own else "baseline")
+            os.makedirs(d)
+            if own:
+                _shb.copy(os.path.join(ROOT, "reconstruction.svg"), d)
+                m = json.load(open(os.path.join(ROOT, "out", "baseline", "manifest.json")))
+                m["svg"] = "reconstruction.svg"
+                m["svg_sha256"] = _hl.sha256(open(os.path.join(d, "reconstruction.svg"), "rb").read()).hexdigest()
+                json.dump(m, open(os.path.join(d, "manifest.json"), "w"))
+            else:
+                for f in ("reconstruction.svg", "manifest.json"):
+                    _shb.copy(os.path.join(ROOT, "out", "baseline", f), d)
+            _sp.run([sys.executable, os.path.join(ROOT, "tools", "render.py"),
+                     os.path.join(d, "reconstruction.svg"), os.path.join(d, "render_1024.png")],
+                    check=True, capture_output=True)
+            out.append((say, d))
+        return out
+
     # ---- 6i. the diagnostics refuse inputs they cannot read ---------------- #
 
     # ray_lines sampled whatever it was given: a 512-px render came back as a
@@ -2703,58 +2733,55 @@ def main():
         # The before/after sheet is a publish artefact: built from a baseline
         # whose manifest names its SVG by digest and from renders whose
         # provenance matches the SVGs they are labelled as -- and refused
-        # otherwise.
-        _bd = os.path.join(_td3, "baseline")
-        os.makedirs(_bd)
-        for _f in ("reconstruction.svg", "manifest.json"):
-            _sh2.copy(os.path.join(ROOT, "out", "baseline", _f), _bd)
-        _sp.run([sys.executable, os.path.join(ROOT, "tools", "render.py"),
-                 os.path.join(_bd, "reconstruction.svg"), os.path.join(_bd, "render_1024.png")],
-                check=True, capture_output=True)
-        _fp_args = [os.path.join(ROOT, "out", "render_1024.png"), "--svg",
-                    os.path.join(ROOT, "reconstruction.svg"), "--baseline", _bd,
-                    "--labels", "this release", "--out", os.path.join(_td3, "sheet.png")]
-        _r = _sp.run([sys.executable, os.path.join(ROOT, "tools", "flare_parts.py")] + _fp_args,
-                     capture_output=True, text=True, cwd=ROOT)
-        if _r.returncode != 0:
-            _diag.append("flare_parts refused the shipped release: %s" % _r.stderr.strip()[:160])
-        # ... and it says what it was drawn from, so a stale sheet is caught.
+        # otherwise.  Each probe runs against the pinned baseline and against
+        # the release pinned as its own baseline (_sheet_baselines): no probe
+        # may lean on the two being different releases.
         import flare_parts as _FPT
-        _sheet = os.path.join(_td3, "sheet.png")
-        # (Only if it was drawn: a refusal above is already a failure, and
-        # copying a sheet that does not exist would abort the whole suite.)
-        if os.path.exists(_sheet):
-            _fresh = _FPT.sheet_problems(_sheet, os.path.join(ROOT, "reconstruction.svg"), _bd,
-                                         os.path.join(ROOT, "reference.png"))
-            if _fresh:
-                _diag.append("a sheet drawn just now reads as stale: %s" % _fresh[0])
-            # The different SVG is made here: the release with a comment
-            # appended, so its digest differs.  It used to be the baseline's
-            # SVG, which on a commit that only re-pins the baseline to this
-            # release IS this release -- the probe then compared the release
-            # with itself and failed a sound sheet.
-            _other = os.path.join(_td3, "other.svg")
-            open(_other, "wb").write(open(os.path.join(ROOT, "reconstruction.svg"), "rb").read()
-                                     + b"<!-- not the release -->\n")
-            if not _FPT.sheet_problems(_sheet, _other, _bd):
-                _diag.append("a sheet checked against a different SVG was not reported stale")
-            _sh2.copy(_sheet, _sheet + ".t.png")
-            _sh2.copy(_sheet + ".prov.json", _sheet + ".t.png.prov.json")
-            open(_sheet + ".t.png", "ab").write(b"\0")
-            if not _FPT.sheet_problems(_sheet + ".t.png", os.path.join(ROOT, "reconstruction.svg"), _bd):
-                _diag.append("a sheet whose bytes changed was not caught")
-        _man = json.load(open(os.path.join(_bd, "manifest.json")))
-        _man["svg_sha256"] = "0" * 64
-        json.dump(_man, open(os.path.join(_bd, "manifest.json"), "w"))
-        _r = _sp.run([sys.executable, os.path.join(ROOT, "tools", "flare_parts.py")] + _fp_args,
-                     capture_output=True, text=True, cwd=ROOT)
-        if _r.returncode != 2:
-            _diag.append("flare_parts drew a sheet whose baseline manifest does not name its SVG")
+        for _bsay, _bd in _sheet_baselines(_td3):
+            _sheet = os.path.join(_bd, "sheet.png")
+            _fp_args = [os.path.join(ROOT, "out", "render_1024.png"), "--svg",
+                        os.path.join(ROOT, "reconstruction.svg"), "--baseline", _bd,
+                        "--labels", "this release", "--out", _sheet]
+            _r = _sp.run([sys.executable, os.path.join(ROOT, "tools", "flare_parts.py")] + _fp_args,
+                         capture_output=True, text=True, cwd=ROOT)
+            if _r.returncode != 0:
+                _diag.append("%sflare_parts refused the shipped release: %s" % (_bsay, _r.stderr.strip()[:160]))
+            # ... and it says what it was drawn from, so a stale sheet is caught.
+            # (Only if it was drawn: a refusal above is already a failure, and
+            # copying a sheet that does not exist would abort the whole suite.)
+            if os.path.exists(_sheet):
+                _fresh = _FPT.sheet_problems(_sheet, os.path.join(ROOT, "reconstruction.svg"), _bd,
+                                             os.path.join(ROOT, "reference.png"))
+                if _fresh:
+                    _diag.append("%sa sheet drawn just now reads as stale: %s" % (_bsay, _fresh[0]))
+                # The different SVG is made here: the release with a comment
+                # appended, so its digest differs.  It used to be the
+                # baseline's SVG, which on a commit that only re-pins the
+                # baseline to this release IS this release -- the probe then
+                # compared the release with itself and failed a sound sheet.
+                _other = os.path.join(_bd, "other.svg")
+                open(_other, "wb").write(open(os.path.join(ROOT, "reconstruction.svg"), "rb").read()
+                                         + b"<!-- not the release -->\n")
+                if not _FPT.sheet_problems(_sheet, _other, _bd):
+                    _diag.append("%sa sheet checked against a different SVG was not reported stale" % _bsay)
+                _sh2.copy(_sheet, _sheet + ".t.png")
+                _sh2.copy(_sheet + ".prov.json", _sheet + ".t.png.prov.json")
+                open(_sheet + ".t.png", "ab").write(b"\0")
+                if not _FPT.sheet_problems(_sheet + ".t.png", os.path.join(ROOT, "reconstruction.svg"), _bd):
+                    _diag.append("%sa sheet whose bytes changed was not caught" % _bsay)
+            _man = json.load(open(os.path.join(_bd, "manifest.json")))
+            _man["svg_sha256"] = "0" * 64
+            json.dump(_man, open(os.path.join(_bd, "manifest.json"), "w"))
+            _r = _sp.run([sys.executable, os.path.join(ROOT, "tools", "flare_parts.py")] + _fp_args,
+                         capture_output=True, text=True, cwd=ROOT)
+            if _r.returncode != 2:
+                _diag.append("%sflare_parts drew a sheet whose baseline manifest does not name its SVG" % _bsay)
     check("the diagnostics refuse inputs they cannot read",
           not _diag, "; ".join(_diag) if _diag else
           "ray_lines, visual_regression and flare_parts exit 2 on a 512-px image; no sample "
           "outside the canvas; the before/after sheet verifies its baseline and its release, and "
-          "its provenance catches a stale or altered sheet")
+          "its provenance catches a stale or altered sheet, with the pinned baseline and with the "
+          "release as its own baseline")
 
     # ---- a sheet cannot vouch for a source image it no longer shows (D65) -- #
     # The review case: the sidecar recorded each column's image digest, but
@@ -2769,13 +2796,6 @@ def main():
         _rel = os.path.join(_td4, "release.png")
         for _ext in ("", ".prov.json"):
             _sh4.copy(os.path.join(ROOT, "out", "render_1024.png") + _ext, _rel + _ext)
-        _bd4 = os.path.join(_td4, "baseline")
-        os.makedirs(_bd4)
-        for _f in ("reconstruction.svg", "manifest.json"):
-            _sh4.copy(os.path.join(ROOT, "out", "baseline", _f), _bd4)
-        _sp.run([sys.executable, os.path.join(ROOT, "tools", "render.py"),
-                 os.path.join(_bd4, "reconstruction.svg"), os.path.join(_bd4, "render_1024.png")],
-                check=True, capture_output=True)
         # (2)'s other authentic render is made here too, by render.py so it has
         # its own sidecar: the release with a mark drawn on it, so its pixels
         # differ (a comment alone changes the SVG's digest and not one pixel).
@@ -2788,53 +2808,54 @@ def main():
                                 + _svg4[_end4:])
         _sp.run([sys.executable, os.path.join(ROOT, "tools", "render.py"), _osvg, _opng],
                 check=True, capture_output=True)
-        _sheet4 = os.path.join(_td4, "sheet.png")
-        _r4 = _sp.run([sys.executable, os.path.join(ROOT, "tools", "flare_parts.py"), _rel,
-                       "--svg", os.path.join(ROOT, "reconstruction.svg"), "--baseline", _bd4,
-                       "--labels", "this release", "--out", _sheet4],
-                      capture_output=True, text=True, cwd=ROOT)
-        _p4 = lambda: _FPS.sheet_problems(_sheet4, os.path.join(ROOT, "reconstruction.svg"),  # noqa: E731
-                                          _bd4, os.path.join(ROOT, "reference.png"))
         _keep = {q: open(q, "rb").read() for q in (_rel, _rel + ".prov.json")}
 
         def _restore():
             for q, b in _keep.items():
                 open(q, "wb").write(b)
-        if _r4.returncode != 0:
-            _src_diag.append("the sheet was not drawn: %s" % _r4.stderr.strip()[:160])
-        elif _p4():
-            _src_diag.append("(1) a fresh sheet with untouched sources reads as stale: %s" % _p4()[0])
-        else:
-            # (2) another AUTHENTIC render, with its own valid sidecar, put in its place
-            for _ext in ("", ".prov.json"):
-                _sh4.copy(_opng + _ext, _rel + _ext)
-            if not any("no longer there" in m for m in _p4()):
-                _src_diag.append("(2) a source render replaced by another authentic render passed")
-            _restore()
-            # (3) same filename, different bytes, sidecar left alone
-            open(_rel, "ab").write(b"\0")
-            if not _p4():
-                _src_diag.append("(3) a source render with changed bytes passed")
-            _restore()
-            # (4a) the render's provenance removed
-            os.remove(_rel + ".prov.json")
-            if not any("no provenance" in m for m in _p4()):
-                _src_diag.append("(4a) a source render without provenance passed")
-            _restore()
-            # (4b) provenance naming a different SVG (the render itself unchanged)
-            _pv = json.loads(_keep[_rel + ".prov.json"])
-            _pv["svg_sha256"] = "0" * 64
-            open(_rel + ".prov.json", "w").write(json.dumps(_pv))
-            if not _p4():
-                _src_diag.append("(4b) a source render whose provenance names another SVG passed")
-            _restore()
-            if _p4():
-                _src_diag.append("restored sources still read as stale: %s" % _p4()[0])
+        for _bsay, _bd4 in _sheet_baselines(_td4):
+            _sheet4 = os.path.join(_bd4, "sheet.png")
+            _r4 = _sp.run([sys.executable, os.path.join(ROOT, "tools", "flare_parts.py"), _rel,
+                           "--svg", os.path.join(ROOT, "reconstruction.svg"), "--baseline", _bd4,
+                           "--labels", "this release", "--out", _sheet4],
+                          capture_output=True, text=True, cwd=ROOT)
+            _p4 = lambda: _FPS.sheet_problems(_sheet4, os.path.join(ROOT, "reconstruction.svg"),  # noqa: E731
+                                              _bd4, os.path.join(ROOT, "reference.png"))
+            if _r4.returncode != 0:
+                _src_diag.append("%sthe sheet was not drawn: %s" % (_bsay, _r4.stderr.strip()[:160]))
+            elif _p4():
+                _src_diag.append("%s(1) a fresh sheet with untouched sources reads as stale: %s" % (_bsay, _p4()[0]))
+            else:
+                # (2) another AUTHENTIC render, with its own valid sidecar, put in its place
+                for _ext in ("", ".prov.json"):
+                    _sh4.copy(_opng + _ext, _rel + _ext)
+                if not any("no longer there" in m for m in _p4()):
+                    _src_diag.append("%s(2) a source render replaced by another authentic render passed" % _bsay)
+                _restore()
+                # (3) same filename, different bytes, sidecar left alone
+                open(_rel, "ab").write(b"\0")
+                if not _p4():
+                    _src_diag.append("%s(3) a source render with changed bytes passed" % _bsay)
+                _restore()
+                # (4a) the render's provenance removed
+                os.remove(_rel + ".prov.json")
+                if not any("no provenance" in m for m in _p4()):
+                    _src_diag.append("%s(4a) a source render without provenance passed" % _bsay)
+                _restore()
+                # (4b) provenance naming a different SVG (the render itself unchanged)
+                _pv = json.loads(_keep[_rel + ".prov.json"])
+                _pv["svg_sha256"] = "0" * 64
+                open(_rel + ".prov.json", "w").write(json.dumps(_pv))
+                if not _p4():
+                    _src_diag.append("%s(4b) a source render whose provenance names another SVG passed" % _bsay)
+                _restore()
+                if _p4():
+                    _src_diag.append("%srestored sources still read as stale: %s" % (_bsay, _p4()[0]))
     check("a before/after sheet re-verifies every source image it was drawn from",
           not _src_diag, "; ".join(_src_diag) if _src_diag else
           "valid sources pass; a source replaced by another authentic render, a source with "
           "changed bytes, a source without provenance and one whose provenance names another "
-          "SVG each fail")
+          "SVG each fail, with the pinned baseline and with the release as its own baseline")
 
     # ---- the baseline setup is a pinned, verified, reproducible step (D66) - #
     # A clean checkout carries the previous release's SVG, not its render;
