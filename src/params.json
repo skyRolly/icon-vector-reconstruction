@@ -3168,7 +3168,43 @@
     "north": 300,
     "south": 704
    },
-   "note": "D67 (curve tips): drawn as a variable-width ribbon (width_taper): 6.832 px from y 210 to 820, narrowing linearly to 6.4 px by y 170 and 860 and held beyond.  Measured along the normal of the curve of record, both curves' core edges sat 0.2-0.45 px too far out on both sides at the tips (y < 170, > 850), where the reference's core is about 6.1-6.3 px wide; a narrower full-length stroke would have cost the mid-height edges, which the cyan edge strokes cannot give back. D70: its table is painted along the curve at the two north ends (taper_axis; build_svg.curve_axis_stops), where the y-gradient's rows crossed the oblique ends and leaned the core toward the lens; the reference's core there stays on the curve. The south ends keep the y-paint: their lens-side excess is white only. D71: the rows outside arc_core_edge's full-strength span (y < 300, y >= 704) are drawn with blur 0.2042, the core strokes' own (end_blur; build_svg.Builder.end_rows): measured across the curve, the reference's core edge there reads an erf sigma of 0.32-0.36 px against the model's 0.54-0.67 (resvg draws stdDeviation 0.6137 as a 5-tap kernel of sigma 0.58), and arc_core alone draws the edge there.  Between those rows the core keeps 0.6137: the composite edge there (the core with arc_core_wide / arc_core_edge) is worse sharpened.  The tips narrow to 0.905 (north) and 0.888 (south) of 6.832 px, reaching 1 at y 240 and 790: at half level the reference's core is 6.17-6.23 / 6.04-6.11 px wide at the ends and widens over a longer stretch than D67's 40 rows."
+   "red_shift": {
+    "right": [
+     [
+      140,
+      0
+     ],
+     [
+      160,
+      18
+     ],
+     [
+      300,
+      18
+     ],
+     [
+      320,
+      0
+     ],
+     [
+      840,
+      0
+     ],
+     [
+      860,
+      18
+     ],
+     [
+      900,
+      18
+     ],
+     [
+      920,
+      0
+     ]
+    ]
+   },
+   "note": "D67 (curve tips): drawn as a variable-width ribbon (width_taper): 6.832 px from y 210 to 820, narrowing linearly to 6.4 px by y 170 and 860 and held beyond.  Measured along the normal of the curve of record, both curves' core edges sat 0.2-0.45 px too far out on both sides at the tips (y < 170, > 850), where the reference's core is about 6.1-6.3 px wide; a narrower full-length stroke would have cost the mid-height edges, which the cyan edge strokes cannot give back. D70: its table is painted along the curve at the two north ends (taper_axis; build_svg.curve_axis_stops), where the y-gradient's rows crossed the oblique ends and leaned the core toward the lens; the reference's core there stays on the curve. The south ends keep the y-paint: their lens-side excess is white only. D71: the rows outside arc_core_edge's full-strength span (y < 300, y >= 704) are drawn with blur 0.2042, the core strokes' own (end_blur; build_svg.Builder.end_rows): measured across the curve, the reference's core edge there reads an erf sigma of 0.32-0.36 px against the model's 0.54-0.67 (resvg draws stdDeviation 0.6137 as a 5-tap kernel of sigma 0.58), and arc_core alone draws the edge there.  Between those rows the core keeps 0.6137: the composite edge there (the core with arc_core_wide / arc_core_edge) is worse sharpened.  The tips narrow to 0.905 (north) and 0.888 (south) of 6.832 px, reaching 1 at y 240 and 790: at half level the reference's core is 6.17-6.23 / 6.04-6.11 px wide at the ends and widens over a longer stretch than D67's 40 rows.  D72: on the right curve the core is whiter (red_shift, build_svg.red_shade): its red is 18 levels higher over y 160-300 and y 860-900, ramping over the 20 rows either side, G, B and the opacity unchanged.  Through the reference's own JPEG table the plateau there reads R +10..+17 (north) and +9..+15 (south) against the model with G and B within 5; arc_core's footprint across the curve explains it (rms 8.9 -> 3.7 at the north end) and no neighbouring layer's does.  The left curve's ends and both curves' middle are not a colour difference: there every channel is off together (a cross-section shape), and a red table cannot follow it."
   },
   {
    "blue": 0.06856,

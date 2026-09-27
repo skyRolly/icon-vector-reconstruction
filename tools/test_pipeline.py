@@ -184,10 +184,10 @@ def main():
     # verify_searchable() audits `bounds` against emitted specs, so a numeric
     # field that carries no bound is invisible to it: it can stay frozen without
     # ever being reported.  That gap cannot be closed by flagging every unbounded
-    # number -- most of the model's numeric leaves are unbounded on purpose (814
-    # of 1115 in D71; the check prints the count), so a report of all of them
+    # number -- most of the model's numeric leaves are unbounded on purpose (830
+    # of 1131 in D72; the check prints the count), so a report of all of them
     # reports nothing.  What CAN be pinned is the inventory: every unbounded
-    # number today belongs to one of eighteen kinds, each searched by a
+    # number today belongs to one of nineteen kinds, each searched by a
     # different mechanism or measured rather than fitted.  A
     # new unbounded field in a NEW kind is the case worth catching, and this
     # fires on it.  `paint/x1..y2` is the one kind that is neither -- eight
@@ -219,6 +219,9 @@ def main():
         # D71: arc_core's blur on the rows outside arc_core_edge's
         # full-strength span, read from the reference's core edges and held
         "end_blur": "measured at the curve ends and held (D71)",
+        # D72: arc_core's red along the right curve, read from the reference's
+        # core plateau and held (its colour is held with it)
+        "red_shift": "measured along the right curve and held (D72)",
     }
 
     def _numeric_leaves(node, prefix):
@@ -2733,6 +2736,196 @@ def main():
           "arc_glow2 given arc_core's stroke, split by its convex_taper; end blur equal to its own vs none, max "
           "levels: " + "; ".join(_spr))
 
+    # ---- a red-shifted core changes only its red, where its table says (D72)
+    # `red_shift` moves an arc layer's red along each curve (build_svg.
+    # red_shade): its stops carry R + dR(y), with G, B and the opacity as they
+    # were.  Drawn alone on black, a layer is its paint times its coverage, so
+    # its G reads the coverage times the colour's G, and adding the key moves R
+    # by G x dR(y) / G_colour.  Read on three probes: arc_core's own table (at
+    # 1024 and 1000 px), an off-grid table on arc_core whose rows fall between
+    # the taper's (so R is interpolated between rows and stops are added), and
+    # arc_glow1, whose screen opacity is below 1 (the shift is premultiplied):
+    # - G and B are the layer's own, and 3 rows from any shifted row nothing
+    #   moves (to a level where stops are added: an added stop turns a rounding
+    #   here and there within its taper segment); R moves by G x dR / G_colour
+    #   to 2.5 levels at a pixel (each render rounds in every 8-bit buffer it
+    #   passes through) and 0.3 on average; on the flat rows R moves by at
+    #   least half of what the relation predicts at the brightest pixel;
+    # - in the full composite only R changes, only on the table's side within 3
+    #   rows of a shifted row, and only where arc_core draws;
+    # - a table of zeros on the taper's own rows builds the same SVG, one whose
+    #   rows fall between the taper's renders to a level (an added stop turns a
+    #   rounding here and there);
+    # - the white basis ignores the key;
+    # - a malformed table, or the key where it cannot apply, is refused;
+    # - the colour fit and the optimiser hold the layer's colour
+    #   (fit_photometry.colour_held; optimize.main's own Objective is built
+    #   with it held), and a real fit leaves its row alone.
+    _rsd, _rsr = [], []
+    _rsL = [L for L in params["layers"] if L.get("red_shift")]
+    if [L["id"] for L in _rsL] != ["arc_core"]:
+        _rsd.append("layers with a red shift: %s (expected arc_core)" % [L["id"] for L in _rsL])
+    else:
+        _rsA = _rsL[0]
+        _rs0 = _cpk.deepcopy(params)
+        for _Lr in _rs0["layers"]:
+            _Lr.pop("red_shift", None)
+
+        def _rs_with(rs, lid="arc_core", p=None):
+            q = _cpk.deepcopy(params if p is None else p)
+            [L for L in q["layers"] if L["id"] == lid][0]["red_shift"] = rs
+            return q
+
+        def _rs_alone(p, lid):
+            q = _cpk.deepcopy(p)
+            q["layers"] = [L for L in q["layers"] if L["id"] == lid]
+            return q
+
+        def _rs_map(L, yc, xc, pad=0.0):
+            """L's table shift per pixel (with `pad`, the largest |shift| within
+            that many rows)"""
+            off = float(params["tapers"][L["taper"]].get("y_offset", 0.5))
+            out = np.zeros((len(yc), len(xc)))
+            for sd, xm in (("left", xc < 512), ("right", xc >= 512)):
+                rows = L["red_shift"].get(sd)
+                if rows:
+                    ys, ds = [r[0] + off for r in rows], [r[1] for r in rows]
+                    v = np.max([np.abs(np.interp(yc + e, ys, ds)) for e in np.linspace(-pad, pad, 13)], 0) if pad \
+                        else np.interp(yc, ys, ds)
+                    out[:, xm] = v[:, None]
+            return out
+
+        def _rs_probe(tag, lid, rs, S, gb_tol):
+            """the layer drawn alone with `rs` against without; problems, summary"""
+            q1 = _rs_alone(_rs_with(rs, lid, _rs0), lid)
+            q0 = _rs_alone(_rs0, lid)
+            L = q1["layers"][0]
+            kG = float(L["color"][1])
+            yc = (np.arange(S) + 0.5) * 1024.0 / S
+            a1 = np.rint(_FP.render_array(build_svg.build(q1), S) * 255)
+            a0 = np.rint(_FP.render_array(build_svg.build(q0), S) * 255)
+            dm = _rs_map(L, yc, yc)
+            far = _rs_map(L, yc, yc, pad=3.0) == 0
+            e = (a1[..., 0] - a0[..., 0]) - a1[..., 1] * dm / kG
+            eR, eM = float(np.abs(e).max()), float(np.abs(e[a1[..., 1] > 0].mean()))
+            efar = float(np.abs(a1 - a0)[far].max())
+            flat = (a1[..., 1] > 0) & (np.abs(dm) >= 0.999 * np.abs(dm).max())
+            want = float((a1[..., 1] * np.abs(dm) / kG)[flat].max()) if flat.any() else 0.0
+            mv = float(np.abs(a1[..., 0] - a0[..., 0])[flat].max()) if flat.any() else 0.0
+            gb = float(np.abs(a1[..., 1:] - a0[..., 1:]).max())
+            bad = []
+            if gb > gb_tol or eR > 2.5 or eM > 0.3 or efar > gb_tol or want < 5 or mv < 0.5 * want:
+                bad.append("%s, %d px: G/B move by %g; R moves %.2f levels from G x dR / G_colour at worst, %.2f on "
+                           "average, and %g 3 rows from any shifted row; on its flat rows R moves by %g where %.1f is "
+                           "predicted" % (tag, S, gb, eR, eM, efar, mv, want))
+            return bad, a1, "%s %d px: R moves by G x dR / G to %.2f (%.2f on average), %g on the flat rows (%.1f " \
+                "predicted), G/B %g" % (tag, S, eR, eM, mv, want, gb)
+        for _tag, _lid, _rsv, _S, _gbt in (("arc_core's table", "arc_core", _rsA["red_shift"], 1024, 0),
+                                           ("arc_core's table", "arc_core", _rsA["red_shift"], 1000, 0),
+                                           ("an off-grid table", "arc_core", {"right": [[150, 0], [250, 18], [330, 0]]},
+                                            1024, 1),
+                                           ("arc_glow1 (opacity below 1)", "arc_glow1",
+                                            {"left": [[300, 0], [400, 60], [600, 60], [700, 0]]}, 1024, 1)):
+            _b, _a1, _sm = _rs_probe(_tag, _lid, _rsv, _S, _gbt)
+            _rsd += _b
+            _rsr.append(_sm)
+            if _tag != "arc_core's table":
+                continue
+            _yc = (np.arange(_S) + 0.5) * 1024.0 / _S
+            _f1 = np.rint(_FP.render_array(build_svg.build(params), _S) * 255)
+            _f0 = np.rint(_FP.render_array(build_svg.build(_rs0), _S) * 255)
+            _chg = np.abs(_f1 - _f0).max(axis=2) > 0
+            _gbf = float(np.abs(_f1[..., 1:] - _f0[..., 1:]).max())
+            _stray = int((_chg & ~((_rs_map(_rsA, _yc, _yc, pad=3.0) > 0) & (_a1[..., 1] > 0))).sum())
+            if _gbf > 0 or _stray or not _chg.any():
+                _rsd.append("%d px, composite: G/B move by %g; %d changed pixels outside the table's rows or arc_core's "
+                            "light; %d changed in all" % (_S, _gbf, _stray, _chg.sum()))
+            _rsr.append("composite %d px: %d px changed, G/B %g" % (_S, _chg.sum(), _gbf))
+        # zero tables: on the taper's rows, and between them
+        _zs = {"left": [[300, 0], [420, 0]], "right": [[300, 0], [420, 0]]}
+        if build_svg.build(_rs_with(_zs)) != build_svg.build(_rs0):
+            _rsd.append("a table of zeros on the taper's rows builds another SVG")
+        _zb = np.abs(np.rint(_FP.render_array(build_svg.build(_rs_with({"right": [[150, 0], [330, 0]]})), 1024) * 255)
+                     - np.rint(_FP.render_array(build_svg.build(_rs0), 1024) * 255)).max()
+        if _zb > 1:
+            _rsd.append("a table of zeros between the taper's rows moves the render by %g levels" % _zb)
+        if build_svg.build(params, basis="arc_core") != build_svg.build(_rs0, basis="arc_core"):
+            _rsd.append("the white basis takes the red shift")
+        # refused: malformed tables, and the key where it cannot apply
+        _bad = [("a list", []), ("empty", {}), ("a key other than a side", {"middle": [[100, 0], [200, 0]]}),
+                ("one row", {"right": [[140, 0]]}), ("a string", {"right": [[140, 0], ["160", 5], [200, 0]]}),
+                ("a bool", {"right": [[140, 0], [160, True], [200, 0]]}),
+                ("a NaN", {"right": [[140, 0], [160, float("nan")], [200, 0]]}),
+                ("a row of three", {"right": [[140, 0], [160, 5, 1], [200, 0]]}),
+                ("rows out of order", {"right": [[160, 0], [140, 5], [200, 0]]}),
+                ("a row at y 0", {"right": [[0, 0], [160, 5], [200, 0]]}),
+                ("a row off the canvas", {"right": [[140, 0], [160, 5], [1030, 0]]}),
+                ("a non-zero end row", {"right": [[140, 5], [160, 5], [200, 0]]}),
+                ("a red past G and B", {"right": [[140, 0], [160, 40], [200, 0]]}),
+                ("a red below 0", {"right": [[140, 0], [160, -220], [200, 0]]})]
+        _okrs = {"right": [[140, 0], [160, 5], [200, 0]]}
+        for _lid, _why, _mut in (("field_base", "a layer that is not an arc", None),
+                                 ("arc_glow2", "a split arc (convex_taper)", None),
+                                 ("arc_glow1", "an untapered arc", lambda L: L.pop("taper")),
+                                 ("arc_glow1", "a normal-blended arc", lambda L: L.update(blend="normal")),
+                                 ("arc_core", "a side the layer does not draw", lambda L: L.update(side="left"))):
+            _q = _cpk.deepcopy(_rs0)
+            _Lq = [L for L in _q["layers"] if L["id"] == _lid][0]
+            _Lq["red_shift"] = _okrs
+            if _mut:
+                _mut(_Lq)
+            _bad.append((_why, _q))
+        _unrefused = []
+        for _why, _rsv in _bad:
+            _q = _rsv if isinstance(_rsv, dict) and "layers" in _rsv else _rs_with(_rsv)
+            try:
+                build_svg.build(_q)
+                _unrefused.append(_why)
+            except AssertionError as _e:
+                if "red_shift" not in str(_e):
+                    _unrefused.append("%s (refused for another reason: %s)" % (_why, _e))
+            except Exception as _e:
+                _unrefused.append("%s (raised %s)" % (_why, type(_e).__name__))
+        if _unrefused:
+            _rsd.append("not refused: " + ", ".join(_unrefused))
+        # held: the colour fit, the optimiser (its main() builds its Objective
+        # with the held set: stopped there), and a real fit's row
+        _rci = [i for i, L in enumerate(params["layers"]) if L["id"] == "arc_core"][0]
+        if not (_FP.colour_held(params) == ["arc_core"] and _rci not in _FP.held_free(params)
+                and _rci not in _FP.held_free(params, rays=False)):
+            _rsd.append("the colour fit may move arc_core's colour")
+        if not np.array_equal(_WC1[_rci], _WC0[_rci]):
+            _rsd.append("a real fit moved arc_core's colour row")
+
+        class _RsStop(Exception):
+            pass
+        _rs_seen = {}
+
+        class _RsObjective:
+            def __init__(self, *a, **k):
+                _rs_seen["held"] = set(k.get("held", ()))
+                raise _RsStop()
+        _rs_argv, _rs_obj = sys.argv, O.Objective
+        for _mode in ([], ["--include-rays"]):
+            _rs_seen.clear()
+            sys.argv = ["optimize.py", "--params", os.path.join(ROOT, "src", "params.json")] + _mode
+            O.Objective = _RsObjective
+            try:
+                O.main()
+            except _RsStop:
+                pass
+            finally:
+                sys.argv, O.Objective = _rs_argv, _rs_obj
+            if "arc_core" not in _rs_seen.get("held", ()):
+                _rsd.append("optimize.py %s builds its Objective without arc_core held (%s)"
+                            % (" ".join(_mode) or "(default)", sorted(_rs_seen.get("held", ())) or "nothing"))
+    check("a red-shifted core changes only its red, where its table says",
+          not _rsd, "; ".join(_rsd) if _rsd else
+          "arc_core, %s; " % _rsA["red_shift"] + "; ".join(_rsr) + "; a zero table on the taper's rows builds the "
+          "same SVG, between them renders within %g; the basis ignores it; %d malformed tables and misplaced keys "
+          "refused; its colour held by the colour fit (rays held or not), optimize.py's Objective (rays held or not) "
+          "and a real fit" % (_zb, len(_bad)))
+
     # ---- the lens-side band stays beside the core's ends (D71) ------------ #
     # arc_lens_band is the reference's cyan band just outside the core's lens
     # edge, over the curves' outer thirds.  What was measured is where it may
@@ -2883,6 +3076,11 @@ def main():
                 _fp_diag.append("%s saved no fitted colour" % _tag)
             if not _mode and any(_got[lid].get("color") != _was[lid].get("color") for lid in _held):
                 _fp_diag.append("%s moved a calibrated ray" % _tag)
+            # a red-shifted layer's colour is held in both modes (D72)
+            _chl = _FP.colour_held(_fp_src)
+            if not _chl or any(_got[lid].get(c) != _was[lid].get(c) for lid in _chl
+                               for c in ("color", "white", "cyan", "blue")):
+                _fp_diag.append("%s moved a red-shifted layer's colour (%s)" % (_tag, _chl or "none present"))
             if any("teal" in _got[lid] for lid in _cone0):
                 _fp_diag.append("%s gave a cone layer a teal key" % _tag)
             if any("teal" not in _got[lid] for lid in _teal0):
@@ -2897,7 +3095,7 @@ def main():
           "fit_photometry.py (documented mode and --fit-rays) exits 0 and saves, on cone layers "
           "without a teal key (reported ineligible, never given one), six eligible rays (one with "
           "no light at all, key kept), a colour-only layer and the normal-blended frame; calibrated "
-          "rays held in the documented mode")
+          "rays held in the documented mode, a red-shifted layer's colour in both")
 
     # ---- pruning down to the calibrated rays completes and saves (D68) ---- #
     # The review case (prune_layers.py:42): once pruning has removed every

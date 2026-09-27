@@ -608,8 +608,21 @@ def params_wc(params):
     return np.array(out, np.float32)
 
 
-def held_free(params):
-    """Indices this fit may move: every layer except the calibrated rays.
+def colour_held(params):
+    """Ids of the layers whose colour no fit may move, whatever else it frees.
+
+    A layer with `red_shift` (D72) draws its colour with a red that varies
+    along the curve, measured together with the colour it is relative to.
+    The basis is white and the composite here takes one colour per layer, so a
+    fit would score that layer without its shift and move the colour to make
+    up for it.  It is held instead, like a calibrated ray.
+    """
+    return [L["id"] for L in params["layers"] if L.get("red_shift")]
+
+
+def held_free(params, rays=True):
+    """Indices this fit may move: every layer except the calibrated rays
+    (unless `rays` is False) and the `colour_held` ones.
 
     The rays' amplitudes are calibrated against their own measured profiles
     (tools/measure_flare.py CALIBRATED_LAYERS).  This fit's whole-image
@@ -617,7 +630,8 @@ def held_free(params):
     a few hundred pixels, so it holds them rather than overwriting them.
     """
     import measure_flare as MFL
-    return [i for i, L in enumerate(params["layers"]) if L["id"] not in MFL.CALIBRATED_LAYERS]
+    held = set(colour_held(params)) | (set(MFL.CALIBRATED_LAYERS) if rays else set())
+    return [i for i, L in enumerate(params["layers"]) if L["id"] not in held]
 
 
 def store_wc(params, WC, only=None):
@@ -658,7 +672,9 @@ def main():
     W = make_weight(tsub, a.weight, emphasis=not a.no_emphasis)
     print("fitting %d layers x %s  [stride %d]" % (len(names), str(COMPONENTS), st))
     nf = normal_flags(params)
-    free = None if a.fit_rays else held_free(params)
+    free = held_free(params, rays=not a.fit_rays)
+    if a.fit_rays and len(free) == len(params["layers"]):
+        free = None
     WC = fit(Asub, tsub, params_wc(params), W, iters=a.iters, normal=nf, free=free,
              teal_ok=teal_eligible(params))
     store_wc(params, WC, only=free)

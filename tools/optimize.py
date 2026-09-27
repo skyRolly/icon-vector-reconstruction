@@ -713,6 +713,14 @@ def sweep(obj, params, specs, log=print, accept_tol=2e-7):
     return best_sse
 
 
+def held_layers(params, include_rays=False):
+    """Layers whose colour the Objective never fits: the calibrated rays
+    (unless `include_rays`) and, always, a red-shifted layer
+    (fit_photometry.colour_held, D72)."""
+    import measure_flare as MFL
+    return tuple(FP.colour_held(params)) + (() if include_rays else tuple(MFL.CALIBRATED_LAYERS))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--params", default=os.path.join(ROOT, "src", "params.json"))
@@ -732,7 +740,7 @@ def main():
 
     params = json.load(open(a.params))
     import measure_flare as MFL
-    held = () if a.include_rays else MFL.CALIBRATED_LAYERS
+    held = held_layers(params, a.include_rays)
     shape_hold = () if a.include_rays else tuple(MFL.RAY_GEOMETRY)
     obj = Objective(a.reference, stride=a.stride, fit_iters=a.fit_iters, held=held)
     builders = {"shapes": lambda p: layer_specs(p, hold=shape_hold), "tapers": taper_specs,
@@ -742,9 +750,9 @@ def main():
                                  for k in ("shapes", "tapers", "field", "geometry")), []))
     else:
         specs = builders[a.spec](params)
-    if held:
-        print("holding %d ray layers (shape and colour): %s" % (len(set(held) | set(shape_hold)),
-              ", ".join(sorted(set(held) | set(shape_hold)))))
+    if held or shape_hold:
+        print("holding %d layers (the rays' shape and colour, a red-shifted layer's colour): %s"
+              % (len(set(held) | set(shape_hold)), ", ".join(sorted(set(held) | set(shape_hold)))))
     if a.only:
         pre = tuple(x.strip() for x in a.only.split(","))
         specs = [sp for sp in specs

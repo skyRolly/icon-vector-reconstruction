@@ -655,6 +655,53 @@ def _curve_axis_stops(tab, c, which, reach, tol_a=0.0015, tol_w=0.004):
     return E, T, tuple((S[k], A[k], W[k]) for k in sorted(keep)), y_zone
 
 
+def red_shade(L, side, off):
+    """The colour of arc layer L's paint down one curve, as (offsets, colour):
+    the gradient offsets of its `red_shift` rows and the stop colour at an
+    offset, or None where the layer has no rows on that side.
+
+    `red_shift` {"left"|"right": [[y, dR], ...]} moves the red of the layer's
+    premultiplied colour by dR, linear in y between the rows, which are placed
+    as the taper table's own ((y + y_offset) / 1024) and held beyond the first
+    and last.  Green, blue and the opacity are the layer's own.  Both end rows
+    are 0 and the red stays within [0, max(G, B)], so the shift is confined to
+    its rows and `split_color`'s opacity, which the rows' colours share, is
+    unchanged (D72)."""
+    rows = (L.get("red_shift") or {}).get(side)
+    if not rows:
+        return None
+    k = [float(c) for c in L["color"]]
+    o = min(1.0, max(k) / 255.0)
+    offs = [(float(y) + off) / 1024.0 for y, _ in rows]
+    ds = [float(d) for _, d in rows]
+
+    def colour(x):
+        j = bisect.bisect_right(offs, x)
+        d = ds[0] if j == 0 else ds[-1] if j == len(offs) else \
+            ds[j - 1] + (ds[j] - ds[j - 1]) * (x - offs[j - 1]) / (offs[j] - offs[j - 1])
+        return hexc([(k[0] + d) / o, k[1] / o, k[2] / o])
+    return offs, colour
+
+
+def shade_rows(rows, shade):
+    """Gradient rows [(offset, opacity, cut)] -> [(offset, opacity, cut,
+    colour)] in `shade`'s colours (red_shade), with a stop added at each of the
+    shade's rows the gradient lacks, at the opacity it already has there, so
+    that its colour and its opacity are both piecewise linear between stops.
+    An added stop is a cut (1), printed to a cut's precision: at a table
+    stop's four places its opacity would move the paint by up to 0.013 of a
+    level, which turns a pixel's rounding here and there."""
+    offs, colour = shade
+    out = list(rows)
+    for x in offs:
+        if any(r[0] == x for r in out) or not out[0][0] < x < out[-1][0]:
+            continue
+        j = next(i for i, r in enumerate(out) if r[0] > x)
+        (o0, a0), (o1, a1) = out[j - 1][:2], out[j][:2]
+        out.insert(j, (x, a0 + (a1 - a0) * (x - o0) / (o1 - o0), 1))
+    return [(o, a, c, colour(o)) for o, a, c in out]
+
+
 #: Streak cross-section: source rect height as a multiple of its blur sigma.
 #: A uniform slab of height h blurred by sigma_b has on-axis value
 #: erf(h / (2*sqrt(2)*sigma_b)) and effective width sigma_eff^2 = sigma_b^2 +
@@ -905,17 +952,21 @@ class Builder:
             self.defs.append(d)
         return gid
 
-    def taper_paint(self, gid, name, color, side="left"):
+    def taper_paint(self, gid, name, color, side="left", shade=None):
+        """`shade` (red_shade) colours the stops, in place of `color`"""
         stops = taper_stops(self.p["tapers"][name], side)
+        rows = (shade_rows([(o, a, 0) for o, a in stops], shade) if shade
+                else [(o, a, 0, color) for o, a in stops])
         body = "".join(
-            '<stop offset="%s" stop-color="%s" stop-opacity="%s"/>' % (f(o, 5), color, f(a, 4))
-            for o, a in stops
+            '<stop offset="%s" stop-color="%s" stop-opacity="%s"/>'
+            % ((f(o, 8), c, f(a, 7)) if cut else (f(o, 5), c, f(a, 4)))
+            for o, a, cut, c in rows
         )
         return self.add_def(
             '<linearGradient id="%s" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1024">%s</linearGradient>'
             % (gid, body), gid)
 
-    def curve_axis_paint(self, gid, name, color, side, cps, axes, reach):
+    def curve_axis_paint(self, gid, name, color, side, cps, axes, reach, shade=None):
         """A table taper painted along the curve at the ends `axes` names
         ({"north"|"south": "curve"}), as (paint, mask id) for one element.
 
@@ -937,7 +988,8 @@ class Builder:
         paint's one, and the fade would be applied twice (a dark line of up to
         50 levels at 1000 px).  T needs no cut: its weight is 0 at the zone
         edge and beyond it along the curve, and its rect only keeps it off the
-        rows outside the zone."""
+        rows outside the zone.  `shade` (red_shade) colours the paint's stops,
+        in place of `color`; the mask is grey and takes none."""
         t = self.p["tapers"][name]
         stops = taper_stops(t, side)
         zone, ends = {}, []
@@ -953,14 +1005,15 @@ class Builder:
             (o0, a0), (o1, a1) = stops[k - 1], stops[min(k, len(stops) - 1)]
             return a0 + (a1 - a0) * (o - o0) / ((o1 - o0) or 1.0)
 
-        def vgrad(i, color, rows):
+        def vgrad(i, color, rows, shade=None):
             """a gradient down the canvas from rows (offset, opacity, cut), a
             cut's stop printed to the precision the paint's are"""
+            rows = shade_rows(rows, shade) if shade else [r + (color,) for r in rows]
             return self.add_def(
                 '<linearGradient id="%s" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1024">%s'
                 '</linearGradient>' % (i, "".join('<stop offset="%s" stop-color="%s" stop-opacity="%s"/>'
-                                                  % ((f(o, 8), color, f(a, 7)) if cut else (f(o, 5), color, f(a, 4)))
-                                                  for o, a, cut in rows)), i)
+                                                  % ((f(o, 8), c, f(a, 7)) if cut else (f(o, 5), c, f(a, 4)))
+                                                  for o, a, cut, c in rows)), i)
         # the mask: white; black in the zones; Y in the zones, white at the
         # table's opacities (a grey over the black); then each zone's T
         black = ([(0.0, 1.0, 1), (lo, 1.0, 1), (lo, 0.0, 1)] if "north" in zone else [(0.0, 0.0, 1)]) + \
@@ -995,7 +1048,7 @@ class Builder:
         body += [(o, a, 0) for o, a in stops if lo < o < hi or (o == lo and "north" not in zone)
                  or (o == hi and "south" not in zone)]
         body += [(hi, at(hi), 1), (hi, 1.0, 1), (1.0, 1.0, 1)] if "south" in zone else []
-        pid = vgrad(gid + "p", color, body)
+        pid = vgrad(gid + "p", color, body, shade)
         return "url(#%s)" % pid, mid
 
     def radial_paint(self, gid, color, cx, cy, r, profile, squash=1.0, rot=0.0):
@@ -1075,6 +1128,7 @@ class Builder:
         gid = "g_" + L["id"]
         assert kind == "arc" or "taper_axis" not in L, "taper_axis is a key of arc layers only"
         assert kind == "arc" or "end_blur" not in L, "end_blur is a key of arc layers only"
+        assert kind == "arc" or "red_shift" not in L, "red_shift is a key of arc layers only"
 
         if kind == "canvas":
             # `region: "outside"` confines the layer to the area outside the
@@ -1139,11 +1193,36 @@ class Builder:
                 assert blend, "end_blur draws its copies over black, so it needs a screened layer"
                 rows = self.end_rows(int(yn), int(ys))
                 efilt = ' filter="url(#%s)"' % self.blur(eb["blur"])
+            # `red_shift`: {"left"|"right": [[y, dR], ...]} moves the red of
+            # the layer's colour along the curve (red_shade); a white basis
+            # render takes none
+            rs = L.get("red_shift")
+            if rs is not None:
+                k = L.get("color")
+                assert isinstance(rs, dict) and rs and set(rs) <= {"left", "right"}, \
+                    "red_shift is {'left'|'right': [[y, dR], ...]}"
+                assert L.get("taper") and blend and isinstance(k, list) and len(k) == 3 and max(k) > 0, \
+                    "red_shift needs a tapered, screened layer with a colour"
+                assert not L.get("convex_taper"), "red_shift and convex_taper do not combine"
+                assert not L.get("side") or set(rs) <= {L["side"]}, \
+                    "red_shift names a side the layer does not draw"
+                for v in rs.values():
+                    assert isinstance(v, list) and len(v) >= 2 and all(
+                        isinstance(r, list) and len(r) == 2 and all(
+                            isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x) for x in r)
+                        for r in v), "red_shift's rows are [y, dR] pairs, two or more"
+                    assert all(0 < a[0] < b[0] < 1024 for a, b in zip(v, v[1:])), \
+                        "red_shift's rows run down the canvas, 0 < y < 1024"
+                    assert v[0][1] == 0 and v[-1][1] == 0, "red_shift's first and last rows are 0"
+                    assert all(0 <= k[0] + dr <= max(k[1], k[2]) for _, dr in v), \
+                        "red_shift keeps the red within [0, max(G, B)]"
+            off = float(self.p["tapers"][L["taper"]].get("y_offset", 0.5)) if L.get("taper") else 0.5
             out = []
             for side in ("left", "right"):
                 if L.get("side") and L["side"] != side:
                     continue
                 d = self.arc_d(side, L.get("inset", 0.0))
+                shade = None if white else red_shade(L, side, off)
                 mask = None
                 if "curve" in tax.values():
                     g = self.p["geometry"]["arc_" + side]
@@ -1156,9 +1235,9 @@ class Builder:
                                                                 if wt else [])])
                     paint, mask = self.curve_axis_paint(
                         gid + side[0], L["taper"], col, side, inset_cubics(g, side, L.get("inset", 0.0)), tax,
-                        float(L.get("extend", 0.0)) + 0.5 * float(L["width"]) * wmax + 4.0)
+                        float(L.get("extend", 0.0)) + 0.5 * float(L["width"]) * wmax + 4.0, shade)
                 else:
-                    paint = ("url(#%s)" % self.taper_paint(gid + side[0], L["taper"], col, side)
+                    paint = ("url(#%s)" % self.taper_paint(gid + side[0], L["taper"], col, side, shade)
                              if L.get("taper") else col)
                 cl = L.get("clip", "frame")
                 if cl == "lens":

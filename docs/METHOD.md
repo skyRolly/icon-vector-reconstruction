@@ -483,6 +483,41 @@ side and beside the core. The band and the sharper edge are coupled. Each
 alone worsens the lens edge at some ends; together they improve it at all
 four.
 
+**The core's white/cyan balance along the curve (D72).** Read on the core's
+plateau (|n| <= 1.25) every 20 px along each end, through the reference's own
+JPEG table, the core's colour is not one colour everywhere. It varies in two
+different ways, and only one of them is a colour.
+- On the right curve, over y 164-298 (the north outer third) and y 857-899
+  (the south end), the reference's plateau is 10-17 levels redder, with G and
+  B within 5. That is a whiter core: in the cone, more white and less cyan at
+  the same B. `arc_core`'s footprint across the curve explains that red (rms
+  8.9 -> 3.7 at the north end). No neighbouring layer's footprint does
+  (`arc_glow1w`, the white on the lens-side line, leaves 8.4), and the lens
+  band draws no red at all.
+- Over both curves' middle, and at the left curve's ends, every channel is
+  off together. In the middle the model is too bright at the centre (R 8-20,
+  G and B 5-12) and too dark at the rims (|n| 3.3-3.8). The G/R ratio of that
+  error, about 0.5, is what an excess of the core's light predicts through
+  screen compositing, where G and B are nearly saturated and R is not; a
+  colour error would leave G and B alone. That is the core's cross-section
+  (a dimmer centre between brighter rims), not its balance, and a colour
+  cannot follow it: a red dip in the middle (tried) fixes the centre's R and
+  leaves both rims, already short of red, further short.
+
+So `arc_core` carries `red_shift` {"right": [[140, 0], [160, 18], [300, 18],
+[320, 0], [840, 0], [860, 18], [900, 18], [920, 0]]}: its red is 18 levels
+higher (216.24 -> 234.24, still R <= G <= B) over the two measured spans,
+with G, B, the opacity, the width, the blur and the geometry unchanged. The
+builder writes the shift into the stop colours of the layer's own paint
+gradients (`build_svg.red_shade`), with a stop added where a row falls between
+the taper's; the rows here are all the taper's own, so nothing is added. The
+white basis takes no shift. The colour fit and the optimiser hold the layer's
+colour (`fit_photometry.colour_held`): their composite takes one colour per
+layer, and would otherwise move the colour to make up for a shift it cannot
+see. The neighbours still fit against a composite without the shift: a
+re-fit of their colours would count about half a level of that red twice
+(D72, stage 12).
+
 ### 4c. Light past the ends of the curves: the interior corners
 
 The drawn curves end at \|t\| = 66-69 degrees (the four Bezier endpoints are at

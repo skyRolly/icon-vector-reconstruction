@@ -11285,3 +11285,395 @@ exception. The shipped table passes as before: coverage 0.9044 / 0.8884 /
 - The parameters rebuild the SVG byte for byte, and the published render is
   the evaluated one (74f2fa84...).
 - A clean-clone run of the CI workflow's steps is recorded with the commit.
+
+### Stage 4: the hypothesis, and how it was read
+
+D71 left one recommendation: give `arc_core` a white/cyan balance that varies
+along the curve. It had read the right curve's north outer third as 12-16
+levels short of red with G and B matching, and the curves' middle as 9-16
+levels too red. One colour for the whole layer cannot follow both.
+
+"Colour" is read here as the white/cyan balance. In the cone (METHOD 6),
+`arc_core`'s colour [216.24, 255, 255] is white 0.848 plus cyan 0.164, with G
+and B at 255. A whiter core has more red at the same G and B. A pixel error
+with R, G and B all of one sign is a brightness error, not a balance error.
+That distinction decides this stage.
+
+### Stage 5: the plateau colour, every 20 px along all four ends
+
+*Instrument.* D70/D71's local coordinates (`g70.uvmap`: u is the arc length
+from the end, n > 0 on the flare side) are read at 26 stations per end, every
+20 px of u from the tip to the junction. At each station:
+- the plateau |n| <= 1.25 (and |n| <= 0.75 alongside);
+- R, G, B, R - G, R - B and the luminance, for the reference, D71, and D71
+  through the reference's own JPEG table;
+- the colour `arc_core` would need there: the composite without the layer,
+  and its white basis, invert the screen per channel;
+- that colour's balance R/B at the layer's own luminance, and its luminance
+  scale;
+- the context: the core's alpha, the lens band's, the edge strokes' and the
+  tip's, the width factor and the blur rows.
+
+The reference is compared with D71's own JPEG copy, like with like. Raw
+agrees within 1.5 levels at every station quoted here.
+
+*What it shows.* Signed error, reference minus D71, through the JPEG table:
+- **RN, y 164-298 (u -130..-290, nine stations).** R is +10.4..+17.4 while G
+  is -4.6..+3.8 and B -6.9..+3.8. The reference's R - G reads -21..-30
+  there, and D71's -40..-45. The step is abrupt at both edges: +3.6 at y 150
+  and +3.3 at y 317.
+- **RS, y 857-899 (u -130..-70, four stations).** R is +9.1..+14.8 with G
+  and B within 4. It is -2.8 at y 842 and +1.2 at y 911, and over y 704-842
+  there is nothing (|R| <= 3.6).
+- **LN, y 150-317.** R is only -4..+10 (about +3 on average), while G and B
+  are 1-13 levels too bright. The reference's R - G is also higher than the
+  model's there, but through G and B, with the centre too bright and the
+  rims too dark (the cross-section below).
+- **LS, y 781-891.** R is +3.5..+11 (about +6), and G and B are mixed (-9..+5).
+- **The middle, all four ends (y 335-470 north, 550-690 south).** Every
+  channel is too bright at the centre: R -5..-20, G and B -1..-14. At the
+  rims (|n| 3.3-3.8) every channel is too dark: R +6..+24, G and B +6..+13.
+
+So the along-curve colour that D71 recommended is not one trend:
+- continuous only within two spans, both on the right curve;
+- not symmetric between the curves;
+- endpoint-specific: the right curve's north outer third, and its south end
+  over its last 60 px.
+
+### Stage 6: what else could cause it
+
+*The middle.* Its error is brightness, not balance, and this was tested
+directly. Suppose `arc_core` is too bright by a factor. Through screen
+compositing that raises G and B much less than R, because the rest of the
+light already nearly fills G and B. At the middle plateau it predicts G/R
+0.48-0.53, and 0.54-0.60 is measured at LN, LS and RS (0.91 at RN).
+
+Fitted as a brightness excess plus a red-only term, the middle is:
+- an excess of 9-12% of the core's light;
+- plus a red-only part of +0.5, +2.3, +4.5 and +8.1 levels.
+
+So after the brightness is taken out, the middle wants the core no less red,
+if anything more. D71's "middle too red" is the brightness excess read in R,
+where it is largest. The brightness excess comes with rims that are too dark.
+That is the core's cross-section: a dimmer centre between brighter rims,
+which a flat-topped blurred ribbon does not draw. That is width and profile,
+excluded from this pass (brief: no change to geometry, width or blur).
+
+*The right curve's spans.* Each alternative was tested and ruled out:
+- *Edge proximity.* The plateau |n| <= 0.75 gives the same red as |n| <= 1.25
+  (RN +21.6 / +17.2 / +20.3 against +19.8 / +17.6 / +18.2 levels of the
+  layer's red).
+- *Width.* RN's span covers both the widening rows (y 164-240) and the full
+  width (y 240-298), and the red is the same over both.
+- *End blur.* Both spans lie in `end_blur`'s rows, but so do LN, LS and RS
+  over y 704-842, where there is no deficit.
+- *Lens-band overlap.* `arc_lens_band` is pure cyan and draws no red; G and B
+  match.
+- *Neighbouring glow.* Each layer that puts red on the plateau was fitted, by
+  its footprint across the curve (n -12..12), to the red deficit. Only
+  `arc_core`'s footprint explains it: RN rms 8.9 -> 3.7 and RS 7.4 -> 3.5.
+  The next best leave 6.6 (`arc_core_wide`) and 6.4 (`arc_glow1`), and the
+  lens-side white `arc_glow1w` leaves 8.4.
+- *Anti-aliasing.* The plateau is the inner 2.5 px of a 6.2-6.8 px core.
+- *Renderer.* A stop's colour is drawn alike by both engines; the
+  cross-engine check is below.
+- *JPEG chroma subsampling.* The comparison is like with like, and raw agrees.
+
+The same footprint test puts LN at +4.8 and LS at +6.5 levels (rms 3.1 ->
+2.4 and 3.7 -> 2.3), weakly. At LN a red increase would make a pixel already
+too bright in G and B brighter still.
+
+### Stage 7: the smallest table
+
+*Mechanism.* `red_shift` {"left"|"right": [[y, dR], ...]} is a new key of
+arc layers (`build_svg.red_shade`). It moves the red of the layer's
+premultiplied colour by dR, linear in y between rows placed as the taper
+table's own and held beyond. Green, blue and the opacity stay the layer's
+own. The builder writes the shift into the stop colours of the layer's
+existing paint gradients:
+- `taper_paint`;
+- the paint of `taper_axis`'s curve-axis construction, where the mask is grey
+  and takes none.
+
+A row that falls between the taper's stops gets a stop of its own, at the
+opacity the gradient already has there, printed to a cut's precision. The
+table's end rows must be 0, and the red must stay within [0, max(G, B)], so
+the opacity, which `split_color` derives from the colour's largest channel,
+cannot change.
+
+The key is refused on:
+- a layer that is not an arc;
+- an untapered or unscreened layer;
+- a `convex_taper` split arc;
+- a malformed table.
+
+The white basis ignores it.
+
+*The fit.* The shape was fixed from the stations, one amplitude W shared by
+both spans. Each span ramps over 20 rows either side, on the taper table's own
+rows, so no stop is added:
+- north [[140, 0], [160, W], [300, W], [320, 0]];
+- south [[840, 0], [860, W], [900, W], [920, 0]].
+
+W was fitted to the reference's R over the core (|n| <= 3). A closed-form
+least-squares fit gives 15.6 at RN and 19.4 at RS. Through the reference's
+JPEG table, the mean red error crosses zero at W 19-20 at both ends. The mean
+|error| stays within 0.2 of the grid's best over W 16-22 at RN and W 16-24 at
+RS. **W = 18** lies inside all of these. The bound is 0 <= W <= 38.76 (red at
+most 255). It was not reached, and no optimiser was needed.
+
+*Candidates.* Each was built with the real builder and rendered by resvg:
+- **A**: D71;
+- **B1**: the recommendation as stated, a red dip over the middle of both
+  curves, one number (216.24 -> 192.30 at y 420 and 620);
+- **B2**: B1 plus RN's outer third;
+- **R1**: the right curve's two spans, W = 18;
+- **RN**: RN's span alone.
+
+### Stage 8: the candidates compared
+
+Mean |ref - render| through the reference's JPEG table, over the D71 regions
+of the ends (u -150..-30 "end", -300..-150 "outer", -522..-300 "middle"):
+
+| region | A (D71) | B1 | R1 |
+|---|---|---|---|
+| RN outer, core | 9.44 | 9.46 | **6.37** |
+| RN outer, lens edge / flare edge | 11.06 / 13.54 | 11.08 / 13.58 | 10.83 / 13.14 |
+| RN end, core | 7.84 | 7.84 | 6.94 |
+| RS end, core | 7.07 | 7.07 | **5.61** |
+| RS end, lens edge / flare edge | 7.59 / 7.68 | 7.59 / 7.68 | 7.51 / 7.34 |
+| middle, core (LN / RN / LS / RS) | 7.62 / 6.68 / 7.58 / 7.45 | 6.58 / 6.67 / 6.34 / 6.47 | unchanged |
+| middle, lens edge (LN / RN / LS / RS) | 9.51 / 11.78 / 15.42 / 13.53 | 10.21 / 12.13 / 15.85 / 13.83 | unchanged |
+| middle, flare edge (LN / RN / LS / RS) | 9.55 / 11.44 / 15.04 / 10.28 | 10.14 / 11.86 / 15.87 / 10.81 | unchanged |
+
+- **B1 is rejected.** It lowers the middle core's error by about 1.0 at LN,
+  LS and RS (not at RN). It also raises both rims' by 0.3-0.8 at every end: the rims are already short
+  of red, and a dip over the whole ribbon takes red from them too. The
+  cross-section shows why. After B1, the core's centre is off by R -9.6,
+  G -10.7 and B -11.2 alike: B1 only moved the brightness error from R into
+  a colour error at the rims. Stage 6 had already shown the middle is
+  brightness. B1 also lowers whole-image MAE (1.6141 -> 1.6095), which is
+  not a reason to keep it.
+- **B2 is rejected** with B1. Its RN part is R1's.
+- **R1 is kept over RN alone.** At RN they are identical. At RS R1 also takes
+  the core's end error from 7.07 to 5.61, with the red bias +8.1 -> +1.0
+  through the JPEG table, from the same layer, the same mechanism and the
+  same amplitude.
+- **No higher-order table (C) is needed.** Per station, R1 leaves RN's plateau
+  red within -3.9..+2.0 of the reference over u -110..-310, where D71 was
+  +3.3..+17.4, and RS's within -2.0..+4.6 over u -70..-130. What remains is
+  within the stations' own scatter.
+
+*The lens band.* Raw, the band (n -8.5..-4.5) is unchanged at every end. It
+moves by at most 0.01. Through the JPEG table it is +0.14 (RN end), +0.22 (RS
+end) and -0.11 (RN outer). That is the 4:2:0 chroma of the redder core
+spreading into the band's blocks in the model's own JPEG copy.
+
+*The junction and the flare edge.* Nothing changes below y 320 or above y 840
+on the right curve, so the junction (y 500-524) and the middle are untouched.
+Both spans' flare edges improve: RN 13.54 -> 13.14 and RS 7.68 -> 7.34.
+
+*1x.* The reference, D71 and R1 were compared side by side at 1x and 3x, with
+signed difference maps. At 3x, D71's difference map shows a red stripe along
+the right curve's core over both spans. R1's is neutral there. At 1x the
+change is a slight whitening of the core's hue in the right curve's upper
+third and near its south end: visible when flipping, subtle side by side.
+
+*Confinement.* In resvg at 1024 px:
+- 2,516 pixels change (2,408 at 1000 px);
+- all of them are on the right curve, in rows 140-919, within 6.3 px of the
+  curves, and none within r 110 of the flare (the nearest is at r 199);
+- only R changes, by at most 17 levels;
+- G and B are byte for byte D71's.
+
+Where each ramp crosses the oblique ends, the y-indexed colour tilts across
+the core by at most about 2 levels.
+
+### Stage 9: re-measured after the change
+
+Signed error, reference minus render, raw; the JPEG copy agrees:
+- **North tips' colour overshoot** (u -30..0): unchanged, byte for byte (LN
+  3.94, RN 3.88).
+- **Right north cap:** unchanged; nothing above y 140 moves.
+- **Inner lens band:** unchanged raw at every end (the JPEG copy's chroma
+  spread is described in stage 8).
+- **South core balance:**
+  - RS's end is fixed: R +7.5 -> 0.0.
+  - LS is unchanged: R +0.9 (end) and +2.5 (outer), with G and B mixed, below
+    the evidence for a colour change.
+  - The middle is unchanged: a brightness and cross-section difference.
+- **RN outer third:** R +12.4 -> -2.9 raw and +14.7 -> +0.5 through the JPEG
+  table. The core's error is 8.60 -> 6.18 and 9.44 -> 6.37.
+- **Lens-band brightness at the outer ends:** unchanged (RN +3.9, LN +1.9,
+  LS +2.2, RS +3.2 in R).
+- **Flare-side green skirt:** unchanged raw (G +3.9..+5.6 over the outer
+  thirds, +6.8..+7.6 at the north ends). Through the JPEG table, RN's outer
+  band moves 5.99 -> 6.15.
+
+No other layer was changed.
+
+### Stage 10: RN's outer third, and the right curve's south end
+
+D71 read RN's outer-third red as a genuine colour difference and left it.
+The core-colour analysis above gave no common along-curve trend that would
+absorb it. After it, the residual remained at its full size (R +10..+17), so
+it gets a change of its own:
+- the source layer is `arc_core`, by the footprint test;
+- the correction is constrained: red only, a single amplitude, bounded by the
+  cone, on rows the stations fixed.
+
+The right curve's south end shows the same residual, measured with the same
+instruments: R +9..+15 with G and B within 4, the same source layer, and the
+same amplitude within the fits' spread. It shares the correction. No other
+end has it.
+
+### Stage 11: not reopened
+
+These were left as they were:
+- `taper_axis`, the cubic geometry, the flare, the rays and the vertical
+  diffraction;
+- the lower-right translation, the north-of-core red and the vertical line's
+  colour;
+- upper-left ray B's hue and global saturation;
+- the JPEG-limited tails' hue;
+- the core's rims, which D71 showed to be chroma bleed and which are not
+  drawn;
+- `arc_lens_band`, whose band is real and stays as it is.
+
+No geometry was moved to fix a colour.
+
+### Stage 12: the review of `red_shift`
+
+An independent engineering review worked on its own copy, with its own
+gradient-level and render-level checks. It found nothing blocking:
+- the stops draw the specified colour in every case it tried, within hex
+  rounding (0.5 levels of premultiplied R);
+- without the key, every build and basis is byte for byte HEAD's;
+- every path that writes colours back leaves the layer's colour alone:
+  `fit_photometry.main` in both modes, `prune_layers`, and the end of
+  `optimize.main`.
+
+Its minor findings were all acted on:
+- **A table on a side the layer does not draw** was accepted and did
+  nothing, while the fits still held the colour. It is refused now.
+- **The check never exercised a colour between rows**, so two plausible bugs
+  built byte-identical SVG on every table it used: step interpolation, and a
+  shift not divided by the screen opacity (`arc_core`'s is exactly 1). The
+  check now renders two more probes, against the relation R moves by
+  G x dR / G_colour:
+  - an off-grid table on `arc_core` ([[150, 0], [250, 18], [330, 0]]), which
+    adds stops;
+  - a table on `arc_glow1`, whose opacity is below 1.
+- **The refused list lacked** a normal-blended arc, a bool, a row at y 0 and
+  a row of three. All four are in it now.
+- **Nothing ran `optimize.main`.** The check now runs it, with and without
+  `--include-rays`, up to the point where it builds its Objective, and
+  requires `arc_core` in the held set.
+
+Eleven broken implementations were run against the final check, and all
+eleven fail it:
+- the table applied to both curves;
+- green moved with red;
+- the basis taking the shift;
+- no stops added;
+- the validation removed;
+- the colour not held;
+- step interpolation;
+- no division by the opacity;
+- a normal blend accepted;
+- `optimize.main`'s held set reverted;
+- the side test removed.
+
+*Recorded, not changed.* The photometric composite takes one colour per
+layer on a white basis, so it cannot see the shift. Holding the layer's
+colour stops it absorbing the shift. Its neighbours, though, still see a
+model that lacks 16.5 levels of R on the right core's spans. The reviewer
+re-fitted every free colour against the reference, and against the
+reference minus the shift. Neighbours' red differs by +0.52 (`arc_lens_band`),
++0.34 (`arc_core_edge`) and +0.32 (`arc_core_wide`), and by at most 0.1 for
+the others. So a future `optimize_all.sh` cycle would count about half a
+level of that red twice.
+
+The table's rows are placed at the taper table's own offset
+(`tapers.core.y_offset` 0.9), so they stay registered with the fade measured
+on the same rows. A search of that offset moves both, but it does not score
+the red. Modelling the shift in the composite needs a per-channel basis for
+one layer. That is recorded here for the next pass that re-fits colours, not
+done in this one.
+
+### Stage 13: validation
+
+- `sh tools/publish.sh` on the final tree: **PUBLISH OK**, 77 of 77 checks
+  (76 after the engineering stage, plus the new `red_shift` check). These all
+  pass:
+  - the objective, cache and composite checks. The composite against the
+    render reads MAE 0.5377, where D71 read 0.5309: the 0.007 is the shift
+    the composite does not model (stage 12);
+  - D67's gap and width-taper checks;
+  - D68's extension check;
+  - D69's movable-colour check;
+  - D70's two curve-axis checks;
+  - D71's end-blur and lens-band checks;
+  - this pass's split-arc and width-band checks.
+- **Cross-engine MAE** is 2.650, as in D71. `visual_regression` fails 0 of 16,
+  and the west check reads 0.782, so the west triangle stays absent.
+- **Determinism.**
+  - `src/params.json` rebuilds `reconstruction.svg` byte for byte (09c5c3b7...,
+    166,080 bytes).
+  - The published render (65f961e5...) is pixel for pixel the render
+    evaluated in stages 8 and 9.
+- **Calibration.** `measure_flare` converges, with its worst remaining
+  correction at 0.51 of tolerance. It re-rounds a few ray colours in their
+  last digits (at most 0.02 levels), and does exactly the same on D71's
+  parameters, so this pass leaves it as it was.
+- **Whole image.** The eight numbers are MAE 1.6102, RMSE 2.766, SSIM 0.97724,
+  edge IoU 0.7114, centre-region MAE 4.584, flare r<110 MAE 4.041, core r<25
+  MAE 3.690 and bright-region MAE 6.053. D71 read 1.6141, 2.782, 0.97724,
+  0.7112, 4.584, 4.041, 3.690 and 6.193. These are consequences, not the
+  criterion.
+
+### Remaining
+
+- **Fixed:**
+  - the right curve's north outer third's colour (R +14.7 -> +0.5 through the
+    JPEG table);
+  - the right curve's south end's colour (+8.1 -> +1.0);
+  - the split-arc end-blur seam (engineering);
+  - the width-taper check's empty band (engineering).
+- **Improved, not fixed:**
+  - the RN and RS cores' edges beside the whitened spans (lens edge 11.06 ->
+    10.83, flare edge 13.54 -> 13.14 at RN's outer third; 7.59 -> 7.51 and
+    7.68 -> 7.34 at RS's end).
+- **Unchanged:**
+  - LN's and LS's outer thirds, which are whiter in R - G too, but through a G
+    and B excess at the centre with the rims too dark (the cross-section);
+  - the tips;
+  - the flare-side green skirt;
+  - the lens band's brightness at the outer ends;
+  - the rest of D71's list.
+- **Refuted:**
+  - "the middle is too red": it is the core's light, 9-12% too bright at the
+    centre, with the rims too dark, and after the brightness the middle wants
+    no less red;
+  - a common along-curve colour trend for both curves.
+- **JPEG-limited:**
+  - the lens band's +0.14..+0.22 through the JPEG table beside the whitened
+    spans;
+  - the tails' hue, as before.
+- **Deferred:**
+  - the core's cross-section over the middle and at the left curve's ends (a
+    dimmer centre between brighter rims). It is the largest measured core
+    residual left, and it needs a profile, not a colour;
+  - modelling `red_shift` in the photometric composite (stage 12);
+  - the brief's other deferred items.
+
+### Recommendation
+
+Measure the core's cross-section profile over the curves' middle, and change
+nothing else. At all four ends the model's centre is too bright and its rims
+too dark in every channel, by 5-20 levels. The fit gives that a 9-12% excess
+of the core's light, not a colour. A flat-topped blurred ribbon cannot draw a
+dimmer centre between brighter rims. The next step is to read that profile
+per 20 px, as this pass read the colour, and then decide between a
+two-stroke core and an edge-weighted profile. Neither geometry nor width
+should be touched before that is measured.

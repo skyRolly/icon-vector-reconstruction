@@ -25,15 +25,15 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 
 | metric | value | for scale |
 |---|---|---|
-| mean absolute error | **1.614** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 2.782 | |
-| MAE on a 1/2.2 display curve | 5.174 | weights the dark background as the eye does; black scores 59.7 |
+| mean absolute error | **1.610** / 255 | a flat black canvas scores 17.89 |
+| RMSE | 2.766 | |
+| MAE on a 1/2.2 display curve | 5.172 | weights the dark background as the eye does; black scores 59.7 |
 | SSIM (luminance) | **0.9772** | black scores 0.142 |
-| worst single-channel error | 79 | |
-| pixels off by more than 2 / 8 / 24 | 33.8% / 3.2% / 0.2% | |
-| mean bias | -0.131 | |
+| worst single-channel error | 77 | |
+| pixels off by more than 2 / 8 / 24 | 33.8% / 3.1% / 0.2% | |
+| mean bias | -0.123 | |
 
-Per region (MAE): frame band 2.50, centre 90 px 4.58, bright pixels 6.19, dark background 1.29, everything else 1.44.
+Per region (MAE): frame band 2.50, centre 90 px 4.58, bright pixels 6.05, dark background 1.29, everything else 1.44.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
