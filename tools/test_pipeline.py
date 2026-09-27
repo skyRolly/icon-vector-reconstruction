@@ -1920,50 +1920,59 @@ def main():
     # - a layer without the key is still a stroke.
     # All three are read without `end_blur` (D71): they are about the outline,
     # and the end rows' sharper blur moves a half-level centre by 0.02-0.03 px.
-    _wtL = [L["id"] for L in params["layers"] if L.get("width_taper")]
-    _wtd = []
-    if _wtL != ["arc_core"]:
-        _wtd.append("layers with a width taper: %s (expected arc_core)" % _wtL)
-    else:
-        _pwt = _cpk.deepcopy(params)
-        for _Lw in _pwt["layers"]:
-            _Lw.pop("end_blur", None)
-        _pws, _pw1 = _cpk.deepcopy(_pwt), _cpk.deepcopy(_pwt)
-        for _Lw in _pws["layers"]:
-            _Lw.pop("width_taper", None)
-        for _Lw in _pw1["layers"]:
-            if _Lw.get("width_taper"):
-                _Lw["width_taper"] = [[_y, 1.0] for _y, _ in _Lw["width_taper"]]
-        _svs = build_svg.build(_pws, basis="arc_core")
-        _svt = build_svg.build(_pwt, basis="arc_core")
-        if 'stroke="none"' in _svs or 'stroke-width' not in _svs:
-            _wtd.append("an arc without a width taper is not drawn as a stroke")
-        if 'stroke="none"' not in _svt:
-            _wtd.append("the width-tapered arc is not drawn as a filled outline")
-        _ws, _w1, _wt = (_FP.render_array(_sv, 1024)[..., 0].astype(np.float64)
-                         for _sv in (_svs, build_svg.build(_pw1, basis="arc_core"), _svt))
-        _near = np.abs(regions.curve_frame((1024, 1024))[0]) < 12
-        _yyw = np.mgrid[0:1024, 0:1024][0] + 0.5
-        _wtab = [L for L in params["layers"] if L["id"] == "arc_core"][0]["width_taper"]
-        _fac = [_f for _y, _f in _wtab]
-        # the bands read: each tip short of its table's first / last row, and
-        # the middle 10 rows inside the rows where the table reaches 1
-        _bands = ((100, int(_wtab[0][0]) - 5), (int(_wtab[-1][0]) + 20, 930),
-                  (int(_wtab[1][0]) + 10, int(_wtab[-2][0]) - 10))
-        _cov = {}
-        for (_y0, _y1), _want, _tol in ((_bands[0], _fac[0], 0.003), (_bands[1], _fac[-1], 0.003),
-                                        (_bands[2], 1.0, 0.002)):
-            # a table of another shape can leave a band empty: say so
-            if _y1 < _y0 + 10:
-                _wtd.append("the table leaves no band to read at y %d-%d" % (_y0, _y1))
+    # The bands come from the table itself, so a table that leaves one empty is
+    # a failure of the check, reported by name (D72: a one-row table raised an
+    # IndexError, and the detail's indexing was safe only by coincidence).
+    def _width_taper_check(p):
+        """(problems, detail) for `p`'s width-tapered arc"""
+        wtd = []
+        wtl = [L["id"] for L in p["layers"] if L.get("width_taper")]
+        if wtl != ["arc_core"]:
+            return ["layers with a width taper: %s (expected arc_core)" % wtl], ""
+        pwt = _cpk.deepcopy(p)
+        for Lw in pwt["layers"]:
+            Lw.pop("end_blur", None)
+        pws, pw1 = _cpk.deepcopy(pwt), _cpk.deepcopy(pwt)
+        for Lw in pws["layers"]:
+            Lw.pop("width_taper", None)
+        for Lw in pw1["layers"]:
+            if Lw.get("width_taper"):
+                Lw["width_taper"] = [[y, 1.0] for y, _ in Lw["width_taper"]]
+        svs = build_svg.build(pws, basis="arc_core")
+        svt = build_svg.build(pwt, basis="arc_core")
+        if 'stroke="none"' in svs or 'stroke-width' not in svs:
+            wtd.append("an arc without a width taper is not drawn as a stroke")
+        if 'stroke="none"' not in svt:
+            wtd.append("the width-tapered arc is not drawn as a filled outline")
+        ws, w1, wt = (_FP.render_array(sv, 1024)[..., 0].astype(np.float64)
+                      for sv in (svs, build_svg.build(pw1, basis="arc_core"), svt))
+        near = np.abs(regions.curve_frame((1024, 1024))[0]) < 12
+        yyw = np.mgrid[0:1024, 0:1024][0] + 0.5
+        rows = [(int(y), float(fa)) for y, fa in [L for L in p["layers"] if L["id"] == "arc_core"][0]["width_taper"]]
+        # the bands read, each with the factor it must show: the north tip short
+        # of the table's first row, the south tip past its last, and the longest
+        # stretch between two rows at factor 1, 10 rows inside it
+        flat = [(r0[0], r1[0]) for r0, r1 in zip(rows, rows[1:]) if r0[1] == 1.0 and r1[1] == 1.0]
+        mid = max(flat, key=lambda ab: ab[1] - ab[0]) if flat else None
+        bands = (("north tip", (100, rows[0][0] - 5), rows[0][1], 0.003),
+                 ("south tip", (rows[-1][0] + 20, 930), rows[-1][1], 0.003),
+                 ("middle", (mid[0] + 10, mid[1] - 10) if mid else None, 1.0, 0.002))
+        cov = {}
+        for nm, band, want, tol in bands:
+            if band is None:
+                wtd.append("the table has no two rows at factor 1, so the middle band is missing")
                 continue
-            _mw = _near & (_yyw >= _y0) & (_yyw < _y1)
-            _cov[(_y0, _y1)] = float(_wt[_mw].sum() / _ws[_mw].sum())
-            if not np.isfinite(_cov[(_y0, _y1)]) or abs(_cov[(_y0, _y1)] - _want) > _tol:
-                _wtd.append("coverage at y %d-%d is %.4f of the stroke's (expected %.4f)"
-                            % (_y0, _y1, _cov[(_y0, _y1)], _want))
+            y0, y1 = band
+            if y1 < y0 + 10:
+                wtd.append("the table leaves the %s band empty (y %d-%d)" % (nm, y0, y1))
+                continue
+            mw = near & (yyw >= y0) & (yyw < y1)
+            cov[nm] = float(wt[mw].sum() / ws[mw].sum()) if ws[mw].sum() > 0 else float("nan")
+            if not np.isfinite(cov[nm]) or abs(cov[nm] - want) > tol:
+                wtd.append("coverage of the %s band (y %d-%d) is %.4f of the stroke's (expected %.4f)"
+                           % (nm, y0, y1, cov[nm], want))
 
-        def _half_centre(row, lo, hi):
+        def half_centre(row, lo, hi):
             seg = row[lo:hi]
             k = int(np.argmax(seg))
             h = seg[k] / 2
@@ -1977,8 +1986,8 @@ def main():
             xr = j - 1 + (seg[j - 1] - h) / (seg[j - 1] - seg[j])
             return lo + (xl + xr) / 2 + 0.5
 
-        def _curve_x(side, yq):
-            for seg in params["geometry"]["arc_" + side]["cubics"][side]:
+        def curve_x(side, yq):
+            for seg in p["geometry"]["arc_" + side]["cubics"][side]:
                 t = np.linspace(0, 1, 20001)
                 u = 1 - t
                 P = np.asarray(seg, float)
@@ -1988,25 +1997,52 @@ def main():
                     o = np.argsort(y)
                     return float(np.interp(yq, y[o], x[o]))
             return None
-        _cerr = {}
-        for _sd, (_lo, _hi) in (("left", (150, 530)), ("right", (533, 900))):
-            _e1, _es = [], []
-            for _y in range(110, 930, 10):
-                _xa = _curve_x(_sd, _y + 0.5)
-                if _xa is None:
+        cerr = {}
+        for sd, (lo, hi) in (("left", (150, 530)), ("right", (533, 900))):
+            e1, es = [], []
+            for y in range(110, 930, 10):
+                xa = curve_x(sd, y + 0.5)
+                if xa is None:
                     continue
-                _e1.append(abs(_half_centre(_w1[_y], _lo, _hi) - _xa))
-                _es.append(abs(_half_centre(_ws[_y], _lo, _hi) - _xa))
-            _cerr[_sd] = (max(_e1), max(_es))
-            if max(_e1) > 0.15:
-                _wtd.append("the outline strays %.2f px from the %s curve of record" % (max(_e1), _sd))
+                e1.append(abs(half_centre(w1[y], lo, hi) - xa))
+                es.append(abs(half_centre(ws[y], lo, hi) - xa))
+            cerr[sd] = (max(e1), max(es))
+            if max(e1) > 0.15:
+                wtd.append("the outline strays %.2f px from the %s curve of record" % (max(e1), sd))
+        return wtd, ("arc_core's outline: coverage %s of the stroke's; at factor 1 its centre stays within %.2f / "
+                     "%.2f px of the curve of record (left / right; resvg's stroke %.2f / %.2f); an arc without a "
+                     "width taper is still a stroke"
+                     % (", ".join("%s %.4f (table %.4f)" % (nm, cov[nm], want)
+                                  for nm, _b, want, _t in bands if nm in cov),
+                        cerr["left"][0], cerr["right"][0], cerr["left"][1], cerr["right"][1]))
+
+    _wtd, _wtr = _width_taper_check(params)
     check("a width-tapered arc narrows only where its table says",
-          not _wtd, "; ".join(_wtd) if _wtd else
-          "arc_core's outline: coverage %.4f / %.4f of the stroke's at the tips (table %.4f / %.4f), %.4f in the "
-          "middle; at factor 1 its centre stays within %.2f / %.2f px of the curve of record (left / right; resvg's "
-          "stroke %.2f / %.2f); an arc without a width taper is still a stroke"
-          % (_cov[_bands[0]], _cov[_bands[1]], _fac[0], _fac[-1], _cov[_bands[2]],
-             _cerr["left"][0], _cerr["right"][0], _cerr["left"][1], _cerr["right"][1]))
+          not _wtd, "; ".join(_wtd) if _wtd else _wtr)
+
+    # ---- ... and says so, not crashes, when a table empties a band (D72) --- #
+    # Tables that leave one of the check's bands empty, each of which the
+    # builder accepts: the check must return a failure that names the band.
+    _wbd, _wbr = [], []
+    for _tab, _nm in (([[170, 0.905]], "middle"),
+                      ([[170, 0.905], [500, 1.0], [860, 0.888]], "middle"),
+                      ([[100, 0.905], [240, 1.0], [790, 1.0], [860, 0.888]], "north tip"),
+                      ([[170, 0.905], [240, 1.0], [790, 1.0], [915, 0.888]], "south tip")):
+        _pbw = _cpk.deepcopy(params)
+        [L for L in _pbw["layers"] if L["id"] == "arc_core"][0]["width_taper"] = _tab
+        try:
+            _prw, _ = _width_taper_check(_pbw)
+        except Exception as _ew:
+            # the defect this exists for: record it as this check's failure
+            _wbd.append("table %s: the check raised %s: %s" % (_tab, type(_ew).__name__, _ew))
+            continue
+        _hit = [x for x in _prw if _nm in x]
+        if not _hit:
+            _wbd.append("table %s: no failure names the %s band (%s)" % (_tab, _nm, "; ".join(_prw) or "passed"))
+        else:
+            _wbr.append("%s -> %s" % (_tab, _hit[0]))
+    check("the width-taper check reports a band its table empties as a failure",
+          not _wbd, "; ".join(_wbd) if _wbd else "; ".join(_wbr))
 
     # ---- an extended arc runs past its ends only along its own curve (D68) - #
     # arc_core_tip carries `extend`: its stroke runs that many px of arc length
@@ -2621,6 +2657,81 @@ def main():
           "arc_core, blur %g at y < %d and y >= %d, %g between. %s; at 872 px the mask reads %g on the cut's row; "
           "misplaced, crossing, missing or non-numeric rows, an empty key and the key on a non-arc layer are refused"
           % (_eb["blur"], _eb["north"], _eb["south"], _Leb["blur"], "; ".join(_ebr), _m872))
+
+    # ---- a split arc's end blur keeps each half's screen, seam included (D72)
+    # `end_blur` on an arc split by `convex_taper` (no shipped layer has both,
+    # the builder allows it): each copy must composite its two halves as the
+    # layer does without the key, each screened.  Drawn source-over inside the
+    # copy, the halves darken the pixels their anti-aliased clips share on the
+    # split, even with the end blur equal to the layer's own (Devin's review:
+    # 7 levels on some 700 pixels).  The probe is arc_glow2 given arc_core's
+    # colour, width and blur on the curve itself, so the split (1.5 px out)
+    # runs through the bright stroke; alone, on black.  Checked at 1024, 1000,
+    # 872 and 968 px:
+    # - with the end blur equal to its own, the probe equals the probe without
+    #   the key, to a level, on the seam and everywhere else;
+    # - with a sharper end blur, every end row is the probe drawn with that blur
+    #   and every other row the probe drawn with its own, to a level (a row on
+    #   a cut lies between the two), and the two blurs really differ.
+    def _split_probe(eb=None, blur=None):
+        q = _cpk.deepcopy(params)
+        L = [L for L in q["layers"] if L["id"] == "arc_glow2"][0]
+        L.update(color=[216.24, 255.0, 255.0], width=6.832, blur=0.6137416122421083, inset=0.0)
+        if blur is not None:
+            L["blur"] = blur
+        if eb is not None:
+            L["end_blur"] = eb
+        q["layers"] = [L]
+        return q
+
+    _spd, _spr = [], []
+    _sp0 = _split_probe()
+    if not _sp0["layers"][0].get("convex_taper"):
+        _spd.append("arc_glow2 no longer carries a convex_taper, so the probe is not split")
+    else:
+        _svS = build_svg.build(_sp0)
+        _cids = sorted(set(__import__("re").findall(r'clip-path="url\(#(c[cv][LR]_[^)]+)\)"', _svS)))
+        _dfS = _svS.split("</defs>")[0] + "</defs>"
+        _ebS = {"blur": 0.20421316015498364, "north": 300, "south": 704}
+        for _S in (1024, 1000, 872, 968):
+            _cv = [np.rint(_FP.render_array(_dfS + '<rect width="1024" height="1024" fill="#000"/><rect width="1024" '
+                                            'height="1024" fill="#fff" clip-path="url(#%s)"/></svg>' % _c, _S)[..., 0] * 255)
+                   for _c in _cids]
+            # the seam: pixels lit by both halves' clips of one curve
+            _seam = np.zeros(_cv[0].shape, bool)
+            for _a in range(len(_cv)):
+                for _b in range(_a + 1, len(_cv)):
+                    if _cids[_a][2] == _cids[_b][2]:
+                        _seam |= (_cv[_a] > 0) & (_cv[_b] > 0)
+            _i0 = np.rint(_FP.render_array(_svS, _S) * 255)
+            _iq = np.rint(_FP.render_array(build_svg.build(_split_probe(
+                {"blur": _sp0["layers"][0]["blur"], "north": 300, "south": 704})), _S) * 255)
+            _dq = np.abs(_iq - _i0).max(axis=2)
+            if not _seam.any() or _i0[_seam].max() < 100:
+                _spd.append("%d px: the probe's seam is not lit (%d pixels), so the check cannot see it" % (_S, _seam.sum()))
+            if _dq.max() > 1:
+                _spd.append("%d px: with the end blur equal to its own the split arc differs by %d levels (%d on the "
+                            "seam's %d pixels)" % (_S, _dq.max(), _dq[_seam].max() if _seam.any() else 0, _seam.sum()))
+            _iB = np.rint(_FP.render_array(build_svg.build(_split_probe(_ebS)), _S) * 255)
+            _iE = np.rint(_FP.render_array(build_svg.build(_split_probe(blur=_ebS["blur"])), _S) * 255)
+            _yc = (np.arange(_S) + 0.5) * 1024.0 / _S
+            _tie = (np.abs(_yc - 300) < 1e-9) | (np.abs(_yc - 704) < 1e-9)
+            _end = ((_yc < 300) | (_yc >= 704)) & ~_tie
+            _midr = ~_end & ~_tie
+            _dE, _dO = np.abs(_iB[_end] - _iE[_end]).max(), np.abs(_iB[_midr] - _i0[_midr]).max()
+            _dT = float(np.maximum(np.minimum(_iE, _i0) - _iB, _iB - np.maximum(_iE, _i0))[_tie].max()) if _tie.any() else 0.0
+            _dd = np.abs(_iE[_end] - _i0[_end]).max()
+            if _dE > 1 or _dO > 1 or _dT > 1:
+                _spd.append("%d px: with a sharper end blur the end rows are %d, the others %d and a row on a cut %g "
+                            "levels from the single-blur renders" % (_S, _dE, _dO, _dT))
+            if _dd < 10:
+                _spd.append("%d px: the two blurs differ by only %d levels" % (_S, _dd))
+            _spr.append("%d px: %d, seam %d px lit to %d; sharper: %d / %d (blurs differ by %d)"
+                        % (_S, _dq.max(), _seam.sum(), _i0[_seam].max(), _dE, _dO, _dd))
+    check("a split arc's end blur keeps each half's screen, seam included",
+          not _spd, "; ".join(_spd) if _spd else
+          "arc_glow2 given arc_core's stroke, split by its convex_taper; end blur equal to its own vs none, max "
+          "levels: " + "; ".join(_spr))
 
     # ---- the lens-side band stays beside the core's ends (D71) ------------ #
     # arc_lens_band is the reference's cyan band just outside the core's lens

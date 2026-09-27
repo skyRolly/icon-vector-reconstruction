@@ -1227,8 +1227,17 @@ class Builder:
                 # on the opaque canvas the black screens to nothing.  Two masked
                 # copies screened one after the other would draw a row that
                 # both masks read at 0.5 darker than either copy.
+                # A copy of more than one element (a split arc, convex_taper)
+                # keeps each element's own blend inside it, as without the key:
+                # screening is associative, so the copy screened onto the
+                # canvas is its elements screened one by one.  Drawn
+                # source-over, the two halves would darken the pixels their
+                # clips share on the split (D72).  A copy of one element needs
+                # none: screening it onto the group's transparent start, or the
+                # black, is the element itself.
+                inner = blend if len(emit(filt, blend)) > 1 else ""
                 out.append('<g%s>%s<g mask="url(#%s)"><rect width="1024" height="1024" fill="#000000"/>%s</g></g>'
-                           % (blend, "".join(emit(efilt, "")), rows, "".join(emit(filt, ""))))
+                           % (blend, "".join(emit(efilt, inner)), rows, "".join(emit(filt, inner))))
             return "".join(out)
 
         if kind == "radial":

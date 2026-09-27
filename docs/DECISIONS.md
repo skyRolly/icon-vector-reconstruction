@@ -11136,3 +11136,152 @@ one to correct.
     all pass.
 - GitHub CI (`checks`, `regression-gate`) runs the same workflow on this
   commit; the pull request reports its result.
+
+## D72. A split arc's end blur keeps each half's screen, and the width-taper check names a band its table empties; then arc_core's white/cyan balance measured along the curve
+
+D71 left two review findings and one artwork question. The findings were:
+- `end_blur` drawn on a split arc (`convex_taper`) composited its two halves
+  source-over inside each copy;
+- D67's width-taper check could crash on a table that leaves one of its bands
+  empty.
+
+The artwork question was whether `arc_core`'s white/cyan balance varies
+along the curve. D71 had read the right curve's north outer third as 12-16
+levels too little red, with G and B matching, and the curves' middle as 9-16
+too much. This pass fixed the two findings first, as their own commit, with
+the shipped artwork byte for byte unchanged. It then measured the balance
+before changing anything. "Base" below is D71 (38f6776). Whole-image numbers
+are consequences, not the criterion.
+
+### Stage 0: the D71 baseline reproduces
+
+On 38f6776 (PR #8's head), before any change:
+- The shipped files are:
+  - `src/params.json` 840b6d08...;
+  - `reconstruction.svg` 932f18da... (165,950 bytes);
+  - `out/render_1024.png` 74f2fa84...;
+  - `out/metrics.json` 05c23b89....
+
+  The parameters rebuild the SVG byte for byte.
+- The eight numbers are MAE 1.6141, RMSE 2.782, SSIM 0.97724, edge IoU 0.7112,
+  centre-region MAE 4.584, flare r<110 MAE 4.041, core r<25 MAE 3.690 and
+  bright-region MAE 6.193.
+- Cross-engine MAE is 2.650, and `visual_regression` fails 0 of 16. The west
+  check reads 0.782, so the west triangle stays absent.
+- The checks this pass must keep all pass:
+  - D69's objective check, "the optimiser's objective scores a movable colour
+    its caller changed";
+  - the cache and composite checks (composite against render MAE 0.5309);
+  - D67's gap and width-taper checks;
+  - D68's extension check;
+  - D70's two curve-axis checks;
+  - D71's end-blur check, which renders every row as one copy or, on a cut,
+    between the two, at 1024, 1000 and 872 px.
+
+### Stage 1: a split arc's end blur (engineering)
+
+*The finding.* When a side has more than one element, `end_blur`'s two
+copies drew those elements with no blend of their own. A split arc
+(`convex_taper`) is two strokes, each clipped to one side of the curve by a
+complementary anti-aliased clip that overlaps the other's by 1.5 px. So each
+copy composited its halves source-over, and on the pixels both clips share,
+the second half covered the first instead of screening onto it. Without the
+key, each half is screened onto the canvas.
+
+*Reproduced with the real builder.* The probe is `arc_glow2`, the one layer
+of record with `convex_taper`, given `arc_core`'s colour, width and blur and
+drawn alone. `end_blur` equal to its own blur must draw what the layer draws
+without the key. With D71's builder it did not:
+- at 1024, 1000, 872, 968 and 2048 px, the split's pixels came out up to 7
+  levels darker in R, on 711, 688, 610, 688 and 1,460 pixels (more than one
+  level);
+- G and B are exact, because at a colour of 255 source-over and screen agree;
+  R at 216 is not.
+
+No shipped layer combines the two keys: `convex_taper` is on `arc_glow2`
+alone and `end_blur` on `arc_core` alone. So the defect never reached the
+artwork, but the builder accepted the combination and drew it wrong.
+
+*Alternatives.*
+- Refuse the combination, as `width_taper` and `extend` refuse
+  `convex_taper`. There is no reason to: the halves are ordinary elements, and
+  the copies can carry their blend.
+- Screen every element inside every copy. This keeps the semantics, but it
+  also changes the single-element case. Screened onto the group's
+  transparent start, an element is itself only up to rounding, and Chromium
+  moved by one level on 945 pixels of the shipped artwork.
+- *Chosen:* a copy of more than one element keeps each element's own blend
+  inside it, exactly as without the key. Screening is associative, so a copy
+  whose elements are screened one by one, and then screened as a group onto
+  the canvas, is those elements screened onto the canvas one by one. A copy
+  of one element keeps no inner blend: screening it onto the group's
+  transparent start, or onto the middle copy's black, is the element itself.
+
+*Measured.*
+- On the probe, `end_blur` equal to its own blur now draws the original at
+  every size above, the seam's pixels included (0 levels).
+- The shipped SVG and all 56 basis builds are byte for byte D71's, and
+  without `end_blur` every build is byte for byte D71's builder's.
+- Chromium's render of the shipped SVG is unchanged.
+
+*The regression.* The new check is "a split arc's end blur keeps each half's
+screen, seam included". It builds the probe with the real builder at 1024,
+1000, 872 and 968 px; 872 and 968 are D71's tie sizes, where a pixel centre
+falls on a cut.
+- `end_blur` equal to the layer's blur must equal the render without the key
+  to one level. That includes the seam pixels, found from the builder's own
+  clip ids (both clips of the same curve), which must be lit to at least 100.
+- With a sharper end blur (0.2042, rows 300 / 704), the end rows must equal a
+  render at that blur, and the middle rows the render at the layer's own.
+  Every row between must lie between the two, and the two blurs must differ
+  by at least 10 levels, so the test cannot pass on two identical renders.
+
+The check fails on D71's builder (7 levels on the seam) and passes on the
+fix (0 levels; the seam is 2,312 pixels lit to 219 at 1024 px).
+
+### Stage 2: a band the width-taper table empties (engineering)
+
+*The finding.* D67's width-taper check reads three bands of `arc_core`'s
+outline: the north tip short of the table's first row, the south tip past its
+last, and the middle. It took the middle from the table's second and
+second-to-last rows. A table of another shape could leave a band empty. D71's
+guard reported an empty band by coordinates, so the KeyError the finding
+named no longer occurs on 38f6776. A table of one row still raised an
+IndexError, and the detail line was safe only because every band happened to
+be present.
+
+*The change.* The bands now come from the table itself, each by name:
+- the north tip, y 100 to the first row - 5;
+- the south tip, the last row + 20 to y 930;
+- the middle, the longest stretch between two rows at factor 1, 10 rows inside
+  it.
+
+A missing or empty band is a failure naming it ("the table has no two rows at
+factor 1, so the middle band is missing"; "the table leaves the south tip
+band empty (y 935-930)"). Coverage over a band with no stroke is NaN, and a
+NaN fails. The detail lists only the bands that were read. Nothing is skipped
+or filled in.
+
+*The regression.* The new check is "the width-taper check reports a band its
+table empties as a failure". It runs the check itself on four deliberately
+broken tables and requires a failure naming the band for each:
+- [[170, 0.905]] (the middle);
+- [[170, 0.905], [500, 1.0], [860, 0.888]] (the middle);
+- a table whose first row is y 100 (the north tip);
+- a table whose last row is y 915 (the south tip).
+
+A check that raises is reported as a failure of this check, with the
+exception. The shipped table passes as before: coverage 0.9044 / 0.8884 /
+1.0001 against 0.905 / 0.888 / 1.0.
+
+### Stage 3: engineering validation
+
+- `sh tools/publish.sh` on the engineering tree: **PUBLISH OK**, 76 of 76
+  checks (74 in D71, plus the two above). Every artefact it rewrote is
+  byte-identical to D71's committed one, and cross-engine MAE is 2.650.
+- The checks of stage 0 all pass: the objective, cache and composite checks
+  (MAE 0.5309), D67, D68, D70, and D71's end-blur and lens-band checks.
+- `visual_regression` fails 0 of 16, and the west check reads 0.782.
+- The parameters rebuild the SVG byte for byte, and the published render is
+  the evaluated one (74f2fa84...).
+- A clean-clone run of the CI workflow's steps is recorded with the commit.

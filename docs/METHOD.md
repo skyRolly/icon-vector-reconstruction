@@ -439,6 +439,12 @@ the opaque canvas the black screens to nothing. Such a row lies between the two
 copies. Two masked copies screened one after the other drew it up to 82 levels
 darker than either (D71).
 
+A copy of more than one element (a split arc, `convex_taper`) keeps each
+element's own screen inside it, as the layer does without the key. Screening
+is associative, so such a copy, screened onto the canvas, is its elements
+screened one by one. Drawn source-over inside the copy, the two halves would
+darken the 1.5 px their clips share (D72).
+
 Chromium draws any `stdDeviation` below about 0.8 as no blur at all. So the
 middle's soft edge is resvg's alone, and at the ends the two engines now
 agree.
