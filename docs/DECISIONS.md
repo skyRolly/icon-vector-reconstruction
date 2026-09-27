@@ -9428,3 +9428,855 @@ one to correct.
   - the gate before setup exits 3;
   - then setup, the gate (70 of 70), validation and the SVG rebuild all
     pass.
+
+## D70. The curves' fades painted along the curve where the reference's light lies across it (the core's north ends, the tip stroke's south ends); then the right curve's south outer third re-measured
+
+D69 left one proposal for the curves' tips: the tables that fade them are
+painted along y, and toward the ends that tilts the fade across the stroke.
+This pass tested that as a single cause, built the coordinate change as a
+builder option, and applied it only at the ends where the reference supports
+it. With the coordinates settled, it re-read the right curve's outer thirds
+and re-measured six stations of the south one. "Base" below is D69
+(4113310). Whole-image numbers are consequences, not the criterion.
+
+As before, each decision records the **evidence**, the **alternatives**, the
+**action**, the **measured** and **visible** effect, and what stays
+**uncertain**.
+
+### Stage 0: the D69 baseline reproduces
+
+PR #5 merged D69 into main as 86b31c5, whose tree is 4113310's, so the
+baseline is main's state too. On 4113310, before any change:
+- `sh tools/publish.sh` passed (PUBLISH OK, 70 of 70 checks). Every
+  artefact it rewrote was byte-identical to the committed one:
+  `src/params.json` 2d5a008d..., `reconstruction.svg` 7b58deb6...
+  (136,775 bytes), `out/render_1024.png` f11a8ade...,
+  `out/metrics.json` da60c0e6..., `out/flare_parts.png` c960f53f.... So the
+  published render is the render of the D69 parameters.
+- The eight numbers: MAE 1.6803, RMSE 3.090, SSIM 0.97646, edge IoU 0.7006,
+  centre-region MAE 4.584, flare r<110 MAE 4.041, core r<25 MAE 3.690,
+  bright-region MAE 7.712.
+- `visual_regression`: 0 of 16 fail (west 0.782). Cross-engine MAE 2.693.
+  Calibration verifies at 0.51 of tolerance, the file unchanged.
+- D69's objective fix is in place (`Objective.K_seen`), and its regression
+  passes in the 70.
+
+### Stage 1: what the y-paint does
+
+- **The coordinate.** `taper_paint` paints a table as one linear gradient
+  from y 0 to y 1024 (`taper_stops`: one stop per station at (y +
+  y_offset) / 1024, alpha = min(1, scale * a^gamma), linear between
+  stations, zero at the image's top and bottom rows).
+- **A station** is the table's value measured on the centre line at that row:
+  the core's coverage (`tapers.core`, 45 and 44 stations 20 px apart) or a
+  glow's amplitude. `tapers.core_tip`'s stations are uniform in arc length
+  past the ends (D68) and zero over the curves' middle.
+- **The curve does not enter the paint.** The geometry comes from the cubics:
+  the stroke on `bezier_arc_path`, the ribbon for `width_taper`, the
+  extended cubics for `extend`. The paint is a function of y alone, so on the
+  centre line it is alpha(y_c(u)), and at an offset n across the stroke it is
+  alpha(y_c + n nu_y).
+- **So the paint tilts across the stroke wherever the curve is not
+  vertical.** Across the stroke it changes cot(theta) times as fast as along
+  it, where theta is the curve's angle to the horizontal. The end angles are
+  26.6 (LN), 26.7 (RN), 21.5 (LS) and 26.7 (RS) degrees, so at the ends the
+  ratio is 2.0-2.5; it is 1.4 at u -60, 1 at 45 degrees (u about -115) and 0
+  at the apex.
+- **The tilt always leans toward the lens.** The table rises toward the
+  curve's middle rows, and those lie on the concave side at every end: below
+  the north ends and above the south ends. Rendered alone, `arc_core`'s light
+  sits 0.12-0.19 px lens-ward at u -60..-50, 0.43-0.89 at u -20 and 1.9-2.8
+  at the end. D69 measured the tip layer 0.1-0.9 px lens-ward past the ends.
+- **The ends' own directions differ.** The outward tangents are LN (-0.894,
+  -0.447), RN (0.894, -0.449), LS (-0.930, 0.367) and RS (0.893, 0.450), and
+  the curve turns toward vertical over about 200 px from each end.
+- **D69's two instruments, checked against the builder.**
+  - *The prototype builder option* painted a tip layer's stations along each
+    end's tangent alone, drawing the extended stroke once per end. It placed
+    each station where the end cubic crosses its row, and D70 keeps that. Past
+    the end, where the tip stroke's table lies, the tangent is square to the
+    stroke to within the continuation's small turn, so there it is right. It
+    cannot serve the core, whose fade lies 20-200 px inside the end, where the
+    curve turns toward vertical and the tangent's rows tilt the other way.
+    Measured on `arc_core`'s table, up to a quarter-turn the tangent paint
+    still changes 0.26-0.30 times as fast across the stroke as along it (95th
+    percentile; the y-paint 1.9-2.2), and 0.42-0.63 by the half-turn. Stage
+    3's weight removes that residual.
+  - *The along-arc simulation of the core* was a pixel simulator, not SVG. It
+    predicted the lens edge at u -90..-40 with the core painted along the arc:
+    LN +15.9 / +8.9 / +12.1, RN +19.1 / +11.0 / +14.0. The built SVG reads
+    +15.2 / +8.6 / +12.0 and +18.2 / +10.0 / +13.5 (stage 5 (a)), within 1 cv.
+
+### Stage 2: one coordinate change, tested end by end
+
+*The experiment.* A prototype builder option painted a table along the curve
+at chosen ends (the construction is in stage 3), keeping every station, the
+path, the width, the blur and the colour. Candidates were rendered through
+the real build and render path:
+- the core (`arc_core`) along the curve at the north ends, at the south
+  ends, and at all four;
+- the tip stroke (`arc_core_tip`) the same three ways;
+- both layers at all four ends;
+- `arc_glow1` and `arc_glow1w` at all four ends.
+
+Rendered alone, the curve paint keeps `arc_core`'s light within 0.05 px of the
+curve at every end, where the y-paint is 0.12-2.8 px lens-ward, and leaves its
+centre line within about 1 cv.
+
+*The question* was whether one coordinate change explains the tips' residuals:
+the tilt, and the lens edge too bright. The answer is **in part**.
+- **It is one cause of the model's error:** the y-paint tilts both layers
+  toward the lens at all four ends.
+- **It explains the reference's residual only where the reference's light
+  lies across the curve.** That is at the core's two north ends and the tip
+  stroke's two south ends.
+- **At the other two layer-ends the reference's own light is off-centre, in
+  the direction the y-paint leans:**
+  - the north tails lie 0.07-2.4 px lens-ward of the continuation;
+  - the south cores' cyan sits lens-ward of their white, and their lens
+    edge is too bright in white only, with no shortfall at the flare edge.
+
+  There the curve paint makes the tips worse.
+
+The four readings, independently measured, each robust in every pixel subset
+(7 of 7: all pixels, 8-px block interior and edge, x and y block halves) and
+after JPEG round-trips of the model at q60-90 4:2:0 and 4:4:4 q75:
+
+| layer, ends | corridor \|err\|, \|n\| <= 8 | verdict |
+|---|---|---|
+| core, north | LN -5.7% and RN -3.4% over u -100..0; -1.8% / -1.1% over u -217..60 (7 of 7) | kept |
+| core, south | RS +8.5% over u -60..0 (0 of 7); LS +4.7% (0 of 7; only u -20..0 improves) | rejected |
+| tip, south | LS -12.5% and RS -11.5% over u 0..60 (7 of 7); -0.7% each over u -220..60 (7 of 7) | kept |
+| tip, north | LN +0.3% (1 of 7), RN +3.7% (0 of 7) over u 0..60 | rejected |
+
+`arc_glow1` and `arc_glow1w` along the curve at all four ends moved the
+corridors by 0.2-0.5%, and the last 30 px of LN by +1.2% (0 of 7). That is
+too small and mixed to act on; they keep the y-paint.
+
+*The direct test at the north ends.* A fade along y should be lens-heavy
+across the curve and flat along the old y rows. A fade along the curve should
+be flat across the curve and flare-heavy along the rows (the rows cross the
+curve obliquely, so they run from the lens side's inner rows to the flare
+side's outer ones). Edge asymmetry (flare - lens) / (flare + lens), over 18
+variants (tangential windows 1/2/4, grid offsets +-0.25, smoothing):
+
+| end, u | reference: across \| along | D69: across \| along | candidate: across \| along |
+|---|---|---|---|
+| LN u -40 (R) | +0.02 \| +0.25 | -0.15 \| -0.01 | -0.03 \| +0.11 |
+| LN u -10 (R) | -0.17 \| +0.38 | -0.49 \| +0.02 | -0.08 \| +0.42 |
+| RN u -40 (R) | +0.04 \| +0.15 | -0.12 \| -0.01 | -0.02 \| +0.08 |
+| RN u -10 (R) | -0.14 \| +0.25 | -0.32 \| -0.01 | -0.04 \| +0.27 |
+
+At u -60..-10 on both north ends the reference has the curve paint's
+signature, and the candidate is closer in 18 of 18 variants in nearly every
+channel. At RN's last 5 px the reference turns y-like (across -0.22, along
++0.04), where its light bends lens-ward into its tail. That is recorded as a
+cost below.
+
+
+### Stage 3: the builder option (`taper_axis`)
+
+An arc layer with a table taper can carry `taper_axis`: `"y"` (the default),
+`"curve"`, or `{"north": ..., "south": ...}` for each end. At a `"curve"` end
+the table is painted along the curve instead of along y
+(`build_svg.curve_axis_stops`, `Builder.curve_axis_paint`).
+
+- **The construction.** SVG has no gradient along a path. Two linear
+  gradients and a weight reach one to first order in the offset from the
+  curve:
+  - Y, the table along y, exactly as before;
+  - T, Y's centre-line values along the end's own outward tangent, which is
+    square to the curve at the end;
+  - w, T's weight, derived from the curve. With tau and nu the local unit
+    tangent and normal, Y changes across the stroke a = nu_y / tau_y times as
+    fast as along it, and T b = (nu . T) / (tau . T) times. Between the end and
+    the apex the two have opposite signs, and w = a / (a - b) makes
+    (1 - w) a + w b = 0.
+  - Each station sits where the end cubic's own polynomial crosses its row
+    (continued past the end for an `extend` layer), so along the centre line
+    the fade is Y's. The paint changes only across the stroke.
+- **Its reach.** w is 1 past the end, where only the continuation's small turn
+  is left. It holds until the curve has turned a quarter of the way from its
+  end direction to vertical, and falls smoothly to 0 by halfway, where the two
+  paints tilt equally. The zone is the rows from that point to the end,
+  rounded outward to a multiple of 4 px: y < 236 at both north ends, y > 812
+  at LS, y > 792 at RS. That is whole pixel rows at every render size that is
+  a multiple of 256. No free number is fitted; the weight and the zone come
+  from the curve.
+- **In SVG.** Inside the zone the element is drawn in its solid colour through
+  a mask carrying (1 - w) Y + w T: Y and T in grey, T at opacity w, so that
+  source-over IS the blend. Two screen-blended elements would not add, so they
+  could not blend. Outside the zone the element's paint is the old gradient
+  and the mask is white, so there the layer is the y-paint. The zone is cut by
+  hard gradient stops, in the paint and the mask alike. A gradient is read at
+  each pixel's centre, so at any render size a pixel row that the zone edge
+  crosses falls wholly on one side of it. The mask sits on the path, inside a
+  group that carries the blur, clip, opacity and blend, so the layer is masked
+  before its blur as a paint is. The group carries its own blend, so it is not
+  the isolated-group case of the module docstring.
+- **Three renderer facts shaped it:**
+  - resvg reads the luminance of an opaque grey one level high at 23 of the
+    256 levels (35, 47, 70, ... 246), and of white exactly. So the mask's
+    grey is moved into its alpha under a white colour by a feColorMatrix,
+    which is exact at all 256 levels.
+  - A first prototype drew the whole curve half through the mask. It changed
+    about 1,100 pixels along the curves' middles by one level in R (213
+    within r 110 of the flare) through rounding alone. Hence the zones, with
+    the old paint outside them.
+  - The zone was first cut by rects, whose edges are anti-aliased. The
+    engineering review (stage 4) found that at a render size that is not a
+    multiple of 256 px, a pixel row that the zone edge crosses then mixed
+    the mask's two sides under the paint's one. The fade was applied twice
+    there, which left a line across the curves:
+    - 26-41 cv in resvg at 333, 700, 900, 1000, 1100 and 1200 px;
+    - 45-52 cv in Chromium at 700 and 1000 px.
+
+    Cut by hard stops instead, the zone rows are within 1 cv of the y-paint
+    at every one of those sizes, in both engines. The render at 1024 px is
+    unchanged, pixel for pixel.
+- **What it cannot do.** It does not move the curve or any control point. The
+  paths drawn are byte-identical to the plain layer's. Without the key, or
+  with "y" at both ends, a file builds byte-identically: all 55 per-layer
+  basis builds of D69, and 2,569 parameter files of earlier passes in the
+  scratch area.
+  - At render sizes 256, 512, 1000, 1024 and 2048, the change touches only its
+    three places: rows 80-236 and 903-967 (in 1024 px units) for the curve
+    paint, and the refit's rows on the right curve. No pixel outside them
+    changes at any of those sizes. At 1024 px the final construct renders
+    exactly as the rect-cut one that stages 5-6 evaluated, in resvg and in
+    Chromium alike, so every reading there holds for it.
+  - That exactness is resvg's, the renderer of record. Chromium draws the
+    same increment inside the zones:
+    - increment correlation 0.94 (LN, RN) and 0.72-0.75 (LS, RS, where
+      resvg's R change is at the one-level scale);
+    - slopes 0.91-1.06.
+
+    But Chromium rounds a masked group differently from a plain element.
+    Outside the three places where the render changes, 2,445 pixels move by
+    exactly one level along both curves' full length, balanced in sign: 424
+    within r 110 of the flare centre, and 25 within r 25 at the right curve's
+    apex. A control that wraps D69's own four elements the same way, with an
+    all-white mask, moves 4,271 pixels by up to 2 levels in Chromium and none
+    in resvg. So the cause is the structure, not the paint. The whole-image
+    resvg-against-Chromium MAE goes 2.6934 -> 2.6932.
+  - **A construction that was rejected.** The plain element clipped to the
+    rows between the zones, with the masked group clipped to the zone rows,
+    renders identically in resvg. But Chromium rasterises an element under a
+    partial clip differently at its anti-aliased edges. Rows 236-254, below
+    the north zone edge, differed from D69's Chromium render by up to 21 cv,
+    a 4-row step. The single masked group was kept.
+  - Where a zone's edge splits one of the table's gradient segments, resvg can
+    round a pixel of that segment one level apart. That is 9 of 20,689 lit
+    pixels of `arc_core` drawn alone with all four ends on the curve; none in
+    the shipped file.
+  - It refuses:
+    - a ramp taper, an untapered layer, a `convex_taper` layer;
+    - an unknown axis, or a value that is neither a string nor a dict;
+    - the key on a layer that is not an arc;
+    - a curve without cubic geometry;
+    - a zone edge off the canvas;
+    - an end that does not lie outward of its own half-turn;
+    - north and south zones that overlap.
+  - The computation is cached, as `extended_cubics` is. A build costs about
+    as much as one without the key. Uncached, the stations cost 25-65 ms per
+    end, which an optimiser trial pays whenever it changes one of the two
+    layers' table, width or inset; rasterising a basis layer takes about
+    300 ms.
+- **Inset.** An inset layer's control points move toward its ellipse centre.
+  The one transform that does this, `inset_cubics`, now serves
+  `bezier_arc_path`, `ribbon_path` and the curve paint, and both path builders
+  emit the same bytes as before.
+- **The file.** The SVG grows from 136,775 to 149,507 bytes (+12,732): one
+  filter, and the masks and gradients of four drawing elements. The other 66
+  drawing elements are unchanged, and every path's `d` is.
+- **The shipped choice.** `arc_core` carries `{"north": "curve"}` and
+  `arc_core_tip` `{"south": "curve"}`. Every other end, and every other layer,
+  keeps the y-paint.
+
+### Stage 4: the regressions
+
+Two new checks in `tools/test_pipeline.py` (72 in all):
+- **"a curve-axis fade follows each end's own curve".** It draws `arc_core`
+  (a ribbon) and `arc_core_tip` (an extended stroke) alone, in white, with all
+  four ends on the curve. It does so as shipped, and again with each layer
+  inset to the end of its range (0.8 and 2 px). It checks:
+  - the light is centred on the layer's own path within 0.2 px wherever the
+    centre line carries 20 cv, inside the ends and on the continuation past
+    them (measured 0.04-0.11 px). The same layer on y is off by more than 0.3
+    px (0.42-0.61), so the check is not vacuous;
+  - the centre line is the y-paint's within 3 cv or 4%;
+  - outside the zones the render is the y-paint's, to within one level on at
+    most 0.2% of the lit pixels;
+  - every path drawn is the plain layer's;
+  - each zone edge is a multiple of 4 px;
+  - at 1000 px, a size whose pixel rows the zone edges cut, the rows at each
+    zone edge are within 2 cv of the y-paint (measured 0-1; the rect-cut
+    construct gives 47 on the core and 93 on the tip stroke);
+  - turning an end cubic's first control leg 6 degrees turns that end's
+    gradient onto the new tangent (0.000 degrees off), and the light follows
+    the new path (0.06 px);
+  - making the right curve's north handle 1.4 times as long moves that end's
+    zone from y 236 to 240, the new curve's own half-turn row;
+  - "y" in each spelling builds the file without the key, and a file with no
+    "curve" end carries none of the option's markup;
+  - six misuses are refused.
+
+  Then, on the shipped file, no pixel outside its curve-painted ends' zones
+  differs from the file without the key.
+- **"the curve-axis paint has no tilt, and is the y-paint again at its
+  zone's edge".** It evaluates the emitted paint as SVG defines it, on
+  `arc_core`'s table at all four ends:
+  - up to a quarter-turn it changes 0.004-0.006 times as fast across the
+    stroke as along it (95th percentile), against 1.9-2.2 for the y-paint;
+  - on the centre line it is the y-paint within 0.002;
+  - at the zone's edge it is the y-paint within 8e-6, on and off the line.
+
+  The 95th percentile is used because within half a pixel of a station the
+  two gradients kink along different lines, a second-order effect of the
+  table.
+
+Between them the two checks fail on each of 18 mutants of the final builder,
+and on the rect-cut construct. Eight of the mutants were written with the
+option:
+- the weight forced to 1 or to 0;
+- the tangent flipped (the builder itself refuses this one);
+- the option ignored;
+- the zone edge unrounded;
+- the hand-over removed;
+- the stations placed along the tangent's projection instead of the curve;
+- b's sign inverted.
+
+Ten come from the engineering review's list:
+- the inset ignored by the stations, or applied to them twice;
+- the filter emitted without the option;
+- `{}` or `"y"` read as "curve";
+- the zones fixed at their shipped rows;
+- the stations' reach cut to 0, or to the stroke's half-width;
+- the masked stroke drawn without its continuation;
+- a station cache keyed without the geometry.
+
+Two older checks had their probes adapted; their assertions are unchanged:
+- **D68's "an extended arc runs past its ends only along its own curve".**
+  Its probe removes the tip layer's table, and now removes `taper_axis` with
+  it. It passes with identical detail.
+- **D67's gap check.** It builds a stack without gaps and requires no mask in
+  it. It now also puts the curve-axis ends back on y, because their paint
+  carries a mask of its own.
+
+A first draft of the new check sampled its cross-sections with SciPy, which
+is not a documented dependency. The suite's own import check caught it in the
+first publish, and the sampler is now plain numpy.
+
+*The engineering review.* An independent review re-derived the construction
+and built its own six checks and 25 mutants. It confirmed:
+- the station weights match an angle-only formula to 1e-4;
+- the zones match its own rounding of the half-turn rows;
+- the first-order cancellation holds (across / along at most 0.02 up to the
+  quarter-turn);
+- files without the key build byte for byte as before.
+
+A control with w forced to 0, drawn through the same mask, moves every
+corridor by at most 0.1% against D69, so the gains of stage 5 are the tilt,
+not the drawing path. Its findings, and what was done:
+- **Blocking:** D68's probe crashed on parameters that carry the key. It was
+  already fixed in the working tree (above).
+- **Major:** the zone-edge seam at sizes that are not multiples of 256.
+  Fixed by the hard-stop cut, with the 1000 px regression.
+- **Minor:**
+  - "exactly the y-paint outside the zones" holds for the shipped file at
+    every size measured, but where a zone edge splits one of the table's
+    gradient segments it is within a level. With all four ends on the curve
+    that is 32 pixels of the composite at 1024. It is now worded so.
+  - Chromium's one-level speckle, as above.
+  - The uncached cost, as above.
+  - The input guards, as above.
+  - Style: one inset transform, the validation done once per layer, one
+    masked-group template.
+- **Accepted:**
+  - For an inset `extend` layer, the stations continue the inset end cubic
+    while the drawn tail is the inset of the continued cubic. They differ by
+    0.035-0.052 px at the tip layer's inset bounds of +-2, and by 0.0003 px at
+    its shipped inset of 0.
+  - T's greys are 8-bit, as the mask they are drawn into is.
+
+
+### Stage 5: the change, end by end
+
+**(a) The core at the two north ends: painted along the curve (kept).**
+- *Evidence* (the north investigation, 16 variants: tangential windows, grid
+  offsets, 7 block-phase subsets; every reading also after JPEG round-trips
+  of the model):
+  - **The paint-direction test above:** the reference has the curve paint's
+    signature at u -60..-10 at both ends (18 of 18 variants).
+  - **The core's position.** Half-level midpoint of R, model minus
+    reference:
+    - LN at u -45 / -15 / -8 / -3: D69 -0.27 / -0.27 / -0.69 / -0.62 px,
+      candidate -0.16 / +0.07 / -0.09 / -0.29;
+    - RN: -0.22 / -0.27 / -0.38 / -0.49 -> -0.12 / -0.04 / +0.04 / +0.13.
+
+    Closer in 16 of 16 variants at every u from -85 to -3. After JPEG, D69's
+    copies read -0.47..-0.63 px at LN u -10 and the candidate's -0.21..+0.10,
+    against the reference's -0.11.
+  - **The lens edge D69 (d5) recorded** (n -3.5..-2.5, u -35..-5, R/G/B):
+    - LN +10.7 / +7.1 / +9.2 -> +6.0 / +3.2 / +5.5;
+    - RN +11.4 / +5.3 / +10.0 -> +7.4 / +2.0 / +6.6.
+
+    Better in 16 of 16 variants and after every JPEG round-trip.
+  - **D69 (d6)'s recorded cost** (the lens edge at u -90..-40, which D69's
+    three stations brightened): LN D68 +15.3 / +8.7 / +11.9, D69 +18.7 /
+    +12.2 / +15.3, candidate +15.2 / +8.6 / +12.0, so it is fully removed.
+    RN: D68 +14.2 / +6.0 / +9.5, D69 +21.9 / +13.1 / +16.5, candidate
+    +18.2 / +10.0 / +13.5, 43-48% removed.
+  - **The flare edge** (n 2..3.5, u -90..-40): LN -10.9 / -15.3 / -10.9 ->
+    -6.7 / -11.0 / -6.5; RN -14.1 / -14.4 / -10.4 -> -9.5 / -9.7 / -5.8.
+  - **Corridors** (\|err\| RGB, \|n\| <= 8): u -100..0 LN -5.7%, RN -3.4%
+    (7 of 7 subsets, and 7 of 7 after each JPEG copy); u -217..60 -1.8% /
+    -1.1%.
+- *Alternatives:* all four ends (the south cores get worse, (b)); the tip
+  stroke's north ends (the north tails get worse, (d)); `arc_glow1` and
+  `arc_glow1w` along the curve (0.2-0.5%, mixed at the last 30 px).
+- *Action:* `arc_core`: `"taper_axis": {"north": "curve"}`. Every station,
+  the width table, the colour and the blur are unchanged.
+- *Measured:*
+  - 2,367 pixels change (LN 1,196, RN 1,171), at y 83-235, by at most 10 cv
+    (mean dE76 1.1).
+  - Their summed \|err\| falls 4.9% (LN) and 3.2% (RN). Roughly half the
+    pixels get better and half worse; the net comes from the flare-side body
+    and the lens-side outer band.
+- *Costs, recorded:*
+  - **RN's last 10 px and its cap** (u -10..+5): corridor +3.7% (1 of 7
+    subsets, worse in every JPEG copy). There the reference's light turns
+    lens-ward, as its tail does, and at u -3 the candidate's G/B sit 0.14 px
+    flare-ward of the curve against the reference's 0.18 px lens-ward. LN's
+    last 10 px improve instead (-15.8%, 7 of 7).
+  - **The flare edge at u -35..-5 overshoots in R and B** by about +4-5 cv
+    while G is fixed (LN -0.4 / -5.7 / -1.0 -> +4.4 / -0.6 / +3.9; RN
+    -1.1 / -4.1 / +0.1 -> +3.9 / +1.4 / +5.4). dE76 falls (5.30 -> 4.48 and
+    4.53 -> 4.03), but the R+G+B sum is better in only 5 and 3 of 16
+    variants. The core's single colour is whiter than the reference's
+    cyan-er light near the ends: a colour item, not a direction one.
+  - **The hand-over zone** (u -217..-100): LN +0.1% (1 of 7), RN -0.1%
+    (7 of 7). The lens edge at u -100..-80 is 1.2-2.2 cv darker at both ends
+    (two readings), where the concave glow is already short.
+  - **Found by the independent review** (each worse in 0 of 7 subsets, and
+    under JPEG):
+    - the inner lens band (n -3..-1, u -60..-40) gets darker: LN +0.2 /
+      -5.1 / -1.0 -> -5.7 / -11.4 / -7.0, RN G +0.2 -> -5.2;
+    - RN's flare edge (n 2.5..3.5) is worse in all three channels, not only
+      R/B: +2.1 / -1.1 / +2.9 -> +7.0 / +4.1 / +7.9;
+    - the outer flare band (n 3.5..4.5) and the body at u -35..-5 are
+      0.7-1.1 cv worse.
+
+    The paint moves light from the core's lens half to its flare half. The
+    lens half's inner band, which the y-paint's lean had filled, is now
+    short, and the flare half overshoots.
+- *Not changed by it:*
+  - the plateau shortfall just inside the north ends (LN u -60..-40 G -8.9
+    -> -8.4; RN u -90..-70 R -9.4 -> -8.9). It is now symmetric across the
+    stroke, an amplitude deficit rather than a tilt;
+  - the fade timing (within 0.6 px);
+  - RN's outer shortfall ((c) below).
+
+  What remains of the lens edge is edge softness at both edges. The 20-80%
+  rise is 1.2-1.4 px in the model against 0.6-1.1 px in the reference, and
+  JPEG makes the model's edges softer, not sharper.
+- *Visible:* at 1x and 3x D69 and the candidate cannot be told apart. At 6x,
+  unrolled along the curve, it is a clean lens-to-flare transfer, with no
+  seam, step or texture. At the zone edge (y 236) nothing changes at or below
+  it, and at most 2 pixels per row change by one level just above it.
+
+**(b) The core at the two south ends: left on y.**
+- *Evidence* (the south investigation, same variants):
+  - **RS.** The lens-edge excess over u -60..-20 is real only in R: +7.4
+    against the flare edge's +0.8. G/B are already centred (centroid -0.11..
+    +0.11 px against the reference). The G/B centring comes from flare-heavy
+    cyan in other layers, measured by removal: the tip stroke inside the end
+    and `arc_glow1b`.
+
+    Painting the core along the curve moves all three channels together. R
+    centres, but G/B overshoot 0.10-0.27 px flare-ward, and the flare edge
+    rises about 4 cv in every channel. The corridor over u -60..0 is +8.5%
+    (0 of 7 subsets in each 20-px bin; +3.6..+9.6% after every JPEG
+    setting).
+  - **LS.** At u -60..-20 the error is a white/cyan balance: the R plateau is
+    20-40% over the reference while G/B are short (R fit -20% against G -6%).
+    The curve paint makes it worse (+7.6% and +10.0%, 0 of 7). Only the last
+    20 px carry a real all-channel tilt, and there it helps (-5.8%, 7 of 7).
+  - A diagnostic render with the south cores narrowed to 6.0 px (their
+    half-level widths are 0.35-0.46 px over the reference's) does not change
+    this: the curve paint is still +5.9% worse there.
+- *Action:* none. The south cores' residuals are a colour balance and a
+  width, recorded under Remaining.
+
+**(c) The tip stroke at the two south ends: painted along the curve (kept).**
+- *Evidence:*
+  - **The layer's own tilt past the end is removed.** Alone, its maximum
+    \|centroid\| goes LS 0.88 -> 0.13 px, RS 0.51 -> 0.13.
+  - **The tail's centre** (Gaussian + background fits, 57 variants, n > 0
+    flare-ward):
+    - LS at u 5 / 10 / 20 / 30: D69 -0.72 / -0.96 / -1.00 / -1.39, candidate
+      -0.17 / -0.29 / -0.04 / -0.17, reference +0.46 / +1.06 / +2.28 /
+      +2.96;
+    - RS at u 10 / 30 / 45: -0.33 / -0.52 / -0.42 -> -0.08 / -0.01 / +0.08,
+      reference +0.18 / +0.87 / +1.12.
+
+    Closer in 57 of 57 variants and in 7 of 7 block-phase pixel fits.
+  - **Corridors past the end** (u 0..60): LS -12.5%, RS -11.5% (7 of 7, and
+    in each of 9 JPEG round-trips: -4.3..-11.3%, -5.2..-10.6%). Over u
+    -220..60: -0.7% at each end (7 of 7).
+- *Action:* `arc_core_tip`: `"taper_axis": {"south": "curve"}`. D69 had
+  deferred this tangent paint on cost: about 245 lines for an invisible
+  change. With the option built for (a) that cost is gone, and the evidence
+  it was deferred on still holds.
+- *Measured:* 1,380 pixels, at y 904-966, by at most 4 cv (933 by 1, 313 by
+  2, 121 by 3, 13 by 4).
+- *Costs, recorded:*
+  - **LS inside the end, u -40..-20:** corridor +6.2% (0 of 7). There the
+    y-painted tip stroke was flare-heavy (+0.43..+0.66 px, alone). That
+    cancelled part of the core's lens-ward G/B tilt, and the curve paint
+    removes the cancellation. Over u -60..0 the net is still -0.4% (5 of 7),
+    because u -20..0 improves 7.0% (7 of 7).
+  - **The LS far tail's flux falls further below the reference:** 0.66 /
+    0.60 / 0.59 / 0.56 against D69's 0.73 / 0.68 / 0.70 / 0.83 at u 20-35.
+    The y-paint had been averaging the table across the oblique stroke. The
+    first-crossing 25% point moves from 0.8 px late to 3.3 px early; the
+    cumulative-flux timing moves closer. Both readings lie inside the
+    spread of the model's own JPEG copies (25% point 14-28 px).
+  - **RS's last 5 px:** the ridge moves 0.05-0.19 px lens-ward (-0.32 /
+    -0.28 / -0.08 against -0.27 / -0.09 / +0.02 at u -5 / 0 / +5; reference
+    -0.18 / -0.09 / +0.08). That is at the model's own JPEG scatter there.
+    Its corridor over u -20..0 is +0.7% (1 of 7; +0.1..+4.1% under JPEG).
+- *Not changed:* the tails' path. LS stays 0.6-3.5 px and RS 0.2-1.0 px
+  lens-ward of the reference's flare-ward tails. D68's contract fixes the path
+  to the end cubic's own continuation.
+- *Visible:* not at 1x or 3x. At 6x with a 3x stretch it is a clean
+  lens-to-flare transfer past the end.
+
+**(d) The tip stroke at the two north ends: left on y.**
+- *Evidence:* the reference's north tails lie lens-ward of the continuation:
+  LN -0.07..-1.37 px and RN -0.47..-2.43 px over u 5..50. The y-paint's
+  lens-ward lean is closer to them than a centred tail:
+  - mean \|n0 - reference\| is LN 0.34 against 0.68 px, RN 0.59 against 1.04
+    (the curve paint closer in 0 of 18 variants on RN);
+  - corridor u 0..60: LN +0.3% (1 of 7), RN +3.7% (0 of 7).
+- *Action:* none. It keeps the y-paint because its lean coincides with the
+  reference's lens-ward path. That is a paint effect standing in for geometry,
+  as D69 said, and is recorded as such.
+
+
+### Stage 6: the right curve's outer thirds, re-read after the coordinate change
+
+The coordinate change comes first. The curve paint changes nothing outside
+its zones: no pixel at y 236-812 moves. Inside RN's zone at u -220..-80 it
+moves the core body by at most 0.6 cv, its flux by at most 0.4% and its width
+by at most 0.005 px. So the outer thirds' readings are the D69 base's, and the
+coordinate model is not hiding or creating them. Both outer thirds were then
+re-read per channel (16 variants: tangential windows, plateau half-widths,
+block-phase halves and block edge / interior, Gaussian 1; 15 flux variants;
+JPEG round-trips of the model).
+
+**(e1) RN, the shortfall D69 saw continue past y 160: deferred.**
+- *Evidence:* it is a white / cyan balance, not missing light.
+  - **y 215-312 is R-only:** R -6.7..-19.8 while G -0.5..+4.8 and B +0.6..
+    +8.2. Station fits there want R +7..+9% and G / B -1..-5%, opposite
+    signs.
+  - **y 161-207 is R-dominant:** R -13.7..-18.4 against G / B -2.3..-7.1.
+    Single-channel fits of stations 160 / 180 / 200 ask R +7.3 / +7.9 /
+    +9.2% and G +2.2 / +3.4 / +1.6%.
+  - **Not width:** the equivalent width is 0.93-1.02 of the reference's.
+- *Alternatives:*
+  - **D69 (d6)'s method** (a median over channels) raises 160-200 by 3.6-5.2%
+    and flips G / B at the body from -2.7 / -2.0 to +3.4 / +3.9. The local
+    profile gets worse in the intended region.
+  - **A raise limited to G / B** (+1.5 / +3.9 / +1.5%) gains 3.7% of the
+    corridor. But it is marginal at 160 and 200 (variant minima +0.1..+1.3%),
+    turns B over under a 4:2:0 q60 round-trip, sits at the visibility
+    threshold (dE76 1.07), and leaves 72% of the R deficit, which is the
+    actual item.
+- *Action:* none. The item is the right curve's white near its north end; a
+  table cannot raise R alone. It waits on a colour pass.
+
+**(e2) RS, the right curve's south outer third: changed.**
+- *Evidence:*
+  - **Missing light in all three channels over RS u -290..-140** (y
+    727-850). Body per-bin medians R -10.0..-17.5, G -8.8..-14.7, B
+    -9.1..-17.0, negative in 16 of 16 variants in every bin and channel.
+    Flux over the reference is 0.89-0.97.
+  - **The ask is the same in every channel**, computed from `arc_core`'s own
+    screen response: R +6.0..+10.3%, G +5.7..+9.9%, B +7.1..+11.5%. Along
+    that response the deficit explains 97-100% of the body error.
+  - **It survives compression.** On 20 JPEG copies of the model matched to
+    the reference's blocking, the body still reads R -11.5..-14.2, G
+    -8.8..-9.7, B -7.1..-9.5.
+  - **It is local.** It rises from zero at y 704-718. Toward the tip it turns
+    R-only from about y 861. Toward the apex the right curve is too bright
+    (the middle third, y 547-684).
+  - **It is not width,** and not another layer. Removal renders show
+    `arc_core_wide` gives at most 4 cv, on the lens half only and nothing past
+    u -170; `arc_core_edge`, the glows and the flare give 0-4 cv. The R
+    deficit is symmetric across the stroke, which only `arc_core` can supply.
+- *Action:* six of `tapers.core`'s right stations. Each is the median of 16
+  fits with every other station held, and every variant's range excludes the
+  old value:
+
+  | y | before | after | variant range |
+  |---|---|---|---|
+  | 740 | 0.7812 | 0.8258 | 0.8054..0.8490 |
+  | 760 | 0.8271 | 0.8762 | 0.8661..0.8862 |
+  | 780 | 0.8479 | 0.9139 | 0.9063..0.9266 |
+  | 800 | 0.8901 | 0.9496 | 0.9406..0.9608 |
+  | 820 | 0.8197 | 0.8894 | 0.8748..0.9060 |
+  | 840 | 0.7934 | 0.8670 | 0.8583..0.8819 |
+
+  Freeing 720 and 860 as well moves these by at most 0.007. An independent
+  refit with a different method (pixel least squares on per-station
+  renders) lands within 0.003 of each.
+- *Measured:*
+  - 1,582 pixels change, all brighter, by at most 16 cv, at y 720-861 on the
+    right curve (u -293..-123, \|n\| <= 5.5). Nothing else moves.
+  - **Body**, pooled over u -290..-140: -10.3 / -9.8 / -10.1 -> +0.9 /
+    -0.4 / -1.4. dE76 4.15 -> 2.48.
+  - **Corridor** \|n\| <= 8, u -300..-120: -16.2%, in 7 of 7 subsets in every
+    30-px range, and -10.8..-15.3% on the matched JPEG copies.
+  - The changed pixels' summed \|err\| falls 25.8% (1,152 better, 391
+    worse).
+- *Costs, recorded:*
+  - **The core's feet get brighter.** The flare-side foot (n 3..4) goes +5.3
+    / +10.4 / +12.0 -> +10.2 / +14.2 / +15.5, and the band n +3..+4.5 is
+    +9.1% worse. The lens-side foot's R goes +5.0 -> +9.8 while its G/B
+    improve. The model's core edge is softer than the reference's at all four
+    ends (fitted sigma 0.58-0.60 against 0.35-0.40), so raising the plateau
+    raises the feet with it; this is the same kind of cost D69 (d6) recorded.
+  - **R +8.2 / +8.8 at u -270..-250** (y 740-758), where the reference's own
+    R dips over about 20 px, which 20-px stations cannot follow. It is
+    +0.8..+9.1 on the JPEG-matched copies.
+  - **R flux +2..+6% at u -190..-150,** depending on the background.
+  - **The lens edge's R at u -170..-140** goes -1.6 -> +9.7 (worse in 0 of 7
+    subsets, and under JPEG), while its G/B improve by about 10 cv.
+  - **The fit is conditional.** Against a local background (\|n\| 4.5-7) the
+    reference's G/B core is not short, and F's G/B then read 7-17% over. Under
+    the model's screen compositing, near saturation, a missing skirt would add
+    only about 2 R / 1 G at the body. So the body deficit is `arc_core`'s in
+    the model's own terms, but the stations absorb the body's share of the
+    reference's skirt and lens-side cyan rim, which no layer draws. They
+    should be re-checked if a core skirt or a lens-side cyan carrier is ever
+    added.
+- *Alternatives:*
+  - **A wider fit, 700-880:** 700 spans its current value, 720 asks +3.5%
+    over a half-empty zone, and 860 / 880 ask R only.
+  - **Larger stations,** as wider windows and an L1 corridor objective ask
+    (up to 0.860 / 0.890 / 0.931 at 740-780): not taken; the adopted values
+    are the conservative ones.
+- *Visible:* at 1x the lower-right curve's outer third reads brighter and
+  whiter, holding its white further toward the corner as the reference's
+  does. The costs are not visible at 1x. At 8x the reference's core is crisp
+  with a cyan rim on its lens side, and the model keeps its softer edge.
+
+### Stage 7: the tips' items, reassessed
+
+| item | end | after D70 |
+|---|---|---|
+| The model's cross-section tilt | LN, RN core | fixed: centred within 0.1-0.17 px at u -85..-8 (closer in 16 of 16 variants) |
+| | LS, RS tails | fixed for the paint (the tail layer 0.88 / 0.51 -> 0.13 px) |
+| | LS, RS core; LN, RN tails | unchanged by choice: the y-paint's lean coincides with the reference's own off-centre light ((b), (d)) |
+| North lens edge too bright (D69 d5) | LN, RN | improved but unresolved: -35..-62% per channel. The rest is edge softness at both edges (20-80% rise 1.2-1.4 px against 0.6-1.1), not direction |
+| D69 (d6)'s recorded lens-edge cost | LN / RN | fixed / 43-48% removed |
+| White shortfall just inside the north tips | LN, RN | unchanged: LN u -60..-40 G -8.4, RN u -90..-70 R -8.9. Now a symmetric amplitude deficit between knots, not a tilt |
+| RN's continuation toward y 160 and beyond | RN | deferred: a white / cyan balance ((e1)) |
+| RS's outer third | RS | fixed in the body, with recorded costs ((e2)) |
+| The south-west tail under-drawn (D69 d2) | LS | worse in flux (0.60-0.66 against 0.68-0.73 of the reference at u 20-30), better in position and in the corridor; still the path (D68's contract) |
+| The tails' path | all | unchanged: north 0.07-2.4 px lens-ward, south 0.2-3.5 px flare-ward of the continuation |
+| Tail colour (D69 d4) | all | JPEG-limited: B/G 1.02-1.04 against 0.81-0.93; the model's own JPEG copies read 0.72-1.59 |
+| Fade timing (D69 d3) | all | unchanged within 0.6 px at the north; RS slightly closer; LS mixed and JPEG-limited |
+
+### Stage 8: the deferred items, unchanged
+
+No pixel within r 212 of the flare centre changes, so none of the flare items
+has new evidence:
+- the flare-side green;
+- the lower-right inner segment, whose translation is kept;
+- the north-of-core red;
+- the vertical line's colour;
+- upper-left B's hue.
+
+D69's readings of them stand. The tail colour stays JPEG-limited ((c) of
+stage 7). No global saturation operation was made.
+
+### What was preserved
+
+- **The west triangle stays absent.** The west check reads 0.782, as before,
+  and no pixel within r 212 of the flare centre changes.
+- **Every reference-supported structure D69 listed is kept:**
+  - the upper-left rays;
+  - the lower-left segments and the 229-degree lobe;
+  - the upper-right line and slab;
+  - the lower-right translation, line and flank;
+  - the vertical line and the soft horizontal lines;
+  - the core's three white arms, its compactness, and D68's directional
+    white;
+  - the curves' D67 flare-side fade, D68's tail continuation, D69's north-tip
+    stations, and the frame.
+- **Layers:** 55 named, none added or removed.
+- **Rays:** none moved or recoloured (RAY_GEOMETRY untouched). Calibration
+  verifies at 0.51 with the file byte-unchanged. Teal stays on the six layers
+  of record.
+- **Geometry:** every cubic control point, the lens ellipses and the flare
+  centre are unchanged. Every path the SVG draws is byte-identical to D69's.
+  D68's `extend` continuation is unchanged, and so is its regression, but for
+  the probe line of stage 4.
+- **The deliverable** is still vector only, with no bitmap and no JPEG
+  texture. The artwork change is two `taper_axis` keys and six numbers in
+  `tapers.core`: 5,329 pixels in three places.
+- **The builder** builds every file without the key byte for byte as D69's
+  did: D69's own parameters, its 55 per-layer basis builds, and 2,569
+  parameter files of earlier passes.
+- **D69's objective fix** (`Objective.K_seen`) is untouched, and its
+  regression passes.
+
+### How the decisions were made
+
+- **The brief's order.** The baseline came first: D69's publish was
+  reproduced byte for byte before any change. Then the y-paint was
+  characterised, and D69's prototype and simulation were checked against the
+  builder (stage 1). Only then was the coordinate change tested, built and
+  applied, and the refit came after it.
+- **One cause, tested per end and per layer.** Every candidate went through
+  the real build and the resvg render, never a simulator: each of the two
+  layers at three sets of ends, both layers at all four, and the two glows.
+  Each end was read by:
+  - longitudinal profiles;
+  - cross-sections perpendicular to the curve and along the old y rows;
+  - the lens and flare edges and the centroid;
+  - the paint-direction test;
+  - RGB corridors.
+
+  Every reading was checked in 7 pixel subsets and after JPEG round-trips of
+  the model's own render.
+- **The rule for a change.** An end was changed only if its own readings
+  improved over a contiguous region, robustly, with a structural cause, and
+  no neighbour got worse without a recorded reason. Two layer-ends passed:
+  the core's north ends and the tip stroke's south ends. The other two
+  failed, and the reason is in the reference: there its light is off-centre
+  in the direction the y-paint leans.
+- **The option chooses per end, and fits nothing.** The weight and the zone
+  come from the curve. The option is switched on only at the layer-ends the
+  evidence supports.
+- **The refit is local.** It covers only what the coordinate change does not
+  reach (stage 6). A station moved only where every fit variant excluded its
+  old value, and the conservative values were taken. No optimiser was run.
+- **Independent review.** Four investigators (north, south, visual, refit)
+  worked from the real renders. Two refuters, each told to refute with their
+  own code, found no refutation; their costs are written into (a), (c) and
+  (e2). An engineering review of the builder change built its own checks and
+  mutants. It found one blocking and one major defect, both fixed before
+  release: a probe crash and the zone-edge seam at render sizes that are not
+  multiples of 256 (stage 4).
+- **Whole-image metrics** were consequences, never the criterion.
+
+### What the numbers did
+
+    measure                 D67 (1c46a7d)   D68 (5a1fa0c)   D69 (4113310)   D70 final
+    MAE                     1.6986          1.6839          1.6803          1.6733
+    RMSE                    3.152           3.107           3.090           3.060
+    SSIM                    0.97603         0.97645         0.97646         0.97651
+    edge IoU                0.6981          0.7009          0.7006          0.7010
+    centre-region MAE       4.589           4.584           4.584           4.584
+    flare r<110 MAE         4.044           4.041           4.041           4.041
+    core r<25 MAE           3.747           3.690           3.690           3.690
+    bright-region MAE       7.994           7.854           7.712           7.479
+
+These are consequences, not the criterion.
+- The coordinate change alone ((a) and (c)) moves:
+  - MAE 1.6803 -> 1.6790;
+  - RMSE 3.090 -> 3.085;
+  - edge IoU 0.7006 -> 0.7013;
+  - the bright-region MAE 7.712 -> 7.685.
+- The refit ((e2)) then brings MAE to 1.6733, RMSE to 3.060 and the
+  bright-region MAE to 7.479, and gives back 0.0003 of edge IoU.
+- No pixel within r 212 of the flare changes, so the centre, flare and core
+  numbers do not move.
+
+### Remaining, with the reason
+
+- **The north tips:**
+  - RN's last 10 px and its cap, where the reference's light turns lens-ward
+    into its tail ((a)).
+  - The flare edge's overshoot at u -35..-5 and the short inner lens band.
+    The core's single colour is whiter than the reference's cyan-er light
+    near the ends: a colour item ((a)).
+  - The rest of the lens edge's excess: edge softness at both edges, not
+    direction ((a)).
+  - The plateau shortfall just inside both ends, an amplitude deficit between
+    stations ((a)).
+- **The south cores:** RS's lens-edge excess in R and LS's white / cyan
+  balance. Their half-level widths are also 0.35-0.46 px over the
+  reference's ((b)).
+- **The tails:**
+  - Their paths: the north tails lie lens-ward and the south tails
+    flare-ward of the continuation D68 draws. The north tails keep the
+    y-paint, whose lean stands in for that path ((c), (d)).
+  - The LS far tail's flux, 0.56-0.66 of the reference's ((c)).
+  - Their hue, mostly at the compression's size (stage 7).
+- **The right curve:**
+  - RN's outer third, a white / cyan balance that a table cannot correct
+    ((e1));
+  - RS's refit costs: the feet, R at u -270..-250 and the lens edge's R at
+    u -170..-140. The fit depends on the reference's core skirt and
+    lens-side cyan rim, which no layer draws ((e2)).
+- **Chromium's one-level speckle** along the two masked layers (stage 3).
+- **The uncached cost** of the stations, 25-65 ms per end, for an optimiser
+  trial that changes one of the two layers' table, width or inset (stage 3).
+- **Two sheet-verification probes** (D63's "the diagnostics refuse inputs they
+  cannot read" and D65's "a sheet cannot vouch for a source image it no longer
+  shows") use the pinned baseline as their "different" SVG and render. They
+  fail whenever the baseline equals the release, as it does on a commit that
+  only re-pins it (Validation). It is a test fixture's limit, not the
+  artwork's.
+- **Everything else D69 listed under Remaining** is unchanged. That covers
+  the core, the junction, the zone between the curves, the lower-right
+  segment, the vertical line, upper-left B, the concave glow, D67's and
+  D68's recorded costs, and saturation. No pixel within r 212 of the flare
+  moved (stage 8).
+
+This is not a pixel-perfect reconstruction, and not every residual listed is
+one to correct.
+
+### Validation
+
+- **The before/after baseline, re-pinned.** `out/baseline/manifest.json`
+  says to replace the before/after sheet's baseline when a new release is
+  accepted. PR #5's merge accepted D69, so this commit pins D69's SVG (main
+  86b31c5, 7b58deb6...), and the sheet now compares this release with D69.
+  - The re-pin was first published on its own, on D69's tree. That run
+    rebuilt the artwork byte for byte, and 68 of its 70 checks passed.
+  - The other two could not pass there. They probe the sheet's verification
+    with the baseline as "a different SVG" and as "another authentic render",
+    and with the release re-pinned as the baseline, both are the release
+    itself. So the re-pin lands with this pass's artwork change, where the two
+    differ. Those two probes should get SVGs and renders of their own (see
+    Remaining).
+- `sh tools/publish.sh` on the final tree: **PUBLISH OK**. That includes:
+  - the cross-engine check (resvg against Chromium, MAE 2.693, as in D69);
+  - the before/after sheet's `--verify` step;
+  - the reproducibility step.
+- `tools/test_pipeline.py`: all 72 checks pass (70 in D69). The two new ones
+  are stage 4's. D68's extension check and D69's objective check pass
+  unchanged.
+- `measure_flare` calibration verifies as converged, worst correction 0.51
+  of tolerance, and leaves the file byte-unchanged.
+- `visual_regression`: 0 of 16 structural checks fail, with output identical
+  to D69's. The west check reads 0.782, so the west triangle stays absent.
+- `src/params.json` rebuilds `reconstruction.svg` byte for byte, twice over.
+  Its render at 1024 px is byte-identical to the candidate reviewed in stages
+  5-6. D69's parameters, built with this builder, give D69's SVG byte for
+  byte.
+- The change is confined to its three places at 256, 512, 1000, 1024 and 2048
+  px: no pixel outside the zones and the refit's rows differs from D69's
+  render at any of them.
+- The CI workflow's steps were run in a fresh clone of the final commit with a
+  fresh virtual environment:
+  - the gate before setup exits 3;
+  - then setup, the gate (72 of 72), validation and the SVG rebuild all
+    pass.
+- GitHub CI (`checks`, `regression-gate`) runs the same workflow on this
+  commit; the pull request reports its result.

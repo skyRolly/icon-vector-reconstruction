@@ -1802,7 +1802,8 @@ def main():
     # the halo is faint (<= 7/255), so the mechanism is also checked with a
     # probe gap over the halo's bright part: depth 1 removes (all but) all of
     # it inside, depth 0.5 about half (resvg reads a luminance mask linearly).
-    # A layer without a gap must emit no mask at all.
+    # A stack without gaps must emit no mask at all (once its curve-axis ends,
+    # whose paint carries a mask of its own (D70), are put back on y).
     _gapL = [L for L in params["layers"] if L.get("gap")]
     _gd = []
     _yy, _xx = np.mgrid[0:1024, 0:1024] + 0.5
@@ -1819,6 +1820,7 @@ def main():
         _pn = _cpk.deepcopy(params)
         for _Lg in _pn["layers"]:
             _Lg.pop("gap", None)
+            _Lg.pop("taper_axis", None)
         if "<mask" in build_svg.build(_pn):
             _gd.append("a stack without gaps still emits a mask")
         _cw, _cn = _halo(params), _halo(_pn)
@@ -2067,6 +2069,7 @@ def main():
             for _L in _q["layers"]:
                 if _L["id"] == "arc_core_tip":
                     _L.pop("taper", None)
+                    _L.pop("taper_axis", None)      # nothing to paint without the table (D70)
                     _L.update(_probe)
                     if _q is _pP:
                         _L.pop("extend", None)
@@ -2117,6 +2120,349 @@ def main():
           "refused with width_taper and convex_taper, and past the end cubic's span; %s searched (%d specs)"
           % (max(v[0] for v in _exR.values()), min(v[1] for v in _exR.values()), _rU, _lim,
              _atU.min(), _atU.max(), _rP, _atP.max(), _Lx["taper"], len(_exU)))
+
+    # ---- a curve-axis fade follows each end's own curve (D70) ------------- #
+    # `taper_axis: "curve"` paints a layer's table along the curve at an end
+    # instead of along y (build_svg.curve_axis_stops): along y, the rows cross
+    # the curves' oblique ends and tilt the fade across the stroke, toward the
+    # lens at every end.  Checked on arc_core (a ribbon) and arc_core_tip (an
+    # extended stroke), each drawn alone in white with all four ends on the
+    # curve:
+    # - across the stroke the light is centred on the layer's own path, within
+    #   0.2 px, wherever the centre line carries 20 cv, inside the ends and on
+    #   the tip layer's continuation past them; the same layer painted along y
+    #   is off by more than 0.3 px somewhere, so the check is not vacuous;
+    # - along the centre line it is the y-paint's fade (within 3 cv or 4%):
+    #   only the cross-section turns;
+    # - outside the ends' zones it is the y-paint render, pixel for pixel, and
+    #   every path it draws is the plain layer's (the curve is not moved);
+    #   each zone's edge is a multiple of 4 px, whole pixel rows at 1024;
+    # - at 1000 px, a size whose pixel rows the zone edges cut, the rows at
+    #   each zone edge are the y-paint's within 2 cv: the edge is no seam
+    #   (a zone cut by a shape's anti-aliased edge left a line of 30-110 cv);
+    # - its directions come from the curve: an end cubic turned 6 degrees
+    #   turns that end's gradient with it, and the light follows the new path;
+    #   a longer end handle moves that end's zone to the new curve's own
+    #   half-turn row;
+    # - the same holds with each layer inset to the end of its range (0.8 and
+    #   2 px): the fade follows the path the layer draws;
+    # - "y" everywhere builds the file without the key, byte for byte, in each
+    #   spelling, and a file without "curve" carries none of its markup; an
+    #   unknown axis, a value neither a string nor a dict, a ramp taper, a
+    #   convex_taper layer, an untapered layer and a layer that is not an arc
+    #   are refused.
+    # Then the shipped file: outside the zones of the ends it paints along the
+    # curve, its render is the render without the key.
+    _cad, _car = [], []
+
+    def _cag(cps, which, us):
+        """points, unit tangents (outward past the end) and flare-side normals
+        at arc lengths `us` from the end of the end cubic of `cps`"""
+        c = np.asarray(cps[0] if which == "north" else cps[-1], float)
+        te, sg = (0.0, -1.0) if which == "north" else (1.0, 1.0)
+        ts = np.linspace(te - sg, te + sg * 0.6, 60001)[:, None]
+        v = 1 - ts
+        P = v ** 3 * c[0] + 3 * v * v * ts * c[1] + 3 * v * ts * ts * c[2] + ts ** 3 * c[3]
+        D = (3 * v * v * (c[1] - c[0]) + 6 * v * ts * (c[2] - c[1]) + 3 * ts * ts * (c[3] - c[2])) * sg
+        s = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(P, axis=0).T))])
+        s -= s[int(np.argmin(np.abs(ts[:, 0] - te)))]
+        k = np.searchsorted(s, us)
+        d = D[k] / np.hypot(D[k][:, 0], D[k][:, 1])[:, None]
+        nrm = np.stack([-d[:, 1], d[:, 0]], 1)
+        return P[k], d, nrm
+
+    def _caxs(img, p, d, nrm, ns):
+        """cross-sections of `img` along `nrm` at offsets `ns`, averaged over
+        +-2 px along the curve (bilinear, pixel centres at +0.5)"""
+        out = []
+        for i in range(len(p)):
+            acc = 0.0
+            for o in np.arange(-2.0, 2.01, 0.5):
+                q = p[i] + o * d[i] + ns[:, None] * nrm[i]
+                x, y = q[:, 0] - 0.5, q[:, 1] - 0.5
+                x0, y0 = np.floor(x).astype(int), np.floor(y).astype(int)
+                fx, fy = x - x0, y - y0
+                acc = acc + (img[y0, x0] * (1 - fx) * (1 - fy) + img[y0, x0 + 1] * fx * (1 - fy)
+                             + img[y0 + 1, x0] * (1 - fx) * fy + img[y0 + 1, x0 + 1] * fx * fy)
+            out.append(acc / 9.0)
+        return np.array(out)
+
+    def _caren(q, lid):
+        return _FP.render_array(build_svg.build(q, basis=lid), 1024)[..., 0].astype(np.float64) * 255
+
+    def _cawith(lid, axis, base=None):
+        q = _cpk.deepcopy(params if base is None else base)
+        for _L in q["layers"]:
+            if _L["id"] == lid:
+                if axis is None:
+                    _L.pop("taper_axis", None)
+                else:
+                    _L["taper_axis"] = axis
+        return q
+
+    _ns = np.arange(-6.0, 6.001, 0.25)
+    _zmarg = 3
+    for _lid, _ins in (("arc_core", None), ("arc_core_tip", None), ("arc_core", 0.8), ("arc_core_tip", 2.0)):
+        _base = params
+        if _ins is not None:
+            _base = _cpk.deepcopy(params)
+            [L for L in _base["layers"] if L["id"] == _lid][0]["inset"] = _ins
+        _Lc = [L for L in _base["layers"] if L["id"] == _lid][0]
+        _qC, _qY = _cawith(_lid, "curve", _base), _cawith(_lid, None, _base)
+        _imC, _imY = _caren(_qC, _lid), _caren(_qY, _lid)
+        _lab = _lid if _ins is None else "%s (inset %g)" % (_lid, _ins)
+        _svC, _svY = build_svg.build(_qC, basis=_lid), build_svg.build(_qY, basis=_lid)
+        # the curve is not moved: every path drawn is one the plain layer draws
+        _dC = __import__("re").findall(r' d="([^"]+)"', _svC.split("</defs>")[1])
+        _dY = __import__("re").findall(r' d="([^"]+)"', _svY.split("</defs>")[1])
+        if not _dC or sorted(_dC) != sorted(_dY):
+            _cad.append("%s: the paths drawn with the key are not the plain layer's" % _lab)
+        _zr = np.zeros(1024, bool)
+        _ext = float(_Lc.get("extend", 0.0))
+        for _sd in ("left", "right"):
+            _cps = build_svg.inset_cubics(_base["geometry"]["arc_" + _sd], _sd, _Lc.get("inset", 0.0))
+            for _wh in ("north", "south"):
+                _E, _T, _st, _yz = build_svg.curve_axis_stops(_base["tapers"][_Lc["taper"]], _sd, _cps, _wh,
+                                                               _ext + 0.5 * float(_Lc["width"]) + 4.0)
+                if _yz % 4:
+                    _cad.append("%s %s%s: the zone edge y %.2f is not a multiple of 4 px"
+                                % (_lab, _sd[0].upper(), _wh[0].upper(), _yz))
+                if _wh == "north":
+                    _zr[:int(_yz) + _zmarg] = True
+                else:
+                    _zr[int(_yz) - _zmarg:] = True
+                _us = np.arange(-100.0, (_ext - 5.0 if _ext else 0.0) + 0.01, 2.5)
+                _p, _d, _n = _cag(_cps, _wh, _us)
+                _XC, _XY = _caxs(_imC, _p, _d, _n, _ns), _caxs(_imY, _p, _d, _n, _ns)
+                _mid = len(_ns) // 2
+                _cenC = (np.clip(_XC, 0, None) * _ns).sum(1) / np.maximum(np.clip(_XC, 0, None).sum(1), 1e-9)
+                _cenY = (np.clip(_XY, 0, None) * _ns).sum(1) / np.maximum(np.clip(_XY, 0, None).sum(1), 1e-9)
+                _lit = _XY[:, _mid] >= 20.0
+                _tag = "%s %s%s" % (_lab, _sd[0].upper(), _wh[0].upper())
+                if not _lit.any():
+                    _cad.append("%s: no lit centre line to read" % _tag)
+                    continue
+                _mc, _my = np.abs(_cenC[_lit]).max(), np.abs(_cenY[_lit]).max()
+                if _mc > 0.2:
+                    _cad.append("%s: the curve paint is %.2f px off its path" % (_tag, _mc))
+                if _my <= 0.3:
+                    _cad.append("%s: the y-paint is only %.2f px off; the check is vacuous" % (_tag, _my))
+                _dv = np.abs(_XC[_lit, _mid] - _XY[_lit, _mid])
+                if (_dv > np.maximum(3.0, 0.04 * _XY[_lit, _mid])).any():
+                    _cad.append("%s: the centre line's fade changes by %.1f cv" % (_tag, _dv.max()))
+                _car.append("%s %.2f (y %.2f)" % (_tag, _mc, _my))
+        # outside the zones it is the y-paint render: where a zone edge splits
+        # one of the table's gradient segments, resvg may round a pixel of that
+        # segment one level apart, and nowhere else
+        _out = np.abs(_imC - _imY)[~_zr]
+        _nlit = int((_imY > 2.0).sum())
+        if _out.max() > 1.0 or (_out > 0).sum() > max(12, 0.002 * _nlit):
+            _cad.append("%s: %d pixels change outside the ends' zones, by up to %.0f cv"
+                        % (_lab, int((_out > 0).sum()), _out.max()))
+        _car.append("%s outside the zones: %d of %d lit pixels one level apart" % (_lab, int((_out > 0).sum()), _nlit))
+        # no seam at a size whose rows the zone edges cut: the device rows
+        # within a row of each zone edge, the curve paint against the y-paint
+        _N = 1000
+        _s1 = _FP.render_array(_svC, _N)[..., 0].astype(np.float64) * 255
+        _s0 = _FP.render_array(_svY, _N)[..., 0].astype(np.float64) * 255
+        _uy = (np.arange(_N) + 0.5) * 1024.0 / _N
+        _er = np.zeros(_N, bool)
+        for _sd in ("left", "right"):
+            _cps = build_svg.inset_cubics(_base["geometry"]["arc_" + _sd], _sd, _Lc.get("inset", 0.0))
+            for _wh in ("north", "south"):
+                _yz = build_svg.curve_axis_stops(_base["tapers"][_Lc["taper"]], _sd, _cps, _wh,
+                                                 _ext + 0.5 * float(_Lc["width"]) + 4.0)[3]
+                _er |= np.abs(_uy - _yz) < 1.5 * 1024.0 / _N
+        _seam = float(np.abs(_s1 - _s0)[_er].max())
+        if _seam > 2.0:
+            _cad.append("%s at %d px: the zone edges' rows differ from the y-paint by %.0f cv (a seam)"
+                        % (_lab, _N, _seam))
+        _car.append("%s at %d px: zone-edge rows within %.0f cv of the y-paint" % (_lab, _N, _seam))
+        # "y" everywhere is the file without the key, in every spelling
+        if _ins is None:
+            _fY = build_svg.build(_qY)
+            for _spell in ("y", {"north": "y", "south": "y"}, {"south": "y"}, {}):
+                if build_svg.build(_cawith(_lid, _spell)) != _fY:
+                    _cad.append("%s: taper_axis %r does not build the file without the key" % (_lid, _spell))
+    # and a file with no "curve" end carries none of the option's markup
+    _qn = _cpk.deepcopy(params)
+    for _L in _qn["layers"]:
+        _L.pop("taper_axis", None)
+    _fn = build_svg.build(_qn)
+    if 'id="g2a"' in _fn or 'id="mg_' in _fn:
+        _cad.append("a file without a curve-axis end still carries its mask or filter")
+
+    # the directions come from the curve: turn the left curve's north end 6
+    # degrees about its end point (first cubic's c1 rotated about c0)
+    _qR = _cawith("arc_core", {"north": "curve"})
+    _cR = _qR["geometry"]["arc_left"]["cubics"]["left"]
+    _c0, _c1 = np.asarray(_cR[0][0], float), np.asarray(_cR[0][1], float)
+    _rot = np.radians(6.0)
+    _v = _c1 - _c0
+    _cR[0][1] = list(_c0 + [_v[0] * np.cos(_rot) - _v[1] * np.sin(_rot), _v[0] * np.sin(_rot) + _v[1] * np.cos(_rot)])
+    _svR = build_svg.build(_qR, basis="arc_core")
+    _gm = __import__("re").search(r'<linearGradient id="g_arc_corel(n)" gradientUnits="userSpaceOnUse" '
+                                   r'x1="([^"]+)" y1="([^"]+)" x2="([^"]+)" y2="([^"]+)"', _svR)
+    if not _gm:
+        _cad.append("the turned curve's north gradient is missing")
+    else:
+        _gv = np.array([float(_gm.group(4)) - float(_gm.group(2)), float(_gm.group(5)) - float(_gm.group(3))])
+        _tn = (_c0 - np.asarray(_cR[0][1], float))
+        _ang = np.degrees(np.arctan2(_gv[0] * _tn[1] - _gv[1] * _tn[0], _gv @ _tn))
+        if abs(_ang) > 0.05:
+            _cad.append("the turned end's gradient is %.2f deg off its new tangent" % _ang)
+        _imR = _FP.render_array(_svR, 1024)[..., 0].astype(np.float64) * 255
+        _p, _d, _n = _cag(_cR, "north", np.arange(-100.0, 0.01, 2.5))
+        _XR = _caxs(_imR, _p, _d, _n, _ns)
+        _cenR = (np.clip(_XR, 0, None) * _ns).sum(1) / np.maximum(np.clip(_XR, 0, None).sum(1), 1e-9)
+        _litR = _XR[:, len(_ns) // 2] >= 20.0
+        if not _litR.any() or np.abs(_cenR[_litR]).max() > 0.2:
+            _cad.append("on the turned curve the light is %.2f px off the new path"
+                        % (np.abs(_cenR[_litR]).max() if _litR.any() else float("nan")))
+        _car.append("turned 6 deg: gradient %.3f deg off the new tangent, light %.2f px off"
+                    % (abs(_ang), np.abs(_cenR[_litR]).max() if _litR.any() else float("nan")))
+    # the zone comes from the curve as well: the right curve's north handle
+    # made 1.4 times as long moves its half-turn, and the zone the mask draws
+    # goes with it, to that half-turn's own row rounded outward to 4 px
+    _qZ = _cawith("arc_core", {"north": "curve"})
+    _cZ = _qZ["geometry"]["arc_right"]["cubics"]["right"]
+    _z0 = np.asarray(_cZ[0][0], float)
+    _cZ[0][1] = list(_z0 + 1.4 * (np.asarray(_cZ[0][1], float) - _z0))
+    _cz = np.asarray(_cZ[0], float)
+    _tt = np.linspace(0.0, 1.0, 200001)[:, None]
+    _vv = 1 - _tt
+    _Dz = 3 * _vv * _vv * (_cz[1] - _cz[0]) + 6 * _vv * _tt * (_cz[2] - _cz[1]) + 3 * _tt * _tt * (_cz[3] - _cz[2])
+    _az = np.degrees(np.arctan2(np.abs(_Dz[:, 1]), np.abs(_Dz[:, 0])))
+    _th = _tt[int(np.argmax(_az >= _az[0] + (90.0 - _az[0]) / 2.0)), 0]
+    _yh = (1 - _th) ** 3 * _cz[0][1] + 3 * (1 - _th) ** 2 * _th * _cz[1][1] + 3 * (1 - _th) * _th ** 2 * _cz[2][1] \
+        + _th ** 3 * _cz[3][1]
+    _want = 4.0 * np.ceil(_yh / 4.0)
+    _Lz = [L for L in params["layers"] if L["id"] == "arc_core"][0]
+    _was = build_svg.curve_axis_stops(params["tapers"][_Lz["taper"]], "right",
+                                      build_svg.inset_cubics(params["geometry"]["arc_right"], "right", 0.0),
+                                      "north", 7.4)[3]
+    _svZ = build_svg.build(_qZ, basis="arc_core")
+    if _want == _was:
+        _cad.append("the lengthened handle leaves the zone at y %.0f; the probe is vacuous" % _was)
+    elif '<rect y="0" width="1024" height="%s" fill="url(#g_arc_corern)"/>' % build_svg.f(_want) not in _svZ:
+        _cad.append("the right north zone does not follow the curve to y %.0f (its own half-turn)" % _want)
+    _car.append("a 1.4x handle: zone %.0f -> %.0f, the new half-turn's" % (_was, _want))
+    # refusals
+    for _lid2, _extra, _nm in (("arc_core", {"taper_axis": "diagonal"}, "an unknown axis"),
+                               ("arc_core", {"taper_axis": True}, "a value neither a string nor a dict"),
+                               ("arc_core_wide", {"taper_axis": "curve"}, "a ramp taper"),
+                               ("arc_glow2", {"taper_axis": "curve"}, "a convex_taper layer"),
+                               ("arc_glow2b", {"taper_axis": "curve"}, "an untapered layer"),
+                               ("flare_halo", {"taper_axis": "curve"}, "a layer that is not an arc")):
+        _qX = _cpk.deepcopy(params)
+        [L for L in _qX["layers"] if L["id"] == _lid2][0].update(_extra)
+        try:
+            build_svg.build(_qX)
+            _cad.append("%s builds instead of refusing" % _nm)
+        except AssertionError:
+            pass
+    # the shipped file: nothing outside the zones of its curve-painted ends
+    _shipped = {L["id"]: L["taper_axis"] for L in params["layers"] if L.get("taper_axis")}
+    _q0 = _cpk.deepcopy(params)
+    for _L in _q0["layers"]:
+        _L.pop("taper_axis", None)
+    _zs = np.zeros(1024, bool)
+    for _lid, _ax in _shipped.items():
+        _Lc = [L for L in params["layers"] if L["id"] == _lid][0]
+        _ax = {"north": _ax, "south": _ax} if isinstance(_ax, str) else _ax
+        for _sd in ("left", "right"):
+            _cps = build_svg.inset_cubics(params["geometry"]["arc_" + _sd], _sd, _Lc.get("inset", 0.0))
+            for _wh in ("north", "south"):
+                if _ax.get(_wh) == "curve":
+                    _yz = build_svg.curve_axis_stops(params["tapers"][_Lc["taper"]], _sd, _cps, _wh,
+                                                     float(_Lc.get("extend", 0.0)) + 0.5 * float(_Lc["width"]) + 4.0)[3]
+                    if _wh == "north":
+                        _zs[:int(_yz) + _zmarg] = True
+                    else:
+                        _zs[int(_yz) - _zmarg:] = True
+    _im1 = _FP.render_array(build_svg.build(params), 1024)
+    _im0 = _FP.render_array(build_svg.build(_q0), 1024)
+    _dd = np.abs(_im1 - _im0).max(-1) * 255
+    _nout, _nin = int((_dd > 0)[~_zs].sum()), int((_dd > 0).sum())
+    if _dd[~_zs].max() > 1.0 or _nout > 12:
+        _cad.append("the shipped file changes %d pixels outside its curve-painted ends' zones" % _nout)
+    check("a curve-axis fade follows each end's own curve",
+          not _cad, "; ".join(_cad) if _cad else
+          "light off its own path (y-paint): %s; centre lines within 3 cv or 4%%; paths unchanged; %s; "
+          "'y' everywhere is the file without the key; six misuses refused. Shipped: %s, %d pixels changed, "
+          "%d outside the zones" % (", ".join(_car[:-2]), "; ".join(_car[-2:]), _shipped or "none", _nin, _nout))
+
+    # ---- the curve-axis paint itself: no tilt, and y's again at the zone edge #
+    # The emitted paint, evaluated as SVG defines it: Y along y, T and its
+    # weight w along the end's tangent, (1 - w) Y + w T.  On arc_core's table,
+    # at every end:
+    # - along the curve up to a quarter-turn toward vertical, the paint changes
+    #   across the stroke at most 0.03 times as fast as along it, at the 95th
+    #   percentile (the y-paint: 1.9-2.2 times; the end's tangent alone:
+    #   0.26-0.30);
+    # - on the centre line it is the y-paint's value (within 0.002);
+    # - at the zone's edge it is the y-paint within 0.0005 on and off the line.
+    _cmd, _cmr, _edges = [], [], []
+    _Lc = [L for L in params["layers"] if L["id"] == "arc_core"][0]
+    _tab = params["tapers"][_Lc["taper"]]
+    for _sd in ("left", "right"):
+        _st = build_svg.taper_stops(_tab, _sd)
+        _yo, _ya = np.array([o * 1024.0 for o, _ in _st]), np.array([a for _, a in _st])
+        _cps = build_svg.inset_cubics(params["geometry"]["arc_" + _sd], _sd, 0.0)
+        for _wh in ("north", "south"):
+            _E, _T, _sts, _yz = build_svg.curve_axis_stops(_tab, _sd, _cps, _wh, 7.4)
+            _E, _T = np.asarray(_E), np.asarray(_T)
+            _ss = np.array([s for s, _, _ in _sts])
+            _sa = np.array([a for _, a, _ in _sts])
+            _sw = np.array([w for _, _, w in _sts])
+
+            def _paint(X):
+                s = (X - _E) @ _T
+                w = np.interp(s, _ss, _sw)
+                return (1 - w) * np.interp(X[..., 1], _yo, _ya) + w * np.interp(s, _ss, _sa)
+
+            def _ypaint(X):
+                return np.interp(X[..., 1], _yo, _ya)
+            c = np.asarray(_cps[0] if _wh == "north" else _cps[-1], float)
+            te = 0.0 if _wh == "north" else 1.0
+            tt = np.linspace(te, 1.0 - te, 20001)[:, None]
+            v = 1 - tt
+            P = v ** 3 * c[0] + 3 * v * v * tt * c[1] + 3 * v * tt * tt * c[2] + tt ** 3 * c[3]
+            D = 3 * v * v * (c[1] - c[0]) + 6 * v * tt * (c[2] - c[1]) + 3 * tt * tt * (c[3] - c[2])
+            D /= np.hypot(D[:, 0], D[:, 1])[:, None]
+            N = np.stack([-D[:, 1], D[:, 0]], 1)
+            ang = np.degrees(np.arctan2(np.abs(D[:, 1]), np.abs(D[:, 0])))
+            q = ang <= ang[0] + (90.0 - ang[0]) / 4.0
+            h = 0.5
+            across = (_paint(P + h * N) - _paint(P - h * N)) / (2 * h)
+            along = (_paint(P + h * D) - _paint(P - h * D)) / (2 * h)
+            acrossY = (_ypaint(P + h * N) - _ypaint(P - h * N)) / (2 * h)
+            use = q & (np.abs(along) > 2e-3)
+            _tag = "%s%s" % (_sd[0].upper(), _wh[0].upper())
+            if use.sum() < 50:
+                _cmd.append("%s: too little of the table's fade to read" % _tag)
+                continue
+            # 95th percentile: within half a pixel of a station the two paints
+            # kink along different lines, a second-order effect of the table
+            _r = np.percentile(np.abs(across[use] / along[use]), 95)
+            _rY = np.percentile(np.abs(acrossY[use] / along[use]), 95)
+            if _r > 0.03:
+                _cmd.append("%s: the curve paint changes %.2f times as fast across the stroke as along it" % (_tag, _r))
+            if _rY < 0.5:
+                _cmd.append("%s: the y-paint is only %.2f; the reading is vacuous" % (_tag, _rY))
+            _cl = np.abs(_paint(P[q]) - _ypaint(P[q])).max()
+            if _cl > 0.002:
+                _cmd.append("%s: the centre line departs from the y-paint by %.4f" % (_tag, _cl))
+            _ed = np.abs(P[:, 1] - _yz) < 1.0
+            _eo = np.concatenate([_paint(P[_ed] + k * N[_ed]) - _ypaint(P[_ed] + k * N[_ed]) for k in (-3, 0, 3)])
+            _edges.append(np.abs(_eo).max() if _ed.any() else np.nan)
+            if not _ed.any() or np.abs(_eo).max() > 0.0005:
+                _cmd.append("%s: at the zone edge the paint is %.4f from the y-paint" % (_tag, np.abs(_eo).max() if _ed.any() else np.nan))
+            _cmr.append("%s %.3f (y %.2f)" % (_tag, _r, _rY))
+    check("the curve-axis paint has no tilt, and is the y-paint again at its zone's edge",
+          not _cmd, "; ".join(_cmd) if _cmd else
+          "arc_core's table, across/along (95th percentile) up to a quarter-turn: %s; the centre line within "
+          "0.002 of the y-paint, the zone edges within %.1g" % (", ".join(_cmr), np.nanmax(_edges)))
 
     # ---- teal is a PERMISSION, not the current amount (D65) --------------- #
     # The review case: fit() locked the fourth primary on every layer whose
