@@ -3148,22 +3148,27 @@
    "width_taper": [
     [
      170,
-     0.9368
+     0.905
     ],
     [
-     210,
+     240,
      1.0
     ],
     [
-     820,
+     790,
      1.0
     ],
     [
      860,
-     0.9368
+     0.888
     ]
    ],
-   "note": "D67 (curve tips): drawn as a variable-width ribbon (width_taper): 6.832 px from y 210 to 820, narrowing linearly to 6.4 px by y 170 and 860 and held beyond.  Measured along the normal of the curve of record, both curves' core edges sat 0.2-0.45 px too far out on both sides at the tips (y < 170, > 850), where the reference's core is about 6.1-6.3 px wide; a narrower full-length stroke would have cost the mid-height edges, which the cyan edge strokes cannot give back. D70: its table is painted along the curve at the two north ends (taper_axis; build_svg.curve_axis_stops), where the y-gradient's rows crossed the oblique ends and leaned the core toward the lens; the reference's core there stays on the curve. The south ends keep the y-paint: their lens-side excess is white only."
+   "end_blur": {
+    "blur": 0.20421316015498364,
+    "north": 300,
+    "south": 704
+   },
+   "note": "D67 (curve tips): drawn as a variable-width ribbon (width_taper): 6.832 px from y 210 to 820, narrowing linearly to 6.4 px by y 170 and 860 and held beyond.  Measured along the normal of the curve of record, both curves' core edges sat 0.2-0.45 px too far out on both sides at the tips (y < 170, > 850), where the reference's core is about 6.1-6.3 px wide; a narrower full-length stroke would have cost the mid-height edges, which the cyan edge strokes cannot give back. D70: its table is painted along the curve at the two north ends (taper_axis; build_svg.curve_axis_stops), where the y-gradient's rows crossed the oblique ends and leaned the core toward the lens; the reference's core there stays on the curve. The south ends keep the y-paint: their lens-side excess is white only. D71: the rows outside arc_core_edge's full-strength span (y < 300, y >= 704) are drawn with blur 0.2042, the core strokes' own (end_blur; build_svg.Builder.end_rows): measured across the curve, the reference's core edge there reads an erf sigma of 0.32-0.36 px against the model's 0.54-0.67 (resvg draws stdDeviation 0.6137 as a 5-tap kernel of sigma 0.58), and arc_core alone draws the edge there.  Between those rows the core keeps 0.6137: the composite edge there (the core with arc_core_wide / arc_core_edge) is worse sharpened.  The tips narrow to 0.905 (north) and 0.888 (south) of 6.832 px, reaching 1 at y 240 and 790: at half level the reference's core is 6.17-6.23 / 6.04-6.11 px wide at the ends and widens over a longer stretch than D67's 40 rows."
   },
   {
    "blue": 0.06856,
@@ -3260,6 +3265,37 @@
      3.0
     ]
    }
+  },
+  {
+   "id": "arc_lens_band",
+   "kind": "arc",
+   "inset": 5.28,
+   "width": 5.0,
+   "blur": 3.0,
+   "taper": "lens_band",
+   "white": 0.0,
+   "cyan": 0.34,
+   "blue": 0.0,
+   "color": [
+    0.0,
+    81.5,
+    86.7
+   ],
+   "bounds": {
+    "inset": [
+     4.75,
+     5.75
+    ],
+    "width": [
+     1.0,
+     5.5
+    ],
+    "blur": [
+     0.5,
+     3.25
+    ]
+   },
+   "note": "D71: the reference's cyan band on the lens (concave) side of the curves' outer thirds: luma +6..+20 cv over the model, 10-30 times what the model's own JPEG copies produce, cyan with almost no white (its own G/B 0.89-0.99), over u -360..-40 of each end and absent over the curves' middle, where arc_glow1 and arc_core_wide already match.  No layer drew it: arc_core_wide lies under the core's lens half, arc_glow1 is four times too broad and carries white.  Pure cyan, on arc_glow1's own line (inset 5.28), 5 px wide, blur 3: the band's offset is loosely determined (any inset from about 3.5 to 6.5 fits its outer flank), so it takes the lens-side glow's line.  Its table is a least-squares fit per 20 px of each end's arc length on the core as drawn, smoothed once (1/4 1/2 1/4) so that the reference's 16-px chroma blocks do not alias into it, and zero over the curves' middle.  It and the sharper core edge are coupled: each alone worsens the lens edge at some ends, together they improve it at all four."
   },
   {
    "blend": "normal",
@@ -6216,6 +6252,336 @@
     ],
     [
      962.69,
+     0.0
+    ]
+   ]
+  },
+  "lens_band": {
+   "kind": "table",
+   "gamma": 1.0,
+   "scale": 1.0,
+   "y_offset": 0.0,
+   "left": [
+    [
+     91.02,
+     0.0
+    ],
+    [
+     95.55,
+     0.0
+    ],
+    [
+     105.36,
+     0.0255
+    ],
+    [
+     116.14,
+     0.0788
+    ],
+    [
+     127.83,
+     0.1513
+    ],
+    [
+     140.37,
+     0.2711
+    ],
+    [
+     153.7,
+     0.3647
+    ],
+    [
+     167.76,
+     0.4122
+    ],
+    [
+     182.5,
+     0.4448
+    ],
+    [
+     197.86,
+     0.4302
+    ],
+    [
+     213.77,
+     0.4027
+    ],
+    [
+     230.2,
+     0.4012
+    ],
+    [
+     247.09,
+     0.3953
+    ],
+    [
+     264.41,
+     0.3973
+    ],
+    [
+     282.1,
+     0.4098
+    ],
+    [
+     300.13,
+     0.348
+    ],
+    [
+     318.46,
+     0.2877
+    ],
+    [
+     337.06,
+     0.208
+    ],
+    [
+     355.91,
+     0.0748
+    ],
+    [
+     365.41,
+     0.0
+    ],
+    [
+     679.03,
+     0.0
+    ],
+    [
+     688.44,
+     0.1869
+    ],
+    [
+     707.08,
+     0.4626
+    ],
+    [
+     725.45,
+     0.7098
+    ],
+    [
+     743.54,
+     0.8482
+    ],
+    [
+     761.31,
+     0.8824
+    ],
+    [
+     778.71,
+     0.8677
+    ],
+    [
+     795.72,
+     0.8016
+    ],
+    [
+     812.3,
+     0.7616
+    ],
+    [
+     828.38,
+     0.7579
+    ],
+    [
+     843.92,
+     0.6814
+    ],
+    [
+     858.86,
+     0.5171
+    ],
+    [
+     873.14,
+     0.3834
+    ],
+    [
+     886.67,
+     0.3147
+    ],
+    [
+     899.38,
+     0.239
+    ],
+    [
+     911.18,
+     0.1845
+    ],
+    [
+     921.98,
+     0.138
+    ],
+    [
+     931.67,
+     0.088
+    ],
+    [
+     940.16,
+     0.0583
+    ],
+    [
+     943.93,
+     0.0
+    ]
+   ],
+   "right": [
+    [
+     91.11,
+     0.0
+    ],
+    [
+     95.66,
+     0.0212
+    ],
+    [
+     105.49,
+     0.0456
+    ],
+    [
+     116.28,
+     0.0707
+    ],
+    [
+     127.97,
+     0.1818
+    ],
+    [
+     140.51,
+     0.317
+    ],
+    [
+     153.84,
+     0.4308
+    ],
+    [
+     167.91,
+     0.5395
+    ],
+    [
+     182.66,
+     0.5782
+    ],
+    [
+     198.03,
+     0.5899
+    ],
+    [
+     213.96,
+     0.5798
+    ],
+    [
+     230.41,
+     0.5003
+    ],
+    [
+     247.32,
+     0.4104
+    ],
+    [
+     264.65,
+     0.3301
+    ],
+    [
+     282.36,
+     0.2776
+    ],
+    [
+     300.41,
+     0.2921
+    ],
+    [
+     318.75,
+     0.2447
+    ],
+    [
+     337.37,
+     0.1118
+    ],
+    [
+     356.22,
+     0.0238
+    ],
+    [
+     365.72,
+     0.0
+    ],
+    [
+     654.54,
+     0.0
+    ],
+    [
+     664.09,
+     0.1702
+    ],
+    [
+     683.05,
+     0.343
+    ],
+    [
+     701.77,
+     0.4148
+    ],
+    [
+     720.22,
+     0.4869
+    ],
+    [
+     738.37,
+     0.6764
+    ],
+    [
+     756.2,
+     0.8375
+    ],
+    [
+     773.65,
+     0.9017
+    ],
+    [
+     790.7,
+     0.8701
+    ],
+    [
+     807.3,
+     0.8472
+    ],
+    [
+     823.41,
+     0.8477
+    ],
+    [
+     838.98,
+     0.7742
+    ],
+    [
+     853.96,
+     0.6452
+    ],
+    [
+     868.3,
+     0.4987
+    ],
+    [
+     881.93,
+     0.3771
+    ],
+    [
+     894.78,
+     0.2759
+    ],
+    [
+     906.77,
+     0.1768
+    ],
+    [
+     917.81,
+     0.1284
+    ],
+    [
+     927.8,
+     0.1162
+    ],
+    [
+     932.36,
      0.0
     ]
    ]

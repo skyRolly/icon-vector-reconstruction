@@ -184,10 +184,11 @@ def main():
     # verify_searchable() audits `bounds` against emitted specs, so a numeric
     # field that carries no bound is invisible to it: it can stay frozen without
     # ever being reported.  That gap cannot be closed by flagging every unbounded
-    # number -- 486 of the model's 627 numeric leaves are unbounded on purpose,
-    # so a report of all of them reports nothing.  What CAN be pinned is the
-    # inventory: every unbounded number today belongs to one of seventeen kinds,
-    # each searched by a different mechanism or measured rather than fitted.  A
+    # number -- most of the model's numeric leaves are unbounded on purpose (814
+    # of 1115 in D71; the check prints the count), so a report of all of them
+    # reports nothing.  What CAN be pinned is the inventory: every unbounded
+    # number today belongs to one of eighteen kinds, each searched by a
+    # different mechanism or measured rather than fitted.  A
     # new unbounded field in a NEW kind is the case worth catching, and this
     # fires on it.  `paint/x1..y2` is the one kind that is neither -- eight
     # canvas gradient extents, frozen, and measured at +-40 px they are worth at
@@ -215,6 +216,9 @@ def main():
         # D68: how far the tip layer's stroke runs past the curves' ends,
         # read from the reference's tails and held
         "extend": "measured past the curve ends and held (D68)",
+        # D71: arc_core's blur on the rows outside arc_core_edge's
+        # full-strength span, read from the reference's core edges and held
+        "end_blur": "measured at the curve ends and held (D71)",
     }
 
     def _numeric_leaves(node, prefix):
@@ -1803,7 +1807,8 @@ def main():
     # probe gap over the halo's bright part: depth 1 removes (all but) all of
     # it inside, depth 0.5 about half (resvg reads a luminance mask linearly).
     # A stack without gaps must emit no mask at all (once its curve-axis ends,
-    # whose paint carries a mask of its own (D70), are put back on y).
+    # whose paint carries a mask of its own (D70), are put back on y, and its
+    # end blur, whose two copies are cut by row masks (D71), is dropped).
     _gapL = [L for L in params["layers"] if L.get("gap")]
     _gd = []
     _yy, _xx = np.mgrid[0:1024, 0:1024] + 0.5
@@ -1821,6 +1826,7 @@ def main():
         for _Lg in _pn["layers"]:
             _Lg.pop("gap", None)
             _Lg.pop("taper_axis", None)
+            _Lg.pop("end_blur", None)
         if "<mask" in build_svg.build(_pn):
             _gd.append("a stack without gaps still emits a mask")
         _cw, _cn = _halo(params), _halo(_pn)
@@ -1900,10 +1906,11 @@ def main():
           % (_cvI, _cvF, len(_cvU)))
 
     # ---- a width-tapered arc narrows only where its table says (D67) ------- #
-    # arc_core carries `width_taper`: its width runs 6.832 px between y 210 and
-    # 820 and narrows to 0.9368 of that at the tips, where the reference's core
-    # is narrower.  A stroke's width is constant, so such a layer is drawn as a
-    # filled outline (build_svg.ribbon_path).  Checked:
+    # arc_core carries `width_taper`: its width runs 6.832 px over the curves'
+    # middle and narrows toward the tips (D67; its tips and knees re-measured
+    # in D71), where the reference's core is narrower.  A stroke's width is
+    # constant, so such a layer is drawn as a filled outline
+    # (build_svg.ribbon_path).  Checked:
     # - its coverage across the curve is the table's factor times the stroke's:
     #   the factor at the tips, 1 in the middle (coverage integrates the blur,
     #   so this reads the width itself);
@@ -1911,19 +1918,24 @@ def main():
     #   against the analytic cubics).  It follows it more closely than resvg's
     #   stroke, whose flattening chords sit up to 0.26 px on the concave side;
     # - a layer without the key is still a stroke.
+    # All three are read without `end_blur` (D71): they are about the outline,
+    # and the end rows' sharper blur moves a half-level centre by 0.02-0.03 px.
     _wtL = [L["id"] for L in params["layers"] if L.get("width_taper")]
     _wtd = []
     if _wtL != ["arc_core"]:
         _wtd.append("layers with a width taper: %s (expected arc_core)" % _wtL)
     else:
-        _pws, _pw1 = _cpk.deepcopy(params), _cpk.deepcopy(params)
+        _pwt = _cpk.deepcopy(params)
+        for _Lw in _pwt["layers"]:
+            _Lw.pop("end_blur", None)
+        _pws, _pw1 = _cpk.deepcopy(_pwt), _cpk.deepcopy(_pwt)
         for _Lw in _pws["layers"]:
             _Lw.pop("width_taper", None)
         for _Lw in _pw1["layers"]:
             if _Lw.get("width_taper"):
                 _Lw["width_taper"] = [[_y, 1.0] for _y, _ in _Lw["width_taper"]]
         _svs = build_svg.build(_pws, basis="arc_core")
-        _svt = build_svg.build(params, basis="arc_core")
+        _svt = build_svg.build(_pwt, basis="arc_core")
         if 'stroke="none"' in _svs or 'stroke-width' not in _svs:
             _wtd.append("an arc without a width taper is not drawn as a stroke")
         if 'stroke="none"' not in _svt:
@@ -1932,13 +1944,22 @@ def main():
                          for _sv in (_svs, build_svg.build(_pw1, basis="arc_core"), _svt))
         _near = np.abs(regions.curve_frame((1024, 1024))[0]) < 12
         _yyw = np.mgrid[0:1024, 0:1024][0] + 0.5
-        _fac = [_f for _y, _f in [L for L in params["layers"] if L["id"] == "arc_core"][0]["width_taper"]]
+        _wtab = [L for L in params["layers"] if L["id"] == "arc_core"][0]["width_taper"]
+        _fac = [_f for _y, _f in _wtab]
+        # the bands read: each tip short of its table's first / last row, and
+        # the middle 10 rows inside the rows where the table reaches 1
+        _bands = ((100, int(_wtab[0][0]) - 5), (int(_wtab[-1][0]) + 20, 930),
+                  (int(_wtab[1][0]) + 10, int(_wtab[-2][0]) - 10))
         _cov = {}
-        for (_y0, _y1), _want, _tol in (((100, 165), _fac[0], 0.003), ((880, 930), _fac[-1], 0.003),
-                                        ((220, 810), 1.0, 0.002)):
+        for (_y0, _y1), _want, _tol in ((_bands[0], _fac[0], 0.003), (_bands[1], _fac[-1], 0.003),
+                                        (_bands[2], 1.0, 0.002)):
+            # a table of another shape can leave a band empty: say so
+            if _y1 < _y0 + 10:
+                _wtd.append("the table leaves no band to read at y %d-%d" % (_y0, _y1))
+                continue
             _mw = _near & (_yyw >= _y0) & (_yyw < _y1)
             _cov[(_y0, _y1)] = float(_wt[_mw].sum() / _ws[_mw].sum())
-            if abs(_cov[(_y0, _y1)] - _want) > _tol:
+            if not np.isfinite(_cov[(_y0, _y1)]) or abs(_cov[(_y0, _y1)] - _want) > _tol:
                 _wtd.append("coverage at y %d-%d is %.4f of the stroke's (expected %.4f)"
                             % (_y0, _y1, _cov[(_y0, _y1)], _want))
 
@@ -1981,10 +2002,10 @@ def main():
                 _wtd.append("the outline strays %.2f px from the %s curve of record" % (max(_e1), _sd))
     check("a width-tapered arc narrows only where its table says",
           not _wtd, "; ".join(_wtd) if _wtd else
-          "arc_core's outline: coverage %.4f / %.4f of the stroke's at the tips (table %.4f), %.4f in the middle; "
-          "at factor 1 its centre stays within %.2f / %.2f px of the curve of record (left / right; resvg's stroke "
-          "%.2f / %.2f); an arc without a width taper is still a stroke"
-          % (_cov[(100, 165)], _cov[(880, 930)], _fac[0], _cov[(220, 810)],
+          "arc_core's outline: coverage %.4f / %.4f of the stroke's at the tips (table %.4f / %.4f), %.4f in the "
+          "middle; at factor 1 its centre stays within %.2f / %.2f px of the curve of record (left / right; resvg's "
+          "stroke %.2f / %.2f); an arc without a width taper is still a stroke"
+          % (_cov[_bands[0]], _cov[_bands[1]], _fac[0], _fac[-1], _cov[_bands[2]],
              _cerr["left"][0], _cerr["right"][0], _cerr["left"][1], _cerr["right"][1]))
 
     # ---- an extended arc runs past its ends only along its own curve (D68) - #
@@ -2463,6 +2484,189 @@ def main():
           not _cmd, "; ".join(_cmd) if _cmd else
           "arc_core's table, across/along (95th percentile) up to a quarter-turn: %s; the centre line within "
           "0.002 of the y-paint, the zone edges within %.1g" % (", ".join(_cmr), np.nanmax(_edges)))
+
+    # ---- an end-blurred arc draws each row with one of its two blurs (D71) - #
+    # arc_core carries `end_blur`: the rows outside arc_core_edge's
+    # full-strength span (y < 300, y >= 704) are drawn with the reference's
+    # sharper core blur, the rows between with the layer's own, which the
+    # middle's composite edge (the core plus its cyan edge strokes) needs.
+    # Each side is one group carrying the layer's blend: the end copy, then
+    # the middle copy over an opaque black in a group masked to its rows after
+    # its blur (hard gradient stops, read at pixel centres).
+    # Checked:
+    # - on the layer alone, at 1024, 2048 and 1000 px: every pixel row whose
+    #   centre lies in an end zone is the layer drawn with the end blur
+    #   everywhere, and every other row is the layer drawn with its own blur,
+    #   to a level.  The mask selects whole rows, with no overlap and no gap,
+    #   also where the cut falls inside a pixel (1000 px), where a shape's edge
+    #   would be anti-aliased into both copies;
+    # - at 872 px, where the south cut falls exactly on a pixel centre and the
+    #   mask reads about half there: that row lies between the two renders, to
+    #   a level (the copies mix linearly), and every other row is one of them.
+    #   Two masked copies screened one after the other drew that row up to 45
+    #   levels darker than either;
+    # - on the whole composite at 1024 px, the same: the group is screened
+    #   onto the canvas like the plain layer;
+    # - the same on a translucent layer, `arc_lens_band` given a probe end blur
+    #   (its opacity rides in each copy);
+    # - the two blurs really differ there (the check is not vacuous);
+    # - with the key each side is one row-masked group, without it one element
+    #   and no row mask;
+    # - rows that are not multiples of 4, that cross, that are missing or that
+    #   are not numbers are refused, and so are an empty key and the key on a
+    #   layer that is not an arc.
+    _ebL = [L["id"] for L in params["layers"] if L.get("end_blur")]
+    _ebd, _ebr = [], []
+
+    def _eb_split(p_eb, lid, eb, own, size, composite):
+        """For layer `lid` of `p_eb` carrying end blur `eb`: the most levels
+        an end row is from the render with the end blur everywhere, any other
+        row from the render with the own blur, a row whose centre lies exactly
+        on a cut is outside the two, and the two renders differ on the end
+        rows; and the tie rows"""
+        qs = []
+        for bl in (eb["blur"], own):
+            q = _cpk.deepcopy(p_eb)
+            for _L in q["layers"]:
+                if _L["id"] == lid:
+                    _L.pop("end_blur", None)
+                    _L["blur"] = bl
+            qs.append(q)
+        b = None if composite else lid
+        iB, iE, iO = (np.rint(_FP.render_array(build_svg.build(q, basis=b), size) * 255) for q in [p_eb] + qs)
+        yc = (np.arange(size) + 0.5) * 1024.0 / size
+        tie = (np.abs(yc - eb["north"]) < 1e-9) | (np.abs(yc - eb["south"]) < 1e-9)
+        ends = ((yc < eb["north"]) | (yc >= eb["south"])) & ~tie
+        mid = ~ends & ~tie
+        out = np.maximum(np.minimum(iE, iO) - iB, iB - np.maximum(iE, iO))[tie]
+        return (float(np.abs(iB[ends] - iE[ends]).max()), float(np.abs(iB[mid] - iO[mid]).max()),
+                float(out.max()) if tie.any() else 0.0, float(np.abs(iE[ends] - iO[ends]).max()),
+                np.nonzero(tie)[0])
+
+    if _ebL != ["arc_core"]:
+        _ebd.append("layers with an end blur: %s (expected arc_core)" % _ebL)
+    else:
+        _Leb = [L for L in params["layers"] if L["id"] == "arc_core"][0]
+        _eb = _Leb["end_blur"]
+        _qOb = _cpk.deepcopy(params)
+        for _L in _qOb["layers"]:
+            if _L["id"] == "arc_core":
+                _L.pop("end_blur")
+        _svEb = build_svg.build(params, basis="arc_core")
+        _svOb = build_svg.build(_qOb, basis="arc_core")
+        _rid = "rows_%d_%d" % (_eb["north"], _eb["south"])
+        if _svEb.count('mask="url(#%s)"' % _rid) != 2 or _svEb.count('mask="url(#rows') != 2:
+            _ebd.append("with the key, arc_core is not one row-masked group per side")
+        if "url(#rows" in _svOb:
+            _ebd.append("without the key, arc_core still carries a row mask")
+        # the mask alone at 872 px: the tie row must read a middle value, or
+        # the 872 px case cannot tell a mix of the copies from one copy
+        _mk = [m for m in (__import__("re").search(r'<linearGradient id="%sg".*?</linearGradient>' % _rid, _svEb),
+                           __import__("re").search(r'<mask id="%s".*?</mask>' % _rid, _svEb)) if m]
+        _t872 = int(np.nonzero(np.abs((np.arange(872) + 0.5) * 1024.0 / 872 - _eb["south"]) < 1e-9)[0][0])
+        _m872 = None
+        if len(_mk) == 2:
+            _m872 = float(np.rint(_FP.render_array(
+                '<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">'
+                '<defs>%s%s</defs><rect width="1024" height="1024" fill="#000000"/>'
+                '<rect width="1024" height="1024" fill="#ffffff" mask="url(#%s)"/></svg>'
+                % (_mk[0].group(0), _mk[1].group(0), _rid), 872)[_t872, 400, 0] * 255))
+        if _m872 is None or not 32 <= _m872 <= 223:
+            _ebd.append("at 872 px the row mask reads %s on the row whose centre is the south cut, so the case "
+                        "cannot tell a mix of the copies from one copy" % _m872)
+        _pLb = _cpk.deepcopy(params)
+        _ebLb = {"blur": 1.0, "north": 200, "south": 800}
+        for _L in _pLb["layers"]:
+            if _L["id"] == "arc_lens_band":
+                _L["end_blur"] = _ebLb
+        for _tag, _pp, _lid, _e, _own, _size, _comp, _need in (
+                ("arc_core alone, 1024 px", params, "arc_core", _eb, _Leb["blur"], 1024, False, 10),
+                ("arc_core alone, 2048 px", params, "arc_core", _eb, _Leb["blur"], 2048, False, 10),
+                ("arc_core alone, 1000 px", params, "arc_core", _eb, _Leb["blur"], 1000, False, 10),
+                ("arc_core alone, 872 px", params, "arc_core", _eb, _Leb["blur"], 872, False, 10),
+                ("the composite, 1024 px", params, "arc_core", _eb, _Leb["blur"], 1024, True, 10),
+                ("the composite with a probe end blur on arc_lens_band, 1024 px", _pLb, "arc_lens_band",
+                 _ebLb, [L for L in params["layers"] if L["id"] == "arc_lens_band"][0]["blur"], 1024, True, 3)):
+            _dE, _dO, _dT, _diff, _tr = _eb_split(_pp, _lid, _e, _own, _size, _comp)
+            _ebr.append("%s: end rows %g, others %g levels from the single-blur renders (which differ by up to %g "
+                        "there)%s" % (_tag, _dE, _dO, _diff, "; the row on the cut (%s) %g outside the two"
+                                      % (",".join(str(int(r)) for r in _tr), _dT) if len(_tr) else ""))
+            if _dE > 1 or _dO > 1:
+                _ebd.append("%s: the end rows are %g and the others %g levels from the layer drawn with one blur"
+                            % (_tag, _dE, _dO))
+            if _dT > 1:
+                _ebd.append("%s: the row whose centre is on a cut is %g levels outside the two single-blur renders"
+                            % (_tag, _dT))
+            if _size == 872 and not len(_tr):
+                _ebd.append("%s: no row's centre lies on a cut" % _tag)
+            if _diff < _need:
+                _ebd.append("%s: the two blurs differ by only %g levels, so the check cannot tell them apart"
+                            % (_tag, _diff))
+        _nonarc = [L["id"] for L in params["layers"] if L["kind"] != "arc"][0]
+        for _lid, _bad in (("arc_core", {"blur": _eb["blur"], "north": _eb["north"] + 1, "south": _eb["south"]}),
+                           ("arc_core", {"blur": _eb["blur"], "north": _eb["south"], "south": _eb["north"]}),
+                           ("arc_core", {"blur": _eb["blur"], "north": _eb["north"]}),
+                           ("arc_core", {}),
+                           ("arc_core", {"blur": _eb["blur"], "north": str(_eb["north"]), "south": _eb["south"]}),
+                           (_nonarc, _eb)):
+            _qx = _cpk.deepcopy(params)
+            [L for L in _qx["layers"] if L["id"] == _lid][0]["end_blur"] = _bad
+            try:
+                build_svg.build(_qx, basis=_lid)
+                _ebd.append("end_blur %s was accepted on %s" % (_bad, _lid))
+            except AssertionError:
+                pass
+    check("an end-blurred arc draws each row with one of its two blurs",
+          not _ebd, "; ".join(_ebd) if _ebd else
+          "arc_core, blur %g at y < %d and y >= %d, %g between. %s; at 872 px the mask reads %g on the cut's row; "
+          "misplaced, crossing, missing or non-numeric rows, an empty key and the key on a non-arc layer are refused"
+          % (_eb["blur"], _eb["north"], _eb["south"], _Leb["blur"], "; ".join(_ebr), _m872))
+
+    # ---- the lens-side band stays beside the core's ends (D71) ------------ #
+    # arc_lens_band is the reference's cyan band just outside the core's lens
+    # edge, over the curves' outer thirds.  What was measured is where it may
+    # draw, and in what colour:
+    # - on the lens (concave) side of the curve: almost none of its light
+    #   beyond the core's flare edge (4 px on the flare side);
+    # - beside the core: all of it within 16 px of the curve;
+    # - over the outer thirds only: nothing on the rows of the curves' middle,
+    #   where the model's own lens-side glows already match the reference;
+    # - cyan, as the reference's band reads (G/B 0.89-0.99), with almost no
+    #   white (R at most a quarter of G).  The photometric fit frees every
+    #   layer's colour but the rays', so a refit that gave it white or blue
+    #   fails here.
+    # The band's bounds (inset 4.75-5.75, width 1-5.5, blur 0.5-3.25) keep the
+    # first two at every corner of the search box.  The taper search moves
+    # every table's y_offset within +-14 px; beyond about +-10 the band's table
+    # reaches the middle rows, and this check fails, as it should.
+    _lbL = [L for L in params["layers"] if L["id"] == "arc_lens_band"]
+    _lbd = []
+    if len(_lbL) != 1:
+        _lbd.append("there is no arc_lens_band layer")
+    else:
+        _iLb = _FP.render_array(build_svg.build(params, basis="arc_lens_band"), 1024)[..., 0].astype(np.float64)
+        _dLb = regions.curve_frame((1024, 1024))[0]
+        _tLb = _iLb.sum()
+        _fl = float(_iLb[_dLb > 4].sum() / max(_tLb, 1e-9))
+        _nr = float(_iLb[np.abs(_dLb) < 16].sum() / max(_tLb, 1e-9))
+        _mid = float(_iLb[380:640].max() * 255)
+        if _tLb <= 0:
+            _lbd.append("the band draws nothing")
+        if _fl > 0.01:
+            _lbd.append("%.1f%% of its light is beyond the core's flare edge" % (100 * _fl))
+        if _nr < 0.999:
+            _lbd.append("only %.2f%% of its light is within 16 px of the curve" % (100 * _nr))
+        if _mid > 0:
+            _lbd.append("it draws %g levels on the rows of the curves' middle (y 380-640)" % _mid)
+        _cLb = np.asarray(_lbL[0]["color"], float)
+        _gb = _cLb[1] / max(_cLb[2], 1e-9)
+        if not (_cLb[1] > 0 and 0.89 <= _gb <= 0.99 and _cLb[0] <= 0.25 * _cLb[1]):
+            _lbd.append("its colour %s is not the band's (G/B 0.89-0.99, R at most a quarter of G)"
+                        % _cLb.tolist())
+    check("the lens-side band stays beside the core's ends",
+          not _lbd, "; ".join(_lbd) if _lbd else
+          "arc_lens_band: %.2f%% of its light beyond the core's flare edge, %.3f%% within 16 px of the curve, "
+          "none on rows 380-640; colour G/B %.3f, R/G %.3f" % (100 * _fl, 100 * _nr, _gb, _cLb[0] / _cLb[1]))
 
     # ---- teal is a PERMISSION, not the current amount (D65) --------------- #
     # The review case: fit() locked the fourth primary on every layer whose

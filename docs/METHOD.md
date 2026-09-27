@@ -322,8 +322,9 @@ where the reference's core is 6.1-6.4 px (y 110-170) and 5.9-6.3 px (y
 860-930), 0.2-0.45 px too far out on both edges. Narrowing the whole stroke
 does not work, because the cyan edge strokes cannot give back the white it
 removes at mid-height. So `arc_core` carries a width table (`width_taper`,
-D67): 6.832 px from y 210 to 820, narrowing to 6.40 px by y 170 and 860. A
-stroke's width is constant along its path, so a layer with that key is drawn
+D67): 6.832 px over the middle, narrowing toward y 170 and 860 (to 6.40 px
+in D67; D71 re-measured the tips and the knees, below). A stroke's width is
+constant along its path, so a layer with that key is drawn
 as one filled outline, the curve of record offset by +-w(y)/2 along its normal
 with round ends. The outline also follows the curve of record more closely
 than resvg's stroke did: the stroke's flattening of the right curve's long
@@ -399,6 +400,82 @@ in white only, or at the north tails, which themselves lie lens-ward of the
 continuation. Those keep the y-paint. After the change, six of `tapers.core`'s
 right stations (y 740-840) were re-measured. Over the right curve's south
 outer third, the core's light was 6-12% short in all three channels (D70).
+
+The core's edge is sharper than the model's single blur draws it (D71).
+Measured across the curve with an interpolation-free slanted-edge fit, the
+reference's core edges read an erf sigma of 0.32-0.36 px at all four ends,
+on both sides and in every channel, against 0.54-0.67 for D70. A perfectly
+anti-aliased edge reads 0.29, so the reference's own blur is small. Two things
+make the model's reading:
+- resvg does not draw `stdDeviation` 0.6137 as a Gaussian below 2 device px.
+  It uses a short recursive kernel, [0.012, 0.123, 0.730, 0.123, 0.012], whose
+  own sigma is 0.584.
+- In quadrature, that blur is about three quarters of the edge width, and
+  anti-aliasing is the rest.
+
+Through the reference's own JPEG table (4:2:0 chroma; its luma table is not
+an IJG preset, about 10-16 at every frequency) the model's edges move by at
+most 0.03 px, so the difference is not the compression. The reference reads
+like a core blurred by about 0.1-0.3 px (nominal, in resvg).
+
+The reference is sharp along the whole curve, but only the ends are sharpened.
+Between the rows where `arc_core_edge` is at full strength (y 300-704), the
+core's edge is a composite: the core plus its two cyan edge strokes. Drawn
+sharp there, that composite is worse on the pixels it changes (by up to 21%
+per 20 rows), and the flare's r < 110 error rises from 4.041 to 4.119. So
+`arc_core` carries `end_blur` (D71): its rows y < 300 and y >= 704 are drawn
+with blur 0.2042, the core strokes' own, and the rows between keep 0.6137.
+The builder draws the layer twice per curve, in one screened group: the end
+copy, then the middle copy through a mask applied after its blur. The mask is
+cut by hard gradient stops, read at pixel centres, as `taper_axis`'s zones
+are. So a pixel row comes from one copy, with no overlap and no gap. A cut by
+a shape's edge would be anti-aliased into both copies.
+
+At some render sizes a pixel centre falls exactly on a cut (at 872 px, row
+599's centre is y 704), and resvg can read the mask there as a fraction (0.5
+at 872 px). So the middle copy is drawn over an opaque black. An opaque layer
+seen through a mask value m gives exactly m x middle + (1 - m) x end, and on
+the opaque canvas the black screens to nothing. Such a row lies between the two
+copies. Two masked copies screened one after the other drew it up to 82 levels
+darker than either (D71).
+
+Chromium draws any `stdDeviation` below about 0.8 as no blur at all. So the
+middle's soft edge is resvg's alone, and at the ends the two engines now
+agree.
+
+The ends are also narrower than D67's table drew them. At half level the
+reference's core is 6.17-6.23 px wide at the north ends and 6.04-6.11 px at
+the south ends, over u -155..-35. From there it widens over a longer stretch
+than D67's 40 rows. The table now reaches 0.905 (north) and 0.888 (south) of
+6.832 px at y 170 and 860, and 1.0 at y 240 and 790.
+
+Sharpening the edge removes the white light the soft edge spread outside it.
+It also shows what that light had covered: a cyan band on the lens side of
+the curves' outer thirds, which no layer drew (D71).
+- Its luma excess is +6..+20 cv, 10-30 times what the model's own JPEG copies
+  produce.
+- It is cyan with almost no white. The reference's band light reads G/B
+  0.89-0.99.
+- It runs over u -360..-40 at every end, strongest at u -250..-100.
+- It is absent over the curves' middle, where `arc_glow1` and
+  `arc_core_wide` already match.
+
+`arc_glow1` is the lens-side glow, but it is four times too broad and carries
+white. `arc_core_wide` lies under the core's lens half. So the band is its own
+layer, `arc_lens_band`:
+- pure cyan;
+- on `arc_glow1`'s own line (inset 5.28), width 5 px, blur 3;
+- its per-side table (`tapers.lens_band`) a least-squares fit per 20 px of
+  each end's arc length on the core as drawn, smoothed once so that the
+  reference's 16-px chroma blocks do not alias into it, and zero over the
+  curves' middle.
+
+Its offset is not tightly determined: any inset from about 3.5 to 6.5 px fits
+the band's outer flank. Its search bounds (inset 4.75-5.75, width at most 5.5,
+blur at most 3.25) keep it where its regression check requires, on the lens
+side and beside the core. The band and the sharper edge are coupled. Each
+alone worsens the lens edge at some ends; together they improve it at all
+four.
 
 ### 4c. Light past the ends of the curves: the interior corners
 

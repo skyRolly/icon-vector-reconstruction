@@ -10280,3 +10280,859 @@ one to correct.
     pass.
 - GitHub CI (`checks`, `regression-gate`) runs the same workflow on this
   commit; the pull request reports its result.
+
+## D71. A release can be its own before/after baseline; the curves' core at its ends drawn as sharp and as narrow as the reference's, with the lens-side cyan band that the soft edge had covered
+
+D70 left two things to finish. The first was a harness defect: the sheet
+probes assumed that the pinned baseline differs from the release. The second
+was an artwork question: at all four ends the reference's core edge reads
+sharper than the model's (fitted sigma 0.35-0.40 against 0.58-0.60, in D70's
+words). This pass fixed the harness first, as its own commit. It then measured
+what the core's edge width means before changing anything. "Base" below is
+D70 (main f929c2e, whose artwork is 223582c's). Whole-image numbers are
+consequences, not the criterion.
+
+As before, each decision records the **evidence**, the **alternatives**, the
+**action**, the **measured** and **visible** effect, and what stays
+**uncertain**.
+
+### Stage 0: the D70 baseline reproduces
+
+PR #6 merged D70 into main (223582c). PR #7 then merged a test-only fix to two
+sheet-verification probes (3fa4821, main f929c2e); stage 1 audits it. Neither PR
+has a review comment, and CI is green on both merge commits. On f929c2e, before
+any change:
+- `sh tools/publish.sh` passed (PUBLISH OK, 72 of 72 checks). Every artefact it
+  rewrote was byte-identical to the committed one, and the parameters rebuild
+  the SVG exactly:
+  - `src/params.json` 092a46fc...;
+  - `reconstruction.svg` 0c5cd6d3... (149,507 bytes);
+  - `out/render_1024.png` 251d56f8...;
+  - `out/metrics.json` c1c966c0....
+- The eight numbers are MAE 1.6733, RMSE 3.060, SSIM 0.97651, edge IoU 0.7010,
+  centre-region MAE 4.584, flare r<110 MAE 4.041, core r<25 MAE 3.690 and
+  bright-region MAE 7.479.
+- Cross-engine MAE is 2.693, and `visual_regression` fails 0 of 16 (west 0.782).
+- The checks this pass must keep all pass:
+  - D69's objective check, "the optimiser's objective scores a movable colour
+    its caller changed";
+  - D67's gap check;
+  - D68's extension check;
+  - D70's two curve-axis checks.
+
+  `arc_core` carries `{"north": "curve"}` and `arc_core_tip` `{"south": "curve"}`.
+
+### Stage 1: a baseline equal to the release (engineering)
+
+*The problem D70 left.* `out/baseline/manifest.json` asks for the before/after
+sheet's baseline to be re-pinned to each accepted release. On a commit that
+only does that, the baseline IS the release. Two probes used the pinned baseline
+as their "other" input:
+- 6i (D63) checked the sheet against the baseline's SVG as "a different SVG";
+- D65's probe (2) put the baseline's render in place of the release render as
+  "another authentic render".
+
+So a sound sheet failed whenever the two were the same release. D70 had to land
+its re-pin together with its artwork.
+
+*PR #7's fix, audited.* Each probe now makes its own input in its temporary
+directory:
+- 6i uses the release SVG with a comment appended. Its digest differs, and a
+  digest is what the sheet's provenance records.
+- D65 (2) uses the release SVG with a 16-px mark drawn on it, rendered by
+  `tools/render.py`, so it has its own valid sidecar and different pixels. A
+  comment alone would change no pixel, and its render would be the release
+  render byte for byte.
+
+Every assertion and failure text is unchanged, nothing is skipped, and both
+inputs are explicit and valid for the invariant each probe tests.
+
+*What it still lacked.* Nothing tested the case it fixed. While the pinned
+baseline differs from the release, a probe that borrows the baseline again
+passes, and fails only at the next re-pin, as before.
+
+*The change.* The sheet part of 6i and the whole of D65's check now run every
+probe twice (`_sheet_baselines`):
+- once against the pinned baseline;
+- once against the release pinned as its own baseline, a temporary copy of the
+  release SVG under the manifest with its digest.
+
+A failure in the second pass is prefixed "with the release as its own
+baseline". No assertion was loosened; each check runs two more sheet draws and
+two more baseline renders.
+
+*Proof, on scratch trees running the two checks' own code:*
+
+| tree | D71 checks | main's (PR #7) checks |
+|---|---|---|
+| pinned D69, release D70 | pass, pass | pass, pass |
+| re-pinned: baseline is the release | pass, pass | pass, pass |
+| `sheet_problems`' last-column SVG-digest comparison disabled | 6i fails in both passes; D65 passes | - |
+| its source image-digest comparison disabled | D65 (2) fails in both passes; 6i passes | - |
+| the pre-PR #7 probes restored, pinned D69 | both fail, in the release-as-baseline pass | both pass (unseen) |
+| the same, re-pinned | both fail, in both passes | both fail |
+
+Each deliberately broken construction fails exactly the assertion it breaks, in
+both configurations. The borrowed-baseline construction is now caught on every
+commit, not only on the next re-pin.
+
+*The real workflow.* The baseline is re-pinned to the accepted D70 release: the
+SVG 0c5cd6d3... at 223582c, "main after PR #6". So on this commit the baseline
+is the release. Committed on its own (3b5a8f3):
+- `sh tools/publish.sh` passed (PUBLISH OK, 72 of 72);
+- `reconstruction.svg`, every render and the metrics are byte-identical to
+  D70's;
+- the sheet image is unchanged too, because D69 and D70 are identical in the
+  flare. Only its provenance now names D70 as the previous release.
+- GitHub CI's `regression-gate` passed on 3b5a8f3, on both its push and its
+  pull-request runs.
+
+This commit leaves the baseline pinned to D70. When D71 is accepted, the
+re-pin to D71 can land on its own, and the checks now pass that way.
+
+### Stage 2: what a measured core edge width means
+
+Five investigators, each followed by an adversarial verifier using its own
+code, measured the core at LN, RN, LS and RS. Each end was read in its own
+local coordinates (u along the curve from the end cubic's end, n along the
+flare-side normal).
+
+- **Instruments.**
+  - A slanted-edge (ESF) fit to raw pixel values against their exact n. It
+    applies no interpolation, and a perfectly anti-aliased edge reads 0.289 px
+    on it.
+  - A bilinear sampler. It adds about 0.40 px in quadrature.
+  - D70's two numbers came from the two instruments: "0.58-0.60 against
+    0.35-0.40" from the exact-pixel fit, "rise 1.2-1.4" from the bilinear one.
+    All sigmas below are ESF values.
+- **The model's edge is resvg's.** resvg does not draw `stdDeviation` 0.6137 as
+  a Gaussian below 2 device px. It draws a 5-tap recursive kernel, [0.012,
+  0.123, 0.730, 0.123, 0.012], whose own sigma is 0.584. At 0.2 the kernel is
+  [0.016, 0.968, 0.016].
+  - In quadrature, anti-aliasing (0.29-0.30) is about a quarter of D70's
+    0.59-0.61 edge, and the blur (0.52-0.53) the rest.
+  - The neighbouring glows move the reading by less than 0.01, so arc_core
+    alone reads the same as the composite.
+  - At 4096 px box-averaged to 1024, the same vector reads 0.68-0.69. That is
+    sqrt(0.614^2 + 1/12), the ideal Gaussian.
+- **The reference's JPEG** was recovered from its own DCT lattice:
+  - 4:2:0 chroma, with its chroma block edges every 16 px (this contradicts
+    D53);
+  - a luma table that is not an IJG preset (about 10 at low and 16 at middle
+    frequencies, flat up to (7,7));
+  - no resampling after the JPEG.
+
+  Through that table the model's edges move by -0.01..+0.03 px. IJG q60/q75
+  presets soften edges strongly, so they are not like-with-like.
+- **Chromium applies no blur below about 0.8.** Its three-box approximation
+  rounds to one pixel. So D70's core reads 0.26-0.32 in Chromium at all four
+  ends, as sharp as the reference or sharper. The core's softness was
+  resvg's alone.
+
+### Stage 3: the cross-sections at the four ends
+
+All pooled over u -155..-35. Reference against D70, and after the change:
+
+| end | ref sigma lens / flare | D70 | D71 | ref width | D70 | D71 |
+|---|---|---|---|---|---|---|
+| LN | 0.323 / 0.343 | 0.593 / 0.611 | 0.332 / 0.331 | 6.169 | 6.419 | 6.195 |
+| RN | 0.317 / 0.320 | 0.599 / 0.610 | 0.343 / 0.337 | 6.234 | 6.421 | 6.203 |
+| LS | 0.327 / 0.341 | 0.543 / 0.670 | 0.302 / 0.353 | 6.041 | 6.401 | 6.065 |
+| RS | 0.327 / 0.364 | 0.568 / 0.650 | 0.312 / 0.343 | 6.111 | 6.416 | 6.086 |
+
+- **Sharper, at every end.** The difference holds in R, G, B, luminance and
+  white, on both sides. It also holds:
+  - in 12-px slices and in 8-px and 16-px block-phase pixel subsets;
+  - under sub-pixel shifts;
+  - through the reference's own quantiser.
+
+  JPEG only ever softens the model. The reference reads like a core blurred
+  by 0.1-0.3 px (resvg-nominal): a small blur, but not zero.
+- **Narrower, too, and not only sharper.** Half-level widths are independent
+  of the blur (a hard-edged render keeps 6.37-6.49). The reference is
+  0.22-0.26 px narrower at the north ends and 0.30-0.40 at the south ends. The
+  lens edge carries 0.09-0.36 px of that, and the flare edge -0.02..+0.20.
+- **Sharp along the whole curve, not only at the ends.** In 20-px windows from
+  u -475 to -20 the reference reads 0.23-0.45. The last 30 px before the
+  cubics' junction are left out, where the flare's light is steep. Over the
+  same windows D70 reads 0.45-0.72 on the lens side and 0.31-0.63 on the
+  flare side. D67's reading that the reference's mid-height edge is softer
+  does not hold on this instrument.
+- **The centre of the light** stays within 0.12 px of the curve over u
+  -160..-30 at every end. The core's peak is a lens-side luma overshoot at
+  n -1.6..-2.5, 3-8% of the plateau.
+- **The exception:** LS's last 30 px read softer and wider. A hard edge through
+  the reference's own quantiser reproduces the softness there, so that is
+  compression, not a softer artwork edge.
+
+### Stage 4: colour across the core
+
+- **The "cyan rims" at the core's edges are 4:2:0 chroma bleed.** C = (G+B)/2 -
+  R is carried entirely by the subsampled chroma. A sharp chroma step placed
+  at the reference's own edges, then passed through 4:2:0 with its own table,
+  reproduces the rims quantitatively (lens / flare, LN +5.4/+4.4 against the
+  reference's +6.0/+5.5, RS +11.4/+4.1 against +12.8/+4.4). That includes RS's
+  lens-heavy asymmetry. The real colour facts behind them:
+  - the reference's core centre is whiter (C 28-33 against the model's 38-41
+    at u -160..-100);
+  - the surroundings at \|n\| 4.5-6 are cyan-er.
+
+  No rim layer is indicated.
+- **A lens-side cyan band is real, at all four ends.** In the band n -7.5..-4.5
+  over u -250..-60:
+  - dC +8.5..+24.3, at least 6.7 above the largest of 191 JPEG copies of the
+    model (PIL 4:4:4 / 4:2:2 / 4:2:0 at q50-95 and six block phases, a
+    smooth-upsampling encoder, chroma-blurred copies);
+  - a luma excess of +6..+21 cv against a null of at most 1.3. So it is added
+    light, not moved chroma.
+- **What the band is:**
+  - cyan: the reference's own band light reads G/B 0.89-0.99. The "greener
+    north" of a first reading was the model's near-tip light being too blue;
+  - almost no white, except RS u -250..-200 (11-23%);
+  - 3.2-5.0 px wide at half maximum;
+  - running over about u -360..-40 at each end (LN -275..-45, RN -235..-65, LS
+    -360..-65, RS -320..-60 above 5 cv), strongest at u -250..-100.
+  - Over the curves' middle the reference's lens light matches the model's
+    within -3..+2 cv, where `arc_glow1` and `arc_core_wide` draw it.
+- **Where the band's peak lies is instrument-dependent:** -4.75..-5.75 by
+  argmax, -5.1..-6.7 by Gaussian fit. Its inner side cannot be read: it is where
+  the model's soft edge overtook the reference. The investigator's "best stroke
+  at inset 6.5, blur 2" was refuted as over-precise. Once the zone the model's
+  edge dominates is excluded, any inset from 3.5 to about 6.5 fits within 2%
+  over u -250..-60, including `arc_glow1`'s own line (5.28). Nearer the ends
+  the light sits closer to the core (stage 7).
+- **No existing layer draws it:**
+  - `arc_core_wide` paints n -3.9..0, under the core's lens half. It is 37%
+    white, and its ramp is still 0.5-0.7 where the band begins at the south
+    ends. As a shape it explains 0-17% of the excess. Extended to the tips it
+    adds 40-55 cv of error at the lens edge.
+  - `arc_glow1` is nearly flat from n -3.5 to -10 and still at 35% at n -13.5,
+    four times broader than the band, and it carries white. Raising its fade
+    near the ends over-brightens n < -8.5 by 4-5 cv at the south ends and
+    adds 1-3 cv at both edges. D68 had reached the same point ("needing a
+    cyan-only carrier on the lens side"), and so had D70 (e2): "the
+    reference's core skirt and lens-side cyan rim, which no layer draws".
+- **The flare side has no cyan band.** Its band n +4.5..+8 has a real luma
+  excess near the tips (+4..+7 cv at u -200..-60), mostly G. It is the
+  deferred flare-side green (stage 10).
+
+### Stage 5: the minimum structural model
+
+The brief's options, against the evidence:
+
+| option | verdict |
+|---|---|
+| A. narrower core | **supported**: every end is 0.2-0.4 px narrower at half level (stage 3) |
+| B. lower blur | **supported at the ends, refused over the middle** (below) |
+| C. sharper edge plus the existing glow | **not enough**: sharpening exposes the missing lens-side light (stage 7) |
+| D. asymmetric edges | **not supported**: the reference's lens and flare sigmas differ by -0.02..+0.06; D70's south asymmetry was its own y-paint |
+| E. a thin lens-side cyan rim at the edge | **refuted as a rim**; **supported as a band** 1.5-3.5 px outside the edge (stage 4) |
+| F. a combination | **A + B at the ends + E** |
+| G. no change | **refuted**: nothing JPEG or rasterisation does produces the differences |
+
+- **Why B stops at the ends.** Drawn with blur 0.2042 everywhere, the core
+  improves every 20-row band from the tips to y 280 (left) / 320 (right) and
+  from y 700-720 to the south tips, by 2-29%. It worsens every band between,
+  by up to 21%. The flare's r < 110 error rises from 4.041 to 4.119 and the
+  centre's from 4.584 to 4.668.
+  - The turn falls where `arc_core_edge` reaches full strength (its ramp is 1
+    between y 300 and 705) and `arc_core_wide` rises.
+  - Between those rows the core's edge is a composite: the core at +-3.42 px,
+    the lens-side cyan stroke out to -4.0, and the flare-side one at
+    +2.7..+4.1. The soft core fills the steps between them. Sharpened, the
+    steps show.
+  - The composite is D66's validated middle. Refitting it would be a
+    mid-curve redesign.
+- **Why A, B and E together.** Each alone is mixed at the lens edge.
+  - Sharpening removes the soft edge's white spill (R) outside the edge and
+    exposes the band's missing G/B there.
+  - The band alone adds cyan over D70's already too bright soft edge.
+  - Narrowing alone takes light out of a core that was already short inside.
+
+  Together they improve every lens-side, core and flare-edge region at all four
+  ends (stage 7). The chroma verifier found the same coupling with its own
+  renders: every band on D70's soft core worsens the lens edge, and every band
+  on a sharpened core improves it.
+
+### Stage 6: the builder option (`end_blur`)
+
+- *Action:* an arc layer's `end_blur` {"blur": b, "north": yn, "south": ys}
+  draws the rows y < yn and y >= ys with blur b, and the rows between with the
+  layer's own. The builder draws the layer twice per curve, in one group that
+  carries the blend:
+  - the end copy;
+  - then the middle copy, over an opaque black, in a group carrying a row
+    mask (`Builder.end_rows`), applied after the copy's blur.
+  - The mask is a luminance mask of a vertical gradient with hard stops at yn
+    and ys, the D70 technique. A gradient is read at pixel centres, so a pixel
+    row falls wholly in one copy, with no overlap and no gap. The rows must be
+    multiples of 4 px, so that at sizes that are multiples of 256 the cut falls
+    between pixel rows.
+  - At other sizes a pixel centre can fall exactly on a cut (at 872 px, row
+    599's centre is y 704), and resvg reads the mask there as 128. An opaque
+    layer seen through a mask value m gives exactly m x middle + (1 - m) x
+    end, so the black under the middle copy puts that row between the two
+    copies, whatever fraction the mask reads. On the opaque canvas the black
+    screens to nothing.
+  - The first construction put each copy in its own masked group, screened one
+    after the other. The engineering review found that it drew such a row up
+    to 82 levels darker than either copy in the full composite (at 968 and
+    1176 px; Validation).
+  - The layer's other keys (width table, curve-axis mask, taper) are drawn as
+    before inside each copy. `Builder.layer`'s per-side emission became one
+    function called once, or twice with end_blur. The layer must be screened
+    (asserted), since its middle copy is drawn over black.
+- *Values:* b = 0.20421316015498364, the value `arc_core_wide` and
+  `arc_core_edge` already carry; yn = 300 and ys = 704, the ends of
+  `arc_core_edge`'s full-strength span (300 and 705, rounded away from the end
+  to a multiple of 4). No number is new.
+- *Alternatives:*
+  - A single blur for the whole layer: rejected (stage 5).
+  - A cross-fade of the two copies: two partial copies of a bright layer,
+    screened one after the other, are not additive (c - a(1-a)c^2, 46 cv low
+    in R at the midpoint for this core's colour), and source-over of
+    translucent copies is not additive either. Over black, as built, the mix
+    is linear, but the hard cut already shows no seam, so the rows stay hard.
+  - A cut by a clip's edge: it is anti-aliased into both copies.
+  - Two separate layers: no gain over one option, and every consumer of the
+    layer would have to know they are one.
+- *The cut is invisible.* The two copies differ by at most 17-25 levels on
+  the two pixel rows at each cut (the soft spill that stops). At 1x and at 8x
+  no seam shows in the reference's comparison crops.
+- *Byte identity:* without the key, the builder's output agrees byte for
+  byte with the committed builder's (3b5a8f3):
+  - on the committed parameters: the full build and all 55 per-layer basis
+    builds;
+  - on D71's parameters with `end_blur` removed: the full build and all 56.
+
+  The engineering review repeated this with the first construction's builder
+  (above), on every version of `src/params.json` in the history and on every
+  parameter file of this pass's scratch work, with `end_blur` removed: 94,020
+  builds, none different. With the final builder, the committed parameters,
+  D71's without the key and the 39 versions in the history give 1,662 builds,
+  none different.
+- *Refused:* rows that are not multiples of 4, that cross, that are missing or
+  that are not numbers; an empty key; the key on a layer that is not an arc.
+  The last three were accepted, or failed with a TypeError, until the
+  engineering review.
+- *Limits, not used by the shipped parameters:*
+  - A form with more than one element per side (a `convex_taper`'s two clip
+    halves) composites source-over inside each copy instead of screening each
+    element. In a probe that costs 2 levels on 28 px at the halves' seam.
+  - A translucent layer is within a level of its single-blur renders (the extra
+    group level quantises).
+- *Cost:* the SVG grows by 17 KB (11%), since each side's ribbon path is
+  written twice, and resvg's render time by 12-16%. Drawing both copies from
+  one path in `<defs>` would save about 9 KB; it is not done here.
+
+### Stage 7: the change, and each part alone
+
+Mean \|reference - render\| (cv, mean of R, G, B) over u -250..-30, raw, per
+region of n (lens far -12..-8.5, lens band -8.5..-4.5, lens edge -4.5..-3,
+core -3..+3, flare edge +3..+4.5, flare band +4.5..+8.5):
+
+| end | image | lens far | lens band | lens edge | core | flare edge | flare band | tip u -30..0 |
+|---|---|---|---|---|---|---|---|---|
+| LN | D70 | 3.85 | 8.78 | 14.48 | 8.50 | 13.70 | 4.69 | 3.35 |
+| LN | A | 3.85 | 8.86 | 10.89 | 9.69 | 10.62 | 4.75 | 3.23 |
+| LN | B | 3.85 | 9.21 | 13.48 | 6.84 | 9.86 | 4.93 | 3.30 |
+| LN | E | 2.98 | 3.93 | 17.79 | 8.39 | 13.83 | 4.69 | 3.37 |
+| LN | **A+B+E** | 2.98 | 4.14 | 8.21 | 6.47 | 9.18 | 4.93 | 3.14 |
+| RN | D70 | 4.16 | 9.61 | 11.87 | 11.58 | 16.37 | 5.28 | 3.79 |
+| RN | A | 4.16 | 9.70 | 12.47 | 13.03 | 12.80 | 5.34 | 3.59 |
+| RN | B | 4.16 | 10.06 | 12.93 | 8.24 | 12.00 | 5.50 | 3.67 |
+| RN | E | 3.36 | 4.20 | 14.29 | 11.18 | 16.60 | 5.28 | 3.78 |
+| RN | **A+B+E** | 3.36 | 4.35 | 10.82 | 8.29 | 11.14 | 5.49 | 3.32 |
+| LS | D70 | 4.22 | 11.59 | 15.15 | 8.15 | 10.17 | 3.93 | 2.80 |
+| LS | A | 4.22 | 11.73 | 10.69 | 9.60 | 8.20 | 4.00 | 2.74 |
+| LS | B | 4.22 | 12.00 | 16.50 | 6.77 | 7.48 | 4.17 | 2.88 |
+| LS | E | 2.88 | 3.78 | 18.67 | 7.91 | 10.37 | 3.93 | 2.68 |
+| LS | **A+B+E** | 2.88 | 3.99 | 8.50 | 6.23 | 9.61 | 4.16 | 2.69 |
+| RS | D70 | 4.57 | 14.01 | 12.38 | 8.42 | 13.99 | 4.13 | 3.16 |
+| RS | A | 4.57 | 14.14 | 10.32 | 9.85 | 9.94 | 4.20 | 3.00 |
+| RS | B | 4.57 | 14.50 | 16.02 | 6.96 | 9.62 | 4.38 | 3.29 |
+| RS | E | 3.98 | 4.01 | 14.88 | 7.87 | 14.37 | 4.12 | 2.87 |
+| RS | **A+B+E** | 3.98 | 4.33 | 8.16 | 6.20 | 7.83 | 4.37 | 2.67 |
+
+Through the reference's own JPEG table the ordering is the same at every end,
+and every region moves the same way within 0.1-0.5 cv. For example, the lens
+edge goes 14.76 -> 8.06 at LN and 13.29 -> 7.80 at RS, and the lens band
+9.11 -> 4.51 at LN and 14.31 -> 4.50 at RS. The tails (u 0..55) do not move.
+
+- **A. The tips narrower (`arc_core.width_taper`).**
+  - *Action:* [[170, 0.905], [240, 1.0], [790, 1.0], [860, 0.888]], replacing
+    [[170, 0.9368], [210, 1.0], [820, 1.0], [860, 0.9368]]. The factor at the
+    tips gives the reference's half-level width (6.18 north, 6.07 south). The
+    knee moved inward because the reference stays narrow further in:
+    - with D67's knee, the core was still 0.2-0.3 px too wide at u -220..-140;
+    - with the knee at 240 / 790, the mean width error over u -240..-40 falls
+      from 0.09-0.15 to 0.055-0.090 px per end (D70: 0.19-0.33);
+    - a knee further in (190-250 / 780-840) overshoots, 0.1-0.23 px too
+      narrow at u -200..-160.
+  - *One factor per pair of ends.* The reference's widths are 6.17 (LN) and
+    6.23 (RN), 6.04 (LS) and 6.11 (RS). Within a pair they differ by 0.06-0.07
+    px, about 1.5 standard errors, and the instruments do not agree on the
+    sign in the south. One north and one south value place every end within
+    0.035 px. RN is the one end where A alone is mixed: its lens edge +1.2 cv
+    in the combination, its flare edge -0.9 and its tip -0.3.
+  - *Uncertain:* the lens / flare split of the narrowing. At LN / RN u
+    -70..-45 the whole 0.3 px is on the lens side; at u -100 it is the other
+    way. A symmetric table puts each edge within about 0.15 px.
+- **B. The ends sharper (`arc_core.end_blur`, stage 6).** Across the whole end
+  zone the four ends read sigma 0.30-0.35 against the reference's 0.32-0.36.
+  In Chromium the change is nothing (stage 2), so the two engines now agree at
+  the ends.
+- **E. The lens-side band (`arc_lens_band`, a new layer, 55 -> 56).**
+  - *Action:* pure cyan (0.34, colour [0, 81.5, 86.7]), 5 px wide, blur 3, on
+    `arc_glow1`'s line (inset 5.28). Its table (`tapers.lens_band`) is a
+    non-negative least-squares fit per 20 px of each end's arc length, over n
+    -12..-3, G and B jointly, on the core as drawn (A + B):
+    - smoothed once with weights 1/4, 1/2, 1/4: the 16-px chroma blocks alias
+      into alternate 20-px bins, and one pass matches the 40-px and
+      phase-shifted fits;
+    - zero at u -360 and at the end, and over the curves' middle.
+  - *The fit is stable.* The mean alpha over u -300..-100 moves by at most
+    0.03 under another n window, the model's JPEG copy, or a 10-px bin
+    phase; 40-px bins read 0.02-0.08 lower. G-only and B-only fits agree at
+    the south ends and bracket the joint fit at the north ends.
+  - *Its shape is chosen, not measured* (stage 4). Four shapes were fitted and
+    rendered on the same core. Summed over the four ends and the lens far,
+    lens band, lens edge and core regions:
+    - inset 5.5, width 4, blur 2.5: 91.4;
+    - `arc_glow1`'s line, width 5, blur 3: 92.9;
+    - `arc_glow1b` mirrored (inset 6, width 7.92, blur 2.408): 96.7, with
+      the lens far region worse at three ends;
+    - inset 6.5, width 3, blur 1.9: 97.4.
+
+    The data do not separate the first two, so the band takes the existing
+    lens-side glow's line.
+  - *One shape for the whole outer third, a compromise.* Over u -300..-160
+    the missing light is broad, and the band fits it. Near the ends, over u
+    -155..-35, the light still missing after A + B sits 1.3-1.7 px closer to
+    the core, is narrower, and is greener at the north ends (B/G 0.68-0.79
+    against the band's 1.06). So the far flank n -16..-8.5 reads slightly
+    worse there at all four ends: LN 2.55 -> 2.63, RN 2.96 -> 3.02, LS 2.10
+    -> 2.56, RS 2.95 -> 3.82. A narrower band closer to the core removes that,
+    but loses 1-5 cv over u -300..-160.
+  - *Blur 3, not 2.* resvg changes algorithm at exactly 2 device px (a
+    recursive kernel up to 2.0, box blurs above). A value sitting on the switch
+    would be drawn by whichever side a rounding falls on. At 3 the band is
+    well inside the box regime at every render size of 1024 px or more.
+  - *Its search bounds* are inset 4.75-5.75, width 1-5.5 and blur 0.5-3.25.
+    At every corner of that box the band stays where its check requires (see
+    "The regressions" below): at most 0.75% of its light beyond the core's
+    flare edge, and at least 99.93% within 16 px of the curve. The first
+    bounds (3-10, 1-8, 0.5-4) let a search reach states the check fails, as
+    the engineering review found.
+- *Alternatives rejected:*
+  - `arc_core_wide`'s ramp extended to the tips: wrong position and colour
+    (stage 4).
+  - `arc_glow1` raised or narrowed: its blur and table are fitted over the
+    whole curve. Narrowing it would change its middle, where it matches, and
+    raising it near the ends is too broad and too white.
+  - A flare-side counterpart: the flare side's excess is green (deferred).
+- *Visible:* at 1x the four ends read crisper, like the reference's, with a
+  faint cyan band on the lens side where the reference has one. At 8x the
+  core's stair-stepped edge and the teal band beside it match the reference's
+  crops. The D70 soft white halo just outside the edge is gone.
+- *Changed pixels:* 24,207 at 1024 px, all within 16 px of the curves, and
+  none within r 110 of the flare. Their summed \|err\| falls by 31%: 13,567
+  are better and 7,329 worse by more than half a level. The same holds at
+  256, 512, 872, 1000 and 2048 px (Validation).
+
+### Stage 8: the tips, cores and tails, reassessed
+
+What the change did to D70's list, from signed per-end readings (u bins
+-100..-60 to 25..55; n bands lens foot, lens edge, inner lens, plateau,
+inner flare, flare edge, flare foot):
+
+- **Gone with the soft edge:**
+  - the north tips' flare-edge overshoot at u -40..-5 (LN -10.9/-4.4/-8.3 ->
+    -6.2/+0.6/-3.3 at u -40..-20; RN -8.6/-3.2/-7.3 -> -2.7/+3.0/-1.3);
+  - the rest of the lens edge's R excess at every end (for example LN u
+    -100..-60 -18.6/-7.5/-11.6 -> -2.6/+2.5/-2.3);
+  - RS's lens-edge R excess (R -10.3 at u -100..-60, where the reference now
+    reads 3.5-7.3 cv brighter; the region error 12.38 -> 8.16);
+  - the south cores' excess width, now within 0.03 px.
+- **Halved:** LN's short inner lens band at u -60..-40 (+5.7/+11.4/+7.0 ->
+  +1.9/+6.3/+1.9). What remains is the whole-core dip at the hand-over from
+  `arc_core` to `arc_core_tip` (u -58..-43, plateau G -10), an along-curve
+  fade item. RN has no dip.
+- **Unchanged:**
+  - the plateau shortfalls between stations just inside the ends;
+  - the north tips' colour at u -35..-5 (+4 R and +5 B at the edges, weakly
+    at the centre);
+  - LS's tip core, too red on its lens half (R +8 at u -40..-20 over a null
+    of 3);
+  - the tails, which only `arc_core_tip` draws and which keep its blur 0.6137
+    and width 6.4. Past the ends the reference's tail edges are softer
+    (0.5-1.0) than the sharpened core's, so the tip layer was left alone.
+  - LS's far tail flux, 0.53 of the reference's.
+- **Moved:** the light's centroid over u -100..-40.
+  - At LS and RS it moves onto the reference's, within 0.02 px.
+  - At LN and RN it moves 0.05-0.10 px lens-ward of it.
+  - At LS's last 40 px it moves from -0.23 / -0.24 to -0.40 / -0.44, against
+    the reference's -0.17 / +0.20. The band's small tip values add lens-side
+    light where D70's south y-paint already leans lens-ward, and the soft
+    flare-side spill that partly offset the lean is gone.
+  - Ending the band 35 px before every tip restores LS's centroid (-0.25 /
+    -0.20), but costs RS's real weak tail (tip error 2.67 -> 3.11) and LS's
+    own tip error (2.69 -> 2.82). The fitted table was kept.
+- **Exposed:** the flare side's green skirt. At u -100..-40 the north flare
+  edges now read the reference brighter by G +8..+15 (it was the model
+  brighter). The flare band n 4.5..8.5 reads 0.21-0.24 cv worse at each end
+  (+0.05..+0.17 through the JPEG table). D70's soft edge spread white light
+  where the reference has a green skirt. Both are recorded as the deferred
+  flare-side green (stage 10).
+
+### Stage 9: the right curve's north outer third, re-read
+
+The brief asked, after the core analysis, whether RN's red deficit is core
+spill, curve paint, overlap, or colour. It is colour.
+- **The evidence.** In the plateau (\|n\| <= 2), the reference's R exceeds the
+  model's by 13.6-15.5 cv over u -280..-120. G and B are within -2.5..+7 there
+  (D70: +13.6/-2.0/-3.9 at u -280..-240 through +15.2/+7.0/+6.4 at u
+  -160..-120).
+- **Not spill.** Sharpening the edge changes the plateau by 0.7-1.1 cv.
+- **Not paint.** A table raises G and B with R, and they already match.
+- **Not overlap.** No other layer carries R into RN's plateau there.
+- **So it is colour.** The reference's core is whiter at RN's outer third (R/G
+  0.89 at u -240..-160) than `arc_core`'s one colour (0.85). The same holds,
+  more weakly, at RS u -120..-80 (R +12).
+
+Over the curves' middle the reverse holds: the model's plateau is 9-16 cv too
+red at every end. The reference's core colour varies along the curve, and one
+colour for the layer cannot follow it. This is D70's (e1), now separated from
+the edge. It is not changed here: an along-curve core colour is a colour
+redesign.
+
+### Stage 10: the deferred items, unchanged
+
+Flare-side green (now more visible at the north flare edges, stage 8), the
+lower-right inner segment's translation, the north-of-core red, the vertical
+line's colour, upper-left ray B's hue, global saturation and the tails'
+JPEG-limited hue are unchanged. No pixel within r 110 of the flare moved.
+
+### The regressions
+
+Two checks are new, and three existing ones were adapted to the change.
+- **"An end-blurred arc draws each row with one of its two blurs"** (stage 6).
+  It renders `arc_core` three ways: with `end_blur`, with the end blur
+  everywhere, and with its own blur everywhere. Then:
+  - on the layer alone, at 1024, 2048 and 1000 px, every row whose centre lies
+    in an end zone must be the first single-blur render, and every other row
+    the second, to a level. At 1000 px the cut falls inside a pixel, where a
+    shape's edge would be anti-aliased into both copies;
+  - at 872 px the south cut falls exactly on row 599's centre, and the mask
+    reads 128 there. That row must lie between the two single-blur renders,
+    to a level, and every other row must be one of them;
+  - the same holds on the whole composite at 1024 px, and on `arc_lens_band`
+    given a probe end blur. That layer is translucent, so its opacity must
+    ride in each copy;
+  - the two blurs must differ there by at least 10 levels (3 for the probe),
+    so the check cannot pass vacuously;
+  - with the key each side is one row-masked group, and without it there is
+    no row mask;
+  - rows that are not multiples of 4, that cross, that are missing or that
+    are not numbers are refused, and so are an empty key and the key on a
+    layer that is not an arc.
+- **"The lens-side band stays beside the core's ends"** (stage 7). On
+  `arc_lens_band` alone:
+  - at most 1% of its light lies beyond the core's flare edge (4 px on the
+    flare side);
+  - at least 99.9% lies within 16 px of the curve;
+  - nothing lies on rows 380-640;
+  - its colour is the measured band's: G/B 0.89-0.99, and R at most a quarter
+    of G. The photometric fit frees every layer's colour but the rays', so a
+    refit that gave the band white or blue fails here.
+
+  It reads 0.39%, 99.985%, nothing, and G/B 0.94 with no R. The band's search
+  bounds keep the first two at every corner of the box (stage 7). The taper
+  search moves every table's `y_offset` within +-14 px; beyond about +-10 the
+  band's table reaches the middle rows, and the check fails, as it should.
+- **D67's width-taper check** reads its three bands from `arc_core`'s table
+  instead of fixed rows, so it follows the new knees. It now reads the outline
+  without `end_blur`: the check is about geometry, and the sharper blur on the
+  end rows moves a half-level centre by 0.02-0.03 px, which had left 0.002 px
+  of its 0.15 px margin. A table that leaves one of its bands empty now fails
+  the check; it had passed on a NaN.
+- **D67's gap check** drops `end_blur` from its no-mask probe stack, as it
+  already dropped `taper_axis`: the key's row mask is not a gap's mask.
+- **"Every number outside the search space is one of the kinds known to
+  be"** now knows `end_blur`: "measured at the curve ends and held".
+
+### What was preserved
+
+- **D70's decisions.**
+  - `arc_core` keeps `taper_axis` {"north": "curve"} and `arc_core_tip` keeps
+    {"south": "curve"}. The south cores and the north tails keep the y-paint.
+  - `taper_axis` stays endpoint-specific, and each end was measured in its own
+    local coordinates.
+  - Inside each copy of `arc_core` the curve-axis mask is drawn as before, and
+    D70's two curve-axis checks pass unchanged.
+- **The curves' geometry.** No control point, inset or end moved. Every path
+  the SVG draws for `arc_core` is D70's path, twice. `arc_core_tip` is
+  untouched, so the tails, their continuation and their blur are D68's.
+- **The flare.** In resvg, the renderer of record, no pixel within r 110 of
+  its centre changes at any render size tested. In Chromium, 433 pixels there
+  move by one level. They lie within 4.4 px of the right curve's middle (y
+  406-620), where Chromium draws both copies alike (it does not blur below
+  about 0.8), so the cause is the group's compositing. Every layer outside
+  the curves' ends is untouched: the rays, the core and its arms, the vertical
+  line, the glows' middles, the frame.
+- **The west triangle stays absent.** The west check reads 0.782.
+- **D66's mid-curve composite** (`arc_core` 0.6137 with `arc_core_wide` and
+  `arc_core_edge`) is unchanged between y 300 and 704.
+- **The deliverable** is vector only. It has 56 named layers: `arc_lens_band`
+  is the one addition. The artwork change is four width-table numbers, one
+  builder key whose three numbers repeat existing values, and one layer with
+  its table.
+- **The builder** builds every file without `end_blur` byte for byte as
+  before.
+- **The harness fix** (stage 1) is its own commit, before the artwork.
+
+### How the decisions were made
+
+- **The brief's order.** The D70 baseline was reproduced byte for byte first.
+  Then the harness was fixed and proven, committed and green on CI, before
+  any artwork work. The core's cross-section was then characterised before
+  any candidate was built: the instruments, the renderer's blur, the
+  reference's JPEG, and the colour.
+- **Independent measurement, independently refuted.** Three investigators
+  (cross-section instrument, source decomposition, chroma) each had an
+  adversarial verifier re-derive their claims with its own code.
+  - The core's sharpness, narrowness, the lens-side band and the colour
+    readings survived.
+  - The "cyan rims" at the core's edge were refuted as chroma bleed.
+  - The band's "best stroke at inset 6.5" was refuted as over-precise.
+  - The verifiers added four findings: Chromium's zero blur; the band's
+    coupling with the edge; the asymmetry of the narrowing; the reference's
+    recovered JPEG table.
+- **Isolated candidates, like with like.** Every candidate was built by the
+  real builder and rendered by resvg, never simulated. Each was read in its
+  own local coordinates at all four ends, raw and through the reference's own
+  JPEG table, and for its neighbours. The components were rendered alone, in
+  pairs and together (stage 7).
+- **The rule for a change.** A component was kept only if all of these held:
+  - the evidence repeats at several ends;
+  - it survives the JPEG round-trips;
+  - it has a plausible source layer;
+  - it improves the local profiles;
+  - no neighbour gets worse without a recorded reason;
+  - it reads coherently at 1x.
+
+  Sharpening over the middle failed the neighbour rule and was refused.
+- **No optimiser was run.** The width table, the end-blur rows and blur, and
+  the band's shape come from measurements or existing values. The band's
+  table is a per-station least-squares fit with one fixed smoothing pass.
+- **Whole-image metrics** were consequences, never the criterion.
+- **Independent review** of the final candidate: an engineering review of the
+  builder option and the tests, and an adversarial artwork verification
+  (Validation).
+
+### What the numbers did
+
+    measure                 D69 (4113310)   D70 (223582c)   D71 final
+    MAE                     1.6803          1.6733          1.6141
+    RMSE                    3.090           3.060           2.782
+    SSIM                    0.97646         0.97651         0.97724
+    edge IoU                0.7006          0.7010          0.7112
+    centre-region MAE       4.584           4.584           4.584
+    flare r<110 MAE         4.041           4.041           4.041
+    core r<25 MAE           3.690           3.690           3.690
+    bright-region MAE       7.712           7.479           6.193
+
+These are consequences, not the criterion.
+- The parts alone move MAE 1.6733 -> 1.6736 (A), 1.6602 (B) and 1.6420 (E).
+  Together they reach 1.6141.
+- The bright-region error falls most (7.479 -> 6.193): the curves' ends are
+  among the image's brightest pixels.
+- Nothing in the flare's region moves.
+- The curve glow's error resolved along the curve (71 cells) rises from 4.8%
+  to 5.0%: the band's far flank near the ends (stage 7, and Remaining).
+- `arc_core` at one blur everywhere would have given MAE 1.6666, but the flare
+  r<110 MAE 4.119 and the centre MAE 4.668 (stage 5).
+
+### Remaining, with the reason
+
+- **The core over the curves' middle** is still drawn soft, and only in
+  resvg. The reference's edge is sharp there too (stage 3), but the model's
+  composite edge needs the soft core (stage 5). A sharp core there needs the
+  composite refitted: a mid-curve redesign.
+- **The core's colour along the curve** (stage 9):
+  - whiter than `arc_core`'s one colour in the right curve's outer thirds (RN
+    R +13..+15, RS R +12);
+  - redder over the middle (R -9..-16 at every end).
+
+  This is D70's (e1), now separated from the edge, and it needs an along-curve
+  colour.
+- **The flare side's green skirt** is now more visible (stage 8). In the band
+  n 3.5..5.5 over u -155..-35 its G is short by 10-14 cv at the north ends and
+  5-7 at the south ends. The flare band n 4.5..8.5 is about 0.2 cv worse at
+  each end. It is on the deferred list.
+- **The core's width, in detail:**
+  - The narrowing's lens / flare split varies along u within an end, so a
+    symmetric table places each edge within about 0.15 px (stage 7). RN, whose
+    reference is the widest of the four, would take slightly less narrowing
+    than the common north value.
+  - LS reads 0.07-0.10 px wider than the reference by the erf fit (0.05 by the
+    rise instrument).
+  - The tips (u -40..0) are still 0.13-0.44 px too wide at LN, RN and RS
+    (D70 0.37-0.60): `arc_core_tip`'s 6.4 px stroke draws them.
+  - Next to the cut, where `arc_core_edge` ramps (y 235-300, 704-790), the
+    sharpened composite reads 0.05-0.19 px narrower than the reference, where
+    D70 matched.
+- **Sub-pixel offsets now show.** Sharp edges turn the core's small lateral
+  offsets into larger single-pixel errors.
+  - The largest one rises from 67 to 79 cv, at RN (601, 264), where the
+    reference's core sits 0.17 px further flare-ward.
+  - Overall the pixels above 40 cv fall from 325 to 205, and those above 30
+    from 1,452 to 697.
+  - The core's lateral centre offsets (0.1-0.18 px at RN and LS, u
+    -300..-140) now dominate its edge residuals. They are geometry.
+- **Small costs of the change:**
+  - LN's core over u -360..-160 (+0.2..+0.5 cv): it was already G/B 7-10 too
+    bright, and the sharper edge and the band's inner tail add about 1.
+  - LS's tip (u -40..0): lens edge 4.31 -> 4.43, flare edge 3.88 -> 3.99, core
+    2.66 -> 2.88. The reference's LS tip flare edge is soft (0.51-0.59) and
+    further out, and its core is dim there (Y 16-45).
+  - The tips' core through the reference's table at RN, LS and RS
+    (+0.07..+0.5).
+  - Through coarser IJG tables (q75-q90) the core's gain over u -155..-35 does
+    not hold. Through the reference's own table it does.
+  - The band's far flank near the ends (stage 7). At 9-14 px on the lens side,
+    the curve glow's cells toward the ends (|t| 40-66 degrees) read 4-14% too
+    bright at all four ends, where D70 read -5..+10%. The cells at |t| 22-40
+    improve to within 3%, and the rms over all 71 cells rises from 4.8% to
+    5.0%.
+- **The cut is a device of the model.** At 1024 px every row is one copy's,
+  exactly (at a size where a row's centre falls on a cut, that row lies
+  between the two copies). But along the curve the halo just outside the core
+  steps by 5-11 cv of luma at the cut rows; the reference steps by 2. That is
+  not visible at 1x or 8x. The reference is sharp over the middle too, so a
+  sharp core there, with its edge strokes refitted around it, would remove the
+  cut.
+- **The core's lens-side inner overshoot** (n -1.6..-2.5, 3-8% of the plateau
+  in luma) is not modelled.
+- **The tips:**
+  - LS's last 40 px lean lens-ward (centroid -0.40 / -0.44 against the
+    reference's -0.17 / +0.20, stage 8);
+  - LN's whole-core dip at the hand-over to the tip stroke (u -58..-43);
+  - the plateau shortfalls between stations;
+  - the north tips' colour (+4 R, +5 B at the edges);
+  - LS's tip core, too red on its lens half;
+  - RN's last 10 px and its cap.
+- **The tails:** their paths, the LS far tail's flux (0.53 of the
+  reference's), and their hue, all as in D70.
+- **The band's offset** is loosely determined (any inset from about 3.5 to 6.5
+  fits its outer flank). It takes `arc_glow1`'s line by choice, and its search
+  bounds hold it within 4.75-5.75 (stage 7).
+- **Everything else D70 listed under Remaining** is unchanged, and so are
+  the deferred items (stage 10).
+
+This is not a pixel-perfect reconstruction, and not every residual listed is
+one to correct.
+
+### Validation
+
+- **Stage 1** is its own commit (3b5a8f3), and GitHub CI is green on it.
+- **The engineering review** (an independent reviewer with its own code, on a
+  snapshot of the candidate) found one major defect in the builder option,
+  four gaps in its checks, and some notes. All are addressed.
+  - *The defect.* The first construction put each copy in its own masked
+    group and screened the two one after the other. Where a pixel centre falls
+    exactly on the south cut (y 704, at some sizes that are odd multiples of
+    8 px), resvg reads the masks there as fractions, and not complementary
+    ones. At 872 px both read a half, and two halves screened one after the
+    other are darker than one whole. At 968 and 1176 px one read a half and
+    the other nothing, and the full composite drew a one-pixel dash across
+    both cores, 81-82 levels darker than either copy. At 568 px one read a
+    half and the other a whole, so the row was drawn one and a half times. No
+    pixel centre falls on a cut at 1024 px, or at any multiple of 256 px, so
+    the release render was never affected.
+  - *The fix* (stage 6). One mask, on the middle copy only, and that copy
+    drawn over an opaque black, so the group is a linear mix of the two
+    copies whatever the mask reads. The render at 1024 px is pixel-identical
+    to the first construction's, and so to the candidate both reviews
+    examined.
+  - *The sweep.* 138 render sizes: every odd multiple of 8 from 72 to 2040
+    px, the odd multiples of 128 to 1920, and 256, 512, 768, 1024, 1536 and
+    2048. In the final construction every row is one copy's, to a level,
+    except the row on the south cut at 15 of them (376-1992 px). There the
+    mask reads a fraction and the row lies between the two copies, 0 levels
+    outside, at every one. The first construction, measured the same way at
+    those 15 sizes, drew that row 31-107 levels outside the two copies at 10
+    of them. At the north cut (y 300) resvg read the mask as 0 or 1 at every
+    size, including the odd multiples of 128 px, where a pixel centre falls
+    exactly on it.
+  - *The checks' gaps.* Four of the reviewer's 14 broken builders passed the
+    first version of the end-blur check: a cut by a rect mask, the blend
+    dropped from the group, the blend on the inner elements, and the opacity
+    dropped from the copies. The check now also runs at 1000 px, on the whole
+    composite, and on a translucent probe layer, and catches all 14. It also
+    runs at 872 px, where it fails the first construction by 45 levels. Ten
+    broken variants of the final construction all fail it: no black, the
+    middle copy unmasked, the mask inverted, the blend dropped or moved to the
+    inner elements, the rows off by 4, the end copy with the layer's own blur,
+    the cut to 3 decimals, a rect-cut mask, and the opacity dropped.
+  - *The band's bounds and hue* (stage 7, and "The regressions"): its bounds
+    now keep it inside its check at every corner (23 points tested), and the
+    check holds its measured colour. A white and a blue probe colour both
+    fail it.
+  - *D67's width-taper check* reads the outline without `end_blur` (its
+    right-curve margin is back from 0.002 to 0.02 px), and fails, rather than
+    passing on a NaN, when a table leaves one of its bands empty.
+  - *Notes, acted on:* the builder refuses an empty key, non-numeric rows and
+    the key on a layer that is not an arc (stage 6). A stale count in the
+    test's inventory comment was refreshed. The SVG's size and render-time
+    cost, and two rounding effects of forms the shipped parameters do not
+    use, are recorded in stage 6.
+- **The artwork review** (an adversarial verifier with its own renders and
+  instruments) found no blocking issue. It reproduced the candidate byte for
+  byte, and D70's parameters give D70's SVG. Its minor findings are recorded
+  in stages 7 and 8 and under Remaining. Its own estimate of the reference's
+  luma table agrees with this pass's on 35 of the 42 entries it could
+  determine, and with its 7 corrections every verdict stands. Its one process
+  finding, that the snapshot's `out/` mixed two candidates, is closed by the
+  publish below: every artefact names this SVG.
+- `sh tools/publish.sh` on the final tree: **PUBLISH OK**. That includes:
+  - the cross-engine check (resvg against Chromium, MAE 2.650; 2.693 in
+    D70);
+  - the before/after sheet's `--verify` step, against D70 as the pinned
+    baseline;
+  - the reproducibility step.
+- `tools/test_pipeline.py`: all 74 checks pass (72 in D70). The two new
+  ones are described under "The regressions". These pass as well:
+  - D67's gap and width-taper checks, with the changes described there, and
+    its objective check (the held ray colours);
+  - D68's extension check;
+  - D69's objective check (a movable colour its caller changed);
+  - D70's two curve-axis checks.
+- **The Objective's cache** is keyed on each layer's SVG markup, so the new
+  layer and the new key need nothing of their own: editing `end_blur`'s rows
+  or blur re-renders the layer, and nothing in the cache names a layer. Its
+  checks pass: the cache re-renders without an explicit invalidate, and the
+  objective's composite matches the rebuilt SVG's render (MAE 0.5309).
+- `measure_flare` calibration verifies as converged, worst correction 0.51 of
+  tolerance, and leaves the file byte-unchanged.
+- `visual_regression`: 0 of 16 structural checks fail. The west check reads
+  0.782, so the west triangle stays absent.
+- **Determinism.**
+  - `src/params.json` rebuilds `reconstruction.svg` byte for byte, twice over.
+  - Its render at 1024 px is byte-identical to the candidate evaluated in
+    stages 7-9 (74f2fa84...).
+  - Without `end_blur`, the builder's output agrees byte for byte with the
+    committed builder's (stage 6).
+- **Confinement** (resvg, against D70's render at the same size). At 256,
+  512, 872, 1000, 1024 and 2048 px the change touches 1,615 / 6,084 / 17,067
+  / 23,306 / 24,207 / 93,622 pixels. None lies within r 110 of the flare, and
+  none more than 15.9 px from the curves. The final construction's render
+  equals the first construction's at every one of these sizes but 872 px,
+  where they differ only on row 599, the south cut's (28 levels on 18 px).
+- **Clean clone.** The CI workflow's steps were run in a fresh clone of the
+  final commit with a fresh virtual environment:
+  - the gate before setup exits 3;
+  - then setup, the gate (74 of 74), validation and the SVG rebuild
+    all pass.
+- GitHub CI (`checks`, `regression-gate`) runs the same workflow on this
+  commit; the pull request reports its result.
