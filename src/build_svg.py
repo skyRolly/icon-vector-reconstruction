@@ -655,7 +655,16 @@ def _curve_axis_stops(tab, c, which, reach, tol_a=0.0015, tol_w=0.004):
     return E, T, tuple((S[k], A[k], W[k]) for k in sorted(keep)), y_zone
 
 
-def red_shade(L, side, off):
+def red_shift_span(L):
+    """(lo, hi): the range of arc layer L's `red_shift` over both sides, 0
+    included.  Its shift fields (`red_shade`) are drawn on this scale: the part
+    above 0 on hi, the part below on -lo, and the photometric model reads them
+    back on the same (fit_photometry.shift_term)."""
+    ds = [0.0] + [float(d) for rows in (L.get("red_shift") or {}).values() for _, d in rows]
+    return min(ds), max(ds)
+
+
+def red_shade(L, side, off, field=0):
     """The colour of arc layer L's paint down one curve, as (offsets, colour):
     the gradient offsets of its `red_shift` rows and the stop colour at an
     offset, or None where the layer has no rows on that side.
@@ -666,19 +675,41 @@ def red_shade(L, side, off):
     and last.  Green, blue and the opacity are the layer's own.  Both end rows
     are 0 and the red stays within [0, max(G, B)], so the shift is confined to
     its rows and `split_color`'s opacity, which the rows' colours share, is
-    unchanged (D72)."""
+    unchanged (D72).
+
+    With `field` +1 (-1), the colour is instead the part of the shift above
+    (below) 0, as a grey on its own range (`red_shift_span`): 255 max(dR, 0) /
+    hi, or 255 max(-dR, 0) / -lo.  A side without rows has dR 0 throughout.
+    Drawn through the layer's own opacities, masks and blur, the two fields'
+    difference is the red light the shift adds, which the photometric model
+    cannot get from the white basis (D72, stage 14).  Each part is 0 exactly
+    where the shift is, so the model moves nothing outside the table's rows;
+    where the shift changes sign between two rows a row is added at the
+    crossing, so each part stays linear between stops."""
     rows = (L.get("red_shift") or {}).get(side)
-    if not rows:
+    if not rows and not field:
         return None
+    rows = [[float(y), float(d)] for y, d in (rows or [])]
+    if field:
+        cross = []
+        for (y0, d0), (y1, d1) in zip(rows, rows[1:]):
+            if d0 * d1 < 0:
+                cross.append([y0 + (y1 - y0) * d0 / (d0 - d1), 0.0])
+        rows = sorted(rows + cross)
     k = [float(c) for c in L["color"]]
     o = min(1.0, max(k) / 255.0)
-    offs = [(float(y) + off) / 1024.0 for y, _ in rows]
-    ds = [float(d) for _, d in rows]
+    lo, hi = red_shift_span(L)
+    m = (hi if field > 0 else -lo) or 1.0
+    offs = [(y + off) / 1024.0 for y, _ in rows]
+    ds = [d for _, d in rows] or [0.0]
 
     def colour(x):
         j = bisect.bisect_right(offs, x)
         d = ds[0] if j == 0 else ds[-1] if j == len(offs) else \
             ds[j - 1] + (ds[j] - ds[j - 1]) * (x - offs[j - 1]) / (offs[j] - offs[j - 1])
+        if field:
+            g = 255.0 * max(field * d, 0.0) / m
+            return hexc([g, g, g])
         return hexc([(k[0] + d) / o, k[1] / o, k[2] / o])
     return offs, colour
 
@@ -1098,8 +1129,10 @@ class Builder:
             % (mid, d, f(g.get("depth", 1.0), 4), filt), mid)
 
     # -- one layer --------------------------------------------------------- #
-    def layer(self, L, white=False):
-        """Return the SVG element for layer L (white/full opacity when fitting).
+    def layer(self, L, white=False, field=0):
+        """Return the SVG element for layer L (white/full opacity when fitting;
+        with `field` +1 or -1, the part of the red light its `red_shift` adds
+        above or below 0, as a grey on its own range, `red_shade`).
 
         Screen-blended layers are emitted as a bright colour times a small
         `opacity`, which keeps their premultiplied colour accurate to far better
@@ -1114,7 +1147,7 @@ class Builder:
         opacity 1 with the colour itself, at the cost of 8-bit rounding
         (under half a code value on a 6 px ring).
         """
-        if white:
+        if white or field:
             col, op = "#ffffff", 1.0
         elif L.get("blend", "screen") == "normal":
             col, op = hexc(L.get("color", [255, 255, 255])), 1.0
@@ -1222,7 +1255,7 @@ class Builder:
                 if L.get("side") and L["side"] != side:
                     continue
                 d = self.arc_d(side, L.get("inset", 0.0))
-                shade = None if white else red_shade(L, side, off)
+                shade = red_shade(L, side, off, field) if field else None if white else red_shade(L, side, off)
                 mask = None
                 if "curve" in tax.values():
                     g = self.p["geometry"]["arc_" + side]
@@ -1600,14 +1633,19 @@ class Builder:
         raise ValueError("unknown layer kind %r" % kind)
 
     # -- whole document ---------------------------------------------------- #
-    def document(self, basis=None):
+    def document(self, basis=None, field=0):
         """The whole SVG.  With `basis` set, only that layer, painted white --
-        that is the coverage field the photometric fit needs."""
+        that is the coverage field the photometric fit needs.  With `field`
+        (+1 or -1) too, a part of that layer's red-shift field (Builder.layer)."""
+        assert field in (0, 1, -1), "a shift field is +1 or -1"
+        assert not field or basis is not None, "a shift field is one layer's"
         body = ['<rect width="1024" height="1024" fill="#000000"/>']
         for L in self.p["layers"]:
             if basis is not None and L["id"] != basis:
                 continue
-            el = self.layer(L, white=(basis is not None))
+            assert not field or (L.get("kind") == "arc" and L.get("red_shift")), \
+                "a shift field needs an arc layer with a red_shift"
+            el = self.layer(L, white=(basis is not None), field=field)
             if basis is None:
                 body.append("<!-- %s -->" % L["id"])
             body.append(el)
@@ -1653,9 +1691,9 @@ def flare_dependent_layers(params):
             if L["kind"] in FLARE_ANCHORED_KINDS and ("cx" not in L or "cy" not in L)]
 
 
-def build(params, basis=None):
+def build(params, basis=None, field=0):
     b = Builder(params)
-    return b.document(basis)
+    return b.document(basis, field)
 
 
 def main():

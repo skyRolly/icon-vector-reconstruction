@@ -300,6 +300,8 @@ def main():
     import regions as RG
     from PIL import Image as _Image
     A = np.stack([obj.basis(params, L["id"]) for L in params["layers"]])
+    # a red-shifted layer's extra light, as the objective composites it (D72)
+    EX = obj.shift_extra(params)
     tgt = np.asarray(_Image.open(os.path.join(ROOT, "reference.png")).convert("RGB"))
     tgt = tgt.astype(np.float32) / 255.0
     W = FP.make_weight(tgt)
@@ -388,6 +390,7 @@ def main():
     # 1.6x too large; LM's line search hid it.
     sub = slice(None, None, 8)
     Asub = A[:, sub, sub]
+    Esub = FP.sub_terms(EX, 8)
     tsub = np.minimum(tgt, 254.4 / 255.0)[sub, sub]
     Wsub = FP.make_weight(tsub)
     WC = FP.params_wc(params)
@@ -416,11 +419,12 @@ def main():
                 # of 3e5 terms loses the signal to cancellation, which is what
                 # made this check report 2.5% error on an exact derivative.
                 M = FP.composite(Asub.astype(np.float64),
-                                 FP.colors(w).astype(np.float64), nfl)
+                                 FP.colors(w).astype(np.float64), nfl,
+                                 extra={i: e.astype(np.float64) for i, e in Esub.items()})
                 e = (M - tsub.astype(np.float64)) * Wsub.astype(np.float64)[..., None]
                 return float((e * e).sum())
             num = (f(wp) - f(wm)) / (h if _bound else 2 * h)
-            ana = FP.analytic_grad(Asub, tsub, WC, Wsub, nfl, li, j)
+            ana = FP.analytic_grad(Asub, tsub, WC, Wsub, nfl, li, j, extra=Esub)
             den = max(abs(num), 1e-9)
             rel = abs(ana - num) / den
             if rel > worst[0]:
@@ -527,7 +531,7 @@ def main():
 
     # ---- 6. the objective scores the same artwork the SVG rebuild emits --- #
 
-    an = FP.composite(A, FP.colors(FP.params_wc(params)), FP.normal_flags(params))
+    an = FP.composite(A, FP.colors(FP.params_wc(params)), FP.normal_flags(params), extra=EX)
     import render as R
     import io
     from PIL import Image
@@ -1357,7 +1361,7 @@ def main():
             _gW0 = _FPf.params_wc(_pert)
             _gW1 = _FPf.fit(_stack.A[:, ::4, ::4], _gt, _gW0, np.ones(_gt.shape[:2], np.float32), iters=2,
                             verbose=False, free=_FPf.held_free(_pert), normal=_FPf.normal_flags(_pert),
-                            teal_ok=_FPf.teal_eligible(_pert))
+                            teal_ok=_FPf.teal_eligible(_pert), extra=_FPf.sub_terms(_stack.E, 4))
             _gi = [[L["id"] for L in _pert["layers"]].index(lid) for lid in _lr]
             _gmoved = float(np.abs(_gW1[_gi] - _gW0[_gi]).max())
             _gfree = float(np.abs(_gW1 - _gW0).max())
@@ -1614,7 +1618,7 @@ def main():
     _WC0 = _FP.params_wc(params)
     _WC1 = _FP.fit(_stack.A[:, ::4, ::4], _tgt, _WC0, np.ones(_tgt.shape[:2], np.float32), iters=2,
                    verbose=False, free=_hf, normal=_FP.normal_flags(params),
-                   teal_ok=_FP.teal_eligible(params))
+                   teal_ok=_FP.teal_eligible(params), extra=_FP.sub_terms(_stack.E, 4))
     _moved_free = float(np.abs(_WC1[_hf] - _WC0[_hf]).max())
     _moved_held = float(np.abs(_WC1[_hidx] - _WC0[_hidx]).max())
     _unprot = sorted(set(MFL.RAY_GEOMETRY) - _PL.protected("exterior"))
@@ -2925,6 +2929,198 @@ def main():
           "same SVG, between them renders within %g; the basis ignores it; %d malformed tables and misplaced keys "
           "refused; its colour held by the colour fit (rays held or not), optimize.py's Objective (rays held or not) "
           "and a real fit" % (_zb, len(_bad)))
+
+    # ---- the objective scores the red_shift the SVG draws (D72, stage 14) --- #
+    # The review case: `red_shift` changed the SVG but not the photometric
+    # model, whose basis is white and whose composite takes one colour per
+    # layer.  Objective.evaluate scored the shipped table, no table and any
+    # other table bit for bit alike; the analytic composite missed 9-17 levels
+    # of R on the 2,516 pixels the table changes; and a colour fit given the
+    # SVG's own render moved unrelated layers to supply that red
+    # (arc_lens_band's R by 2.7).  The model now adds each red-shifted layer's
+    # shift field to its term (fit_photometry.shift_terms).  With everything
+    # else identical, six states: the shipped table ("on"), none ("off"), a
+    # table of zeros on the taper's rows, a multi-row table that also goes
+    # below 0, a table on both curves, and one inside the right curve's north
+    # curve-axis zone (y 20-150).  Then:
+    # - the render changes where a table does, and so does the score of a
+    #   fresh Objective with nothing freed; a zero table scores as none;
+    # - one Objective reused through all the states scores each bitwise as a
+    #   fresh one (the bases are content-addressed and shared, as in D69's
+    #   check; the shift fields are the state under test, and each fresh
+    #   Objective renders its own);
+    # - on the pixels a table changes, the analytic composite changes as the
+    #   render does: to 3 levels at a pixel, 0.8 on average and 0.5 in the mean
+    #   (the render's change is the difference of two 8-bit images, so +-0.5 is
+    #   its floor; the model before stage 14 missed it by 10 on average), and it
+    #   stays within 1.5 levels of the render on average; and over the rest of
+    #   arc_core's light, where the render does not change, the model does not
+    #   change either: 0.05 on average, 2.5 at a pixel (the render's own 8-bit
+    #   layers drop up to about 2 levels of the shift at an edge pixel, which
+    #   the finer field keeps).  A field drawn where a table draws nothing, on
+    #   a side without rows say, adds its full red there and fails (the
+    #   review's case); and drawn alone with the largest red a table may add
+    #   (+38) over both curves' north tips, inside the curve-axis zone, the
+    #   layer's change follows the render's to 1.7 levels at the 99th percentile
+    #   and 0.5 on average (a field drawn without the zone's mask reads 2.2 and
+    #   0.65 there);
+    # - a colour fit to the SVG's own render over the right curve (stride 2,
+    #   the same free set, arc_core held) lands on the same colours with the
+    #   table as without it, to 0.25 levels: no layer makes up its red;
+    # - the model's other users carry the term: measure_flare's stack follows a
+    #   table through refresh (its image is the composite with the term), and
+    #   prune_layers scores the composite with the term, not without it.
+    _odiag, _orep = [], []
+    _rsP = [L for L in params["layers"] if L["id"] == "arc_core"][0].get("red_shift")
+    if not _rsP:
+        _odiag.append("arc_core carries no red_shift, so there is nothing to test")
+    else:
+        def _rsState(rs):
+            q = _cpk.deepcopy(params)
+            Lq = [L for L in q["layers"] if L["id"] == "arc_core"][0]
+            if rs is None:
+                Lq.pop("red_shift", None)
+            else:
+                Lq["red_shift"] = rs
+            return q
+        _rsS = {"on": params, "off": _rsState(None),
+                "zero": _rsState({"left": [[300, 0], [420, 0]], "right": [[300, 0], [420, 0]]}),
+                "multi": _rsState({"right": [[140, 0], [160, 18], [300, 18], [320, 0], [400, 0], [440, -30],
+                                             [480, -30], [520, 0], [840, 0], [860, 18], [900, 18], [920, 0]]}),
+                "both": _rsState({"left": [[300, 0], [340, 12], [680, 12], [720, 0]],
+                                  "right": [[140, 0], [160, 18], [300, 18], [320, 0]]}),
+                "north": _rsState({"right": [[20, 0], [60, 15], [120, 15], [150, 0]]})}
+        _oheld = O.held_layers(params)
+
+        def _ofresh():
+            f = O.Objective(os.path.join(ROOT, "reference.png"), stride=4, fit_iters=1, held=_oheld)
+            f.cache = _objK.cache
+            return f
+        _ore = _ofresh()
+        _osc = {}
+        for _nm in ("on", "off", "multi", "both", "north", "zero", "on"):
+            _r1 = _ore.evaluate(_rsS[_nm], free=[])[0]
+            _f1 = _ofresh().evaluate(_rsS[_nm], free=[])[0]
+            _osc[_nm] = _f1
+            if _r1 != _f1:
+                _odiag.append("%s scored %.10g reused against %.10g fresh" % (_nm, _r1, _f1))
+        if build_svg.build(_rsS["on"]) == build_svg.build(_rsS["off"]):
+            _odiag.append("the shipped table does not change the SVG")
+        if _osc["on"] == _osc["off"]:
+            _odiag.append("toggling the shipped table changes the SVG but not the score (%.10g)" % _osc["on"])
+        if len({_osc[k] for k in ("on", "off", "multi", "both", "north")}) < 5:
+            _odiag.append("two different tables score alike: %s" % {k: _osc[k] for k in ("on", "off", "multi", "both", "north")})
+        if _osc["zero"] != _osc["off"]:
+            _odiag.append("a zero table scores %.10g, no table %.10g" % (_osc["zero"], _osc["off"]))
+        try:
+            _oA = np.stack([_ore.basis(params, L["id"]) for L in params["layers"]])
+            _onf, _oK = FP.normal_flags(params), FP.colors(FP.params_wc(params))
+            _oreal, _oan, _oex = {}, {}, {}
+            _ofoot = _oA[[L["id"] for L in params["layers"]].index("arc_core")] > 0
+            for _nm in ("off", "on", "multi", "both", "north"):
+                _oreal[_nm] = FP.render_array(build_svg.build(_rsS[_nm]), 1024) * 255
+                _oex[_nm] = _ore.shift_extra(_rsS[_nm])
+                _oan[_nm] = FP.composite(_oA, _oK, _onf, extra=_oex[_nm]) * 255
+            for _nm in ("on", "multi", "both", "north"):
+                _om = np.abs(_oreal[_nm] - _oreal["off"]).max(axis=2) > 0
+                _osv = np.abs(_oan[_nm] - _oan["off"])[..., 0][_ofoot & ~_om]
+                _ostill, _ostm = float(_osv.max()), float(_osv.mean())
+                if _ostill > 2.5 or _ostm > 0.05:
+                    _odiag.append("%s: where the render does not change, over arc_core's light, the model moves by "
+                                  "up to %.2f levels (%.3f on average)" % (_nm, _ostill, _ostm))
+                _dR = (_oreal[_nm] - _oreal["off"])[..., 0][_om]
+                _dA = (_oan[_nm] - _oan["off"])[..., 0][_om]
+                _e = np.abs(_dA - _dR)
+                _gap = float(np.abs(_oan[_nm] - _oreal[_nm])[..., 0][_om].mean())
+                if (_om.sum() < 150 or _e.max() > 3.0 or _e.mean() > 0.8 or abs(_dA.mean() - _dR.mean()) > 0.5
+                        or _gap > 1.5):
+                    _odiag.append("%s: on the %d px the table changes, the render's R moves by %+.2f on average "
+                                  "and the composite's by %+.2f (%.2f apart at worst, %.2f on average); the "
+                                  "composite is %.2f from the render there"
+                                  % (_nm, _om.sum(), _dR.mean(), _dA.mean(), _e.max(), _e.mean(), _gap))
+                _orep.append("%s %d px: render R %+.2f, composite %+.2f (worst %.2f apart), composite-render %.2f, "
+                             "elsewhere %.2f at worst, %.4f on average" % (_nm, _om.sum(), _dR.mean(), _dA.mean(),
+                                                                          _e.max(), _gap, _ostill, _ostm))
+            # arc_core alone, the largest red a table may add, inside both
+            # curves' north curve-axis zones
+            _oci = [L["id"] for L in params["layers"]].index("arc_core")
+            _otip = {s_: [[20, 0], [40, 38], [140, 38], [160, 0]] for s_ in ("left", "right")}
+
+            def _oalone(q):
+                r = _cpk.deepcopy(q)
+                r["layers"] = [L for L in r["layers"] if L["id"] == "arc_core"]
+                return r
+            _qt1, _qt0 = _oalone(_rsState(_otip)), _oalone(_rsState(None))
+            _ra1 = FP.render_array(build_svg.build(_qt1), 1024) * 255
+            _ra0 = FP.render_array(build_svg.build(_qt0), 1024) * 255
+            _Kc = FP.colors(FP.params_wc(_qt0))
+            _ma1 = FP.composite(_oA[_oci][None], _Kc, [False], extra=FP.shift_terms(_qt1)) * 255
+            _ma0 = FP.composite(_oA[_oci][None], _Kc, [False]) * 255
+            _otm = np.abs(_ra1 - _ra0).max(axis=2) > 0
+            _ote = np.abs((_ma1 - _ma0)[..., 0] - (_ra1 - _ra0)[..., 0])[_otm]
+            _ot99 = float(np.percentile(_ote, 99)) if _otm.any() else float("nan")
+            if _otm.sum() < 500 or not _ot99 <= 1.7 or _ote.mean() > 0.5:
+                _odiag.append("arc_core alone with +38 over the north tips' curve-axis zones: the layer's change "
+                              "follows the render's to %.2f at the 99th percentile, %.2f on average (%d px)"
+                              % (_ot99, _ote.mean(), _otm.sum()))
+            _orep.append("arc_core alone, +38 in the tips' curve-axis zones, %d px: p99 %.2f, mean %.2f"
+                         % (_otm.sum(), _ot99, _ote.mean()))
+            _oy0, _oy1, _ox0, _ox1 = 96, 960, 528, 800
+            _ofree = FP.held_free(params)
+            _ofit = {}
+            for _nm in ("off", "on"):
+                _ot = np.minimum(_oreal[_nm] / 255.0, 254.4 / 255.0)[_oy0:_oy1:2, _ox0:_ox1:2].astype(np.float32)
+                _oe = FP.sub_terms({i: e[_oy0:_oy1, _ox0:_ox1] for i, e in _oex[_nm].items()}, 2)
+                _ow = FP.fit(_oA[:, _oy0:_oy1:2, _ox0:_ox1:2], _ot, FP.params_wc(_rsS[_nm]),
+                             np.ones(_ot.shape[:2], np.float32), iters=6, verbose=False, free=_ofree,
+                             normal=_onf, teal_ok=FP.teal_eligible(params), extra=_oe)
+                _ofit[_nm] = FP.colors(_ow) * 255.0
+            _odK = np.abs(_ofit["on"] - _ofit["off"])[_ofree]
+            _oworst = _ofree[int(np.argmax(_odK.max(axis=1)))]
+            if _odK.max() > 0.25:
+                _odiag.append("a colour fit to the render moves %s by %.2f levels to make up the table's red"
+                              % (params["layers"][_oworst]["id"], _odK.max()))
+            _orep.append("fits with and without the table agree to %.3f levels (%s)"
+                         % (_odK.max(), params["layers"][_oworst]["id"]))
+            # measure_flare's stack: the term follows a table through refresh,
+            # and its image is the composite with it
+            _ostk = []
+            for _nm in ("off", "multi", "on"):
+                _stack.refresh(_rsS[_nm])
+                _owant = FP.shift_terms(_rsS[_nm], box=_stack.box)
+                _okw = np.ones(len(_stack.idx))
+                _oimg = _stack.image(_okw)
+                _WCs = _stack.WC.copy()
+                _oexp = FP.composite(_stack.A, FP.colors(_WCs).astype(np.float32), _stack.normal, extra=_owant) * 255.0
+                if (sorted(_stack.E) != sorted(_owant)
+                        or any(not np.array_equal(_stack.E[i], _owant[i]) for i in _owant)
+                        or not np.array_equal(_oimg, _oexp)):
+                    _ostk.append(_nm)
+            if _ostk:
+                _odiag.append("measure_flare's stack does not composite the table after refresh to %s" % _ostk)
+            # prune_layers scores the composite with the term
+            import prune_layers as _PLo
+            _opc = {L["id"]: _oA[i] for i, L in enumerate(params["layers"])}
+            _oref = np.minimum(np.asarray(_Image.open(os.path.join(ROOT, "reference.png")).convert("RGB"))
+                               .astype(np.float32) / 255.0, 254.4 / 255.0)
+            _opm = _PLo.evaluate(params, _oref, stride=8, iters=0, cache=_opc)[0]
+            _ot8 = _oref[::8, ::8]
+            _opw = float(np.abs(FP.composite(_oA[:, ::8, ::8], _oK, _onf,
+                                             extra=FP.sub_terms(_oex["on"], 8)) - _ot8).mean() * 255)
+            _opo = float(np.abs(FP.composite(_oA[:, ::8, ::8], _oK, _onf) - _ot8).mean() * 255)
+            if _opm != _opw or _opw == _opo:
+                _odiag.append("prune_layers scores %.6f; the composite with the term %.6f, without %.6f"
+                              % (_opm, _opw, _opo))
+            _orep.append("measure_flare's stack follows off -> multi -> on; prune_layers scores the composite "
+                         "with the term (%.6f; %.6f without)" % (_opm, _opo))
+        except Exception as _oe_:
+            _odiag.append("the model cannot composite the shift: %s: %s" % (type(_oe_).__name__, _oe_))
+    check("the objective scores the red_shift the SVG draws",
+          not _odiag, "; ".join(_odiag) if _odiag else
+          "fresh scores: on %.10g, off %.10g, multi %.10g, both %.10g, north %.10g, zero %.10g (= off); one "
+          "reused Objective scores all seven states bitwise as fresh ones; %s"
+          % (_osc["on"], _osc["off"], _osc["multi"], _osc["both"], _osc["north"], _osc["zero"],
+             "; ".join(_orep)))
 
     # ---- the lens-side band stays beside the core's ends (D71) ------------ #
     # arc_lens_band is the reference's cyan band just outside the core's lens

@@ -11137,7 +11137,7 @@ one to correct.
 - GitHub CI (`checks`, `regression-gate`) runs the same workflow on this
   commit; the pull request reports its result.
 
-## D72. A split arc's end blur keeps each half's screen, and the width-taper check names a band its table empties; then arc_core's white/cyan balance measured along the curve
+## D72. A split arc's end blur keeps each half's screen, and the width-taper check names a band its table empties; then arc_core's white/cyan balance measured along the curve, the right curve's core drawn whiter, and the objective made to score what that draws
 
 D71 left two review findings and one artwork question. The findings were:
 - `end_blur` drawn on a split arc (`convex_taper`) composited its two halves
@@ -11150,8 +11150,12 @@ along the curve. D71 had read the right curve's north outer third as 12-16
 levels too little red, with G and B matching, and the curves' middle as 9-16
 too much. This pass fixed the two findings first, as their own commit, with
 the shipped artwork byte for byte unchanged. It then measured the balance
-before changing anything. "Base" below is D71 (38f6776). Whole-image numbers
-are consequences, not the criterion.
+before changing anything, and changed only the right curve's core colour
+(`red_shift`, stages 4-11). A review then found that the photometric model
+and the optimiser's objective could not see that colour change; stage 14
+makes them see it, again as its own commit, with the artwork unchanged.
+"Base" below is D71 (38f6776). Whole-image numbers are consequences, not the
+criterion.
 
 ### Stage 0: the D71 baseline reproduces
 
@@ -11584,8 +11588,8 @@ eleven fail it:
 - `optimize.main`'s held set reverted;
 - the side test removed.
 
-*Recorded, not changed.* The photometric composite takes one colour per
-layer on a white basis, so it cannot see the shift. Holding the layer's
+*Recorded then, resolved in stage 14.* The photometric composite takes one
+colour per layer on a white basis, so it cannot see the shift. Holding the layer's
 colour stops it absorbing the shift. Its neighbours, though, still see a
 model that lacks 16.5 levels of R on the right core's spans. The reviewer
 re-fitted every free colour against the reference, and against the
@@ -11596,10 +11600,10 @@ level of that red twice.
 
 The table's rows are placed at the taper table's own offset
 (`tapers.core.y_offset` 0.9), so they stay registered with the fade measured
-on the same rows. A search of that offset moves both, but it does not score
-the red. Modelling the shift in the composite needs a per-channel basis for
-one layer. That is recorded here for the next pass that re-fits colours, not
-done in this one.
+on the same rows. A search of that offset moves both; until stage 14 it did
+not score the red. At the time the shift's model was recorded here for the
+next pass that re-fits colours. A further review (Devin) asked for it before
+any further artwork, and stage 14 models it.
 
 ### Stage 13: validation
 
@@ -11607,8 +11611,9 @@ done in this one.
   (76 after the engineering stage, plus the new `red_shift` check). These all
   pass:
   - the objective, cache and composite checks. The composite against the
-    render reads MAE 0.5377, where D71 read 0.5309: the 0.007 is the shift
-    the composite does not model (stage 12);
+    render read MAE 0.5377 on this commit (2fc7f41), where D71 read 0.5309:
+    the 0.007 was the shift the composite did not model (stage 12; stage 14
+    resolves it);
   - D67's gap and width-taper checks;
   - D68's extension check;
   - D69's movable-colour check;
@@ -11632,6 +11637,219 @@ done in this one.
   0.7112, 4.584, 4.041, 3.690 and 6.193. These are consequences, not the
   criterion.
 
+### Stage 14: the objective made to score `red_shift` (engineering)
+
+*The finding.* A review (Devin), and this pass's own stage 12 note: `red_shift`
+changes the SVG, but the photometric model and the optimiser's objective did
+not represent it. A later fit or search could make up the missing red with
+unrelated layers. This stage was done before any further artwork.
+
+*Proven on 2fc7f41*, with the production code (Objective, `fit_photometry`,
+the builder):
+- **Where the SVG changes.** `build_svg.red_shade` colours the stops of the
+  layer's own paint (`Builder.layer`, the arc branch). In white (basis) mode it
+  does nothing.
+  - Toggling the shipped table changes the SVG: ed200eeb... without it,
+    b0760456... with it, 4984a213... with a W 30 table.
+  - `arc_core`'s basis SVG is byte-identical in all three (5f6c95d3...).
+- **Where the model ignores it.**
+  - `Objective.basis` and `fit_photometry.basis_stack` render that white
+    basis.
+  - `composite`, `fit` and `analytic_grad` draw each layer as `A_i * k_i`, one
+    colour per layer.
+  - So did `isolate`, `prune_layers` and `measure_flare`'s calibration stack.
+- **What depended on it.** Nothing followed the table:
+  - the Objective's basis cache is keyed on the basis SVG, which the table
+    never enters, so no table change re-rendered anything;
+  - its colour state (`K`, `K_seen`) is read from the colour coefficients,
+    which the table does not touch;
+  - `measure_flare.basis_key` is the same digest.
+- **Measured.**
+  - `Objective.evaluate` with nothing freed scored no table, the shipped table
+    and a W 30 table identically (0.0001789882081). That held for fresh
+    Objectives, and through one reused Objective, which rendered 56 bases in
+    all and nothing after the first state.
+  - On the 2,516 px the table changes, the render's R rises by +9.98 on
+    average (+17 at most), and the analytic composite's by 0.000. The
+    composite sits 9.25 levels below the render there (16.5 at worst).
+  - Colours were fitted to the SVG's own render over the right curve, with the
+    same free set and `arc_core` held. With and without the table they
+    differ: `arc_lens_band` R +2.72, `arc_glow1w` R -1.12, `arc_glow1` R
+    +0.92. Unrelated layers were making up the red.
+
+*The fix.* The layer's term becomes `A_i * k_i + e_i`, where `e_i` is the red
+the table adds (METHOD 7).
+- **The builder.** `build(params, basis=id, field=+1 or -1)` renders the
+  layer's *shift fields* (`red_shade(field=...)`): its white basis's own
+  element, opacities, masks, blur copies and curve-axis zones, with each
+  stop's colour a grey of the part of its dR above 0 (on the table's hi) or
+  below 0 (on its -lo, `red_shift_span`).
+  - Each part is exactly 0 where the shift is, so the model moves nothing
+    outside the table's rows.
+  - Where a table changes sign between two rows, a row is added at the
+    crossing, so each part stays linear between stops.
+  - Rendering the fields, rather than multiplying an analytic y-table into
+    the basis, keeps them exact through the zones and the `end_blur` copies.
+- **The model.**
+  - `fit_photometry.shift_term` reads the fields back: their difference,
+    rescaled (+ times hi / 255, - times -lo / 255).
+  - `shift_terms` renders the parts each red-shifted layer needs (the + part
+    alone for the shipped table), each cached on the digest of its SVG.
+  - `composite`, `fit` and `analytic_grad` take it as `extra`. It does not
+    depend on `k_i`, so d out / d k and the fit's Jacobian are unchanged. The
+    gradient check now runs with it.
+- **The objective.** `Objective.shift_extra` renders and caches each field on
+  its SVG's digest, as it does a basis, so a changed table is a changed key
+  and is re-rendered. `invalidate("all")` drops the fields too.
+- **The other models.** `fit_photometry.main`, `prune_layers`, `isolate` and
+  `measure_flare`'s stack carry the term. The stack refreshes it on the same
+  fingerprint discipline as its bases.
+- **`colour_held` stays.** A table is valid only for the colour it was
+  measured against (R + dR within [0, max(G, B)]). With the shift modelled,
+  holding the colour is no longer what keeps the neighbours honest.
+
+*Alternatives, rejected.*
+- A screened pseudo-layer of pure red after `arc_core`: its colour lies
+  outside the cone (R > G), and it would need a row in every per-layer array.
+- A per-channel basis for `arc_core`: it changes the stack's shape for every
+  caller.
+- The table's y-profile multiplied into the basis's red: it misses the
+  curve-axis zones and the blur copies' mixing.
+- One field for the whole table, offset so that a table below 0 stays
+  non-negative. That was the first version: its 0 is a mid-grey, which put
+  about 0.1 level of quantisation noise over the layer's whole footprint for
+  such a table. The check below caught it.
+
+*Measured after the fix.*
+- **Scores.** Fresh Objectives, nothing freed, at stride 4:
+  - shipped table 0.0001788420195;
+  - none 0.0001789882081;
+  - a multi-row table with a span below 0: 0.0001788260124;
+  - a table on both curves: 0.000179316412;
+  - a table in the north curve-axis zone: 0.0001790124516;
+  - a table of zeros: 0.0001789882081, exactly as none.
+
+  One reused Objective, taken through all seven evaluations, scores each
+  bitwise as a fresh one.
+- **Composite against render, where the tables change.**
+
+  | table | px changed | render's R | composite's R | worst apart | composite from render |
+  |---|---|---|---|---|---|
+  | shipped | 2,516 | +9.98 | +9.76 | 2.39 | 0.65 (9.25 before) |
+  | multi-row | 3,557 | +4.96 | +4.83 | 2.39 | 0.64 |
+  | both curves | 5,508 | +6.70 | +6.54 | 2.10 | 0.62 |
+  | north zone | 752 | +4.32 | +4.18 | 1.81 | 0.56 |
+
+- **Composite against render, elsewhere.** Over the rest of `arc_core`'s
+  light the model moves by 0.0016-0.018 on average, and at most 1.96.
+- **The tips.** `arc_core` alone with +38 over the north tips' curve-axis
+  zones: p99 1.26, mean 0.40.
+- **Fits.** With and without the table, the fits now agree to 0.067 levels,
+  where they differed by 2.72.
+- **`prune_layers`** scores 1.674596 with the term and would score 1.678442
+  without it.
+
+*Unchanged output.*
+- For D72's parameters, the shipped SVG and every basis are byte for byte
+  2fc7f41's (09c5c3b7...).
+- D70's and D71's parameters, which have no `red_shift`, rebuild their
+  committed SVGs byte for byte (0c5cd6d3..., 932f18da...), and all their
+  bases equal 2fc7f41's builder's.
+- A file without `red_shift` renders no field and composites exactly as
+  before.
+
+*The regression.* New check: "the objective scores the red_shift the SVG
+draws". It takes the shipped table and five other states, with everything
+else identical:
+- none;
+- zeros;
+- a multi-row table that goes below 0;
+- a table on both curves;
+- a table inside the right curve's north curve-axis zone (y 20-150).
+
+It requires:
+- **The render.** It changes where a table does.
+- **The score.** A fresh Objective's score changes with it, and every table
+  scores differently from every other. A zero table scores as none.
+- **Reuse.** One reused Objective scores all seven evaluations bitwise as
+  fresh ones.
+- **The composite, where the render changes.** On the pixels a table changes,
+  the composite's change follows the render's: 3 levels at a pixel, 0.8 on
+  average and 0.5 in the mean. Two 8-bit renders set a floor of about 0.5.
+  The composite stays within 1.5 levels of the render there.
+- **The composite, where the render does not change.** Over the rest of
+  `arc_core`'s light, the model moves by at most 2.5 levels at a pixel and
+  0.05 on average. At an edge pixel the render's own 8-bit layers drop up to
+  about 2 levels of the shift, which the finer field keeps.
+- **The curve-axis zone.** `arc_core` is drawn alone with +38, the largest red
+  a table may add, over both curves' north tips inside that zone. Its change
+  follows the render's to 1.7 levels at the 99th percentile and 0.5 on
+  average.
+- **The fits.** Fits to the SVG's own render, with and without the table,
+  agree to 0.25 levels.
+- **The other models.** `measure_flare`'s stack follows a table through
+  `refresh`, and its image is the composite with the term. `prune_layers`
+  scores the composite with the term, not without it.
+
+It fails on 2fc7f41's code: the score does not change, and the model cannot
+composite the shift. It also fails on nine broken implementations, each on
+the criterion aimed at it:
+
+| broken implementation | caught by |
+|---|---|
+| no shift term | the score does not move; `arc_lens_band` makes up 2.88 levels |
+| a field cache that ignores the table | the reused and fresh scores disagree |
+| a fit that ignores the term | it compensates by 2.88 |
+| the negative part dropped | two different tables score alike |
+| a side without rows drawn as a white field | the model moves by 17.3 where the render does not |
+| one table mirrored onto both sides | 16.2 where the render does not |
+| the field drawn without `end_blur` | 3.2 where the render does not |
+| the field drawn without the curve-axis mask | the tip probe (p99 2.20) |
+| the screen multiplier without the term | the composite 1.13 off on average |
+
+*The review.* A second independent review worked on its own copy, with its
+own exactness scripts. It found nothing blocking:
+- the model matches the render to 8-bit rounding for every table and layer
+  it tried, in the full stack and alone;
+- no real-basis composite or fit omits the term;
+- no cache can serve a stale field;
+- the indices line up;
+- `isolate` recovers a dropped layer's R on the shift's pixels to a mean of
+  0.84 with the term, against 46 without.
+
+Its findings, all acted on:
+- **A gap in the check.** A model that draws red where no table does (a side
+  without rows drawn as a white field, or one table mirrored onto both sides)
+  passed. It is caught now by the unchanged-pixel criterion and the two-curve
+  table.
+- **The curve-axis zone was not probed.** The tip probe now covers it.
+- **Untested model paths.** `measure_flare`'s stack refresh and
+  `prune_layers` are now in the check. `isolate` and `fit_photometry.main`
+  were verified by hand as above.
+- **A pre-existing flaw.** `isolate`'s refit moved every colour, the held
+  `arc_core` among them, which could leave its table invalid in the
+  `_base.json` it writes. It now holds the `colour_held` layers. The rays are
+  refitted as before.
+
+The check also caught a flaw of this stage's own first version. One field
+per table, offset for tables below 0, put about 0.1 level of noise over the
+layer's whole footprint. The two-part field replaces it (Alternatives,
+above).
+
+*Validation.*
+- `sh tools/publish.sh`: **PUBLISH OK**, 78 of 78 checks (77 on 2fc7f41,
+  plus this one). Every artefact it rewrote is byte-identical to 2fc7f41's.
+- The composite-against-render check reads MAE 0.5308. On 2fc7f41 it read
+  0.5377, and D71 read 0.5309: the gap `red_shift` opened is closed.
+- The gradient check passes with the term (worst relative error 0.0034).
+- D67's, D69's and the other objective and cache checks pass.
+- The fit, prune and calibration checks pass. The shipped rays still verify
+  at 0.51 of tolerance.
+- Cross-engine MAE is 2.650, and `visual_regression` fails 0 of 16 (west
+  0.782).
+- The parameters rebuild the SVG byte for byte (09c5c3b7...).
+- A clean-clone run of the CI workflow's steps is recorded with the commit.
+
 ### Remaining
 
 - **Fixed:**
@@ -11639,7 +11857,9 @@ done in this one.
     JPEG table);
   - the right curve's south end's colour (+8.1 -> +1.0);
   - the split-arc end-blur seam (engineering);
-  - the width-taper check's empty band (engineering).
+  - the width-taper check's empty band (engineering);
+  - the objective and the photometric model, blind to `red_shift` until stage
+    14 (engineering).
 - **Improved, not fixed:**
   - the RN and RS cores' edges beside the whitened spans (lens edge 11.06 ->
     10.83, flare edge 13.54 -> 13.14 at RN's outer third; 7.59 -> 7.51 and
@@ -11664,7 +11884,6 @@ done in this one.
   - the core's cross-section over the middle and at the left curve's ends (a
     dimmer centre between brighter rims). It is the largest measured core
     residual left, and it needs a profile, not a colour;
-  - modelling `red_shift` in the photometric composite (stage 12);
   - the brief's other deferred items.
 
 ### Recommendation

@@ -32,6 +32,7 @@ import fit_photometry as FP  # noqa: E402
 
 def evaluate(params, ref, stride=2, iters=14, cache=None):
     A, _ = FP.basis_stack(params, cache=cache)
+    ex = FP.sub_terms(FP.shift_terms(params, cache=cache), stride)
     tgt = ref[::stride, ::stride]
     Asub = A[:, ::stride, ::stride]
     W = FP.make_weight(tgt)
@@ -40,8 +41,8 @@ def evaluate(params, ref, stride=2, iters=14, cache=None):
     # held_free): re-fitting them here would score each removal against rays
     # the whole-image objective had re-shaped.
     WC = FP.fit(Asub, tgt, FP.params_wc(params), W, iters=iters, verbose=False, normal=nf,
-                free=FP.held_free(params), teal_ok=FP.teal_eligible(params))
-    out = FP.composite(Asub, FP.colors(WC), nf)
+                free=FP.held_free(params), teal_ok=FP.teal_eligible(params), extra=ex)
+    out = FP.composite(Asub, FP.colors(WC), nf, extra=ex)
     return float(np.abs(out - tgt).mean() * 255), WC
 
 

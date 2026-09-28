@@ -59,16 +59,18 @@ class UnsupportedIsolation(ValueError):
     """The requested drop cannot be expressed as a single factor in `u`."""
 
 
-def _affine_u(A, K, normal, order):
+def _affine_u(A, K, normal, order, extra=None):
     """Compose the layers in `order` into one affine map on u = 1 - out.
 
     Returns (p, q) with `u_out = p * u_in + q`.  A screen layer contributes
-    (1 - A*C) with no offset; a normal layer contributes (1 - A) with offset
+    (1 - A*C) with no offset (1 - A*C - extra with a red shift,
+    fit_photometry.shift_terms); a normal layer contributes (1 - A) with offset
     A*(1 - C).  Both are affine, so the composition is affine and exact.
     """
     H, W = A.shape[1], A.shape[2]
     p = np.ones((H, W, 3), np.float32)
     q = np.zeros((H, W, 3), np.float32)
+    extra = extra or {}
     for i in order:
         a = A[i][..., None]
         c = K[i][None, None, :]
@@ -76,7 +78,7 @@ def _affine_u(A, K, normal, order):
             m = 1.0 - a
             off = a * (1.0 - c)
         else:
-            m = 1.0 - a * c
+            m = 1.0 - a * c - (extra[i] if i in extra else 0.0)
             off = 0.0
         p = m * p
         q = m * q + off
@@ -117,24 +119,27 @@ def isolate(params, ref, drop_prefixes, refit_mask=None, iters=25):
     keep = [layers[i] for i in keep_idx]
     base = dict(params, layers=keep)
     A, _ = FP.basis_stack(base)
+    ex = FP.shift_terms(base)
     nf = FP.normal_flags(base)
     if refit_mask is not None:
         w = FP.make_weight(ref) * refit_mask.astype(np.float32)
+        # a red-shifted layer keeps its colour: its table is valid only for it
+        # (fit_photometry.colour_held); the rays are refitted as before
         WC = FP.fit(A, ref, FP.params_wc(base), w, iters=iters, verbose=False, normal=nf,
-                    teal_ok=FP.teal_eligible(base))
+                    free=FP.held_free(base, rays=False), teal_ok=FP.teal_eligible(base), extra=ex)
         base = json.loads(json.dumps(base))
         FP.store_wc(base, WC)
     K = FP.colors(FP.params_wc(base))
-    M = FP.composite(A, K, nf)
+    M = FP.composite(A, K, nf, extra=ex)
 
     # Split the kept stack at the dropped group's position and invert whatever
     # the layers after it do.  With only screen layers after, (p, q) = (1, 0)
     # and this is exactly the old formula.
     pre = [j for j, i in enumerate(keep_idx) if i < lo]
     post = [j for j, i in enumerate(keep_idx) if i > lo]
-    p_pre, q_pre = _affine_u(A, K, nf, pre)
+    p_pre, q_pre = _affine_u(A, K, nf, pre, ex)
     u_pre = p_pre + q_pre                      # u starts at 1 over black
-    p_post, q_post = _affine_u(A, K, nf, post)
+    p_post, q_post = _affine_u(A, K, nf, post, ex)
     u_ref = 1.0 - ref
     u_mid = (u_ref - q_post) / np.where(np.abs(p_post) < 1e-6, 1e-6, p_post)
     f = 1.0 - u_mid / np.maximum(u_pre, 1e-4)

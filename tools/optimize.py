@@ -439,6 +439,8 @@ class Objective:
         self.stride = stride
         self.fit_iters = fit_iters
         self.cache = {}
+        # red-shifted layers' shift fields, keyed on each field's SVG (D72)
+        self.fields = {}
         self.K = None
         self.K_ids = None           # the layer schema self.K's rows belong to (colours())
         self.K_seen = None          # the stored colours colours() last read from params
@@ -473,6 +475,25 @@ class Objective:
             self.n_render += 1
         return slots[key]
 
+    def shift_extra(self, params):
+        """The light each red-shifted layer adds beyond its basis times its
+        colour (fit_photometry.shift_terms), from its shift fields.
+
+        A field is cached like a basis, on the digest of the SVG it is
+        rendered from, which holds the `red_shift` table: a changed table is a
+        changed key, so it is re-rendered, and the score follows it.  Until
+        D72's stage 14 the Objective had no such term, so it scored every
+        table, and none, identically (the review finding)."""
+        def render(svg):
+            key = hashlib.sha1(svg.encode("utf-8")).hexdigest()
+            if key not in self.fields:
+                if len(self.fields) >= 8:
+                    self.fields.pop(next(iter(self.fields)))
+                self.fields[key] = FP.render_array(svg, self.size)[..., 0]
+                self.n_render += 1
+            return self.fields[key]
+        return FP.shift_terms(params, self.size, render=render)
+
     def invalidate(self, affects):
         """Kept for the caller's benefit only -- correctness no longer needs it.
 
@@ -482,6 +503,7 @@ class Objective:
         """
         if affects == "all":
             self.cache.clear()
+            self.fields.clear()
 
     def families(self, params, affects):
         """Layer indices worth re-fitting when `affects` changed.
@@ -561,12 +583,13 @@ class Objective:
         st = 1 if full else (stride or self.stride)
         tgt = self.target_full[::st, ::st]
         Asub = A[:, ::st, ::st]
+        ex = FP.sub_terms(self.shift_extra(params), st)
         W = FP.make_weight(tgt)
         self.colours(params)
         nf = FP.normal_flags(params)
         K = FP.fit(Asub, tgt, self.K, W, iters=fit_iters or self.fit_iters, verbose=False,
-                   free=free, normal=nf, teal_ok=FP.teal_eligible(params))
-        out = FP.composite(Asub, FP.colors(K), nf)
+                   free=free, normal=nf, teal_ok=FP.teal_eligible(params), extra=ex)
+        out = FP.composite(Asub, FP.colors(K), nf, extra=ex)
         sse = FP.weighted_sse(out - tgt, W) / (Asub.shape[1] * Asub.shape[2])
         mae = float(np.abs(out - tgt).mean() * 255)
         return sse, mae, K

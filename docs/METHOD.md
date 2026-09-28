@@ -514,9 +514,9 @@ the taper's; the rows here are all the taper's own, so nothing is added. The
 white basis takes no shift. The colour fit and the optimiser hold the layer's
 colour (`fit_photometry.colour_held`): their composite takes one colour per
 layer, and would otherwise move the colour to make up for a shift it cannot
-see. The neighbours still fit against a composite without the shift: a
-re-fit of their colours would count about half a level of that red twice
-(D72, stage 12).
+see. The composite does see the shift (section 7): the layer's term carries
+the red its table adds, so no other layer is fitted to make it up (D72,
+stage 14).
 
 ### 4c. Light past the ends of the curves: the interior corners
 
@@ -682,6 +682,20 @@ white and every layer's colour can be fitted analytically, with no further
 rendering (`tools/fit_photometry.py`). The analytic composite agrees with the
 actual render to well under one code value, the residual being 8-bit
 quantisation of the per-layer basis renders.
+
+A layer whose colour varies inside it cannot be one `A_i * k_i`. The only such
+layer is `arc_core`, whose `red_shift` table adds red along the right curve
+(D72). Its term is `A_i * k_i + e_i`, where `e_i` is the red the table adds.
+The builder renders the table itself as greys (*shift fields*: the layer's
+own opacities, masks and blur, with each stop's grey the part of its dR above
+0, and in a second field the part below 0, each on its own range), and
+`fit_photometry.shift_term` reads their difference back. Each field is 0
+exactly where the table is, and is cached on the digest of its SVG, like a
+basis, so a changed table is re-rendered. `e_i` does not depend on `k_i`, so the fit's derivatives are
+unchanged, and it enters every term that layer contributes to, so the other
+layers are fitted against the light the renderer really draws (D72, stage
+14). Until then the model drew that layer without its shift, and the
+objective scored every table, and none, alike.
 
 One correction this model needed, found by comparing the closed form against
 the real render: a `normal`-blended layer composites as

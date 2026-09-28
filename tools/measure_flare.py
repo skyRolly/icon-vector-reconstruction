@@ -745,6 +745,11 @@ class Stack:
         self.names = names
         self.keys = [basis_key(params, lid) for lid in names]
         self.renders = len(names)            # basis renders this stack has cost
+        # a red-shifted layer's extra light (fit_photometry.shift_terms), with
+        # the digest of the field it came from, so a changed table refreshes it
+        self._fcache = {}
+        self.E = FP.shift_terms(params, box=self.box, cache=self._fcache)
+        self.renders += len(self._fcache)
         self.WC = FP.params_wc(params).astype(np.float64)
         self.normal = FP.normal_flags(params)
         missing = [lid for lid in CALIBRATED_LAYERS if lid not in names]
@@ -775,6 +780,9 @@ class Stack:
                 self.keys[i] = k
                 changed.append(lid)
         self.renders += len(changed)
+        n0 = len(self._fcache)
+        self.E = self.FP.shift_terms(params, box=self.box, cache=self._fcache)
+        self.renders += len(self._fcache) - n0
         self.WC = self.FP.params_wc(params).astype(np.float64)
         self.normal = self.FP.normal_flags(params)
         return changed
@@ -783,7 +791,7 @@ class Stack:
         WC = self.WC.copy()
         for j, i in enumerate(self.idx):
             WC[i] = WC[i] * k[j]
-        return self.FP.composite(self.A, self.FP.colors(WC).astype(np.float32), self.normal) * 255.0
+        return self.FP.composite(self.A, self.FP.colors(WC).astype(np.float32), self.normal, extra=self.E) * 255.0
 
 
 def solve(lines, stack, lo, hi, iters=12, verbose=False):
@@ -923,7 +931,7 @@ def dark_report(lines, stack, meas, J=None):
         WC = stack.WC.copy()
         WC[i] = 0.0
         WC[i, 0] = PROBE_WHITE
-        img = FP.composite(stack.A, FP.colors(WC).astype(np.float32), stack.normal) * 255.0
+        img = FP.composite(stack.A, FP.colors(WC).astype(np.float32), stack.normal, extra=stack.E) * 255.0
         d = (lines.residual(lines.measure(img, cropped=True)) - base)[Y]
         dd = float(d @ d)
         if dd < 1e-8:
