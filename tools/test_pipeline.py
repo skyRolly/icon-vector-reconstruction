@@ -1920,7 +1920,8 @@ def main():
     # (build_svg.ribbon_path).  Checked:
     # - its coverage across the curve is the table's factor times the stroke's:
     #   the factor at the tips, 1 in the middle (coverage integrates the blur,
-    #   so this reads the width itself);
+    #   so this reads the width itself), and the factor where the table widens
+    #   the curves' middle (D73);
     # - at factor 1 the outline follows the curve of record (half-level centre
     #   against the analytic cubics).  It follows it more closely than resvg's
     #   stroke, whose flattening chords sit up to 0.26 px on the concave side;
@@ -1961,9 +1962,14 @@ def main():
         # stretch between two rows at factor 1, 10 rows inside it
         flat = [(r0[0], r1[0]) for r0, r1 in zip(rows, rows[1:]) if r0[1] == 1.0 and r1[1] == 1.0]
         mid = max(flat, key=lambda ab: ab[1] - ab[0]) if flat else None
+        # and every stretch the table WIDENS, between two rows at the same
+        # factor above 1 (D73: the curves' middle), with that factor
+        wide = [(r0[0], r1[0], r0[1]) for r0, r1 in zip(rows, rows[1:])
+                if r0[1] == r1[1] and r0[1] > 1.0 and r1[0] - r0[0] >= 40]
         bands = (("north tip", (100, rows[0][0] - 5), rows[0][1], 0.003),
                  ("south tip", (rows[-1][0] + 20, 930), rows[-1][1], 0.003),
-                 ("middle", (mid[0] + 10, mid[1] - 10) if mid else None, 1.0, 0.002))
+                 ("middle", (mid[0] + 10, mid[1] - 10) if mid else None, 1.0, 0.002)) + tuple(
+                    ("widened y %d-%d" % (a, b), (a + 10, b - 10), f, 0.003) for a, b, f in wide)
         cov = {}
         for nm, band, want, tol in bands:
             if band is None:

@@ -12065,7 +12065,7 @@ This was written before stage 15, which carried it out.
 - **Next step.** Decide G4 together with, or before, a refit of that
   composite edge.
 
-## D73. The objective holds what each state colour-holds
+## D73. The objective holds what each state colour-holds; the curves' core over the middle drawn dimmer and wider, where the two edge strokes lie over it
 
 D72 left one review finding and one open artwork trade.
 - **The finding (Devin).** `Objective` held only the layers its constructor
@@ -12076,7 +12076,11 @@ D72 left one review finding and one open artwork trade.
   correcting it alone costs both rims 0.6-1.4.
 
 This pass fixes the finding first, as its own commit, with the artwork byte
-for byte unchanged. Only after that does it take up the artwork.
+for byte unchanged. Only after that does it take up the artwork (stages 2-5).
+G4 was tested only as a diagnostic, beside constrained width and blur
+candidates, and the kept change is `arc_core`'s middle opacity together with
+its middle width. Both are confined to the rows where the two edge strokes
+lie over it.
 
 ### Stage 0: the D72 baseline
 
@@ -12183,3 +12187,305 @@ bitwise:
 - D67's, D69's and D72's objective checks pass unchanged, as do the fit,
   prune and calibration checks.
 - A clean-clone run of the CI workflow's steps is recorded with the commit.
+
+### Stage 2: the middle's cross-section, measured (artwork)
+
+This stage was done only after stage 1 was validated. The measurement uses
+the same local coordinates as before (u along the curve, n across it, n > 0
+the flare side), with the reference compared with the render through its
+JPEG table. It was read per 20-px station from the tips to the junction.
+Held throughout:
+- the geometry and curve positions;
+- the `red_shift` spans;
+- `arc_lens_band`;
+- `end_blur` and the ends' widths;
+- the `taper_axis` decisions.
+
+*Width and edges.* The D71 slanted-edge fit was applied to every station.
+Over the middle the reference's core is 7.8-8.4 px wide at half level.
+D72's is short at the middle stations of every end (y 345-482 north, 557-681
+south):
+- LN 0.20, RN 0.13, LS 0.39 and RS 0.28 px on average (0.12-0.53 at a
+  station);
+- more on the lens side (+0.07..+0.19) than the flare side (-0.02..-0.23).
+
+Its lens edge is softer: erf sigma 0.48-0.62, against the reference's
+0.30-0.40. Its flare edge is 0.32-0.44 against 0.24-0.33. Over the outer
+thirds and the ends the widths match within 0.15 px.
+
+The shortfall begins about y 350-365 north and ends about y 690 south. That
+is the same span where G4's opacity excess lies, and where `arc_core_edge`
+and `arc_core_wide` are at full strength. The flare core sits 14 px from the
+right curve at the junction (y 513), so the right curve's middle runs
+through the flare's r < 25 region. The junction rows (y 480-540) lie inside
+the flare's light and were not measured.
+
+*What the profile asks of the three core strokes.* A 1-D model was built
+from the per-station bins:
+- each stroke's white basis fitted as a blurred box (alpha, edges, sigma);
+- the rest of the stack as the screen background;
+- the JPEG table's own effect on the model added back.
+
+It then fitted each candidate's parameters to the reference over |n| <= 4.4:
+the core and its rims. The bands outside both edges belong to the glows, and
+no core stroke reaches them. Residual rms, per end:
+
+| candidate | LN | RN | LS | RS | what it does |
+|---|---|---|---|---|---|
+| A (D72) | 9.98 | 10.13 | 13.97 | 11.08 | |
+| B: opacity (G4) | 8.08 | 9.90 | 13.47 | 10.17 | the centre, not the rims |
+| C: opacity + width | 7.02 | 9.11 | 10.99 | 8.83 | the core +0.39 / +0.39 / +0.51 / +0.49 px, opacity 0.91-0.96 |
+| D: opacity + blur | 8.05 | 9.86 | 13.33 | 10.16 | the blur stays where it is |
+| E: opacity + width + blur | 6.83 | 8.58 | 11.25 | 8.30 | sharper (sigma 0.33-0.55), a little more |
+| E2: E + the edge strokes' positions | 6.25 | 7.76 | 9.31 | 7.77 | different moves per end, which one shared stroke cannot make |
+
+So the rims' shortfall is the core's width, each edge about 0.2-0.25 px
+inside the reference's, not its blur. Opacity and width together are the
+smallest pair that explains the centre and both rims.
+
+### Stage 3: the candidates, built with the real builder
+
+The controls are those the model already has, confined to the middle:
+- `arc_core`'s opacity rows (`tapers.core`, 20-px stations);
+- `arc_core.width_taper` rows. It takes any factor at any row, and the ends'
+  rows [170, 0.905], [240, 1], [790, 1] and [860, 0.888] are kept;
+- `arc_core.blur`, which draws only the rows between `end_blur`'s cuts
+  (y 300-704).
+
+The edge strokes' geometry also reaches the outer thirds through their ramps,
+and their colours are global, so neither was released. Mean |ref - render|
+through the JPEG table, u -470..-340, for lens edge / core / flare edge
+(n -4.5..-3 / -3..3 / 3..4.5), the three together:
+
+| candidate | LN | RN | LS | RS |
+|---|---|---|---|---|
+| A: D72 | 10.21 / 8.69 / 8.32 = 8.88 | 13.04 / 7.25 / 10.22 = 8.72 | 15.48 / 8.97 / 19.62 = 11.84 | 14.18 / 8.66 / 9.92 = 9.78 |
+| B: G4 alone | 11.54 / 5.60 / 9.55 = 7.26 | 13.74 / 6.64 / 10.79 = 8.53 | 16.41 / 6.57 / 20.97 = 10.62 | 15.27 / 6.46 / 10.94 = 8.67 |
+| width alone | 8.21 / 9.07 / 7.03 = 8.58 | 9.90 / 7.32 / 9.75 = 8.16 | 12.15 / 8.94 / 13.77 = 10.29 | 10.16 / 9.00 / 8.73 = 9.15 |
+| C: G4 + width | 8.90 / 5.28 / 6.54 = 6.10 | 10.44 / 6.25 / 9.72 = 7.54 | 12.94 / 6.49 / 14.76 = 8.95 | 12.03 / 6.14 / 8.28 = 7.47 |
+| D: G4 + blur 0.40 | 11.57 / 5.69 / 11.95 = 7.74 | 14.39 / 6.33 / 10.79 = 8.43 | 16.51 / 6.69 / 23.48 = 11.15 | 16.21 / 6.26 / 11.15 = 8.72 |
+| E: C + blur 0.40 | 7.70 / 5.66 / 8.58 = 6.50 | 10.28 / 6.31 / 8.63 = 7.36 | 11.95 / 6.68 / 17.79 = 9.43 | 11.08 / 5.94 / 7.86 = 7.11 |
+| **Cj: C, junction untouched** | **8.85 / 5.28 / 6.65 = 6.11** | **10.41 / 6.26 / 9.91 = 7.57** | **12.94 / 6.49 / 14.76 = 8.95** | **11.81 / 6.15 / 8.36 = 7.46** |
+
+The candidates' parameters:
+- **G4:** the per-half gains of D72 stage 15.
+- **Width:** from the model's C fit. North 1.057, where LN and RN both asked
+  +0.39 px. South 1.073, where LS and RS asked +0.51 / +0.49 px.
+
+The findings:
+- **G4 alone is rejected.** It moves the brightness error from the centre to
+  both rims.
+- **Width alone is rejected.** It fixes the rims and leaves the centre 7
+  levels too bright.
+- **Blur is not needed.**
+  - Alone (D), it makes the edges worse.
+  - Added to C (E), it helps the lens edge and hurts the flare edge (LN
+    6.54 -> 8.58, LS 14.76 -> 17.79). It also touches the outer third's
+    first rows (0.15).
+- **C is the smallest candidate that improves the centre and both rims at
+  every end.**
+- **Cj versus C.** Cj is C with both edits kept off the junction rows, which
+  were not measured.
+  - North width returns to 1 by y 480 and south width starts at 540.
+  - Opacity takes half the gain at 480 and 540, and rows 500/520 are
+    untouched.
+  - It reads the same over the middle (within 0.2).
+  - It touches 98 px within the flare's r < 25 at 1024 px, against C's 323.
+  - Its junction strip costs less: 5.317 -> 5.354, against C's 5.383.
+  - It is kept over C.
+
+### Stage 4: the change (Cj), measured
+
+`arc_core` only. Two of its existing tables change:
+- **`tapers.core`.**
+  - The left table's rows y 340-460 are 8.7% lower and y 560-680 8.0% lower.
+  - The right table's are 4.5% and 9.4% lower.
+  - Rows 320, 480, 540 and 700 take half of that.
+  - Every other row is unchanged, including the junction's 500/520.
+  - The gains are each half's mean interior gain over its middle stations
+    (D72 stage 15).
+- **`width_taper`.** It becomes [[170, 0.905], [240, 1], [340, 1],
+  [380, 1.057], [460, 1.057], [480, 1], [540, 1], [560, 1.073], [660, 1.073],
+  [700, 1], [790, 1], [860, 0.888]]. It stays one table for both curves (LN
+  and RN, and LS and RS, asked the same).
+
+Not changed:
+- the blur and `end_blur`;
+- the inset and the geometry;
+- the colour and `red_shift`;
+- the edge strokes and every other layer.
+
+*Per station.* The signed luminance, ref - render, over each end's middle
+stations (LN and RN 8 each at y 345-482, LS 7 at y 563-681, RS 7 at y
+557-675). Each cell reads D72 -> Cj, with the stations where Cj is nearer the
+reference:
+
+| band (n, px) | LN | RN | LS | RS |
+|---|---|---|---|---|
+| lens rim (-4.4..-2.9) | -3.1..+13.5 -> -1.1..+8.5 (8/8) | -3.8..+15.0 -> -4.7..+12.4 (7/8) | -0.4..+24.7 -> -2.9..+19.6 (6/7) | -0.0..+19.2 -> -2.4..+17.8 (6/7) |
+| lens plateau (-2.9..-1.4) | -4.4..+5.5 -> -0.1..+6.6 (1/8) | -1.3..+4.5 -> -0.1..+6.2 (2/8) | +0.0..+6.6 -> +2.1..+10.2 (0/7) | -0.3..+4.0 -> +2.3..+7.8 (0/7) |
+| centre (-1.4..0.4) | -14.2..-2.1 -> -7.7..-0.5 (8/8) | -14.0..-6.2 -> -11.4..-5.7 (7/8) | -16.2..-8.3 -> -11.6..-3.4 (7/7) | -16.0..-8.6 -> -10.6..-3.7 (7/7) |
+| flare interior (0.4..2.9) | -13.5..-4.9 -> -5.2..+0.4 (8/8) | -8.0..+0.8 -> -2.7..+2.0 (5/8) | -9.1..-6.3 -> -2.5..+1.0 (7/7) | -10.1..-4.3 -> -1.4..+2.8 (7/7) |
+| flare rim (2.9..4.4) | -4.5..+13.3 -> -5.0..+12.0 (7/8) | -11.1..+8.0 -> -14.5..+3.2 (5/8) | +4.4..+24.6 -> -1.6..+17.7 (7/7) | -5.0..+9.2 -> -10.7..+5.0 (5/7) |
+
+The centre, the flare interior and both rims improve at most stations of
+every end. Two costs are recorded:
+- **The lens plateau** is worse at nearly every station: the reference's lens
+  half is brighter than the core's lower opacity leaves it.
+- **RN's flare rim** overshoots at y 345-384, and one RS station at y 597
+  goes -5.0 -> -10.7.
+
+The middle core's signed bias is now within -2.6..+1.0 in every channel, so
+no colour-specific residual appears.
+
+*Widths.* Middle stations, the model against the reference, D72 -> Cj:
+
+| end | width | lens edge | flare edge |
+|---|---|---|---|
+| LN | -0.20 -> -0.08 | +0.07 -> +0.01 | -0.13 -> -0.07 |
+| RN | -0.13 -> -0.02 | +0.11 -> +0.05 | -0.02 -> +0.03 |
+| LS | -0.39 -> -0.23 | +0.17 -> +0.08 | -0.23 -> -0.15 |
+| RS | -0.28 -> -0.12 | +0.19 -> +0.11 | -0.09 -> -0.01 |
+
+Every station outside the middle moves by at most 0.009 px. The lens edge
+stays softer than the reference's (sigma 0.46-0.53 against 0.32-0.35): the
+blur is held.
+
+*Neighbours.*
+- **Just outside the core.** The lens band (n -8.5..-4.5) and the flare band
+  (4.5..8.5) over the middle read 0.02-0.52 worse: the wider core spills into
+  them. There the reference is darker than the model before and after.
+- **The outer thirds, the ends and the tips.** They move by at most 0.034 in
+  any band.
+
+*The flare*, where the right curve runs 14 px from its core:
+- r < 25: 3.703 -> 3.713;
+- r 25-60: 5.440 -> 5.376;
+- r 60-110: 3.570 -> 3.430;
+- r < 110: 4.037 -> 3.924;
+- the strip where the right curve passes the core (y 480-545, x 530-560):
+  5.317 -> 5.354.
+
+*Confinement.*
+
+| size | changed px | rows (1024 scale) | within r < 25 of the flare core |
+|---|---|---|---|
+| 512 | 2,111 | 303-719 | 29 |
+| 1000 | 7,725 | 302-720 | 101 |
+| 1024 | 8,091 | 302-722 | 90 |
+| 2048 | 31,569 | 302-721 | 397 |
+
+- Every changed pixel lies within 5.5-6.4 px of the curves.
+- Outside those rows, three pixels at 1024 px (y 112, 189, 191) and a few at
+  2048 px differ by one level. The ribbon is one path, and its
+  rasterisation rounds there.
+- Only arc_core's middle rows change.
+
+*At 1x* the curves' middle reads slightly less hot at the centre. At 5x the
+difference map shows the change directly:
+- D72's dark centre stripe, where the model was too bright, is gone;
+- its two light rim lines, where the model was too dark, are thinner.
+
+*Checks.*
+- D67's width-taper check now also reads the coverage where a table widens
+  the middle: 1.0570 against 1.057, and 1.0723 against 1.073.
+- A builder that ignores a widening factor fails it (1.0004 and 0.9996).
+
+### Stage 5: dependent items, re-read
+
+Nothing outside rows 302-722 moves, so none of these changes attribution:
+- **RN's outer third and the `red_shift` spans** (RN y 140-320, RS 840-920).
+  Row 320 is `red_shift`'s 0 row; its opacity takes half the right north
+  gain.
+- **The lens band's brightness** over the outer thirds.
+- **The north tips and the south cores.**
+- **The flare-side green skirt** over the outer thirds.
+
+D72's `red_shift` correction lies wholly outside the change and is not
+double-counting anything: the middle's own colour bias is now neutral.
+
+### Validation
+
+- `sh tools/publish.sh`: **PUBLISH OK**, 79 of 79 checks.
+  - The objective composite against the rebuilt render reads MAE 0.5308, and
+    the gradient check passes (worst relative error 0.0034).
+  - The shipped rays verify at 0.51 of tolerance.
+- Cross-engine MAE is 2.650. `visual_regression` fails 0 of 16, and the west
+  check reads 0.782.
+- The build is deterministic: the parameters (b3afe32d...) rebuild the SVG
+  byte for byte (9aa761d2...), and the published render is the evaluated one
+  (842be6c0...).
+- A clean-clone run of the CI workflow's steps is recorded with the commit.
+
+*Whole image, D72 -> D73.* These are consequences, not the criterion.
+
+| metric | D72 | D73 |
+|---|---|---|
+| MAE / RMSE | 1.6102 / 2.7658 | 1.5995 / 2.7139 |
+| SSIM | 0.97724 | 0.97731 |
+| edge IoU | 0.71136 | 0.71374 |
+| centre MAE | 4.5843 | 4.4621 |
+| flare r < 110 MAE | 4.0370 | 3.9235 |
+| core r < 25 MAE | 3.7032 | 3.7134 |
+| bright-region MAE | 6.0527 | 5.7719 |
+| dark background / frame band | 1.2867 / 2.5048 | 1.2868 / 2.5048 |
+| cross-engine MAE | 2.650 | 2.650 |
+
+### Remaining
+
+- **Fixed:**
+  - an `Objective` built without the list, or reused across a table's
+    arrival or removal, no longer fits a red-shifted layer's colour
+    (engineering).
+- **Improved, not fixed** (the curves' middle):
+  - the centre's excess. The core band's error falls 8.69 / 7.25 / 8.97 /
+    8.66 -> 5.28 / 6.26 / 6.49 / 6.15 at LN / RN / LS / RS, and its bias is
+    within about 2.6 levels in every channel;
+  - both rims:
+    - lens edge 10.21 / 13.04 / 15.48 / 14.18 -> 8.85 / 10.41 / 12.94 /
+      11.81;
+    - flare edge 8.32 / 10.22 / 19.62 / 9.92 -> 6.65 / 9.91 / 14.76 / 8.36;
+  - the width. It was short by 0.20 / 0.13 / 0.39 / 0.28 px and is now short
+    by 0.08 / 0.02 / 0.23 / 0.12.
+- **Unchanged:**
+  - the middle's edge softness (lens sigma 0.46-0.53 against 0.32-0.35). The
+    blur is held, and neither blur candidate improved both rims;
+  - LS's flare rim, which is still 12.5 levels short in luminance;
+  - the junction rows, the outer thirds, the ends and the tips, and
+    everything D72 listed there.
+- **Worse, recorded:**
+  - the middle's lens plateau, 1-4 levels darker at most stations;
+  - RN's flare rim at y 345-384, which now overshoots;
+  - the bands just outside the core over the middle (+0.02..+0.52);
+  - the strip where the right curve passes the flare core (+0.04).
+- **Refuted:**
+  - G4 alone as the fix: it moves the error from the centre to the rims;
+  - the rims' shortfall as blur: each edge was 0.2-0.25 px inside the
+    reference's, and blur alone does not reach it;
+  - a two-stroke core: the edge-weighted structure is already there.
+- **JPEG-limited:** as in D72 (the tails' hue, and the lens band's chroma
+  spread beside the whitened spans).
+- **Unattributed:** the dark bands just outside both edges over the middle,
+  where the reference is 4-14 darker. The model's own JPEG copy at its present
+  edge sharpness does not produce them.
+- **Deferred:**
+  - D72's list: the flare-side green skirt, the lens band's detailed shape,
+    the lower-right segment and translation, the north-of-core red, the
+    vertical line's colour, upper-left ray B's hue, global saturation and the
+    JPEG-limited tail hue;
+  - the left curve's ends' cross-section.
+
+### Recommendation
+
+Measure the lens half of the curves' middle (n -4.4..-1.4) per 20-px
+station, now that the core's opacity and width are right there. After this
+change, at every end:
+- the lens plateau reads up to 6-10 levels too dark;
+- the lens rim is 5-9 short in R.
+
+The lens side is missing white light. `arc_core_wide` cannot give it, since
+it is already at full opacity there and has one colour for its whole length.
+Decide from that measurement whether a middle-only lens-side light is
+warranted, and by which existing control. Keep the blur held unless, once the
+lens half's light matches, the edge's sharpness is the difference that
+remains.

@@ -455,6 +455,23 @@ the south ends, over u -155..-35. From there it widens over a longer stretch
 than D67's 40 rows. The table now reaches 0.905 (north) and 0.888 (south) of
 6.832 px at y 170 and 860, and 1.0 at y 240 and 790.
 
+Over the curves' middle the core is the other way round (D73). At half level
+the reference's core is 7.8-8.4 px wide there, 0.13-0.39 px wider than the
+model drew it, and its centre is dimmer. `tapers.core`'s middle stations date
+from the first reconstruction, before `arc_core_wide` was brightened and
+`arc_core_edge` added over them. Where both edge strokes are at full
+strength, those stations drew the core 4.5-9.4% too bright. Both are corrected
+there only:
+- **Opacity.** The stations y 340-460 and 560-680 are each half's measured
+  excess lower.
+- **Width.** The width table rises to 1.057 of 6.832 px over y 380-460 and to
+  1.073 over y 560-660, and is back to 1 by y 340, 480, 540 and 700.
+- **The junction rows**, which lie in the flare's light, are untouched.
+
+Opacity alone moved the brightness error from the centre to the rims. Width
+alone left the centre too bright. The blur is unchanged, since neither blur
+candidate improved both rims.
+
 Sharpening the edge removes the white light the soft edge spread outside it.
 It also shows what that light had covered: a cyan band on the lens side of
 the curves' outer thirds, which no layer drew (D71).

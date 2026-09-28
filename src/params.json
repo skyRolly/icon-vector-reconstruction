@@ -3155,6 +3155,38 @@
      1.0
     ],
     [
+     340,
+     1.0
+    ],
+    [
+     380,
+     1.057
+    ],
+    [
+     460,
+     1.057
+    ],
+    [
+     480,
+     1.0
+    ],
+    [
+     540,
+     1.0
+    ],
+    [
+     560,
+     1.073
+    ],
+    [
+     660,
+     1.073
+    ],
+    [
+     700,
+     1.0
+    ],
+    [
      790,
      1.0
     ],
@@ -3204,7 +3236,7 @@
      ]
     ]
    },
-   "note": "D67 (curve tips): drawn as a variable-width ribbon (width_taper): 6.832 px from y 210 to 820, narrowing linearly to 6.4 px by y 170 and 860 and held beyond.  Measured along the normal of the curve of record, both curves' core edges sat 0.2-0.45 px too far out on both sides at the tips (y < 170, > 850), where the reference's core is about 6.1-6.3 px wide; a narrower full-length stroke would have cost the mid-height edges, which the cyan edge strokes cannot give back. D70: its table is painted along the curve at the two north ends (taper_axis; build_svg.curve_axis_stops), where the y-gradient's rows crossed the oblique ends and leaned the core toward the lens; the reference's core there stays on the curve. The south ends keep the y-paint: their lens-side excess is white only. D71: the rows outside arc_core_edge's full-strength span (y < 300, y >= 704) are drawn with blur 0.2042, the core strokes' own (end_blur; build_svg.Builder.end_rows): measured across the curve, the reference's core edge there reads an erf sigma of 0.32-0.36 px against the model's 0.54-0.67 (resvg draws stdDeviation 0.6137 as a 5-tap kernel of sigma 0.58), and arc_core alone draws the edge there.  Between those rows the core keeps 0.6137: the composite edge there (the core with arc_core_wide / arc_core_edge) is worse sharpened.  The tips narrow to 0.905 (north) and 0.888 (south) of 6.832 px, reaching 1 at y 240 and 790: at half level the reference's core is 6.17-6.23 / 6.04-6.11 px wide at the ends and widens over a longer stretch than D67's 40 rows.  D72: on the right curve the core is whiter (red_shift, build_svg.red_shade): its red is 18 levels higher over y 160-300 and y 860-900, ramping over the 20 rows either side, G, B and the opacity unchanged.  Through the reference's own JPEG table the plateau there reads R +10..+17 (north) and +9..+15 (south) against the model with G and B within 5; arc_core's footprint across the curve explains it (rms 8.9 -> 3.7 at the north end) and no neighbouring layer's does.  The left curve's ends and both curves' middle are not a colour difference: there every channel is off together (a cross-section shape), and a red table cannot follow it."
+   "note": "D67 (curve tips): drawn as a variable-width ribbon (width_taper): 6.832 px from y 210 to 820, narrowing linearly to 6.4 px by y 170 and 860 and held beyond.  Measured along the normal of the curve of record, both curves' core edges sat 0.2-0.45 px too far out on both sides at the tips (y < 170, > 850), where the reference's core is about 6.1-6.3 px wide; a narrower full-length stroke would have cost the mid-height edges, which the cyan edge strokes cannot give back. D70: its table is painted along the curve at the two north ends (taper_axis; build_svg.curve_axis_stops), where the y-gradient's rows crossed the oblique ends and leaned the core toward the lens; the reference's core there stays on the curve. The south ends keep the y-paint: their lens-side excess is white only. D71: the rows outside arc_core_edge's full-strength span (y < 300, y >= 704) are drawn with blur 0.2042, the core strokes' own (end_blur; build_svg.Builder.end_rows): measured across the curve, the reference's core edge there reads an erf sigma of 0.32-0.36 px against the model's 0.54-0.67 (resvg draws stdDeviation 0.6137 as a 5-tap kernel of sigma 0.58), and arc_core alone draws the edge there.  Between those rows the core keeps 0.6137: the composite edge there (the core with arc_core_wide / arc_core_edge) is worse sharpened.  The tips narrow to 0.905 (north) and 0.888 (south) of 6.832 px, reaching 1 at y 240 and 790: at half level the reference's core is 6.17-6.23 / 6.04-6.11 px wide at the ends and widens over a longer stretch than D67's 40 rows.  D72: on the right curve the core is whiter (red_shift, build_svg.red_shade): its red is 18 levels higher over y 160-300 and y 860-900, ramping over the 20 rows either side, G, B and the opacity unchanged.  Through the reference's own JPEG table the plateau there reads R +10..+17 (north) and +9..+15 (south) against the model with G and B within 5; arc_core's footprint across the curve explains it (rms 8.9 -> 3.7 at the north end) and no neighbouring layer's does.  The left curve's ends and both curves' middle are not a colour difference: there every channel is off together (a cross-section shape), and a red table cannot follow it. D73: over the curves' middle, where arc_core_wide and arc_core_edge lie over it at full strength, the reference's core is 0.13-0.39 px wider and its centre dimmer: the opacity rows y 340-460 and 560-680 are each half's measured excess lower (left -8.7% north, -8.0% south; right -4.5%, -9.4%; half that at y 320, 480, 540 and 700; the junction rows 500/520, at the flare, untouched) and the width is 1.057 of 6.832 px over y 380-460 and 1.073 over y 560-660, back to 1 by y 340, 480, 540 and 700 (docs/DECISIONS.md D73)."
   },
   {
    "blue": 0.06856,
@@ -3481,39 +3513,39 @@
     ],
     [
      320,
-     0.8414
+     0.8048
     ],
     [
      340,
-     0.799
+     0.7295
     ],
     [
      360,
-     0.8436
+     0.7702
     ],
     [
      380,
-     0.8607
+     0.7858
     ],
     [
      400,
-     0.8091
+     0.7387
     ],
     [
      420,
-     0.8503
+     0.7763
     ],
     [
      440,
-     0.8317
+     0.7593
     ],
     [
      460,
-     0.8502
+     0.7762
     ],
     [
      480,
-     0.8796
+     0.8413
     ],
     [
      500,
@@ -3525,39 +3557,39 @@
     ],
     [
      540,
-     0.8766
+     0.8415
     ],
     [
      560,
-     0.8349
+     0.7681
     ],
     [
      580,
-     0.8154
+     0.7502
     ],
     [
      600,
-     0.7933
+     0.7298
     ],
     [
      620,
-     0.8179
+     0.7525
     ],
     [
      640,
-     0.7572
+     0.6966
     ],
     [
      660,
-     0.8117
+     0.7468
     ],
     [
      680,
-     0.7891
+     0.726
     ],
     [
      700,
-     0.8342
+     0.8008
     ],
     [
      720,
@@ -3663,39 +3695,39 @@
     ],
     [
      320,
-     0.7803
+     0.7627
     ],
     [
      340,
-     0.8226
+     0.7856
     ],
     [
      360,
-     0.8155
+     0.7788
     ],
     [
      380,
-     0.7599
+     0.7257
     ],
     [
      400,
-     0.814
+     0.7774
     ],
     [
      420,
-     0.7393
+     0.706
     ],
     [
      440,
-     0.7978
+     0.7619
     ],
     [
      460,
-     0.7516
+     0.7178
     ],
     [
      480,
-     0.8057
+     0.7876
     ],
     [
      500,
@@ -3707,39 +3739,39 @@
     ],
     [
      540,
-     0.8746
+     0.8335
     ],
     [
      560,
-     0.7544
+     0.6835
     ],
     [
      580,
-     0.7707
+     0.6983
     ],
     [
      600,
-     0.733
+     0.6641
     ],
     [
      620,
-     0.7127
+     0.6457
     ],
     [
      640,
-     0.7273
+     0.6589
     ],
     [
      660,
-     0.7031
+     0.637
     ],
     [
      680,
-     0.7224
+     0.6545
     ],
     [
      700,
-     0.713
+     0.6795
     ],
     [
      720,
