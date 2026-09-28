@@ -3122,6 +3122,102 @@ def main():
           % (_osc["on"], _osc["off"], _osc["multi"], _osc["both"], _osc["north"], _osc["zero"],
              "; ".join(_orep)))
 
+    # ---- the objective holds what each state colour-holds (D73) ---------- #
+    # The review case: the Objective held only the layers its constructor was
+    # given, so `Objective(reference)` -- no list -- fitted a red-shifted
+    # arc_core's base colour under a fixed table, which is valid only for the
+    # stored colour (fit_photometry.colour_held), and optimize.main's
+    # write-back would have stored that colour beside the unchanged table.  A
+    # reused Objective kept the hold of the state it was built for.  What it
+    # holds is now the constructor's list plus what the state being scored
+    # colour-holds.  With the shipped table ("on") and without it ("off"),
+    # everything else identical, each fit with every layer the state allows:
+    # - a direct Objective scores "on" with arc_core's stored colour, exactly as
+    #   one given colour_held explicitly, and its write-back leaves that colour;
+    # - one Objective carried from "off" (where arc_core is fitted, and sweep
+    #   keeps the fit) into "on" scores arc_core with the stored colour, not
+    #   the fitted one; carried from "on" into "off" it fits arc_core again;
+    # - reused through either transition without carrying, it scores the
+    #   second state bitwise as a fresh one;
+    # - explicit ray holds still hold the rays in both states.
+    # On the old code the direct and carried "on" fits move arc_core's colour.
+    _hdiag = []
+    _hids = [L["id"] for L in params["layers"]]
+    _hci = _hids.index("arc_core")
+    _hray = [i for i, lid in enumerate(_hids) if lid in MFL.CALIBRATED_LAYERS]
+    _hon = params
+    _hoff = _cpk.deepcopy(params)
+    _hoff["layers"][_hci].pop("red_shift", None)
+    if "arc_core" not in FP.colour_held(_hon) or "arc_core" in FP.colour_held(_hoff):
+        _hdiag.append("the shipped arc_core is not colour-held, so there is nothing to test")
+    else:
+        _hwc = {"on": FP.params_wc(_hon), "off": FP.params_wc(_hoff)}
+
+        def _hobj(held=()):
+            f = O.Objective(os.path.join(ROOT, "reference.png"), stride=8, fit_iters=1, held=held)
+            f.cache = _objK.cache
+            return f
+
+        def _hcol(K):
+            return "[%s]" % ", ".join("%.2f" % v for v in FP.color_from_wc(K[_hci]) * 255.0)
+        _hd = _hobj()
+        _hds, _, _hdK = _hd.evaluate(_hon)
+        if not np.array_equal(_hdK[_hci], _hwc["on"][_hci]):
+            _hdiag.append("a direct Objective fits arc_core under its table: %s, stored %s"
+                          % (_hcol(_hdK), _hcol(_hwc["on"])))
+        _hds2 = _hobj(held=tuple(FP.colour_held(_hon))).evaluate(_hon)[0]
+        if _hds != _hds2:
+            _hdiag.append("a direct Objective scores the shipped state %.10g, one holding colour_held "
+                          "explicitly %.10g" % (_hds, _hds2))
+        _hq = _cpk.deepcopy(_hon)
+        FP.store_wc(_hq, _hdK, only=_hd.free_indices(_hq, None))
+        if _hq["layers"][_hci]["color"] != _hon["layers"][_hci]["color"]:
+            _hdiag.append("optimize.main's write-back from a direct Objective stores arc_core %s beside its "
+                          "table (was %s)" % (_hq["layers"][_hci]["color"], _hon["layers"][_hci]["color"]))
+        # carried as sweep carries it: off (arc_core fitted) -> on
+        _hr = _hobj()
+        _, _, _hKoff = _hr.evaluate(_hoff)
+        _hr.K = _hKoff
+        _, _, _hKon = _hr.evaluate(_hon)
+        if np.array_equal(_hKoff[_hci], _hwc["off"][_hci]):
+            _hdiag.append("without a table arc_core was not fitted, so the transition proves nothing")
+        if not np.array_equal(_hKon[_hci], _hwc["on"][_hci]):
+            _hdiag.append("gaining a table, a carried arc_core is scored with %s, not its stored %s"
+                          % (_hcol(_hKon), _hcol(_hwc["on"])))
+        # carried: on -> off, arc_core is fitted again
+        _hr2 = _hobj()
+        _, _, _hK2 = _hr2.evaluate(_hon)
+        _hr2.K = _hK2
+        _, _, _hK2off = _hr2.evaluate(_hoff)
+        if np.array_equal(_hK2off[_hci], _hwc["off"][_hci]):
+            _hdiag.append("losing its table, arc_core is still held")
+        # reused without carrying, both ways, against fresh
+        _hsc = {}
+        for _a, _b in (("off", "on"), ("on", "off")):
+            _hr3 = _hobj()
+            _hr3.evaluate({"on": _hon, "off": _hoff}[_a])
+            _re = _hr3.evaluate({"on": _hon, "off": _hoff}[_b])[0]
+            _fr = _hobj().evaluate({"on": _hon, "off": _hoff}[_b])[0]
+            _hsc[_b] = _fr
+            if _re != _fr:
+                _hdiag.append("%s after %s scores %.10g reused, %.10g fresh" % (_b, _a, _re, _fr))
+        # explicit ray holds, in both states
+        for _nm, _p in (("on", _hon), ("off", _hoff)):
+            _, _, _hKr = _hobj(held=MFL.CALIBRATED_LAYERS).evaluate(_p)
+            _mr = float(np.abs(_hKr[_hray] - _hwc[_nm][_hray]).max()) if _hray else 1.0
+            _mc = float(np.abs(_hKr[_hci] - _hwc[_nm][_hci]).max())
+            if _mr != 0.0 or (_nm == "on") != (_mc == 0.0):
+                _hdiag.append("with the rays held explicitly (%s): the rays move %.3g, arc_core %.3g"
+                              % (_nm, _mr, _mc))
+    check("the objective holds what each state colour-holds",
+          not _hdiag, "; ".join(_hdiag) if _hdiag else
+          "a direct Objective scores the shipped state with arc_core's stored colour %s (as with colour_held "
+          "explicit: %.10g) and its write-back keeps it; carried from a state without the table (arc_core "
+          "fitted to %s) it is held again, and carried the other way it is fitted again (%s); reused "
+          "without carrying it scores each transition bitwise as fresh (on %.10g, off %.10g); explicit ray "
+          "holds hold in both states"
+          % (_hcol(_hwc["on"]), _hds, _hcol(_hKoff), _hcol(_hK2off), _hsc["on"], _hsc["off"]))
+
     # ---- the lens-side band stays beside the core's ends (D71) ------------ #
     # arc_lens_band is the reference's cyan band just outside the core's lens
     # edge, over the curves' outer thirds.  What was measured is where it may

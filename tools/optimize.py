@@ -434,6 +434,8 @@ class Objective:
         # (tools/measure_flare.py).  A whole-image fit moves light into them
         # that belongs to a broad glow -- D61 caught it drawing a lower-left ray
         # 2.5x the reference -- so they are held, not merely down-weighted.
+        # These are the explicit holds; each evaluation adds the layers its own
+        # parameters colour-hold (held_ids, D73).
         self.held = set(held)
         self.target_full = np.minimum(ref, 254.4 / 255.0)
         self.stride = stride
@@ -519,11 +521,26 @@ class Objective:
         fams = {lid.split("_")[0] for lid in affects}
         return [i for i, L in enumerate(params["layers"]) if L["id"].split("_")[0] in fams] or None
 
+    def held_ids(self, params):
+        """The layers this objective holds when it scores `params`: the
+        constructor's explicit holds (the calibrated rays) and the layers
+        `params` ITSELF says are colour-held (fit_photometry.colour_held: a
+        red-shifted layer, whose table is valid only for its stored colour).
+
+        The second part is read from each state, not fixed at construction.
+        Until D73 only the constructor's list was held, so an Objective built
+        without one -- `Objective(reference)` -- fitted a red-shifted
+        `arc_core`'s base colour under a fixed table, and an Objective reused
+        across a state that gained or lost a table kept the hold of the state
+        it was built for (the review finding)."""
+        return self.held | set(FP.colour_held(params))
+
     def free_indices(self, params, free):
-        """`free` (None = every layer) minus the held layers."""
+        """`free` (None = every layer) minus the layers held for `params`."""
+        held = self.held_ids(params)
         idx = range(len(params["layers"])) if free is None else free
-        out = [i for i in idx if params["layers"][i]["id"] not in self.held]
-        return None if (free is None and not self.held) else out
+        out = [i for i in idx if params["layers"][i]["id"] not in held]
+        return None if (free is None and not held) else out
 
     def colours(self, params):
         """Bring `self.K` up to date with `params` before a fit starts from it.
@@ -535,7 +552,9 @@ class Objective:
           `sweep` carries from one accepted move to the next and `main` writes
           back at the end; reusing it is the point;
         - a HELD layer's row is never fitted, so it can only ever be what
-          `params` says.
+          `params` says.  Held means held for THESE parameters (`held_ids`):
+          a layer that gains a `red_shift` table is re-read here, not scored
+          with a colour fitted while it was free.
         Until D67 held rows were seeded once and then kept, so an Objective
         that scored parameters A and then B -- B differing only in a held
         ray's colour -- scored B with A's colour (the review finding).  Held
@@ -569,8 +588,9 @@ class Objective:
         if self.K is None or self.K_ids != schema or self.K.shape[0] != len(ids):
             self.K, self.K_ids, self.K_seen = wc, schema, wc.copy()
             return
+        held = self.held_ids(params)
         stale = [i for i, lid in enumerate(ids)
-                 if lid in self.held or not np.array_equal(wc[i], self.K_seen[i])]
+                 if lid in held or not np.array_equal(wc[i], self.K_seen[i])]
         if stale and not np.array_equal(self.K[stale], wc[stale]):
             K = np.array(self.K, copy=True)
             K[stale] = wc[stale]

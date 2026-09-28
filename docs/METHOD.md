@@ -516,7 +516,10 @@ colour (`fit_photometry.colour_held`): their composite takes one colour per
 layer, and would otherwise move the colour to make up for a shift it cannot
 see. The composite does see the shift (section 7): the layer's term carries
 the red its table adds, so no other layer is fitted to make it up (D72,
-stage 14).
+stage 14). The optimiser's objective reads the hold from each state it
+scores, as well as from the list it was given, so an `Objective` built without
+one holds the layer too, and a state that gains or loses a table holds or
+frees it (D73).
 
 ### 4c. Light past the ends of the curves: the interior corners
 

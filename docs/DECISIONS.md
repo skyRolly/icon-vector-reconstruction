@@ -12064,3 +12064,116 @@ This was written before stage 15, which carried it out.
     blur, both held here.
 - **Next step.** Decide G4 together with, or before, a refit of that
   composite edge.
+
+## D73. The objective holds what each state colour-holds
+
+D72 left one review finding and one open artwork trade.
+- **The finding (Devin).** `Objective` held only the layers its constructor
+  was given, so `Objective(reference)`, with no list, fitted a red-shifted
+  `arc_core`'s base colour under its fixed table.
+- **The artwork trade.** D72 stage 15 found that the centre's excess over the
+  curves' middle is `arc_core`'s opacity there (G4). It also found that
+  correcting it alone costs both rims 0.6-1.4.
+
+This pass fixes the finding first, as its own commit, with the artwork byte
+for byte unchanged. Only after that does it take up the artwork.
+
+### Stage 0: the D72 baseline
+
+- **Commits.** Branch head 5df8d92 (D72 stage 15, docs only). Its artwork is
+  2fc7f41's, and the objective fix is dde02a1's.
+- **CI and review.** GitHub CI (both regression-gate runs) is green on
+  5df8d92, and the PR has no open review thread.
+- **Artefacts.**
+  - SVG 09c5c3b7..., which the parameters (d6cae914...) rebuild byte for
+    byte;
+  - render 65f961e5...;
+  - PUBLISH OK, 78 of 78 checks.
+- **Metrics:**
+
+  | metric | D72 |
+  |---|---|
+  | MAE / RMSE | 1.6102 / 2.7658 |
+  | SSIM | 0.97724 |
+  | edge IoU | 0.71136 |
+  | centre MAE | 4.5843 |
+  | flare r < 110 MAE | 4.0370 (`diagnose.py`; 4.0414 on pixel centres) |
+  | core r < 25 MAE | 3.7032 (the same centre; 3.6791 on pixel centres) |
+  | bright-region MAE | 6.0527 |
+  | cross-engine MAE | 2.650 |
+
+### Stage 1: the objective holds what each state colour-holds (engineering)
+
+*Reproduced* on 5df8d92 with the real `Objective` (stride 4, two fit
+iterations; the shipped state and the same state with the table removed):
+- **A direct `Objective(reference)` on the shipped state.**
+  - `arc_core` is in the fit's free set. The fit moves its base colour from
+    [216.24, 255, 255] to [214.86, 254.08, 255] while `red_shift` and the
+    shift term stay fixed.
+  - It scores 0.0001682096336, where holding the layer scores 0.0001692754013
+    (with the rays free in both).
+  - `optimize.main`'s write-back (`store_wc(only=free_indices)`) would store
+    that colour beside the unchanged table.
+- **One Objective reused from the state without the table into the shipped
+  one.** It still treats `arc_core` as free.
+- **An Objective given `held_layers(params)` explicitly.** It holds the
+  layer. `optimize.main` does exactly this, so its runs were never affected.
+
+*The fix.*
+- **`held_ids(params)`.** It returns the constructor's explicit holds (the
+  calibrated rays) together with `fit_photometry.colour_held(params)` for the
+  state being scored.
+- **Its two users.** `free_indices` (the fit's free set, and so the
+  write-back) and `colours` (whose held rows are re-read from the parameters)
+  both use it.
+- **What follows.**
+  - A state that gains a table holds the layer, and its row is re-read, not
+    carried from a fit made while it was free.
+  - A state that loses the table frees it again.
+  - An explicit hold stays the caller's.
+- **Unchanged.** Nothing else about the optimiser changes: the carried
+  movable rows, the D67/D69 refresh rules, the caches, and geometry-only
+  trials.
+
+*The regression*, new check "the objective holds what each state
+colour-holds":
+- **The direct Objective.** It scores the shipped state with `arc_core`'s
+  stored colour, and exactly as one given `colour_held` explicitly. Its
+  write-back leaves that colour.
+- **Carried from "off" into "on".** One Objective carried as `sweep` carries
+  it from "off" (where `arc_core` is fitted) into "on" scores `arc_core` with
+  the stored colour, not the fitted one.
+- **Carried from "on" into "off".** It fits `arc_core` again.
+- **Reused without carrying.** Through either transition, a reused Objective
+  scores the second state bitwise as a fresh one.
+- **Explicit ray holds.** They hold the rays in both states.
+
+It fails on 5df8d92's code for the semantic reason: the direct fit moves
+`arc_core` to [215.83, 255, 255], the write-back stores it, and the carried
+"on" state scores the colour fitted while the layer was free. It also fails on
+five broken fixes:
+
+| broken fix | what fails |
+|---|---|
+| the state's holds read once, from the first state scored | gaining a table, losing it, and reused against fresh |
+| every `arc_core` held | losing its table, it stays held |
+| the fit's free set follows the state, the colour state does not | the carried colour survives |
+| the colour state follows, the free set does not | the direct fit moves `arc_core` |
+| the constructor's holds dropped | the rays move |
+
+*D72's model re-verified.* On the fixed code, D72's check "the objective
+scores the red_shift the SVG draws" reads every score it read on dde02a1,
+bitwise:
+- on 0.0001788420195, off 0.0001789882081, multi 0.0001788260124, zero
+  equal to off;
+- the composite follows the render (+9.76 against +9.98 on the shipped
+  table's pixels).
+
+*Validation.*
+- `sh tools/publish.sh`: **PUBLISH OK**, 79 of 79 checks (78 on 5df8d92, plus
+  this one).
+- Every artefact it rewrote is byte-identical to 5df8d92's, and the
+  parameters rebuild the SVG byte for byte (09c5c3b7...).
+- D67's, D69's and D72's objective checks pass unchanged, as do the fit,
+  prune and calibration checks.
+- A clean-clone run of the CI workflow's steps is recorded with the commit.
