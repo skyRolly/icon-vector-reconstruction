@@ -11154,6 +11154,8 @@ before changing anything, and changed only the right curve's core colour
 (`red_shift`, stages 4-11). A review then found that the photometric model
 and the optimiser's objective could not see that colour change; stage 14
 makes them see it, again as its own commit, with the artwork unchanged.
+Stage 15 then measured the core's cross-section over the middle. It names the
+layer, the parameter and the cost, and proposes a change without adopting it.
 "Base" below is D71 (38f6776). Whole-image numbers are consequences, not the
 criterion.
 
@@ -11850,6 +11852,159 @@ above).
 - The parameters rebuild the SVG byte for byte (09c5c3b7...).
 - A clean-clone run of the CI workflow's steps is recorded with the commit.
 
+### Stage 15: the core's cross-section over the middle, measured (no artwork change)
+
+This is the measurement the recommendation below asked for. It was done after
+stage 14 closed, on the shipped artwork (09c5c3b7...), with nothing changed.
+Held fixed: the geometry, the curve positions, the `red_shift` spans,
+`arc_lens_band`, `end_blur` and the `taper_axis` decisions.
+
+*The instrument.* Each end was read in its own local coordinates (u along
+the curve, n across it, n > 0 the flare side), in bins of 0.25 px of n. The
+reference is compared with the render through the reference's JPEG table,
+like with like. Each bin records:
+- R, G, B and luminance;
+- the exact screen contribution of `arc_core`, `arc_core_wide`,
+  `arc_core_edge` and the glows (the render less the render without the
+  layer), and each one's white basis;
+- the slanted-edge fit of D71 (edge position and erf sigma) in 10-px
+  windows.
+
+The middle was read over u -470..-340 (y 345-470 north, 557-690 south),
+clear of the junction. Then it was read per 20 px station from the tips to
+the junction.
+
+*What the middle shows*, at all four ends. The figures are the reference
+minus the render, in luminance:
+
+| band (n, px) | LN | RN | LS | RS |
+|---|---|---|---|---|
+| outside the lens edge (-5.4..-4.4) | -6.8 | -9.8 | -6.4 | -10.2 |
+| lens rim (-4.4..-2.9) | +4.8 | +9.2 | +9.2 | +10.8 |
+| lens plateau (-2.9..-1.4) | +2.6 | +3.3 | +4.4 | +2.5 |
+| centre (-1.4..+0.4) | -7.7 | -10.7 | -11.9 | -12.4 |
+| flare-side interior (+0.4..+2.9) | -11.2 | -4.0 | -7.7 | -6.6 |
+| flare rim (+2.9..+4.4) | +5.1 | -0.5 | +17.9 | +2.9 |
+| outside the flare edge (+4.4..+5.4) | -4.4 | -11.9 | -7.3 | -13.6 |
+
+- **The luminance profile.** The reference is brightest at n -3.4..-1.9
+  and falls toward the flare side. The model is brightest at n -2.4..-0.4,
+  where `arc_core` and `arc_core_wide` overlap.
+- **Width.** At half level the reference's core is 7.93-8.10 px wide, and
+  the model's 7.74-7.86. The model is 0.14-0.36 px too narrow, with each
+  edge inside the reference's.
+- **Edge softness.** The lens edge's erf sigma is 0.32-0.35 in the
+  reference and 0.50-0.57 in the model. The flare edge's is 0.24-0.31 and
+  0.32-0.39.
+- **Opacity distribution.** `arc_core`'s basis is flat across the plateau,
+  at 0.73-0.84. `arc_core_wide` is at 0.99 over n -4..0, and `arc_core_edge`
+  at 0.96 over n +2.7..+4.1.
+
+*1. The layer: `arc_core`.*
+- **The flare-side interior.** The band n +0.4..+2.4 is lit by `arc_core`
+  alone: its contribution is R 118-160 there, and the glows' 5-15. The band
+  is too bright at every end. So the excess is `arc_core`'s light, not the
+  edge strokes'.
+- **Footprints.** Every layer's gain, width, shift or single-edge move was
+  fitted to the interior residual (n -2.9..+2.9, R, G and B together).
+  - `arc_core`'s gain is the best single explanation at LN, LS and RS: rms
+    9.32 -> 4.77, 9.65 -> 6.78 and 9.56 -> 6.49, at -9.0%, -7.8% and -9.9%.
+  - At RN it is second (7.74 -> 6.57, -5.1%). First there is moving
+    `arc_core_wide`'s flare edge 0.6 px toward the lens (6.17).
+  - The gains of `arc_core_wide`, `arc_core_edge`, `arc_glow1` and
+    `arc_glow1w`, and `arc_core`'s width, shift or tilt, each explain less.
+- **Per station, the excess is where the two edge strokes are at full
+  strength, and nowhere else.** The fitted `arc_core` gain:
+
+  | end | stations with both strokes full | the outer thirds and ends (both below 0.4) |
+  |---|---|---|
+  | LN | y 326-482: -5.4..-10.3% (mean -8.4) | y 106-253: -2.8..+2.1% (mean -0.4) |
+  | RN | y 326-482: -1.5..-6.7% (mean -4.3) | -3.7..+3.0% (mean +0.3) |
+  | LS | y 563-681: -5.9..-9.8% (mean -8.0) | y 773-932: -7.8..+4.4% (mean +0.3) |
+  | RS | y 557-675: -6.8..-12.4% (mean -9.4) | y 767-917: -2.1..+3.8% (mean +0.3) |
+
+  It falls away over the strokes' ramps: -3..-4% at y 289-307 and 700,
+  about 0 by y 271 and 718-755.
+- **History.** `tapers.core`'s rows over the middle are unchanged since the
+  first commit (5f904df). Since then, 2502f8e raised `arc_core_wide`'s
+  colour from [99.9, 116.8, 125.8] to [93.9, 184.3, 207.5]. D66 (f198170)
+  added `arc_core_edge` over y 300-705. Neither pass re-measured the core's
+  rows under them.
+
+*2. The parameter: `arc_core`'s opacity rows over the middle*
+(`tapers.core`). Candidate G4 is built with the real builder:
+- **Rows.** North rows y 340-480 are scaled by each half's own mean station
+  gain (LN -8.7%, RN -4.5%); row 320 takes half of it. South rows 540-680
+  are scaled likewise (LS -8.0%, RS -9.4%); row 700 takes half.
+- **Untouched.** The junction rows 500/520, which were not measured, and
+  every other row, colour and width.
+- **Effect.** The centre's brightness excess goes: the core band's signed
+  luminance moves from -4.4..-6.6 to 0.0 at LN, LS and RS, and to -1.0 at
+  RN.
+
+Mean |ref - render| through the JPEG table, u -470..-340, D72 -> G4:
+
+| band | LN | RN | LS | RS |
+|---|---|---|---|---|
+| core (\|n\| < 3) | 8.69 -> **5.60** | 7.25 -> 6.64 | 8.97 -> **6.57** | 8.66 -> **6.46** |
+| lens edge (n -4.5..-3) | 10.21 -> 11.54 | 13.04 -> 13.74 | 15.48 -> 16.41 | 14.18 -> 15.27 |
+| flare edge (n 3..4.5) | 8.32 -> 9.55 | 10.22 -> 10.79 | 19.62 -> 20.97 | 9.92 -> 10.94 |
+| all three together | 8.88 -> 7.26 | 8.72 -> 8.53 | 11.84 -> 10.62 | 9.78 -> 8.67 |
+
+- **Confinement.** 7,623 px change, in rows 300-721, all within 5.7 px of
+  the curves. Every change is darker: at most R 16, G 11, B 10.
+- **Unaffected.** The outer thirds, the ends and the tips move by at most
+  0.04.
+- **Consequences.** The flare's r < 110 error moves from 4.041 to 3.984,
+  and the whole-image MAE from 1.6102 to 1.6040. They are consequences, not
+  the criterion.
+- **A shared factor.** A single -7.7% on all four halves (G1) reads almost
+  the same, but RN's edges are worse. So the per-half values are the
+  measured ones, not a tuning.
+
+*3. The regression: both rims, at every end.*
+- **The cost.** `arc_core` also lights the rims, which are already too dark.
+  Its lower opacity makes the lens edge 0.70-1.33 worse and the flare edge
+  0.57-1.35 worse, and adds 1.2-2.0 levels of luminance to the rims'
+  deficit.
+- **The cause is not the soft blur alone.** A diagnostic with the core
+  sharp over the middle, blur 0.2042 as at the ends, makes the rims worse,
+  not better: the flare edge goes 8.32 -> 13.55 at LN and 19.62 -> 25.57 at
+  LS. The core also worsens (8.69 -> 9.57), as D71 found. With G4 added
+  the rims stay worse (G4S). Sharpening is not what the rims need.
+- **The deficit is the composite edge's structure.**
+  - The reference is at full brightness out to about +-3.4 px and has sharp
+    edges at -3.9..-4.05 / +3.98..+4.16.
+  - The model's `arc_core` edge sits at +-3.42 with blur 0.6137.
+    `arc_core_wide`'s lens edge is at -4.01, and `arc_core_edge` covers
+    +2.7..+4.1. The rims are lit between those steps.
+  - The dark bands just outside both edges, too bright in the model by 4-14
+    over the middle, belong to the same edge. Over the outer thirds, where
+    the core is sharp and the edge strokes fade, they are the other way
+    round.
+
+*The proposal, not adopted in this pass.*
+- **What it is.** G4, a table edit to `arc_core`'s middle rows at the
+  measured per-half gains.
+- **What is proven.**
+  - the layer (`arc_core`);
+  - the parameter (its opacity rows under the full-strength edge strokes);
+  - the cost (both rims 0.6-1.4 worse at every end).
+- **Why it was not adopted.** The cost fails the neighbour rule this record
+  applies (D71, "How the decisions were made"). Both rims get worse at every
+  end, and nothing in the held set can pay it back: `arc_core_wide` and
+  `arc_core_edge` are already at full opacity there.
+- **What would pay it back.** A refit of the middle's composite edge: the
+  widths and positions of the three strokes, and the middle's blur. That
+  touches width and `end_blur`, which this pass holds, and D71 called it a
+  mid-curve redesign.
+- **The choice.** Adopt G4 alone, recording the rims' cost, or adopt it
+  with that refit. It is left to the owner. No optimiser was run.
+- **Refuted along the way.** A two-stroke core is not needed. The model
+  already has the edge-weighted structure (a lens-side stroke and a
+  flare-side stroke over a flat core). What is wrong is the core's opacity
+  under them and where the three strokes' edges sit.
+
 ### Remaining
 
 - **Fixed:**
@@ -11880,19 +12035,32 @@ above).
   - the lens band's +0.14..+0.22 through the JPEG table beside the whitened
     spans;
   - the tails' hue, as before.
+- **Measured, a proposal pending (stage 15):**
+  - the core's cross-section over the middle. The centre's excess is
+    `arc_core`'s opacity under the full-strength edge strokes, 4.5-9.4% too
+    high (G4). Correcting it makes the rims, the composite edge's, 0.6-1.4 worse
+    at every end.
 - **Deferred:**
-  - the core's cross-section over the middle and at the left curve's ends (a
-    dimmer centre between brighter rims). It is the largest measured core
-    residual left, and it needs a profile, not a colour;
+  - the middle's composite edge: the three strokes' edge positions and
+    blur. It holds the rims' deficit;
+  - the left curve's ends' cross-section (a G and B excess at the centre);
   - the brief's other deferred items.
 
 ### Recommendation
 
-Measure the core's cross-section profile over the curves' middle, and change
-nothing else. At all four ends the model's centre is too bright and its rims
-too dark in every channel, by 5-20 levels. The fit gives that a 9-12% excess
-of the core's light, not a colour. A flat-topped blurred ribbon cannot draw a
-dimmer centre between brighter rims. The next step is to read that profile
-per 20 px, as this pass read the colour, and then decide between a
-two-stroke core and an edge-weighted profile. Neither geometry nor width
-should be touched before that is measured.
+This was written before stage 15, which carried it out.
+- **As written.** Measure the core's cross-section profile over the curves'
+  middle, and change nothing else. At all four ends the model's centre is
+  too bright and its rims too dark in every channel, by 5-20 levels. The fit
+  gives that a 9-12% excess of the core's light, not a colour. A flat-topped
+  blurred ribbon cannot draw a dimmer centre between brighter rims. Read the
+  profile per 20 px, as this pass read the colour. Then decide between a
+  two-stroke core and an edge-weighted profile. Touch neither geometry nor
+  width before that is measured.
+- **Stage 15's answer.**
+  - The edge-weighted profile is already there.
+  - The centre's excess is `arc_core`'s middle opacity: G4 corrects it.
+  - The rims' deficit is the composite edge, which needs its widths and
+    blur, both held here.
+- **Next step.** Decide G4 together with, or before, a refit of that
+  composite edge.
