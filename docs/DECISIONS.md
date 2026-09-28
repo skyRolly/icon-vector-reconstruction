@@ -12144,6 +12144,12 @@ colour-holds":
   it from "off" (where `arc_core` is fitted) into "on" scores `arc_core` with
   the stored colour, not the fitted one.
 - **Carried from "on" into "off".** It fits `arc_core` again.
+- **The carried states' colour.** Both carried states store `arc_core`'s
+  colour 10% below the shipped one, so the fit without a table must move it
+  whatever the artwork. On stage 4's artwork one fit iteration moves the
+  shipped colour by only about 1e-5, which left the transition test
+  depending on the artwork; it now moves by 2-3 levels. The table stays
+  valid (R + 18 <= G).
 - **Reused without carrying.** Through either transition, a reused Objective
   scores the second state bitwise as a fresh one.
 - **Explicit ray holds.** They hold the rays in both states.

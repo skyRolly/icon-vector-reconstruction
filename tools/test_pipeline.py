@@ -3136,7 +3136,9 @@ def main():
     #   one given colour_held explicitly, and its write-back leaves that colour;
     # - one Objective carried from "off" (where arc_core is fitted, and sweep
     #   keeps the fit) into "on" scores arc_core with the stored colour, not
-    #   the fitted one; carried from "on" into "off" it fits arc_core again;
+    #   the fitted one; carried from "on" into "off" it fits arc_core again
+    #   (both with arc_core's colour stored 10% dim, so that the fit must move
+    #   it whatever the artwork);
     # - reused through either transition without carrying, it scores the
     #   second state bitwise as a fresh one;
     # - explicit ray holds still hold the rays in both states.
@@ -3174,22 +3176,38 @@ def main():
         if _hq["layers"][_hci]["color"] != _hon["layers"][_hci]["color"]:
             _hdiag.append("optimize.main's write-back from a direct Objective stores arc_core %s beside its "
                           "table (was %s)" % (_hq["layers"][_hci]["color"], _hon["layers"][_hci]["color"]))
-        # carried as sweep carries it: off (arc_core fitted) -> on
+        # carried as sweep carries it.  Both states store arc_core's colour
+        # 10% below the shipped one (the table stays valid: R + 18 <= G), so
+        # the fit without a table moves it well clear of the stored colour
+        # whatever the artwork; the shipped colour sits so near the fit's
+        # optimum that one iteration moves it by about 1e-5.
+        def _hdim(p):
+            q = _cpk.deepcopy(p)
+            Lq = q["layers"][_hci]
+            wq = FP.params_wc({"layers": [Lq]})[0] * 0.9
+            for _n, _v in zip(FP.COMPONENTS, wq):
+                if _n in Lq:
+                    Lq[_n] = round(float(_v), 6)
+            Lq["color"] = [round(float(_v) * 255.0, 2) for _v in FP.color_from_wc(wq)]
+            return q
+        _htoff, _hton = _hdim(_hoff), _hdim(_hon)
+        _hwt = {"on": FP.params_wc(_hton), "off": FP.params_wc(_htoff)}
+        # off (arc_core fitted) -> on
         _hr = _hobj()
-        _, _, _hKoff = _hr.evaluate(_hoff)
+        _, _, _hKoff = _hr.evaluate(_htoff)
         _hr.K = _hKoff
-        _, _, _hKon = _hr.evaluate(_hon)
-        if np.array_equal(_hKoff[_hci], _hwc["off"][_hci]):
+        _, _, _hKon = _hr.evaluate(_hton)
+        if float(np.abs(_hKoff[_hci] - _hwt["off"][_hci]).max()) < 1e-3:
             _hdiag.append("without a table arc_core was not fitted, so the transition proves nothing")
-        if not np.array_equal(_hKon[_hci], _hwc["on"][_hci]):
+        if not np.array_equal(_hKon[_hci], _hwt["on"][_hci]):
             _hdiag.append("gaining a table, a carried arc_core is scored with %s, not its stored %s"
-                          % (_hcol(_hKon), _hcol(_hwc["on"])))
-        # carried: on -> off, arc_core is fitted again
+                          % (_hcol(_hKon), _hcol(_hwt["on"])))
+        # on -> off, arc_core is fitted again
         _hr2 = _hobj()
-        _, _, _hK2 = _hr2.evaluate(_hon)
+        _, _, _hK2 = _hr2.evaluate(_hton)
         _hr2.K = _hK2
-        _, _, _hK2off = _hr2.evaluate(_hoff)
-        if np.array_equal(_hK2off[_hci], _hwc["off"][_hci]):
+        _, _, _hK2off = _hr2.evaluate(_htoff)
+        if float(np.abs(_hK2off[_hci] - _hwt["off"][_hci]).max()) < 1e-3:
             _hdiag.append("losing its table, arc_core is still held")
         # reused without carrying, both ways, against fresh
         _hsc = {}
@@ -3212,11 +3230,11 @@ def main():
     check("the objective holds what each state colour-holds",
           not _hdiag, "; ".join(_hdiag) if _hdiag else
           "a direct Objective scores the shipped state with arc_core's stored colour %s (as with colour_held "
-          "explicit: %.10g) and its write-back keeps it; carried from a state without the table (arc_core "
-          "fitted to %s) it is held again, and carried the other way it is fitted again (%s); reused "
-          "without carrying it scores each transition bitwise as fresh (on %.10g, off %.10g); explicit ray "
-          "holds hold in both states"
-          % (_hcol(_hwc["on"]), _hds, _hcol(_hKoff), _hcol(_hK2off), _hsc["on"], _hsc["off"]))
+          "explicit: %.10g) and its write-back keeps it; with its colour stored at %s, carried from a state "
+          "without the table (arc_core fitted to %s) it is held again, and carried the other way it is fitted "
+          "again (%s); reused without carrying it scores each transition bitwise as fresh (on %.10g, off "
+          "%.10g); explicit ray holds hold in both states"
+          % (_hcol(_hwc["on"]), _hds, _hcol(_hwt["on"]), _hcol(_hKoff), _hcol(_hK2off), _hsc["on"], _hsc["off"]))
 
     # ---- the lens-side band stays beside the core's ends (D71) ------------ #
     # arc_lens_band is the reference's cyan band just outside the core's lens
