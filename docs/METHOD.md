@@ -310,7 +310,8 @@ record, its R half-level edges sit at about +-3.1 px at the tips and at
 widens from about 6.2 px to 7.9-8.1 px, nearly symmetrically. A single stroke
 cannot do that, so the core is three strokes: a full-length one on the fitted
 centre-line (`arc_core`), and two thin strokes tapered towards mid-height that
-supply the extra width, one on the lens side (`arc_core_wide`, inset +2) and
+supply the extra width, one on the lens side (`arc_core_wide`, inset +2; its
+inner edge moved out since D74, below) and
 one on the flare side (`arc_core_edge`, inset -3.4, D66). Until D66 the core
 was described as asymmetric (4.8 px lens side / 3.3 px flare side) and only the
 lens-side stroke existed; against the current curve of record that asymmetry
@@ -471,6 +472,30 @@ there only:
 Opacity alone moved the brightness error from the centre to the rims. Width
 alone left the centre too bright. The blur is unchanged, since neither blur
 candidate improved both rims.
+
+The middle's lens half was then short of light at its rim and plateau, and
+too bright just inside the centre line (D74).
+- **The two profiles.** The reference's lens half is flat from n -3.1 to
+  -1.6, then declines steadily across the centre. The model's held its light
+  on to n -0.4 and then stepped down at `arc_core_wide`'s inner edge.
+- **Why.** That stroke covered n -4.0..0.0 with a sharp inner edge. Its light
+  sat about a pixel too far toward the centre.
+- **White or gain alone does not fix it.** Either also lights the band that
+  is already too bright.
+- **What changed:**
+  - The stroke's inner edge now lies 0.6 px inside the curve. Its lens edge,
+    D66's measured one, is unchanged.
+  - Over the middle rows its light is each half's measured gain, x1.14-1.23.
+- **How the gain is drawn.** A ramp's alpha cannot exceed 1.
+  - The layer's colour is at its peak, and its opacity is 1.
+  - `tapers.core_wide` is a per-side table: the ramp's own rows divided by the
+    same factor, so the rows outside the middle draw as before.
+  - The gains sit on D73's middle rows.
+- **Where the gain is not applied.** The right curve's rows inside the
+  flare's r < 60. Their lens rim already reads too bright in the flare's light.
+- **A sharper lens edge follows.** More of that edge's light now comes from
+  the stroke's sharp edge (blur 0.20), and less from `arc_core`'s soft one.
+  No blur was changed.
 
 Sharpening the edge removes the white light the soft edge spread outside it.
 It also shows what that light had covered: a cyan band on the lens side of

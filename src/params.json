@@ -3239,7 +3239,7 @@
    "note": "D67 (curve tips): drawn as a variable-width ribbon (width_taper): 6.832 px from y 210 to 820, narrowing linearly to 6.4 px by y 170 and 860 and held beyond.  Measured along the normal of the curve of record, both curves' core edges sat 0.2-0.45 px too far out on both sides at the tips (y < 170, > 850), where the reference's core is about 6.1-6.3 px wide; a narrower full-length stroke would have cost the mid-height edges, which the cyan edge strokes cannot give back. D70: its table is painted along the curve at the two north ends (taper_axis; build_svg.curve_axis_stops), where the y-gradient's rows crossed the oblique ends and leaned the core toward the lens; the reference's core there stays on the curve. The south ends keep the y-paint: their lens-side excess is white only. D71: the rows outside arc_core_edge's full-strength span (y < 300, y >= 704) are drawn with blur 0.2042, the core strokes' own (end_blur; build_svg.Builder.end_rows): measured across the curve, the reference's core edge there reads an erf sigma of 0.32-0.36 px against the model's 0.54-0.67 (resvg draws stdDeviation 0.6137 as a 5-tap kernel of sigma 0.58), and arc_core alone draws the edge there.  Between those rows the core keeps 0.6137: the composite edge there (the core with arc_core_wide / arc_core_edge) is worse sharpened.  The tips narrow to 0.905 (north) and 0.888 (south) of 6.832 px, reaching 1 at y 240 and 790: at half level the reference's core is 6.17-6.23 / 6.04-6.11 px wide at the ends and widens over a longer stretch than D67's 40 rows.  D72: on the right curve the core is whiter (red_shift, build_svg.red_shade): its red is 18 levels higher over y 160-300 and y 860-900, ramping over the 20 rows either side, G, B and the opacity unchanged.  Through the reference's own JPEG table the plateau there reads R +10..+17 (north) and +9..+15 (south) against the model with G and B within 5; arc_core's footprint across the curve explains it (rms 8.9 -> 3.7 at the north end) and no neighbouring layer's does.  The left curve's ends and both curves' middle are not a colour difference: there every channel is off together (a cross-section shape), and a red table cannot follow it. D73: over the curves' middle, where arc_core_wide and arc_core_edge lie over it at full strength, the reference's core is 0.13-0.39 px wider and its centre dimmer: the opacity rows y 340-460 and 560-680 are each half's measured excess lower (left -8.7% north, -8.0% south; right -4.5%, -9.4%; half that at y 320, 480, 540 and 700; the junction rows 500/520, at the flare, untouched) and the width is 1.057 of 6.832 px over y 380-460 and 1.073 over y 560-660, back to 1 by y 340, 480, 540 and 700 (docs/DECISIONS.md D73)."
   },
   {
-   "blue": 0.06856,
+   "blue": 0.084254,
    "blur": 0.20421316015498364,
    "bounds": {
     "blur": [
@@ -3256,18 +3256,18 @@
     ]
    },
    "color": [
-    93.91,
-    184.25,
-    207.5
+    115.41,
+    226.43,
+    255.0
    ],
-   "cyan": 0.37689,
+   "cyan": 0.463166,
    "id": "arc_core_wide",
-   "inset": 2.0,
+   "inset": 2.30672,
    "kind": "arc",
-   "note": "the lens-side (concave) widening of the core toward mid-height: an inset, mid-tapered stroke.  D66: the asymmetry this was built on (50% edges at 4.8 px concave / 3.3 px convex) does not hold against the current curve of record: measured along its normal, the reference's R half-level edges sit at -3.9..-4.0 px (flare side) and +4.0..+4.2 px (lens side) at mid-height and about +-3.1 px at the tips, symmetric within 0.1-0.3 px.  This stroke supplies the lens side of the mid-height widening; arc_core_edge supplies the flare side.",
+   "note": "the lens-side (concave) widening of the core toward mid-height: an inset, mid-tapered stroke.  D66: the asymmetry this was built on (50% edges at 4.8 px concave / 3.3 px convex) does not hold against the current curve of record: measured along its normal, the reference's R half-level edges sit at -3.9..-4.0 px (flare side) and +4.0..+4.2 px (lens side) at mid-height and about +-3.1 px at the tips, symmetric within 0.1-0.3 px.  This stroke supplies the lens side of the mid-height widening; arc_core_edge supplies the flare side.  D74: over the curves' middle the core's lens half was short of light at its rim and plateau and too bright just inside the centre line: this stroke covered n -4.0..0.0 with a sharp inner edge, so its light sat about a pixel too far toward the centre, where the reference declines smoothly.  Its inner edge now lies 0.6 px inside the curve (inset 2.30672, width 3.41344; the lens edge at 4.013 px, D66's, is unchanged), and over the middle rows its light is each half's measured gain: LN 1.144, RN 1.201, LS 1.229 (it asked 1.25; 1.229 is all the colour can take), RS 1.207.  A ramp cannot exceed 1, so the colour amounts are x255/207.5 (the layer's opacity is exactly 1) and tapers.core_wide is a per-side table: the ramp's own sampled rows divided by that factor, which draw every row outside the middle as before, times the gains on D73's middle rows (320 half, 340-460, 480 half, 500/520 untouched, 540 half, 560-680, 700 half).  The right curve's rows inside the flare's r < 60 (y 455-571), whose lens rim already reads too bright in the flare's light, keep the ramp.",
    "taper": "core_wide",
-   "white": 0.36827,
-   "width": 4.02688
+   "white": 0.452573,
+   "width": 3.41344
   },
   {
    "blue": 0.06856,
@@ -3826,13 +3826,286 @@
    "y_offset": 0.8999999999999999
   },
   "core_wide": {
-   "kind": "ramp",
-   "p0": 3.4716288000000004,
-   "p1": 0.6755200000000002,
-   "y0": 204.29760000000002,
-   "y1": 332.4,
-   "y2": 609.04,
-   "y3": 810.1424
+   "kind": "table",
+   "gamma": 1.0,
+   "scale": 1.0,
+   "y_offset": 0.0,
+   "left": [
+    [
+     204.2976,
+     0.0
+    ],
+    [
+     220.3104,
+     0.000596
+    ],
+    [
+     236.3232,
+     0.006612
+    ],
+    [
+     252.336,
+     0.027019
+    ],
+    [
+     268.3488,
+     0.073352
+    ],
+    [
+     284.3616,
+     0.159166
+    ],
+    [
+     300.0,
+     0.296448
+    ],
+    [
+     300.3744,
+     0.300139
+    ],
+    [
+     316.3872,
+     0.542057
+    ],
+    [
+     320.0,
+     0.621725
+    ],
+    [
+     332.4,
+     0.908638
+    ],
+    [
+     340.0,
+     0.930902
+    ],
+    [
+     378.5067,
+     0.930902
+    ],
+    [
+     424.6133,
+     0.930902
+    ],
+    [
+     460.0,
+     0.930902
+    ],
+    [
+     470.72,
+     0.899499
+    ],
+    [
+     480.0,
+     0.872314
+    ],
+    [
+     500.0,
+     0.813725
+    ],
+    [
+     516.8267,
+     0.813725
+    ],
+    [
+     520.0,
+     0.813725
+    ],
+    [
+     540.0,
+     0.906863
+    ],
+    [
+     560.0,
+     1.0
+    ],
+    [
+     562.9333,
+     1.0
+    ],
+    [
+     609.04,
+     1.0
+    ],
+    [
+     634.1778,
+     0.913746
+    ],
+    [
+     659.3156,
+     0.823382
+    ],
+    [
+     680.0,
+     0.744872
+    ],
+    [
+     684.4534,
+     0.712872
+    ],
+    [
+     700.0,
+     0.603038
+    ],
+    [
+     709.5912,
+     0.539828
+    ],
+    [
+     720.0,
+     0.47222
+    ],
+    [
+     734.729,
+     0.419496
+    ],
+    [
+     759.8668,
+     0.318988
+    ],
+    [
+     785.0046,
+     0.19972
+    ],
+    [
+     810.1424,
+     0.0
+    ]
+   ],
+   "right": [
+    [
+     204.2976,
+     0.0
+    ],
+    [
+     220.3104,
+     0.000596
+    ],
+    [
+     236.3232,
+     0.006612
+    ],
+    [
+     252.336,
+     0.027019
+    ],
+    [
+     268.3488,
+     0.073352
+    ],
+    [
+     284.3616,
+     0.159166
+    ],
+    [
+     300.0,
+     0.296448
+    ],
+    [
+     300.3744,
+     0.300299
+    ],
+    [
+     316.3872,
+     0.55401
+    ],
+    [
+     320.0,
+     0.638254
+    ],
+    [
+     332.4,
+     0.946208
+    ],
+    [
+     340.0,
+     0.977284
+    ],
+    [
+     378.5067,
+     0.977284
+    ],
+    [
+     424.6133,
+     0.977284
+    ],
+    [
+     440.0,
+     0.977284
+    ],
+    [
+     460.0,
+     0.813725
+    ],
+    [
+     470.72,
+     0.813725
+    ],
+    [
+     516.8267,
+     0.813725
+    ],
+    [
+     560.0,
+     0.813725
+    ],
+    [
+     562.9333,
+     0.83843
+    ],
+    [
+     580.0,
+     0.982167
+    ],
+    [
+     609.04,
+     0.982167
+    ],
+    [
+     634.1778,
+     0.89745
+    ],
+    [
+     659.3156,
+     0.808698
+    ],
+    [
+     680.0,
+     0.731589
+    ],
+    [
+     684.4534,
+     0.701335
+    ],
+    [
+     700.0,
+     0.597109
+    ],
+    [
+     709.5912,
+     0.536922
+    ],
+    [
+     720.0,
+     0.47222
+    ],
+    [
+     734.729,
+     0.419496
+    ],
+    [
+     759.8668,
+     0.318988
+    ],
+    [
+     785.0046,
+     0.19972
+    ],
+    [
+     810.1424,
+     0.0
+    ]
+   ]
   },
   "glow1": {
    "gamma": 1.6216000000000004,

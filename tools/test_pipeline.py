@@ -2481,7 +2481,7 @@ def main():
     # refusals
     for _lid2, _extra, _nm in (("arc_core", {"taper_axis": "diagonal"}, "an unknown axis"),
                                ("arc_core", {"taper_axis": True}, "a value neither a string nor a dict"),
-                               ("arc_core_wide", {"taper_axis": "curve"}, "a ramp taper"),
+                               ("arc_core_edge", {"taper_axis": "curve"}, "a ramp taper"),
                                ("arc_glow2", {"taper_axis": "curve"}, "a convex_taper layer"),
                                ("arc_glow2b", {"taper_axis": "curve"}, "an untapered layer"),
                                ("flare_halo", {"taper_axis": "curve"}, "a layer that is not an arc")):
