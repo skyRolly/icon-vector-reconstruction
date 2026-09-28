@@ -124,11 +124,16 @@ def isolate(params, ref, drop_prefixes, refit_mask=None, iters=25):
     if refit_mask is not None:
         w = FP.make_weight(ref) * refit_mask.astype(np.float32)
         # a red-shifted layer keeps its colour: its table is valid only for it
-        # (fit_photometry.colour_held); the rays are refitted as before
+        # (fit_photometry.colour_held); the rays are refitted as before.  Only
+        # the layers the fit freed are written back: store_wc re-derives and
+        # rounds whatever it writes, so a held colour written back unfitted
+        # could still move (R 237.00 -> 237.01 under a +18 table, past the
+        # limit the builder enforces; D74)
+        free = FP.held_free(base, rays=False)
         WC = FP.fit(A, ref, FP.params_wc(base), w, iters=iters, verbose=False, normal=nf,
-                    free=FP.held_free(base, rays=False), teal_ok=FP.teal_eligible(base), extra=ex)
+                    free=free, teal_ok=FP.teal_eligible(base), extra=ex)
         base = json.loads(json.dumps(base))
-        FP.store_wc(base, WC)
+        FP.store_wc(base, WC, only=free)
     K = FP.colors(FP.params_wc(base))
     M = FP.composite(A, K, nf, extra=ex)
 

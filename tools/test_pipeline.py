@@ -597,6 +597,67 @@ def main():
           bad is not None and "normal-blended" in bad,
           (bad or "no exception raised")[:110])
 
+    # ---- an isolation refit writes back only what it fitted (D74) --------- #
+    # The review case (Devin): isolate's refit holds a red-shifted layer's
+    # colour (fit_photometry.held_free), but wrote every layer back, and
+    # store_wc re-derives and rounds what it writes.  A held colour then moved
+    # although nothing fitted it.  Near the red_shift limit that makes a valid
+    # state invalid: arc_core stored at R 237.00 under the shipped +18 table
+    # (R + dR = 255 = max(G, B)).  Two such states, each through the real
+    # isolate() with a refit (the flare dropped, fitted outside r 60):
+    # - "rounded": amounts that re-compose to R 237.012, within params_wc's
+    #   0.02 acceptance, so they are kept; written back, R rounds to 237.01;
+    # - "decomposed": amounts that do not reproduce the colour, so params_wc
+    #   decomposes the clipped colour, which re-composes to (237.03, 254.43,
+    #   255).
+    # arc_core's stored colour and amounts must come back exactly as given,
+    # the result must build, and the refit must still be written (a fitted
+    # layer's stored colour moves).  On the old code both states come back
+    # with arc_core moved, and the builder refuses them.
+    _idiag, _irep = [], []
+    _iref = np.minimum(tgt, 254.4 / 255.0)
+    _iyy, _ixx = np.mgrid[0:1024, 0:1024]
+    _imask = np.hypot(_ixx - 530.95, _iyy - 513.33) > 60
+    _ici = [L["id"] for L in params["layers"]].index("arc_core")
+    _icases = ("rounded", "decomposed")
+    if not [L for L in params["layers"] if L["id"] == "arc_core"][0].get("red_shift"):
+        _idiag.append("arc_core carries no red_shift, so there is nothing to test")
+        _icases = ()
+    for _inm in _icases:
+        _iP = json.loads(json.dumps(params))
+        _iL = _iP["layers"][_ici]
+        _iL["color"] = [237.0, 255.0, 255.0]
+        if _inm == "rounded":
+            _iL["white"], _iL["cyan"], _iL["blue"] = round(237.012 / 255.0, 6), 0.1, 0.0
+        else:
+            _iL["white"], _iL["cyan"], _iL["blue"] = 0.84799, 0.16363, 0.0
+        _ikeys = ["color"] + [n for n in FP.COMPONENTS if n in _iL]
+        _iwant = {k: json.dumps(_iL[k]) for k in _ikeys}
+        try:
+            build_svg.build(_iP)
+        except AssertionError as _ie:
+            _idiag.append("%s: the state under test is itself invalid (%s)" % (_inm, _ie))
+            continue
+        _, _, _ib = ISO.isolate(_iP, _iref, ["flare"], refit_mask=_imask, iters=1)
+        _ibL = [L for L in _ib["layers"] if L["id"] == "arc_core"][0]
+        _igot = {k: json.dumps(_ibL.get(k)) for k in _ikeys}
+        if _igot != _iwant:
+            _idiag.append("%s: the held arc_core comes back %s, stored %s"
+                          % (_inm, {k: _ibL.get(k) for k in _ikeys}, {k: _iL[k] for k in _ikeys}))
+        try:
+            build_svg.build(_ib)
+        except AssertionError as _ie:
+            _idiag.append("%s: the builder refuses isolate's result (%s)" % (_inm, _ie))
+        _iorig = {L["id"]: L["color"] for L in _iP["layers"]}
+        _imoved = [L["id"] for L in _ib["layers"]
+                   if L["id"] != "arc_core" and L["color"] != _iorig[L["id"]]]
+        if not _imoved:
+            _idiag.append("%s: no fitted layer's colour was written back" % _inm)
+        _irep.append("%s: arc_core kept at %s, %d fitted layers written" % (_inm, _ibL["color"], len(_imoved)))
+    check("an isolation refit writes back only what it fitted",
+          not _idiag, "; ".join(_idiag) if _idiag else
+          "; ".join(_irep) + "; both results build under the +18 table at R 237.00")
+
     # ---- 6c. the profile weight belongs to the target it was built for ---- #
 
     # `_PROFILE_CACHE` keyed on the luminance SUM, and the weights come from

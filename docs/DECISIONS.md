@@ -12489,3 +12489,87 @@ Decide from that measurement whether a middle-only lens-side light is
 warranted, and by which existing control. Keep the blur held unless, once the
 lens half's light matches, the edge's sharpness is the difference that
 remains.
+
+## D74. An isolation refit writes back only what it fitted
+
+D73 left one review finding (Devin): `tools/isolate.py`'s refit holds a
+red-shifted layer's colour, but wrote every layer back. This pass fixes it
+first, as its own commit, with the artwork byte for byte unchanged.
+
+### Stage 0: the D73 baseline
+
+- **Commits.** Branch head e20e993 (D73's artwork, Cj). `Objective.held_ids`
+  (f01913c) is present.
+- **CI and review.** GitHub CI (both regression-gate runs) is green on
+  e20e993, and the PR has no open review thread.
+- **Publish.** `sh tools/publish.sh` on e20e993: **PUBLISH OK**, 79 of 79
+  checks. Every artefact it rewrote is byte-identical to the committed ones.
+- **Artefacts.** Parameters b3afe32d..., SVG 9aa761d2..., render
+  842be6c0...
+- **Metrics:**
+
+  | metric | D73 |
+  |---|---|
+  | MAE / RMSE | 1.5995 / 2.7139 |
+  | SSIM | 0.97731 |
+  | edge IoU | 0.71374 |
+  | centre MAE | 4.4621 |
+  | flare r < 110 MAE | 3.9235 |
+  | core r < 25 MAE | 3.7134 |
+  | bright-region MAE | 5.7719 |
+  | cross-engine MAE | 2.650 |
+
+### Stage 1: an isolation refit writes back only what it fitted (engineering)
+
+*Reproduced* on e20e993 with the real `isolate()`: the flare dropped, and
+the rest refitted outside r 60 of its core.
+- **The state.** It sits at the `red_shift` limit: `arc_core` is stored at
+  (237.00, 255, 255) under its shipped +18 table, so R + dR = 255 =
+  max(G, B), and the builder accepts it.
+- **The mechanism.** The refit frees `fit_photometry.held_free(base,
+  rays=False)`, so `arc_core` is held and not fitted. `store_wc(base, WC)`
+  then wrote every layer back, and `store_wc` re-derives and rounds what it
+  writes.
+- **The two ways a held colour moved:**
+
+  | case | the stored amounts | written back | the builder |
+  |---|---|---|---|
+  | rounded (Devin's) | re-compose to R 237.012, within `params_wc`'s 0.02 acceptance, so they are kept | (237.01, 255, 255) | refuses: 237.01 + 18 > 255 |
+  | decomposed | do not reproduce the colour, so `params_wc` decomposes the clipped colour | (237.03, 254.43, 255), with new amounts | refuses |
+
+- **The shipped state.** `arc_core` (216.24, 255, 255) happens to round
+  back to itself, so the shipped state was never affected. Still, the same
+  write-back re-rounds the stored colour of 13 layers, and 50 stored amounts,
+  that no fit moved.
+
+*The fix.* The refit's free set is computed once and used for both the fit
+and the write-back: `FP.store_wc(base, WC, only=free)`, with
+`free = FP.held_free(base, rays=False)`. Nothing the fit held is written.
+`fit_photometry.main`, `prune_layers` and `optimize.main` already write back
+exactly what they fitted. `isolate` was the only caller that did not.
+
+*The regression*, new check "an isolation refit writes back only what it
+fitted". It runs the real `isolate()` on both cases above and requires three
+things:
+- `arc_core`'s stored colour and amounts come back exactly as given;
+- the result builds;
+- the refit is still written: a fitted layer's stored colour moves.
+
+It fails on e20e993's code in both cases, and the builder refuses both
+results. It also fails on three wrong fixes:
+
+| wrong fix | what fails |
+|---|---|
+| nothing written back | no fitted layer is written |
+| the free set taken from the parameters before the drop (its indices point elsewhere) | `arc_core` comes back 237.01, and the builder refuses it |
+| the held colour restored after writing everything | the held amounts still change |
+
+*Validation.*
+- `sh tools/publish.sh`: **PUBLISH OK**, 80 of 80 checks (79 on e20e993, plus
+  this one).
+- Every artefact it rewrote is byte-identical to e20e993's. The parameters
+  (b3afe32d...) rebuild the SVG byte for byte (9aa761d2...), and the published
+  render is the evaluated one (842be6c0...).
+- The fit, prune, calibration and objective checks (D67, D69, D72, D73) pass
+  unchanged.
+- A clean-clone run of the CI workflow's steps is recorded with the commit.
