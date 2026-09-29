@@ -312,7 +312,8 @@ cannot do that, so the core is three strokes: a full-length one on the fitted
 centre-line (`arc_core`), and two thin strokes tapered towards mid-height that
 supply the extra width, one on the lens side (`arc_core_wide`, inset +2; its
 inner edge moved out since D74, below) and
-one on the flare side (`arc_core_edge`, inset -3.4, D66). Until D66 the core
+one on the flare side (`arc_core_edge`, inset -3.4 in D66; moved out and
+narrowed in D76, below). Until D66 the core
 was described as asymmetric (4.8 px lens side / 3.3 px flare side) and only the
 lens-side stroke existed; against the current curve of record that asymmetry
 is 0.1-0.3 px, and the flare-side edge was 0.4-0.9 px short along the whole
@@ -419,14 +420,17 @@ an IJG preset, about 10-16 at every frequency) the model's edges move by at
 most 0.03 px, so the difference is not the compression. The reference reads
 like a core blurred by about 0.1-0.3 px (nominal, in resvg).
 
-The reference is sharp along the whole curve, but only the ends are sharpened.
-Between the rows where `arc_core_edge` is at full strength (y 300-704), the
-core's edge is a composite: the core plus its two cyan edge strokes. Drawn
-sharp there, that composite is worse on the pixels it changes (by up to 21%
-per 20 rows), and the flare's r < 110 error rises from 4.041 to 4.119. So
-`arc_core` carries `end_blur` (D71): its rows y < 300 and y >= 704 are drawn
-with blur 0.2042, the core strokes' own, and the rows between keep 0.6137.
-The builder draws the layer twice per curve, in one screened group: the end
+The reference is sharp along the whole curve, but D71 sharpened only the
+ends. Between the rows where `arc_core_edge` is at full strength (y 300-704),
+the core's edge is a composite: the core plus its two cyan edge strokes.
+Drawn sharp there, that composite was worse on the pixels it changes (by up
+to 21% per 20 rows), and the flare's r < 110 error rose from 4.041 to 4.119.
+So from D71 to D75 `arc_core` carried `end_blur`: its rows y < 300 and
+y >= 704 were drawn with blur 0.2042, the core strokes' own, and the rows
+between kept 0.6137. Since D76 the whole core is drawn at 0.2042 and no
+shipped layer carries the key (below); the option stays in the builder, and
+its check runs on a probe with D75's values.
+The builder draws such a layer twice per curve, in one screened group: the end
 copy, then the middle copy through a mask applied after its blur. The mask is
 cut by hard gradient stops, read at pixel centres, as `taper_axis`'s zones
 are. So a pixel row comes from one copy, with no overlap and no gap. A cut by
@@ -446,9 +450,9 @@ is associative, so such a copy, screened onto the canvas, is its elements
 screened one by one. Drawn source-over inside the copy, the two halves would
 darken the 1.5 px their clips share (D72).
 
-Chromium draws any `stdDeviation` below about 0.8 as no blur at all. So the
-middle's soft edge is resvg's alone, and at the ends the two engines now
-agree.
+Chromium draws any `stdDeviation` below about 0.8 as no blur at all. So until
+D76 the middle's soft edge was resvg's alone; now the core is 0.2042 along
+its whole length, and the two engines agree there as they do at the ends.
 
 The ends are also narrower than D67's table drew them. At half level the
 reference's core is 6.17-6.23 px wide at the north ends and 6.04-6.11 px at
@@ -517,6 +521,33 @@ model has too much light there, not too little.
   - A Lanczos downscale produces it over the middle, but the same filter
     predicts a trough over the outer thirds that the reference does not have.
   - So it is left unmodelled.
+
+The core's blur tail was the part of those bands the model could remove
+(D76).
+- **What the blur is.** A layer's `blur` is an `feGaussianBlur`
+  `stdDeviation` in canvas units, written to three decimals. resvg draws 0.204
+  at 1024 px as a 3-tap kernel of sd 0.198 px, and with the anti-aliasing an
+  edge reads an erf sigma of 0.336 px; 0.614 reads 0.568. Below about 0.1
+  device px (stdDeviation 0.2 at 512 px) resvg draws no blur at all.
+- **What the reference asks.** Measured per station, the reference's middle
+  edge reads a sigma of 0.34-0.40, as sharp as its ends and as a 0.2042 stroke
+  measured the same way. So the middle takes the ends' blur, and `arc_core`
+  is drawn with one blur along its whole length.
+- **Why blur alone failed (D71, D73, D74).** Sharpened, the flare side is too
+  bright over n +2.1..+3.1 and short over +3.4..+4.4 at every end: the flare
+  rim's light, `arc_core_edge` over n +2.7..+4.1, sat 0.3-0.5 px inside the
+  reference's, and the soft tail had filled the step. `arc_core_edge` now
+  covers n +3.0..+4.2, with its colour and opacity unchanged.
+- **Together** they lower both bands by 2.2-3.7 levels at every end and
+  improve every part of the cross-section at every end, the centre aside. The
+  flare edge stays where it was, and the edges' softness is within 0.05 of the
+  reference's.
+- **What one stroke cannot do.** The reference's flare edge is 0.12 px
+  further out on the left curve than on the right over the middle, and
+  0.25-0.4 px further out near the flare. One inset and width for both curves
+  leaves the left curve about 0.1 px short, LS's core 0.04 px narrower than
+  D75 drew it, and the left curve's rows nearest the flare 0.4-0.5 worse.
+- **The lens-side trough** is still drawn by no layer, and none is added.
 
 Sharpening the edge removes the white light the soft edge spread outside it.
 It also shows what that light had covered: a cyan band on the lens side of

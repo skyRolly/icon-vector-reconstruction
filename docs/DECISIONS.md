@@ -13278,3 +13278,377 @@ sharpness together with the flare rim.
 - **What decides it.** Measure it per station as here: both bands, both rims
   and the flare interior. Keep it only if it lowers the bands without moving
   the error into the rims.
+
+## D76. The curves' core drawn sharp along its whole length, its flare-side edge stroke moved out
+
+D75 recommended one test: sharpen `arc_core` over the middle together with a
+refit of `arc_core_edge`, and keep it only if the dark bands just outside both
+edges fall without the error moving into the rims. This pass runs that test.
+A test-only engineering commit comes first; then the artwork: `arc_core` is
+drawn with the ends' blur over its whole length, and `arc_core_edge` covers
+n +3.0..+4.2 instead of +2.7..+4.1.
+
+### Stage 0: the D75 baseline
+
+- **Commits.** The branch head is 2bfc888 (D75's record), and the working
+  tree is clean.
+- **CI and review.** Both regression-gate runs are green on 2bfc888. The PR
+  has no review threads, reviews or comments.
+- **Publish.** `sh tools/publish.sh` on 2bfc888: **PUBLISH OK**, 81 of 81
+  checks, among them D75's Objective holds, D72/D73's `red_shift` objective,
+  D74's isolation write-back and the 16 structural checks. Every artefact it
+  rewrote is byte-identical to the committed ones.
+- **Artefacts.** Parameters a94a5801..., SVG 2f9a44e5..., render 2bb5a7d3...
+- **Metrics:** as D75's (the artwork is D74's).
+
+  | metric | D75 |
+  |---|---|
+  | MAE / RMSE | 1.5944 / 2.6962 |
+  | SSIM | 0.97738 |
+  | edge IoU | 0.72080 |
+  | centre MAE | 4.3976 |
+  | flare r < 110 MAE | 3.8606 |
+  | core r < 25 MAE | 3.7450 |
+  | bright-region MAE | 5.6472 |
+  | cross-engine MAE | 2.650 |
+
+### Stage 1: the review status
+
+- **No new finding.** The only open review note is Devin's on
+  `measure_flare`'s field cache (`Stack._fcache`, no eviction).
+- **The field cache, re-checked.** `tools/` and `src/` are byte-identical to
+  f653783, where D75 measured it, and D75's probe run again gives the same
+  numbers:
+  - `calibrate()` on the shipped file: 1 field (12 MiB);
+  - refreshed through every calibrated ray's colour x0.9, and through a ray
+    6 px longer: still 1;
+  - a two-part `red_shift` table: 2 (24 MiB);
+  - one stack refreshed through 12 widths of `arc_core`: 14 (168 MiB), a
+    pattern no caller has.
+- **So no eviction.** It stays investigated and deferred.
+
+### Engineering (e7b950b): the end_blur check falls back to a probe
+
+"an end-blurred arc draws each row with one of its two blurs" (D71) ran only
+on the shipped `arc_core`'s `end_blur`. A parameter state that draws the core
+with one blur (below) failed it with "layers with an end blur: [] (expected
+arc_core)", and would have left the builder option unchecked.
+- **The change.** When no shipped layer carries the key, the whole check runs
+  on a probe: `arc_core` given D75's end blur (0.2042 on y < 300 and
+  y >= 704, 0.6137 between). Every case is kept, and the detail says when the
+  probe is used.
+- **Run alone on both states:** PASS on D75's params with the shipped key,
+  and PASS through the probe on a state without it, with the same numbers.
+  The artwork is byte for byte unchanged.
+
+### Stage 2: what the blur is
+
+*In the builder.* A layer's `blur` is an `feGaussianBlur` `stdDeviation` in
+user units (the viewBox is 1024 wide), in a filter with
+`filterUnits="userSpaceOnUse"` and `color-interpolation-filters="sRGB"`,
+applied to the drawn and anti-aliased shape (for `arc_core`, its filled
+width-table ribbon). The SVG writes it to three decimals: 0.20421316 is drawn
+as "0.204", 0.6137416 as "0.614". Until D76, `end_blur` (D71) drew
+`arc_core`'s rows y < 300 and y >= 704 at 0.2042, the value `arc_core_wide`
+and `arc_core_edge` carry, and the rows between at 0.6137. So D75's "0.204"
+is an SVG parameter, the ends' own, not a target raster sigma.
+
+*What resvg draws for it.* A synthetic probe with the builder's filter:
+- a line exactly one device pixel wide gives the kernel;
+- a half-plane tilted 1 px in 100 rows, sampled at every sub-pixel phase,
+  gives the edge's erf sigma, anti-aliasing included.
+
+| stdDeviation | 512 px: kernel sd / edge sigma | 1024 px | 2048 px | 4096 px |
+|---|---|---|---|---|
+| none | - / 0.317 | - / 0.315 | - / 0.314 | - / 0.314 |
+| 0.10 | none (1 tap) / 0.320 | 0.089 / 0.319 | 0.178 / 0.334 | 0.357 / 0.406 |
+| 0.2042 | 0.089 / 0.322 | 0.198 / 0.336 | 0.367 / 0.413 | 0.792 / 0.756 |
+| 0.30 | 0.126 / 0.329 | 0.281 / 0.364 | 0.577 / 0.553 | 1.156 / 1.130 |
+| 0.40 | 0.178 / 0.338 | 0.357 / 0.407 | 0.743 / 0.742 | 1.542 / 1.515 |
+| 0.6137 | 0.282 / 0.371 | 0.584 / 0.568 | 1.172 / 1.154 | 2.441 / 2.521 |
+| 1.0 | 0.464 / 0.474 | 0.953 / 0.935 | 1.810 / 1.883 | 4.362 / 4.546 |
+
+(device px). The kernel's sd tracks the parameter, a little below it; the
+edge adds anti-aliasing in about quadrature (0.29 for a box, read 0.315 by an
+erf). resvg drops a kernel below about 0.1 device px (512 px, stdDeviation
+0.10 and 0.15), and at 4096 px its kernels are quantised (0.7 and 0.8 draw the
+same 17 taps). In canvas units 0.2042 draws an edge of 0.336 at 1024 px and
+0.207 / 0.189 at 2048 / 4096.
+
+*On the real stroke,* measured as the reference is (below): `arc_core` alone,
+at the middle stations, reads an edge sigma of 0.51-0.53 at 0.6137, 0.38-0.40
+at 0.30 and 0.36-0.38 at 0.2042. The 0.25-px bins and the width table's
+change within a station add about 0.03.
+
+*The reference.* Per 20-px station, in local (u, n), 0.25-px bins, the
+20-80% width of each edge over 1.683 (an erf's sigma), luminance through the
+reference's JPEG table:
+- **Over the middle** (30 stations): 0.34-0.36 (lens side) and 0.37-0.40
+  (flare side). D75's model read 0.41-0.45 and 0.42-0.51.
+- **Over the outer thirds**, sharp since D71: the reference 0.40-0.46 /
+  0.39-0.47, the model 0.37-0.39 / 0.37-0.45.
+- **So** the reference's middle is as sharp as its ends, and as sharp as a
+  0.2042 stroke measured the same way. Nothing supports a value below it:
+  resvg drops such kernels at 512 px, and the SVG keeps three decimals.
+
+### Stage 3: the candidates
+
+All are real builds from the D75 params, measured per station at all four
+ends. "Middle rms" is the whole profile (n -5.4..+5.4, per channel per bin);
+the sub-band columns are per-bin rms of luminance averaged over the four ends;
+the width error is the mean |model - reference| of the half-level width.
+
+| candidate | middle rms LN / RN / LS / RS | lens band | lens rim | flare rim | flare band | transitions rms | width error | core r<25 / flare r<110 |
+|---|---|---|---|---|---|---|---|---|
+| A: D75 | 6.62 / 8.80 / 9.53 / 8.82 | 10.78 | 9.43 | 11.17 | 11.66 | 8.77 | 0.084 | 3.7450 / 3.8606 |
+| B: blur 0.2042 only | 7.24 / 7.76 / 10.61 / 7.84 | 8.09 | 8.32 | 12.09 | 8.40 | 8.56 | 0.150 | 3.7593 / 3.8883 |
+| B: blur 0.30 only | 7.00 / 7.69 / 10.31 / 7.79 | 8.35 | 8.19 | 11.62 | 8.92 | 8.54 | 0.131 | 3.7498 / 3.8776 |
+| edge refit only (blur 0.614) | 6.59 / 9.48 / 8.67 / 9.74 | 10.76 | 9.31 | 12.11 | 11.82 | 9.11 | 0.100 | 3.7647 / 3.8937 |
+| C: position, n 2.8-4.2 | 6.27 / 7.83 / 9.01 / 7.88 | 8.11 | 8.39 | 10.60 | 8.76 | 8.66 | 0.100 | 3.7370 / 3.8673 |
+| C: position, n 2.9-4.3 | 6.19 / 8.58 / 7.98 / 8.72 | 8.15 | 8.32 | 11.94 | 9.02 | 9.09 | 0.083 | 3.7290 / 3.8804 |
+| C: position, n 3.0-4.4 | 7.23 / 9.98 / 7.50 / 10.25 | 8.14 | 8.35 | 15.08 | 11.12 | 9.88 | 0.096 | 3.7267 / 3.9243 |
+| D: width, n 2.8-4.0 | 8.39 / 7.69 / 12.26 / 8.02 | 8.10 | 8.40 | 15.90 | 8.28 | 8.86 | 0.197 | 3.7986 / 3.9243 |
+| D: width, n 2.6-4.2 | 6.82 / 8.13 / 9.32 / 8.11 | 8.08 | 8.37 | 10.58 | 8.35 | 8.84 | 0.102 | 3.7348 / 3.8794 |
+| E: n 3.0-4.15 | 6.19 / 7.33 / 9.59 / 7.68 | 8.16 | 8.39 | 10.78 | 8.56 | 8.43 | 0.114 | 3.7605 / 3.8794 |
+| **E: n 3.0-4.2 (kept)** | **5.72 / 7.60 / 8.93 / 7.78** | **8.18** | **8.37** | **10.20** | **8.52** | **8.54** | **0.095** | **3.7474 / 3.8743** |
+| E: n 3.0-4.25 | 5.77 / 8.07 / 8.23 / 8.15 | 8.15 | 8.36 | 10.71 | 8.63 | 8.70 | 0.081 | 3.7438 / 3.8757 |
+| E: n 2.9-4.2 | 5.97 / 7.69 / 9.04 / 7.92 | 8.17 | 8.35 | 10.62 | 8.62 | 8.54 | 0.096 | 3.7370 / 3.8683 |
+| E: n 3.1-4.2 | 5.72 / 7.44 / 8.97 / 7.86 | 8.04 | 8.41 | 10.45 | 8.32 | 8.58 | 0.090 | 3.7596 / 3.8844 |
+| E at blur 0.30 | 5.70 / 7.64 / 8.70 / 7.99 | 8.43 | 8.23 | 10.26 | 8.92 | 8.56 | 0.083 | 3.7454 / 3.8711 |
+| E + lens edge 4.08 (diagnostic) | 5.88 / 7.47 / 8.80 / 7.49 | 8.26 | 7.86 | 10.21 | 8.50 | 8.51 | 0.083 | 3.7622 / 3.8696 |
+
+(B was also built at 0.45, 0.40, 0.35 and 0.25; C, D and E at their blur
+0.2042; E also at 0.25, n 3.0-4.1 and 3.0-4.3, and with the junction rows
+kept soft. All read between their neighbours, or worse.)
+
+- **Blur alone is D73's and D74's failure.** Both bands fall, but the flare
+  rim darkens where it was already short: LN +2.5 -> +6.5, LS +11.1 -> +14.5
+  (signed mean over n +2.9..+4.4), per-bin rms LS 16.6 -> 21.4. The band
+  inside it, n +1.4..+2.9, worsens at every end (per-bin rms 4.7 -> 7.4), and
+  the core loses 0.12 px of width. The profile is worse at LN and LS.
+- **The edge refit alone** leaves both bands where they were and worsens the
+  right curve.
+- **Sharpened, the flare side is a dipole at every end:** the model is 3-12
+  levels too bright over n +2.1..+3.1 and short over +3.4..+4.4 (6-16 at LN,
+  up to 30 at LS, 2-4 at the right curve). The reference's rim peaks at n
+  +3.1..+3.4, and `arc_core_edge`'s light, centred at n +3.4 over
+  +2.7..+4.1, sat 0.3-0.5 px inside it. The soft core's tail had filled the
+  step. That is a position error of the stroke's light with an inner part it
+  does not need, so the stroke moves out and narrows (E). Its colour and
+  opacity are unchanged.
+- **Width alone** fails both ways: narrower pulls the edge in (LS rim +20),
+  wider lights n +2.1..+2.9, which is already too bright.
+- **Position alone** helps the left curve and over-lights the right
+  (n 3.0-4.4: RN rim -14).
+- **E is a ridge, not a point:** an inner edge of 3.0-3.1 and an outer edge
+  of 4.2 read within noise. n 3.0-4.2 is the one that keeps every flare rim at
+  its D75 level. The left curve would take an outer edge of about 4.25-4.3,
+  the right about 4.15 (below).
+- **The blur is the ends' value.** 0.25 and 0.30 read the same within 0.2 of
+  rms; 0.2042 gives the smallest softness excess, the reference's measured
+  softness says the same, and it is a number the model already carries.
+- **Drawn as one blur.** With the middle at the ends' value, `end_blur`'s two
+  copies are identical, so the key is removed and `arc_core.blur` is 0.2042.
+  The render is pixel-identical at 1024 px, and the SVG is 10 KB smaller.
+
+### Stage 4: the kept candidate's cross-section
+
+Per end, over the 30 middle stations (y 340-485 north, 555-685 south), D75 ->
+D76; signed luminance residual (reference - model, through the JPEG table)
+and edges (reference in brackets):
+
+| | LN | RN | LS | RS |
+|---|---|---|---|---|
+| lens band n -5.4..-4.4 | -8.0 -> -5.6 | -10.5 -> -7.9 | -7.2 -> -3.7 | -11.2 -> -8.4 |
+| flare band n +4.4..+5.4 | -6.0 -> -3.8 | -13.3 -> -9.6 | -8.3 -> -4.8 | -15.1 -> -11.5 |
+| lens rim n -4.4..-2.9 | -1.9 -> +0.6 | +0.3 -> +3.1 | +1.9 -> +3.9 | +3.7 -> +5.3 |
+| flare rim n +2.9..+4.4 | +2.5 -> +2.2 | -5.0 -> -4.6 | +11.1 -> +10.9 | -2.2 -> -2.6 |
+| centre n -1..+1 | +2.9 -> +3.0 | +0.1 -> -0.1 | +0.6 -> +0.7 | +1.1 -> +1.3 |
+| lens edge | -3.95 -> -3.90 (-3.90) | -3.96 -> -3.91 (-3.95) | -3.95 -> -3.91 (-3.96) | -3.94 -> -3.90 (-3.98) |
+| flare edge | +3.94 -> +3.95 (+4.00) | +3.95 -> +3.94 (+3.92) | +3.95 -> +3.95 (+4.10) | +3.97 -> +3.98 (+3.95) |
+| softness lens / flare | 0.43/0.44 -> 0.38/0.39 (0.36/0.37) | 0.45/0.51 -> 0.39/0.45 (0.35/0.40) | 0.41/0.44 -> 0.35/0.40 (0.34/0.38) | 0.44/0.42 -> 0.37/0.38 (0.36/0.38) |
+| half-level width | 7.89 -> 7.84 (7.91) | 7.91 -> 7.84 (7.87) | 7.90 -> 7.87 (8.06) | 7.92 -> 7.88 (7.93) |
+| whole profile rms | 6.62 -> 5.72 | 8.80 -> 7.60 | 9.53 -> 8.93 | 8.82 -> 7.78 |
+
+- **Per-bin rms improves in every sub-band at every end**, the centre aside
+  (within +-0.14):
+
+  | per-bin rms | LN | RN | LS | RS |
+  |---|---|---|---|---|
+  | lens band | 9.54 -> 6.88 | 12.00 -> 9.75 | 9.44 -> 6.67 | 12.14 -> 9.44 |
+  | lens rim | 7.99 -> 5.28 | 8.15 -> 7.68 | 11.48 -> 10.71 | 10.08 -> 9.82 |
+  | lens plateau | 3.38 -> 3.12 | 3.40 -> 2.50 | 4.18 -> 3.08 | 4.90 -> 3.89 |
+  | flare inner n +1.4..+2.9 | 5.15 -> 4.54 | 5.32 -> 4.79 | 4.52 -> 3.13 | 3.66 -> 3.57 |
+  | flare rim | 7.95 -> 7.22 | 11.11 -> 9.19 | 16.55 -> 16.25 | 9.10 -> 8.13 |
+  | flare band | 6.63 -> 4.33 | 14.74 -> 10.84 | 9.31 -> 6.82 | 15.94 -> 12.07 |
+
+- **The lens rim's signed mean** reads worse at RN, LS and RS because D75's
+  rim cancelled: the soft tail's excess just outside the edge against a
+  deficit inside it. Per bin it improves at all four.
+- **Station by station** (per-bin rms against D75): the whole profile is
+  better at 28 of 30, the lens band at 29, the flare band at 30, the flare rim
+  at 23, the lens rim at 19, the centre at 13 (unchanged). Blur alone: 16, 29,
+  29, 14, 20, 12.
+- **The edges.** The flare edge stays where D75 had it. The lens edge moves in
+  0.045 px on average (-3.950 -> -3.905; the reference -3.95), the soft tail
+  having placed its half level. Per station its error is unchanged
+  (0.059 / 0.038 / 0.113 / 0.085 -> 0.034 / 0.043 / 0.113 / 0.090).
+- **The width.** The model's foot (20%) was too wide and its shoulder (80%)
+  too narrow, a soft edge; both move toward the reference at LN, RN and RS.
+  Mean |model - reference| at 20% / 50% / 80% / equivalent width:
+
+  | | LN | RN | LS | RS |
+  |---|---|---|---|---|
+  | D75 | 0.120 / 0.075 / 0.120 / 0.066 | 0.251 / 0.044 / 0.102 / 0.177 | 0.107 / 0.154 / 0.217 / 0.096 | 0.123 / 0.064 / 0.099 / 0.224 |
+  | D76 | 0.069 / 0.085 / 0.097 / 0.035 | 0.081 / 0.033 / 0.076 / 0.100 | 0.134 / 0.192 / 0.169 / 0.143 | 0.084 / 0.069 / 0.070 / 0.175 |
+
+  At LN and RS the half-level width moves by 0.01 px or less, within a
+  station's scatter. **LS moves away**, by 0.04 at half level: its reference
+  core is the widest of the four (8.06 px, the others 7.87-7.93) and its flare
+  edge the furthest out (+4.10).
+- **The left curve's flare edge.** Over the middle the reference's flare edge
+  is at +4.05 +- 0.03 px on the left curve (15 stations) and +3.93 +- 0.02 on
+  the right (15). One stroke cannot follow both: an outer edge at 4.25 holds
+  LS's width but over-lights the right curve's rim (per-bin rms RN 11.11 ->
+  11.64, RS 9.10 -> 10.40). The left curve stays about 0.1 px short, as in D75.
+- **The lens edge, a diagnostic.** Moving `arc_core_wide`'s lens edge out to
+  4.08 (inner edge, gains and colour held) puts the lens edge back
+  (-3.94..-3.95) and lowers the lens rim further. But the same edge runs
+  through the right curve's rows inside the flare's r < 25, which D74 left
+  alone because their lens rim already reads too bright there (core r < 25
+  +0.015). It is not kept.
+
+### Stage 5: what else it touches
+
+- **Confinement.** Against D75, at 512 / 1024 / 2048 px:
+  - changed pixels 2498 / 7919 / 27567, all on rows y 235-789 (canvas units);
+  - every one within 6.0 / 5.8 / 5.5 canvas px of a curve;
+  - none in the flare's interior (r < 110 and more than 9 px from a curve);
+  - largest change 10 / 22 / 36 levels.
+  - The outer thirds and the tips are identical: `end_blur` drew them at
+    0.2042 already, and `arc_core_edge` is not drawn there.
+- **The transitions** (y 250-340, 685-790): rms 8.16 / 10.65 / 8.75 / 7.54 ->
+  7.94 / 10.11 / 8.77 / 7.35.
+- **The junction rows** (y 485-555, the curves' middle nearest the flare):
+  - Curve pixels within 9 px: the left curve 6.29 -> 6.69 (y 485-520) and
+    5.53 -> 6.00 (520-555); the right curve unchanged (5.03 -> 5.03,
+    6.21 -> 6.23).
+  - Horizontal profiles there show the reference's edges sharp (sigma
+    0.26-0.45) and the left curve's flare edge 0.25-0.4 px further out than
+    the model's (+4.10..+4.24 against +3.85..+3.98). The soft tail hid part
+    of that deficit, and the sharp core shows it.
+  - Keeping the junction rows soft (`end_blur` at y 484 / 556) restores the
+    left junction but worsens the right curve's (6.21 -> 6.44) and the core
+    r < 25 (3.7450 -> 3.7647). Not kept.
+- **The flare.** Core r < 25 3.7450 -> 3.7474; r < 110 3.8606 -> 3.8743. All
+  of it is in curve pixels near the flare (the junction above); the interior
+  is untouched.
+- **At 1x** the two renders read the same. At 6x the middle's edges are as
+  crisp as the reference's, and nothing new shows at the transitions or the
+  ends.
+
+### Stage 6: the 1-px lens dip
+
+Over the middle, the reference's lens band sits 5.16 levels below the band
+1 px beyond it, at all 30 stations. The model's step there was +3.64 (brighter
+in the band) and is now +0.99 (negative at 5 stations). The residual of that
+step falls from -8.79 to -6.15. The reference's trough itself, below its own
+beyond level, is still drawn by no layer, and none is added: it stays an
+unmodelled, reference-side residual. On the flare side the reference has no
+step (-0.02); the model's falls from +8.34 to +5.57.
+
+### Decision
+
+Kept: `arc_core` drawn with one blur, 0.2042, over its whole length
+(`end_blur` removed), and `arc_core_edge` at inset -3.6, width 1.2 (n
++3.0..+4.2).
+
+| rule | met |
+|---|---|
+| 1. the reference supports it at multiple stations | yes: 30 middle stations, all four ends; the edge softness and the flare-side dipole repeat |
+| 2. the blur/edge relationship is measured | yes: the kernel and edge width per setting and render size (stage 2) |
+| 3. the middle dark bands improve | yes: 2.2-3.7 levels, both sides, every end |
+| 4. no unjustified rim regression | yes: per-bin rms of both rims improves at all four ends; the flare rim's signed mean moves 0.4 or less |
+| 5. the core width moves toward the reference | at LN, RN and RS by the foot, shoulder and equivalent widths, the half-level width within 0.01 px; **not at LS** (0.04 px at half level) |
+| 6. confined to the middle | yes: rows 235-789, within 6 px of the curves; the flare interior untouched. The left junction's curve pixels cost 0.4-0.5 (stage 5) |
+| 7. endpoints and tips stable | yes: byte-identical there |
+| 8. coherent at 1x | yes |
+| 9. not a JPEG artefact | yes: measured through the reference's table; the change is the core's blur and a stroke's position |
+
+Rule 5 at LS and the left junction are recorded costs. Both come from the
+left curve's flare edge sitting further out in the reference than one stroke
+can draw for both curves.
+
+### Validation
+
+- **Publish.** `sh tools/publish.sh` on the parameters as committed: **PUBLISH
+  OK**, 81 of 81 checks. The render it publishes is pixel-identical to the one
+  measured above, and the parameters rebuild the SVG byte for byte.
+- **The checks this pass had to keep** all pass:
+  - D75's Objective holds;
+  - D72/D73's `red_shift` objective;
+  - D74's isolation write-back;
+  - the objective composite (MAE 0.5308 against the render; 0.5309 before).
+  `end_blur`'s check runs on its probe.
+- **Structure.** `visual_regression`: 16 of 16 within band, none unmeasurable.
+  The retired flank wedges stay retired, so the west triangle is absent.
+- **Metrics:**
+
+  | metric | D75 | D76 |
+  |---|---|---|
+  | MAE / RMSE | 1.5944 / 2.6962 | 1.5936 / 2.6965 |
+  | SSIM | 0.97738 | 0.97744 |
+  | edge IoU | 0.72080 | 0.72651 |
+  | centre MAE | 4.3976 | 4.4177 |
+  | flare r < 110 MAE | 3.8606 | 3.8743 |
+  | core r < 25 MAE | 3.7450 | 3.7474 |
+  | bright-region MAE | 5.6472 | 5.6096 |
+  | cross-engine MAE | 2.650 | 2.638 |
+
+  None of them decided anything. The centre and flare figures rise with the
+  left curve's junction rows (stage 5).
+- **Artefacts.** Parameters 4d6f9d30..., SVG 226c5781... (157 666 bytes, was
+  167 590), render 61ba0c8f...
+
+### Remaining
+
+- **Improved:**
+  - the middle's dark bands, lens side -8.0..-11.2 -> -3.7..-8.4, flare side
+    -6.0..-15.1 -> -3.8..-11.5;
+  - the middle's edge softness, now within 0.00-0.05 of the reference's;
+  - the lens and flare rims (per-bin rms, all four ends).
+- **Unchanged:**
+  - the core plateau (centre band within +-0.2);
+  - the flare edge's position;
+  - LS's flare rim (+11.1 -> +10.9);
+  - the outer thirds, the ends and the tips.
+- **Worse, recorded:** LS's width (0.04 px at half level); the left curve's
+  junction rows (curve pixels +0.4-0.5); the lens edge 0.045 px further in on
+  average (per station unchanged).
+- **Refuted:** blur alone (D73, D74 again: it trades the bands for the flare
+  rim); the edge refit alone.
+- **Not modelled:** the reference's 1-px lens-side trough (-6.15 residual
+  step after the change).
+- **Deferred:**
+  - the left curve's flare edge, 0.12 px further out than the right's over the
+    middle and 0.25-0.4 px near the flare;
+  - `arc_core_wide`'s lens edge (the 4.08 diagnostic);
+  - `measure_flare`'s field-cache eviction (no growth in use);
+  - D72's list; the right curve's rows inside the flare's r < 25.
+
+### Recommendation
+
+Measure the left curve's flare side on its own, from the middle through the
+junction, and test drawing it where the reference has it.
+- **Why.** It is the one residual D76's global refit could not follow: the
+  reference's left flare edge is 0.12 px further out than the right's over the
+  middle (15 stations each) and 0.25-0.4 px further out near the flare, where
+  the sharp core now shows it. LS's width and the left junction's cost are
+  both this edge.
+- **What it needs.** `arc_core_edge`'s geometry is one inset and one width for
+  both curves. A per-side outer edge (a per-side `width_taper`, which the
+  builder already accepts for any arc, or a per-side inset) would let the left
+  curve's stroke reach n +4.25..+4.3 while the right stays at +4.2.
+- **What decides it.** Per station, as here: the left curve's rim, band and
+  width must improve, the right curve's must not move, and the junction rows
+  must come back to at least D75's level.

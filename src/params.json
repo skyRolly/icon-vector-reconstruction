@@ -3115,7 +3115,7 @@
   },
   {
    "blue": 0.0,
-   "blur": 0.6137416122421083,
+   "blur": 0.20421316015498364,
    "bounds": {
     "blur": [
      0.2,
@@ -3195,11 +3195,6 @@
      0.888
     ]
    ],
-   "end_blur": {
-    "blur": 0.20421316015498364,
-    "north": 300,
-    "south": 704
-   },
    "red_shift": {
     "right": [
      [
@@ -3236,7 +3231,7 @@
      ]
     ]
    },
-   "note": "D67 (curve tips): drawn as a variable-width ribbon (width_taper): 6.832 px from y 210 to 820, narrowing linearly to 6.4 px by y 170 and 860 and held beyond.  Measured along the normal of the curve of record, both curves' core edges sat 0.2-0.45 px too far out on both sides at the tips (y < 170, > 850), where the reference's core is about 6.1-6.3 px wide; a narrower full-length stroke would have cost the mid-height edges, which the cyan edge strokes cannot give back. D70: its table is painted along the curve at the two north ends (taper_axis; build_svg.curve_axis_stops), where the y-gradient's rows crossed the oblique ends and leaned the core toward the lens; the reference's core there stays on the curve. The south ends keep the y-paint: their lens-side excess is white only. D71: the rows outside arc_core_edge's full-strength span (y < 300, y >= 704) are drawn with blur 0.2042, the core strokes' own (end_blur; build_svg.Builder.end_rows): measured across the curve, the reference's core edge there reads an erf sigma of 0.32-0.36 px against the model's 0.54-0.67 (resvg draws stdDeviation 0.6137 as a 5-tap kernel of sigma 0.58), and arc_core alone draws the edge there.  Between those rows the core keeps 0.6137: the composite edge there (the core with arc_core_wide / arc_core_edge) is worse sharpened.  The tips narrow to 0.905 (north) and 0.888 (south) of 6.832 px, reaching 1 at y 240 and 790: at half level the reference's core is 6.17-6.23 / 6.04-6.11 px wide at the ends and widens over a longer stretch than D67's 40 rows.  D72: on the right curve the core is whiter (red_shift, build_svg.red_shade): its red is 18 levels higher over y 160-300 and y 860-900, ramping over the 20 rows either side, G, B and the opacity unchanged.  Through the reference's own JPEG table the plateau there reads R +10..+17 (north) and +9..+15 (south) against the model with G and B within 5; arc_core's footprint across the curve explains it (rms 8.9 -> 3.7 at the north end) and no neighbouring layer's does.  The left curve's ends and both curves' middle are not a colour difference: there every channel is off together (a cross-section shape), and a red table cannot follow it. D73: over the curves' middle, where arc_core_wide and arc_core_edge lie over it at full strength, the reference's core is 0.13-0.39 px wider and its centre dimmer: the opacity rows y 340-460 and 560-680 are each half's measured excess lower (left -8.7% north, -8.0% south; right -4.5%, -9.4%; half that at y 320, 480, 540 and 700; the junction rows 500/520, at the flare, untouched) and the width is 1.057 of 6.832 px over y 380-460 and 1.073 over y 560-660, back to 1 by y 340, 480, 540 and 700 (docs/DECISIONS.md D73)."
+   "note": "D67 (curve tips): drawn as a variable-width ribbon (width_taper): 6.832 px from y 210 to 820, narrowing linearly to 6.4 px by y 170 and 860 and held beyond.  Measured along the normal of the curve of record, both curves' core edges sat 0.2-0.45 px too far out on both sides at the tips (y < 170, > 850), where the reference's core is about 6.1-6.3 px wide; a narrower full-length stroke would have cost the mid-height edges, which the cyan edge strokes cannot give back. D70: its table is painted along the curve at the two north ends (taper_axis; build_svg.curve_axis_stops), where the y-gradient's rows crossed the oblique ends and leaned the core toward the lens; the reference's core there stays on the curve. The south ends keep the y-paint: their lens-side excess is white only. D71: the rows outside arc_core_edge's full-strength span (y < 300, y >= 704) are drawn with blur 0.2042, the core strokes' own (end_blur; build_svg.Builder.end_rows): measured across the curve, the reference's core edge there reads an erf sigma of 0.32-0.36 px against the model's 0.54-0.67 (resvg draws stdDeviation 0.6137 as a 5-tap kernel of sigma 0.58), and arc_core alone draws the edge there.  Between those rows the core keeps 0.6137: the composite edge there (the core with arc_core_wide / arc_core_edge) is worse sharpened.  The tips narrow to 0.905 (north) and 0.888 (south) of 6.832 px, reaching 1 at y 240 and 790: at half level the reference's core is 6.17-6.23 / 6.04-6.11 px wide at the ends and widens over a longer stretch than D67's 40 rows.  D72: on the right curve the core is whiter (red_shift, build_svg.red_shade): its red is 18 levels higher over y 160-300 and y 860-900, ramping over the 20 rows either side, G, B and the opacity unchanged.  Through the reference's own JPEG table the plateau there reads R +10..+17 (north) and +9..+15 (south) against the model with G and B within 5; arc_core's footprint across the curve explains it (rms 8.9 -> 3.7 at the north end) and no neighbouring layer's does.  The left curve's ends and both curves' middle are not a colour difference: there every channel is off together (a cross-section shape), and a red table cannot follow it. D73: over the curves' middle, where arc_core_wide and arc_core_edge lie over it at full strength, the reference's core is 0.13-0.39 px wider and its centre dimmer: the opacity rows y 340-460 and 560-680 are each half's measured excess lower (left -8.7% north, -8.0% south; right -4.5%, -9.4%; half that at y 320, 480, 540 and 700; the junction rows 500/520, at the flare, untouched) and the width is 1.057 of 6.832 px over y 380-460 and 1.073 over y 560-660, back to 1 by y 340, 480, 540 and 700 (docs/DECISIONS.md D73). D76: drawn with one blur over its whole length, the ends' 0.2042 (end_blur removed).  Measured the same way across the curve (0.25-px bins, 20-80% of the step), the reference's core edge over the middle reads sigma 0.34-0.36 (lens side) and 0.37-0.40 (flare side), as sharp as a stroke blurred by 0.2042 (0.36-0.38; resvg draws stdDeviation 0.204 as a 3-tap kernel of sd 0.198 px, an erf edge of sigma 0.336 px at 1024 px with the anti-aliasing), where 0.6137 read 0.51-0.53.  D71 kept the middle soft because the composite edge there was worse sharpened: arc_core_edge sat 0.3-0.5 px inside the reference's flare rim, and the soft tail filled the gap.  With arc_core_edge moved out (D76) the sharpened middle improves the cross-section at 28 of 30 middle stations and lowers both dark bands just outside its edges by 2.2-3.7 levels at every end (docs/DECISIONS.md D76)."
   },
   {
    "blue": 0.084254,
@@ -3293,12 +3288,12 @@
    ],
    "cyan": 0.37689,
    "id": "arc_core_edge",
-   "inset": -3.4,
+   "inset": -3.6,
    "kind": "arc",
-   "note": "D66: the convex (flare-facing) counterpart of arc_core_wide: measured along the normal of the curve of record, the reference core's R half-level edges sit at -3.9..-4.0 / +4.0..+4.2 px at mid-height (symmetric within ~0.2 px) and at +-3.1 px at the tips, but arc_core alone reaches only 3.42 px on the convex side, so the convex edge was 0.4-0.9 px short over y ~240-790 on both curves.  A thin stroke over s = -4.1..-2.7 px with arc_core_wide's own colour and blur, on its own mid ramp (tapers.core_edge, fitted to the per-height alpha both curves ask for), supplies that width; the tips are untouched.",
+   "note": "D66: the convex (flare-facing) counterpart of arc_core_wide: measured along the normal of the curve of record, the reference core's R half-level edges sit at -3.9..-4.0 / +4.0..+4.2 px at mid-height (symmetric within ~0.2 px) and at +-3.1 px at the tips, but arc_core alone reaches only 3.42 px on the convex side, so the convex edge was 0.4-0.9 px short over y ~240-790 on both curves.  A thin stroke over s = -4.1..-2.7 px with arc_core_wide's own colour and blur, on its own mid ramp (tapers.core_edge, fitted to the per-height alpha both curves ask for), supplies that width; the tips are untouched. D76: moved out and narrowed to n +3.0..+4.2 (inset -3.6, width 1.2; it covered +2.7..+4.1), with arc_core's middle drawn at the ends' blur.  Per middle station the model's flare rim lay 0.3-0.5 px inside the reference's (too bright over n +2.1..+3.1, short over +3.4..+4.4, at every end); once the soft core's tail is gone the stroke's outer edge must place the half-level edge the tail used to.  The flare edge stays where D75 put it (+3.94..+3.98 against the reference's +3.92..+4.10) and the flare rim's per-bin rms falls at all four ends.  The left curve's flare edge, 0.12 px further out in the reference than the right's over the middle, stays about 0.1 px short: one stroke cannot follow both curves (docs/DECISIONS.md D76).",
    "taper": "core_edge",
    "white": 0.36827,
-   "width": 1.4
+   "width": 1.2
   },
   {
    "id": "arc_core_tip",
