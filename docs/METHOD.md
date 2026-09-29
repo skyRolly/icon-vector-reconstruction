@@ -470,8 +470,10 @@ there only:
 - **Opacity.** The stations y 340-460 and 560-680 are each half's measured
   excess lower.
 - **Width.** The width table rises to 1.057 of 6.832 px over y 380-460 and to
-  1.073 over y 560-660, and is back to 1 by y 340, 480, 540 and 700.
-- **The junction rows**, which lie in the flare's light, are untouched.
+  1.073 over y 560-660, and is back to 1 by y 340, 480, 540 and 700. That is
+  still the right curve's table; the left curve's differs since D77 (below).
+- **The junction rows**, which lie in the flare's light, are untouched (on
+  the right curve).
 
 Opacity alone moved the brightness error from the centre to the rims. Width
 alone left the centre too bright. The blur is unchanged, since neither blur
@@ -545,9 +547,38 @@ The core's blur tail was the part of those bands the model could remove
 - **What one stroke cannot do.** The reference's flare edge is 0.12 px
   further out on the left curve than on the right over the middle, and
   0.25-0.4 px further out near the flare. One inset and width for both curves
-  leaves the left curve about 0.1 px short, LS's core 0.04 px narrower than
+  left the left curve about 0.1 px short, LS's core 0.04 px narrower than
   D75 drew it, and the left curve's rows nearest the flare 0.4-0.5 worse.
+  D77 found that difference in the core's width, not the edge stroke (below).
 - **The lens-side trough** is still drawn by no layer, and none is added.
+
+The left curve's core is wider than the right's in two places, and `arc_core`
+draws each curve with its own width table (D77).
+- **How it was measured.** Along each whole curve, through the junction where
+  its two cubics meet, every 20 px, in the same (u, n) frame: both half-level
+  edges, the width at 20/50/80% and the bands beside each edge.
+- **The junction (y 485-555).** The left curve's core reads 0.30 px narrower
+  than the reference's, 0.17 px on the flare side and 0.13 on the lens side.
+  D73's table holds those rows at factor 1, a gap it left because they were
+  not measured and, on the right curve, lie inside the flare's r < 25. The
+  left table has no such gap: it runs straight from 1.057 at y 460 to its
+  south plateau at y 560.
+- **LS (y 560-660).** After D76 sharpened the core, the left south end read
+  0.19 px narrow at half level, and the right's did not. The left plateau is
+  1.12, where the right's stays 1.073. Past 1.12 the lens side over-lights.
+- **Why the core and not `arc_core_edge`.** The shortfall is on both sides of
+  the junction. A stroke on the flare side alone, widened or moved out, fixes
+  that side's position but softens its edge: the edge sigma grows 0.04-0.2 px
+  per station. The wider core leaves the softness as close to the
+  reference's as before (mean |excess| 0.037 -> 0.033 px).
+- **Why it is real.** It is the same on the north and south halves of every
+  station, on the two pixel parities, in the G channel alone and before the
+  JPEG table. The right curve's junction reading is not, so the right curve
+  keeps its table.
+- **What remains.** The left core's centre line sits 0.03-0.05 px toward the
+  flare of the reference's, so the flare edge is 0.05-0.07 px short and the
+  lens edge 0.02 px long. A symmetric width cannot follow that, and the curve
+  of record is not moved for it.
 
 Sharpening the edge removes the white light the soft edge spread outside it.
 It also shows what that light had covered: a cyan band on the lens side of

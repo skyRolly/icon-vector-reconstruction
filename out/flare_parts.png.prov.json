@@ -23,13 +23,13 @@
   },
   {
    "image": "out/render_1024.png",
-   "image_sha256": "61ba0c8fc3b364ff8effa5d84c4879f792b172561bb70a121ae966ca93e51c2c",
+   "image_sha256": "2702cdcfbec5d5ceaec779046895065f64edee16e26e713caf64518376c70fd7",
    "label": "this release",
    "svg": "reconstruction.svg",
-   "svg_sha256": "226c57812d3f4b6a94d9dc8a887c72be1e907ec833fe332c8d9eec4e836a7a13"
+   "svg_sha256": "e141665e2a10d3a817c602f93f6a5ee43135ec792345031938e3c4ba13413b5c"
   }
  ],
  "format": "flare_parts/1",
- "sheet_sha256": "1ac44fc30156cbec1fa0e5ac20f89aa994802021323e4e3802854ed317966467",
+ "sheet_sha256": "1a93b8548ab9282cc8089a9f572d7dca391b8aac561e1f116ede1888e6393e0f",
  "verified": true
 }

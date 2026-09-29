@@ -13652,3 +13652,476 @@ junction, and test drawing it where the reference has it.
 - **What decides it.** Per station, as here: the left curve's rim, band and
   width must improve, the right curve's must not move, and the junction rows
   must come back to at least D75's level.
+
+## D77. The left curve's core drawn as wide as the reference's through the junction and its south middle
+
+D76 recommended measuring the left curve's flare side on its own, from the
+middle through the junction, and testing a left-only outer edge for
+`arc_core_edge`. This pass first brings the PR's summary up to D76, then
+measures the left curve's whole cross-section along its whole length and
+tests the left-only candidates. The shortfall turns out to be the core's
+width, on both of its sides, not the flare-side stroke's position. So the
+change is `arc_core`'s width table, per side: the right curve keeps D73's
+table, and the left curve's loses its junction gap and gets a wider south
+plateau. A test-only engineering commit comes first.
+
+### Stage 0: the D76 baseline
+
+- **Commits.** The branch head is e9b220e (D76's artwork), and the working
+  tree is clean.
+- **CI and review.** Both regression-gate runs are green on e9b220e. The PR
+  has no review threads, reviews or comments.
+- **Publish.** D76's `sh tools/publish.sh` of these parameters: **PUBLISH
+  OK**, 81 of 81 checks, among them the Objective holds, the `red_shift`
+  objective, the isolation write-back and the 16 structural checks. The
+  committed render, measured again here, gives the same numbers.
+- **Artefacts.** Parameters 4d6f9d30..., SVG 226c5781..., render 61ba0c8f...
+- **Metrics:**
+
+  | metric | D76 |
+  |---|---|
+  | MAE / RMSE | 1.5936 / 2.6965 |
+  | SSIM | 0.97744 |
+  | edge IoU | 0.72651 |
+  | centre MAE | 4.4177 |
+  | flare r < 110 MAE | 3.8743 |
+  | core r < 25 MAE | 3.7474 |
+  | bright-region MAE | 5.6096 |
+  | cross-engine MAE | 2.638 |
+
+### Stage 1: the PR summary
+
+The PR's summary still stopped at D75. It now opens with the state at the
+head (e9b220e):
+- `arc_core` drawn at one blur, 0.2042, along its whole length;
+- `end_blur` removed;
+- `arc_core_edge` at inset -3.6, width 1.2;
+- the render sizes validated;
+- the cross-section per station;
+- LS's width and the left junction as recorded costs;
+- the deferred items.
+
+D76's own section gained its deferred list, and D75's recommendation is
+marked as carried out. D76's record in this file already described that
+state. The artwork was not touched.
+
+### Stage 2: the frame
+
+- **The curves.** Each curve of record is its two cubics joined at the apex:
+  the left runs y 86 -> 520 -> 949, the right y 86 -> 518 -> 937. They are
+  sampled continuously through the apex, so the junction rows are measured
+  too. D70-D76's end frames stopped at each end's single cubic.
+- **Local coordinates.** u is the arc length from the north tip. n is the
+  signed distance along the normal. n > 0 points away from the curve's own
+  inset centre, toward the flare: +x on the left curve, -x on the right.
+  - The inset centres are left (78.9, 515.3) and right (923.1, 515.0).
+  - At y 512 the left curve is at x 465.4, the right at x 544.8, and the
+    flare's centre at x 530.95.
+- **Stations.** One every 20 px of u, each taking the pixels within 10 px.
+  Bins are 0.25 px of n over -14..+14, in luminance through the reference's
+  JPEG table.
+- **Measures:**
+  - an edge is the half level between the floor (mean over |n| 5.6..6.4) and
+    the top (max over |n| 1.6..3.9);
+  - softness is the 20-80% distance / 1.6832, an erf sigma;
+  - widths are taken at 20, 50 and 80%;
+  - the bands are the centre (-1..+1), flare interior (+1.4..+2.9), flare rim
+    (+2.9..+4.4) and flare band (+4.4..+5.4), mirrored for the lens side.
+- **Zones** by y: outer (< 250, >= 790), transitions (250-340, 685-790),
+  middle (340-485, 555-685) and junction (485-555).
+
+### Stage 3: the left flare edge, measured
+
+The flare edge and the half-level width, reference minus D76, mean +- SE over
+each zone's stations (+ = the reference's edge further out, its core wider):
+
+| zone | left flare edge | left width | right flare edge | right width |
+|---|---|---|---|---|
+| outer north | +0.007 | -0.086 | -0.010 | -0.056 |
+| transition north | -0.053 +- 0.020 | -0.034 | +0.002 | +0.015 |
+| middle north | +0.049 +- 0.016 | +0.054 +- 0.033 | -0.015 | +0.019 |
+| junction | +0.171 +- 0.061 | +0.300 +- 0.082 | +0.152 +- 0.103 | +0.115 |
+| middle south | +0.142 +- 0.035 | +0.190 +- 0.042 | -0.042 +- 0.025 | +0.051 |
+| transition south | -0.037 | +0.033 | -0.039 | -0.096 |
+| outer south | +0.058 | -0.041 | +0.022 | -0.048 |
+
+- **Along the left curve** the flare edge's residual grows toward the flare:
+  +0.07 / +0.09 / +0.10 at y 432 / 452 / 472, +0.19 at 492 and +0.33 at 512.
+  It drops to 0.00-0.08 over y 552-592 and rises again to +0.17..+0.22 over
+  611-670, the south middle (LS).
+- **Position or width.** The core's centre (the mid-point of its two edges)
+  is within 0.05 px of the reference's in every zone: +0.023 +- 0.008 north,
+  +0.021 +- 0.029 at the junction, +0.047 +- 0.043 south. The residual is
+  width.
+  - At the junction the core is 0.30 px narrow, 0.17 px on the flare side
+    and 0.13 on the lens side.
+  - Over the south middle it is 0.19 px narrow, 0.14 on the flare side and
+    0.05 on the lens side.
+- **The right curve** differs. Its junction reading comes from one station
+  inside the flare's r < 25 (y 532, +0.46), and its south middle is the other
+  way round (-0.042).
+- **The bands.** On the left, the flare rim (+2.9..+4.4) is short by 12.9
+  levels at the junction and 11.2 over the south middle. The flare band beyond
+  it is over-lit by 2.6 and 4.2.
+
+### Stage 4: is it real
+
+Each station's pixels were split two independent ways: by u (its north and
+south 10 px) and by pixel parity (x + y even or odd, which interleaves the
+sub-pixel phases). The edge was also read in the G channel alone (the least
+touched by 4:2:0 chroma), and on the model's render before the JPEG table.
+Zone means of the left curve (flare edge / width):
+
+| reading | junction | middle south |
+|---|---|---|
+| all pixels | +0.171 / +0.300 | +0.142 / +0.190 |
+| north half | +0.213 / +0.347 | +0.138 / +0.211 |
+| south half | +0.047 / +0.111 | +0.152 / +0.166 |
+| even parity | +0.173 / +0.311 | +0.142 / +0.191 |
+| odd parity | +0.181 / +0.301 | +0.133 / +0.182 |
+| G channel | +0.137 / +0.217 | +0.136 / +0.179 |
+| before the JPEG table | +0.152 / +0.277 | +0.137 / +0.178 |
+
+- **The junction's south half reads less.** The apex station has no south
+  half, and y 532's reads +0.02. Every other split repeats.
+- **Repeatability across stations.** Over y 340-790 the correlation of the
+  station pattern between the halves is:
+
+  | curve | north / south | even / odd | luminance / G | with / without the table |
+  |---|---|---|---|---|
+  | left | 0.64 / 0.51 | 0.94 / 0.95 | 0.99 / 0.97 | 0.99 / 0.99 |
+  | right | 0.72 / 0.78 | 0.74 / 0.72 | 0.90 / 0.85 | 0.99 / 0.98 |
+
+  Each cell is edge / width.
+- **The right curve's junction does not repeat.** At y 532 it reads +0.46 on
+  all pixels, +0.17 in G and +0.08 on odd pixels.
+- **The JPEG table** moves the model's readings by 0.025 px or less.
+
+So the left curve's shortfall is a real feature of the reference, repeated
+at 20-px scale. The right curve's junction is not.
+
+### Engineering (b33f984): the width-taper check reads a per-side table per curve
+
+The builder accepts `width_taper` as one table or as {"left": [...],
+"right": [...]}. "a width-tapered arc narrows only where its table says"
+(D67) read `arc_core`'s table as one list. On a per-side table it raised
+"ValueError: too many values to unpack", stopping the pipeline.
+- **The change.** Each curve is read against its own table (its north tip,
+  south tip, middle and widened bands) over its own pixels (x < 505 is the
+  left curve). A per-side table that names one curve is a failure, not a
+  KeyError. With one table the check and its numbers are unchanged.
+- **A new check,** "the width-taper check reads a per-side table per curve":
+  - one curve's widened rows raised by 0.04, each way round, passes;
+  - the right-raised probe drawn by a builder that hands `ribbon_path` the
+    left table for both curves fails on the right's widened band (1.0576
+    read, 1.0970 expected);
+  - a table naming only the left curve is reported by name.
+- **Run alone:** PASS on D76's params and on a per-side state. HEAD's check
+  raises on the per-side state. The artwork is byte for byte unchanged.
+
+### Stage 5: the candidates
+
+Left-only candidates were drawn with the real builder.
+- **The emulation for `arc_core_edge`.** It is one layer for both curves, so
+  for evaluation only the layer is split: side "right" keeps every key, and a
+  scratch copy with side "left" carries the candidate. The split control is
+  pixel-identical to D76.
+- **`arc_core` needs no emulation.** Its table takes the builder's per-side
+  form directly, the right side keeping D73's rows, and the right curve's
+  elements are byte-identical.
+
+Profile rms per zone over n -5.4..+5.4, then over the 23 stations at y
+340-790: the mean rms and the mean |error| of the flare edge, the flare
+softness and the lens edge:
+
+| candidate | trans N | mid N | junction | mid S | trans S | rms | flare edge | softness | lens edge |
+|---|---|---|---|---|---|---|---|---|---|
+| A: D76 | 6.55 | 5.12 | 7.67 | 8.29 | 8.33 | 7.231 | 0.105 | 0.037 | 0.090 |
+| B: position, n +3.1..+4.3 | 7.41 | 5.26 | 7.61 | 7.16 | 8.53 | 7.015 | 0.077 | 0.074 | 0.091 |
+| B: position, +3.2..+4.4 | 8.88 | 6.32 | 8.16 | 6.75 | 9.30 | 7.528 | 0.098 | 0.086 | 0.090 |
+| C: width 1.4 | 7.64 | 5.46 | 6.82 | 7.38 | 8.56 | 7.006 | 0.079 | 0.069 | 0.091 |
+| C: width 1.6 | 9.29 | 6.96 | 7.25 | 7.04 | 9.24 | 7.626 | 0.079 | 0.104 | 0.091 |
+| D: +3.0..+4.3 | 7.44 | 5.23 | 7.28 | 7.13 | 8.50 | 6.937 | 0.078 | 0.072 | 0.090 |
+| D: +3.0..+4.4 | 8.89 | 6.55 | 7.48 | 6.67 | 9.20 | 7.436 | 0.089 | 0.090 | 0.090 |
+| ribbon control (factor 1) | 6.59 | 5.24 | 7.57 | 8.12 | 8.24 | 7.179 | 0.106 | 0.034 | 0.091 |
+| B confined: centre +0.15 | 6.59 | 5.18 | 7.76 | 6.65 | 8.14 | 6.783 | 0.058 | 0.070 | 0.091 |
+| C confined: width x1.25 | 6.59 | 5.23 | 6.77 | 6.94 | 8.19 | 6.716 | 0.058 | 0.069 | 0.091 |
+| C confined: width x1.33 | 6.59 | 5.54 | 7.30 | 7.01 | 8.29 | 6.945 | 0.060 | 0.085 | 0.091 |
+| D confined: outer edge +0.15 | 6.59 | 5.22 | 7.28 | 6.52 | 8.16 | 6.683 | 0.057 | 0.065 | 0.091 |
+| D confined: outer edge +0.20 | 6.59 | 5.34 | 7.66 | 6.50 | 8.23 | 6.798 | 0.060 | 0.077 | 0.091 |
+| E1: core, junction gap removed | 6.55 | 5.13 | 5.69 | 8.30 | 8.33 | 6.889 | 0.095 | 0.030 | 0.080 |
+| E1, south plateau 1.11 | 6.55 | 5.14 | 5.60 | 7.12 | 8.32 | 6.565 | 0.084 | 0.030 | 0.077 |
+| **E: E1, south plateau 1.12** | **6.55** | **5.13** | **5.51** | **7.00** | **8.30** | **6.513** | **0.082** | **0.033** | **0.076** |
+| E1, south plateau 1.13 | 6.55 | 5.09 | 5.35 | 6.87 | 8.27 | 6.428 | 0.077 | 0.034 | 0.077 |
+| E1, south plateau 1.15 | 6.55 | 5.11 | 5.62 | 7.22 | 8.22 | 6.562 | 0.072 | 0.036 | 0.084 |
+| E1 + C confined south | 6.59 | 5.16 | 5.85 | 6.94 | 8.19 | 6.534 | 0.076 | 0.038 | 0.080 |
+
+- **B, C and D over the whole curve** (the first six rows, `arc_core_edge`
+  on the left): each fixes the junction or the south middle and breaks both
+  transitions (trans N 6.55 -> 7.4-9.3). There the reference's flare edge is
+  already 0.04-0.05 px inside D76's.
+- **Confined to y 400-720,** ramped in over 400-460 and out over 690-720:
+  - All three move the flare edge out and soften it. The flare softness
+    excess doubles (0.037 -> 0.065-0.070), up to +0.25-0.34 at y 512.
+  - C (a per-side width table, which the builder has) also over-lights the
+    flare interior (-0.3 -> -2.3) and the flare band (-4.2 -> -5.8) over the
+    south middle.
+  - B and D need a centre that moves with y. `arc_core_edge`'s inset is one
+    number, so they were drawn with a scratch patch of the ribbon, for
+    evaluation only.
+  - None of them touches the junction's lens side (+0.13 px), which is not
+    `arc_core_edge`'s.
+- **E1, the junction gap removed:**
+  - D73 held `arc_core`'s width at 1 over y 480-540 because those rows had
+    not been measured, and on the right curve they lie inside the flare's
+    r < 25.
+  - Without the gap, the left table runs straight from 1.057 at y 460 to
+    1.073 at 560.
+  - The junction goes 7.67 -> 5.69, with every junction station better
+    (y 492 7.84 -> 5.15, 512 9.70 -> 8.27, 532 7.20 -> 4.54, 552
+    5.94 -> 4.79).
+  - The lens edge +0.129 -> +0.008 and the flare edge +0.171 -> +0.107.
+  - The softness excess falls (0.037 -> 0.030).
+  - A half gap (junction rows at 1.03) does half as well (6.35).
+- **The south plateau** is a separate change, and E1 does not reach it: rows
+  y 572 and on are identical. It is chosen by the lens side, which a
+  symmetric width also moves. Over the south middle:
+
+  | plateau | lens edge | lens rim | lens-half rms | flare edge | flare-half rms | width at half level |
+  |---|---|---|---|---|---|---|
+  | 1.073 (D76) | +0.048 | +4.7 | 6.84 | +0.142 | 8.79 | +0.190 |
+  | 1.09 | +0.024 | +3.2 | 6.82 | +0.119 | 7.97 | +0.142 |
+  | 1.11 | -0.007 | +0.6 | 6.81 | +0.084 | 6.94 | +0.076 |
+  | **1.12** | **-0.023** | **-0.4** | **6.77** | **+0.074** | **6.77** | **+0.051** |
+  | 1.13 | -0.038 | -1.6 | 6.89 | +0.065 | 6.53 | +0.027 |
+  | 1.15 | -0.067 | -4.0 | 7.60 | +0.032 | 6.49 | -0.035 |
+
+  1.12 is where the lens half reads best: its rim is within 0.4 levels and
+  its edge within 0.03 px. From 1.13 on the lens side over-lights, and its
+  rms rises past D76's.
+
+### Stage 6: the kept candidate, measured
+
+E: `arc_core.width_taper` becomes {"left": [[170, 0.905], [240, 1],
+[340, 1], [380, 1.057], [460, 1.057], [560, 1.12], [660, 1.12], [700, 1],
+[790, 1], [860, 0.888]], "right": D73's table}. Nothing else changes.
+
+*Per station, the left curve, reference / D76 / D77* (flare edge; its
+sigma; the half-level width; the lens edge):
+
+| y | flare edge | sigma | width | lens edge |
+|---|---|---|---|---|
+| 472 | 4.13 / 4.03 / 4.01 | 0.35 / 0.42 / 0.43 | 7.98 / 7.90 / 7.96 | -3.85 / -3.87 / -3.95 |
+| 492 | 4.08 / 3.90 / 4.00 | 0.43 / 0.53 / 0.45 | 7.91 / 7.68 / 7.87 | -3.82 / -3.78 / -3.87 |
+| 512 | 4.23 / 3.90 / 4.07 | 0.58 / 0.63 / 0.46 | 8.17 / 7.63 / 8.06 | -3.95 / -3.73 / -4.00 |
+| 532 | 4.11 / 3.97 / 4.05 | 0.41 / 0.51 / 0.38 | 8.11 / 7.88 / 8.08 | -4.00 / -3.90 / -4.02 |
+| 552 | 4.02 / 3.98 / 4.12 | 0.42 / 0.45 / 0.36 | 8.08 / 7.89 / 8.13 | -4.06 / -3.90 / -4.01 |
+| 572 | 3.98 / 3.98 / 4.06 | 0.37 / 0.41 / 0.37 | 8.13 / 7.94 / 8.10 | -4.15 / -3.96 / -4.04 |
+| 592 | 4.08 / 4.00 / 4.06 | 0.37 / 0.40 / 0.37 | 8.27 / 7.98 / 8.14 | -4.19 / -3.97 / -4.07 |
+| 611 | 4.19 / 3.98 / 4.06 | 0.41 / 0.39 / 0.38 | 8.20 / 7.91 / 8.06 | -4.01 / -3.93 / -4.00 |
+| 631 | 4.16 / 3.94 / 4.01 | 0.41 / 0.39 / 0.36 | 8.10 / 7.88 / 8.00 | -3.94 / -3.94 / -3.99 |
+| 651 | 4.12 / 3.95 / 4.02 | 0.40 / 0.37 / 0.36 | 7.89 / 7.85 / 8.01 | -3.77 / -3.90 / -3.98 |
+| 670 | 4.11 / 3.94 / 3.98 | 0.33 / 0.36 / 0.34 | 7.91 / 7.81 / 7.90 | -3.80 / -3.87 / -3.92 |
+
+- **The width** is within 0.14 px of the reference's at every one of these
+  stations. D76 drew it 0.04-0.54 px narrow.
+- **The flare edge** is 0.05-0.07 px short on average over the junction
+  and the south middle (+0.171 / +0.142 before).
+- **The centre** stays where it was (+0.033 +- 0.038 and +0.049 +- 0.041 px;
+  the centre band -0.2 -> -0.1 and +0.6 -> +0.6).
+- **The zones** (flare edge, lens edge and width, reference minus D77):
+  - middle north: +0.052, -0.008, +0.044;
+  - junction: +0.051, -0.015, +0.036;
+  - middle south: +0.074, -0.023, +0.051.
+- **Worse:**
+  - y 552-572, where the ramp reaches the plateau: the flare edge goes
+    0.08-0.10 px past the reference's, and the flare rim is over-lit by 7-9
+    levels;
+  - y 651-670, where the reference's core narrows again: the lens edge goes
+    0.12-0.21 px past the reference's (0.07-0.13 before);
+  - y 472: the lens edge 0.10 px past the reference's (0.02 before).
+
+*The D76 station set* (u -480..-20 from each end, 30 middle stations; D76's
+tables). Mean |model - reference| of the width at 20% / 50% / 80% /
+equivalent:
+
+| end | D75 | D76 | D77 |
+|---|---|---|---|
+| LN | 0.120 / 0.075 / 0.120 / 0.066 | 0.069 / 0.085 / 0.097 / 0.035 | 0.073 / 0.063 / 0.072 / 0.039 |
+| RN | 0.251 / 0.044 / 0.102 / 0.177 | 0.081 / 0.033 / 0.076 / 0.100 | unchanged |
+| LS | 0.107 / 0.154 / 0.217 / 0.096 | 0.134 / 0.192 / 0.169 / 0.143 | 0.089 / 0.084 / 0.093 / 0.100 |
+| RS | 0.123 / 0.064 / 0.099 / 0.224 | 0.084 / 0.069 / 0.070 / 0.175 | unchanged |
+
+- **LS's width** follows: its signed half-level width goes -0.192 -> -0.060.
+- **LS's profile rms** goes 8.93 -> 7.74: lens half 7.57 -> 7.21, flare
+  half 9.65 -> 7.93.
+- **LS's edge errors** go 0.113 -> 0.094 (lens) and 0.162 -> 0.110 (flare).
+- **LN** goes 5.72 -> 5.61.
+- **RN and RS** read identically.
+
+### Stage 7: what else it touches
+
+- **Confinement.** Changed pixels against D76:
+
+  | render size | changed px | rows | from the left curve | right curve, flare interior |
+  |---|---|---|---|---|
+  | 512 | 235 | 461-699 | 4 px at most | 0, 0 |
+  | 1024 | 1045 | 116-704 | 5 px at most | 0, 0 |
+  | 2048 | 3258 | 136-708 | 4.5 px at most | 0, 0 |
+
+- **The one element outside the middle.** The left north curve-axis paint's
+  gradient stops move by 1e-4. The builder sets that paint's reach from the
+  table's widest factor (0.5 x width x wmax + 4), and the widest is now 1.12.
+  - At 1024 px, 4 px at y 115-116 move by 1 level; 7 px at 2048.
+  - Everything else there, the south tip, and the right curve's elements are
+    byte-identical.
+- **The flare.**
+  - The interior (r < 110, more than 9 px from both curves) is untouched at
+    all three sizes.
+  - Core r < 25 is unchanged (3.7474).
+  - Flare r < 110 goes 3.8743 -> 3.8514 (D75 3.8606), all in the left
+    curve's pixels.
+- **The left curve's rows** (curve-adjacent MAE, within 9 px):
+
+  | rows | D75 | D76 | D77 |
+  |---|---|---|---|
+  | y 455-485 | 5.361 | 5.315 | 5.183 |
+  | y 485-520 | 6.289 | 6.692 | 6.252 |
+  | y 520-555 | 5.532 | 6.002 | 5.434 |
+  | y 555-571 | 4.607 | 4.838 | 5.012 |
+  | y 571-640 | 6.069 | 6.118 | 5.704 |
+  | y 640-704 | 6.634 | 6.156 | 6.120 |
+
+  D76's junction cost is gone, and both junction bands are below D75's. The
+  y 555-571 band is 0.17 worse: that is the plateau's ramp (stage 6).
+  Every other band of both curves is unchanged.
+- **1x.** Indistinguishable from D76. At x4 the reference-minus-render map
+  loses most of D76's bright line along the left core's flare edge over
+  y 485-700, with no seam at the table's rows.
+
+### Stage 8: the 1-px lens dip
+
+The same measure as D76's: over the 30 middle stations, the lens band
+(n -5.4..-4.4) against the band 1 px beyond it.
+- **The reference** reads -5.12.
+- **The model** reads +1.01 (D76) -> +1.15, negative at 4 stations (was 6).
+  At LS it goes +0.47 -> +1.04: the wider core puts a little light past the
+  lens rim.
+- **The residual step** goes -6.13 -> -6.27.
+- **No dark notch is added.** The trough stays an unmodelled, reference-side
+  residual (D75, D76).
+
+### Decision
+
+Kept: E, `arc_core`'s width table per side, the left curve's with no
+junction gap and a south plateau of 1.12.
+
+| rule | met |
+|---|---|
+| 1. the left/right difference repeats | yes: both halves of each station, both parities, the G channel and before the JPEG table (stage 4); the right curve's junction does not repeat |
+| 2. the left flare edge improves | yes: junction +0.171 -> +0.051, south middle +0.142 -> +0.074; mean softness error 0.037 -> 0.033 |
+| 3. the left junction improves | yes: profile rms 7.67 -> 5.51, every junction station, curve pixels below D75's |
+| 4. LS's width moves toward the reference | yes: 0.192 -> 0.084 at half level, better than D75 at 20, 50 and 80% |
+| 5. the core's centre is stable | yes: it moves 0.012 px or less; the centre band's residual stays within 0.6 of zero (junction -0.2 -> -0.1, south +0.6 -> +0.6) |
+| 6. no new unjustified error on the lens side | yes: the lens edge +0.129 / +0.048 -> -0.015 / -0.023, the lens rim and lens-half rms better; the dip step +0.14 (stage 8), recorded |
+| 7. the flare interior is not damaged | yes: untouched at 512, 1024 and 2048 px |
+| 8. the right curve is unaffected | yes: 0 px at all three sizes |
+| 9. the endpoints and tips are stable | yes: byte-identical but for 4 px at the north tip moving 1 level (stage 7) |
+| 10. not fitting JPEG or raster noise | yes: stage 4; two rows removed and two values changed in an existing table |
+
+- **Why not `arc_core_edge`.** It cannot explain the evidence: the junction
+  is short on both sides. On the flare side alone, every form of it softens
+  the edge.
+- **Nothing new.** `arc_core` is an existing layer, and the per-side table
+  is an existing builder form. No layer is added.
+
+### Validation
+
+- **Publish.** `sh tools/publish.sh` on the parameters as committed: **PUBLISH
+  OK**, 82 of 82 checks (the new per-side check among them). The render it
+  publishes is pixel-identical to the one measured above, and the parameters
+  rebuild the SVG byte for byte.
+- **The checks this pass had to keep** all pass:
+  - the width-taper check, now reading the left and right tables per curve
+    (the left's south plateau reads 1.1191 against 1.12, the right's 1.0735
+    against 1.073);
+  - D75's Objective holds;
+  - D72/D73's `red_shift` objective;
+  - D74's isolation write-back;
+  - the objective composite (MAE 0.5308, as D76's).
+- **D76's sharpening.** `end_blur`'s check still runs on its probe, and the
+  core's blur is 0.2042 along its whole length.
+- **Structure.** `visual_regression`: 16 of 16 within band, none
+  unmeasurable. The retired flank wedges stay retired, so the west triangle
+  is absent.
+- **Metrics:**
+
+  | metric | D76 | D77 |
+  |---|---|---|
+  | MAE / RMSE | 1.5936 / 2.6965 | 1.5923 / 2.6871 |
+  | SSIM | 0.97744 | 0.97746 |
+  | edge IoU | 0.72651 | 0.72758 |
+  | centre MAE | 4.4177 | 4.3887 |
+  | flare r < 110 MAE | 3.8743 | 3.8514 |
+  | core r < 25 MAE | 3.7474 | 3.7474 |
+  | bright-region MAE | 5.6096 | 5.5909 |
+  | cross-engine MAE | 2.638 | 2.638 |
+
+  None of them decided anything. Every render size's MAE and RMSE is equal or
+  lower (2048 px: 1.584 / 2.662 -> 1.583 / 2.651).
+- **Artefacts.** Parameters 545962d1..., SVG e141665e... (157 664 bytes), render
+  2702cdcf...
+
+### Remaining
+
+- **Fixed:**
+  - D76's recorded cost at the left junction: its curve pixels are now below
+    D75's;
+  - LS's width (0.192 -> 0.084 at half level).
+- **Improved:**
+  - the left flare edge over the junction and the south middle (0.05-0.07 px
+    short, from 0.14-0.17);
+  - the left lens edge at the junction (+0.129 -> -0.015);
+  - flare r < 110 (3.8743 -> 3.8514).
+- **Unchanged:**
+  - the right curve;
+  - the left outer thirds and transitions;
+  - the core blur;
+  - `arc_core_edge`;
+  - core r < 25.
+- **Worse, recorded:**
+  - the left rows y 555-571 (+0.17 in curve pixels; the flare edge
+    0.08-0.10 px past the reference's there);
+  - the lens edge at y 651-670, 0.12-0.21 px past the reference's;
+  - the lens-band step at LS (+0.47 -> +1.04);
+  - 4 px at the north tip by 1 level.
+- **Refuted:** a left-only `arc_core_edge`, at constant or y-confined
+  position and width, as the explanation. It moves one side and softens
+  the edge.
+- **JPEG-limited:** the right curve's junction reading (y 532), which does
+  not survive the pixel splits.
+- **Deferred:**
+  - the left core's centre line, 0.03-0.05 px toward the flare of the
+    reference's (the curve of record, at the scale of both curves' +-0.1 px
+    centre lobes);
+  - the right curve's rows inside the flare's r < 25;
+  - D76's list: `arc_core_wide`'s lens edge, the lens-side trough, and the
+    field-cache eviction;
+  - D72's list.
+
+### Recommendation
+
+Measure the right curve's flare band over its middle the way this pass
+measured the left curve.
+- **Why.** It is now the largest band residual in the curves' middle. At
+  n +4.4..+5.4 the right curve is over-lit by 9.2 levels (north) and 11.4
+  (south), against 2.2-3.8 on the left. Its flare rim is over-lit too (-4.1
+  to -4.5).
+- **What is known.** The right core's centre sits 0.07 +- 0.02 px toward the
+  flare of the reference's over its south middle. Its flare edge is 0.04 px
+  outside the reference's, and its width is right within 0.05 px.
+- **What decides it.** Per station, on the right curve only, with the pixel
+  splits of stage 4:
+  - the band and rim must improve;
+  - the left curve must not move;
+  - the rows inside the flare's r < 25 stay out of it.

@@ -25,15 +25,15 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 
 | metric | value | for scale |
 |---|---|---|
-| mean absolute error | **1.594** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 2.696 | |
-| MAE on a 1/2.2 display curve | 5.164 | weights the dark background as the eye does; black scores 59.7 |
-| SSIM (luminance) | **0.9774** | black scores 0.142 |
+| mean absolute error | **1.592** / 255 | a flat black canvas scores 17.89 |
+| RMSE | 2.687 | |
+| MAE on a 1/2.2 display curve | 5.163 | weights the dark background as the eye does; black scores 59.7 |
+| SSIM (luminance) | **0.9775** | black scores 0.142 |
 | worst single-channel error | 73 | |
 | pixels off by more than 2 / 8 / 24 | 33.8% / 3.0% / 0.1% | |
-| mean bias | -0.141 | |
+| mean bias | -0.136 | |
 
-Per region (MAE): frame band 2.50, centre 90 px 4.42, bright pixels 5.61, dark background 1.29, everything else 1.42.
+Per region (MAE): frame band 2.50, centre 90 px 4.39, bright pixels 5.59, dark background 1.29, everything else 1.42.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -44,7 +44,7 @@ The two regions a whole-image average cannot police, from
 
 | targeted measurement | value |
 |---|---|
-| MAE within 110 px of the central light | 3.87 |
+| MAE within 110 px of the central light | 3.85 |
 | worst ring of the flare's radial profile | +0.9 code values at r = 20-30 |
 | curve glow, rms relative error over 21 signed-distance bins | 2.8% |
 | the same, resolved along the curve (71 cells) | 5.0% |
