@@ -187,7 +187,7 @@ def main():
     # number -- most of the model's numeric leaves are unbounded on purpose (830
     # of 1131 in D72; the check prints the count), so a report of all of them
     # reports nothing.  What CAN be pinned is the inventory: every unbounded
-    # number today belongs to one of nineteen kinds, each searched by a
+    # number today belongs to one of twenty kinds, each searched by a
     # different mechanism or measured rather than fitted.  A
     # new unbounded field in a NEW kind is the case worth catching, and this
     # fires on it.  `paint/x1..y2` is the one kind that is neither -- eight
@@ -222,6 +222,10 @@ def main():
         # D72: arc_core's red along the right curve, read from the reference's
         # core plateau and held (its colour is held with it)
         "red_shift": "measured along the right curve and held (D72)",
+        # D78: where a convex-taper layer is split across its curve (arc_glow1w,
+        # at n +3.0, the inner edge of arc_core_edge's light), chosen from the
+        # measured profile so the flare interior is left as it is, and held
+        "split": "chosen from the measured cross-section and held (D78)",
     }
 
     def _numeric_leaves(node, prefix):

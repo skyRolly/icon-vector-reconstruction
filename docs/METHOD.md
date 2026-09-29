@@ -355,6 +355,26 @@ measured per-side table (`tapers.glow1b`) at the same time. What remains in
 that band is hue, excess G with B already matched, which an amplitude cannot
 fix.
 
+The same holds one glow further in, on the right curve (D78).
+- **What was wrong.** Just outside the right curve's flare edge (n
+  +4.4..+5.4) the model read 9-11 levels too bright over the middle, against
+  3-4 on the left curve. Every pixel split repeats this.
+- **What lights that band.** The broad glows, not the core: `arc_glow1b`,
+  `arc_glow2`, the field and `arc_glow1w`'s blurred tail crossing from the
+  lens side. `arc_glow1w`'s table was measured on the lens side (D66), and on
+  the right curve it runs about 1.5 times the left's there.
+- **The fit.** A linearised fit of each source's own contribution explains the
+  band by that tail alone, and needs 0.26-0.37 of it over the middle. Its lens
+  part is unchanged (-0.01..-0.05). The core's width, `arc_core_edge` and
+  `arc_glow1b` do not explain it.
+- **The change.** `arc_glow1w` is split at n +3.0 on the right curve only
+  (`convex_taper` {"right": `glow1w_cv`}): the flare-facing part beyond the
+  core's bright plateau takes 0.3 of the layer's own right table over the
+  middle.
+  - The junction rows, in the flare's light, are held at 1.
+  - The left curve is drawn unsplit, byte for byte as before.
+- **What remains.** The right curve's flare band now reads like the left's.
+
 The reference's curves do not stop at the cubics' end points. Each one goes on
 as a narrow ridge (Gaussian sigma 2.3-3.0 px, as narrow as the core) for
 another 40-55 px toward the frame corner, fading as it goes. Its centre stays

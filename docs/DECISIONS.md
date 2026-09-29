@@ -14125,3 +14125,405 @@ measured the left curve.
   - the band and rim must improve;
   - the left curve must not move;
   - the rows inside the flare's r < 25 stay out of it.
+
+## D78. The right curve's flare-side band: the lens glow's tail across the core made weaker there
+
+D77 recommended measuring the right curve's flare band over its middle the
+way D77 measured the left curve. This pass does that, and attributes the band
+to its sources before any change.
+- **Where the light comes from.** The band's excess is not the core's width,
+  `arc_core_edge` or a displaced curve. It is `arc_glow1w`'s blurred tail,
+  which crosses the core from the lens side.
+- **The change.** An engineering commit, which leaves the artwork byte for
+  byte unchanged, lets a convex taper name the curves it splits. Then
+  `arc_glow1w`'s flare-facing part is made weaker on the right curve's middle
+  only.
+- **What is kept.** The left curve (D77's width table included), the blur,
+  `arc_core_edge`, the curve of record, the tips, `arc_lens_band` and
+  `red_shift` are unchanged.
+
+### Stage 0: the D77 baseline
+
+- **Commits.** PR #8 is merged: main is 1088fda, whose tree is D77's
+  cd04649. The branch restarts from it, and the working tree is clean.
+- **CI and review.** The regression gate is green on 1088fda. PR #8 has no
+  review threads, reviews or comments, and no new review finding exists.
+- **Publish.** `sh tools/publish.sh` on 1088fda: **PUBLISH OK**, 82 of 82
+  checks. Every artefact it rewrote is byte-identical to the committed ones.
+- **Artefacts.** Parameters 545962d1..., SVG e141665e..., render 2702cdcf...
+- **Metrics:**
+
+  | metric | D77 |
+  |---|---|
+  | MAE / RMSE | 1.5923 / 2.6871 |
+  | SSIM | 0.97746 |
+  | edge IoU | 0.72758 |
+  | centre MAE | 4.3887 |
+  | flare r < 110 MAE | 3.8514 |
+  | core r < 25 MAE | 3.7474 |
+  | bright-region MAE | 5.5909 |
+  | cross-engine MAE | 2.638 |
+
+### Stage 1: the right curve's flare side, measured
+
+D77's frame: each whole curve, every 20 px of arc length, in local (u, n)
+through the reference's JPEG table. n > 0 points away from the curve's inset
+centre, toward the flare, which is -x on the right curve. Reference minus
+D77, luminance, mean over each zone's stations, per band of n:
+
+| curve, zone | rim +2.9..+4.4 | band +4.4..+5.4 | +5.4..+6.4 | +6.4..+8 | +8..+10 |
+|---|---|---|---|---|---|
+| right, middle north | -4.5 | -9.2 | -1.3 | -0.2 | +1.3 |
+| right, middle south | -4.1 | -11.4 | -4.8 | -2.4 | -0.0 |
+| left, middle north | +1.1 | -3.5 | -1.0 | -0.7 | +1.0 |
+| left, middle south | +4.2 | -3.8 | +0.4 | +0.5 | +1.1 |
+
+- **The edges are right.** The right curve's flare edge sits within
+  -0.14..+0.09 px of the reference's at every middle station, its softness
+  within 0.05, and its half-level width within about 0.2 px. The excess lies
+  beyond the edge.
+- **The model is the same on both curves; the reference is not.** Over the
+  lower middle (n 4.9 / 5.9 / 7.2) the model's foot reads 79 / 73 / 67 levels
+  on the right curve and 78 / 73 / 68 on the left. The reference's right foot
+  reads 68 / 69 / 64, and its left foot 74 / 73 / 68. The right curve's lens side is the brighter one in the
+  reference (133 against 121 at n -6).
+
+### Stage 2: is it real
+
+Band residual (n +4.4..+5.4) read on all pixels, on each station's north and
+south halves, on even and odd pixels, in the G channel alone, and on the
+render before the JPEG table:
+
+| curve, zone | all | N | S | even | odd | G | raw |
+|---|---|---|---|---|---|---|---|
+| right, middle south | -11.4 | -11.8 | -11.0 | -11.3 | -11.8 | -11.5 | -11.3 |
+| right, middle north | -9.2 | -8.9 | -9.7 | -9.4 | -9.3 | -10.7 | -9.4 |
+| left, middle south | -3.8 | -4.0 | -4.0 | -3.6 | -3.8 | -4.8 | -4.2 |
+
+The right curve's excess is a real feature of the reference.
+
+### Stage 3: what lights the band
+
+Each source's screen contribution is the photometric model's composite
+(`fit_photometry`: the basis stack, the colours and the shift terms) minus
+the composite with that source's layers zeroed. The composite reads the
+render to MAE 0.5308. At n +4.4..+5.4, over the lower middle:
+
+| source | right | left |
+|---|---|---|
+| `arc_glow1b` | 16.1 | 19.7 |
+| `arc_glow2` | 12.9 | 13.1 |
+| `arc_glow1w` | **11.1** | **7.1** |
+| field layers | 8.1 | 8.2 |
+| `arc_glow2b` | 6.1 | 6.1 |
+| `arc_glow1` | 5.3 | 5.2 |
+| flare layers | 3.2 | 2.4 |
+| `arc_core_edge` | 0.9 | 0.9 |
+| `arc_core` | 0.2 | 0.5 |
+
+- **`arc_glow1w` is the difference.** It is the white on the lens-side glow
+  line (inset 5.28, blur 5.1). D66 measured its per-side table on the lens
+  side, where the right curve's reference is brighter: 38-40 levels there
+  against the left's 26-27. Its blurred tail crosses the core and carries the
+  same factor onto the flare side (11.1 / 8.2 / 5.2 / 2.6 at n 4.9 / 5.9 /
+  7.2 / 9.0).
+- **A linearised fit.** The residual over n -10..+10 was fitted as a sum of
+  scaled source contributions. Flare-side rms, middle north / middle south:
+
+  | fitted as | fraction | flare-side rms |
+  |---|---|---|
+  | none | | 4.65 / 5.70 |
+  | `arc_glow1w`, whole layer | -0.07 / -0.04 | 4.37 / 5.47 |
+  | `arc_glow1w`, flare part (n > 1.5) | -0.55 / -0.55 | 3.07 / 2.78 |
+  | `arc_glow1w`, lens and flare parts | -0.05, -0.55 / -0.01, -0.55 | 3.07 / 2.78 |
+  | `arc_glow1b` | -0.13 / -0.28 | 4.17 / 4.04 |
+  | `arc_core`'s amount | +0.00 / +0.02 | 4.65 / 5.72 |
+
+  Only the flare-facing part of `arc_glow1w` explains the band. Its lens part
+  needs no change, and the left curve needs none either (fractions within
+  -0.23..+0.18, rms unchanged).
+- **Where to split.** A flare part beginning at n 1.5 also darkens the flare
+  interior (+1.4..+2.9): +2.0 -> +6.0 over the lower middle. Beginning at
+  n 3.0, the inner edge of `arc_core_edge`'s light, leaves the interior as it
+  is. The flare-side rms is then 3.03 / 2.45, at fractions -0.63 / -0.74.
+- **Per station** the fraction is noisy (sd 0.22 in table units). It follows
+  `arc_glow1w`'s own lens-side station bumps: the reference's flare foot does
+  not share them. It is consistent over the two middle zones. It is mixed at
+  the junction (y 472-552, in the flare's light) and in the transitions.
+
+### Stage 4: the centre offset
+
+The right core's centre, reference minus model (+ = the reference's further
+toward the flare), over the lower middle, by five definitions:
+
+| definition | lower middle | upper middle |
+|---|---|---|
+| midpoint of the half-level edges | -0.067 +- 0.024 | -0.024 +- 0.022 |
+| midpoint of the 20% levels | -0.067 +- 0.027 | -0.022 +- 0.029 |
+| midpoint of the 80% levels | -0.076 +- 0.031 | -0.046 +- 0.020 |
+| mirror-symmetry fit | -0.068 +- 0.023 | -0.023 +- 0.033 |
+| intensity centroid | -0.028 +- 0.023 | -0.039 +- 0.026 |
+
+- **It repeats in every pixel split** (-0.065..-0.072), but it is local:
+  - y 592 (both edges 0.13 px lens-ward): a local wobble of the curve;
+  - y 612 and 631 (the lens edge 0.25 / 0.13 px short, the flare edge within
+    0.06 px): lens-side width.
+  At the other lower-middle stations it is 0.03 px or less.
+- **It is not the flare side.** The intensity centroid does not support a
+  displacement over the zone.
+- **Classified** as a local lens-side width and position wobble, at the scale
+  of both curves' +-0.1 px centre lobes (D77). The curve of record is not
+  moved.
+
+### Stage 5: the candidates
+
+Right curve only. Per zone: the band (n +4.4..+5.4); then the profile rms,
+all / flare half.
+
+| candidate | band N / S | rms upper middle | rms junction | rms lower middle | rms lower transition |
+|---|---|---|---|---|---|
+| A: D77 | -9.2 / -11.4 | 7.21 / 6.99 | 6.88 / 8.10 | 7.75 / 7.37 | 6.85 / 6.70 |
+| B: `arc_core` right plateaus -0.03 | -9.0 / -11.4 | 7.26 / 6.89 | 7.07 / 8.38 | 8.24 / 7.34 | 6.81 / 6.68 |
+| B: `arc_core` right plateaus +0.03 | -9.3 / -12.0 | 7.48 / 7.69 | 6.79 / 7.91 | 8.18 / 8.83 | 6.83 / 6.68 |
+| C: right south plateau 1.10 | -9.2 / -12.0 | 7.21 / 6.99 | 6.81 / 7.92 | 8.18 / 8.73 | 6.82 / 6.70 |
+| C: right south plateau 1.045 | -9.2 / -11.4 | 7.21 / 6.99 | 7.04 / 8.38 | 8.24 / 7.35 | 6.81 / 6.69 |
+| D: right `arc_core_edge` outer edge -0.15 | -9.6 / -10.8 | 7.17 / 7.04 | 7.43 / 9.07 | 7.73 / 7.19 | 7.29 / 7.47 |
+| E: glow flare part x0.45, split 1.5, everywhere | -4.5 / -5.3 | 6.71 / 6.24 | 7.21 / 8.61 | 7.08 / 6.08 | 6.95 / 6.87 |
+| E: x0.3, split 3.0, junction held | -3.5 / -3.5 | 6.49 / 5.58 | 6.96 / 8.23 | 6.76 / 5.23 | 6.99 / 6.91 |
+| **Z: x0.3, split 3.0, middle zones only** | **-3.9 / -3.8** | **6.48 / 5.54** | **6.76 / 7.89** | **6.79 / 5.30** | **6.83 / 6.68** |
+| Z: x0.25 | -3.4 / -2.9 | 6.43 / 5.42 | 6.75 / 7.88 | 6.80 / 5.34 | 6.84 / 6.68 |
+| Z: x0.35 | -4.5 / -4.1 | 6.54 / 5.68 | 6.75 / 7.88 | 6.88 / 5.48 | 6.83 / 6.68 |
+
+- **Width (B, C) and `arc_core_edge` (D) leave the band where it is**
+  (-10.8..-12.0). A narrower core cools the rim, but opens the half-level
+  width (+0.12 px at RS) and worsens the lower middle. A wider one over-lights
+  the rim. D moves the edge 0.08 px inward and under-lights the transition
+  rims.
+- **E and Z** halve or better the band on both middle zones. They leave the
+  flare edge, the widths, the softness, the lens edge and the lens band where
+  they were.
+  - The junction is held because its evidence is mixed: holding it turns a
+    junction cost (8.10 -> 8.61) into a gain (8.10 -> 7.89).
+  - Confining the gain to the middle zones keeps the transitions (6.70 ->
+    6.68).
+- **The gain.** 0.3 is between the two zones' fits (0.37 north, 0.26 south).
+  0.25 and 0.35 read within 0.1 of it.
+- **The identity split** (the same table on both parts) moves nothing beyond
+  the anti-aliased seam's 1 level. On the left curve that seam still moved
+  126 px by 1 level, hence the engineering below.
+
+### Engineering (1782c80): a convex taper can name the curves it splits
+
+- **Why.** `convex_taper` split a layer at both curves. A correction that
+  belongs to the right curve could not be drawn without splitting the left,
+  whose seam moves pixels by a level.
+- **The change.** `convex_taper` may now also be {"left": name, "right":
+  name} (build_svg.convex_taper_for). A curve it does not name is drawn whole,
+  exactly as without the key.
+  - The string form is unchanged: the shipped SVG and every basis rebuild byte
+    for byte.
+  - The old builder raised "TypeError: unhashable type: 'dict'" on the new
+    form.
+  - `optimize.taper_specs` counts a per-side convex taper's user.
+- **The check.** "an arc's convex taper acts only on its flare-facing side"
+  (D67) required `arc_glow2` to be the only such layer. It now runs on every
+  layer with a convex taper:
+  - the identity split matches the unsplit build (to 1 cv, the seam);
+  - the concave side is unchanged and the flare side changes;
+  - a curve the taper does not name is the unsplit build's exactly;
+  - the optimiser searches the table.
+  It also probes the per-side form on `arc_glow2`.
+- **Run alone:** it passes on D77's parameters and on the kept state. The
+  artwork is byte for byte unchanged.
+
+### Stage 6: the kept candidate, measured
+
+`arc_glow1w` gets `convex_taper` {"right": `glow1w_cv`} and `split` 3.0.
+- **The table.** `tapers.glow1w_cv` is right-only: `glow1w`'s own right rows
+  times 0.3 over y 350-460 and 565-670. Its ramps run from 1 at y 330, 480,
+  545 and 690, with knots added at the ramps' ends on the table's own
+  interpolation, and its kind, gamma, scale and offset are `glow1w`'s.
+- **Nothing else changes.**
+
+*Per station, the right curve* (reference minus model, D77 / D78):
+
+| y | band +4.4..+5.4 | +5.4..+6.4 | rim +2.9..+4.4 | interior +1.4..+2.9 | flare edge (px) |
+|---|---|---|---|---|---|
+| 355 | -10.0 / -7.1 | -1.0 / +2.3 | -9.2 / -6.6 | -3.5 / -2.6 | -0.05 / -0.03 |
+| 374 | -12.8 / -7.8 | -3.2 / +1.1 | -17.1 / -13.1 | -5.8 / -4.2 | -0.07 / -0.06 |
+| 413 | -13.5 / -7.1 | -2.4 / +1.6 | +2.6 / +5.8 | -2.7 / -2.6 | +0.09 / +0.10 |
+| 452 | -12.1 / -5.0 | -5.0 / -0.2 | -7.2 / -3.5 | +1.6 / +1.5 | -0.09 / -0.07 |
+| 492 (junction) | -12.4 / -11.4 | -4.8 / -3.9 | -0.7 / +0.4 | +4.4 / +4.9 | +0.05 / +0.05 |
+| 532 (junction) | -3.9 / -3.3 | -0.4 / -0.1 | +14.8 / +14.5 | +6.1 / +6.5 | +0.46 / +0.44 |
+| 572 | -12.8 / -4.1 | -7.9 / -0.3 | +2.9 / +6.7 | -0.6 / -0.3 | +0.01 / +0.00 |
+| 592 | -11.9 / -4.2 | -3.5 / +3.7 | -10.9 / -6.4 | +0.6 / +1.2 | -0.14 / -0.11 |
+| 612 | -10.3 / -2.1 | -2.3 / +4.0 | -6.3 / -1.5 | +2.7 / +3.9 | -0.06 / -0.05 |
+| 631 | -12.7 / -4.4 | -5.1 / +1.4 | +0.9 / +7.5 | +4.4 / +5.9 | +0.03 / +0.04 |
+| 651 | -7.8 / -0.4 | -3.9 / +2.7 | -2.1 / +2.5 | +3.6 / +4.0 | -0.02 / +0.01 |
+| 670 | -12.7 / -7.6 | -5.9 / -2.8 | -9.0 / -6.7 | +1.6 / +0.6 | -0.08 / -0.07 |
+
+- **The band** improves at every middle station. Over y 340-790 the whole
+  profile's rms is better, or within 0.01, at every station but y 472 (8.17 ->
+  8.38), and its mean goes 7.20 -> 6.70.
+- **Through the pixel splits** the band now reads -2.9..-5.0 (lower middle)
+  and -3.4..-6.3 (upper middle), as the left curve's -3.0..-4.8 do.
+- **Beyond the band** (n +5.4..+8) a few stations now read 3-7 levels short
+  (y 393, 433, 592, 612). The upper middle's mean there, +2.7, says 0.3 is a
+  little strong for that zone.
+- **Unchanged within 0.01 px:** the flare edge, the edge softness, the lens
+  edge (+0.034 / +0.092 -> +0.035 / +0.090) and the widths.
+- **The lens side** (rim, band, lens-half rms 7.22 -> 7.20 and 7.99 -> 7.93)
+  is unchanged. The centre band moves toward the reference (+1.3 -> +0.4 over
+  the lower middle).
+- **The centre** gains no offset. Its half-level midpoint goes -0.067 ->
+  -0.060 over the lower middle, and the mirror fit -0.068 -> -0.040.
+
+*The right curve's rows* (curve-adjacent MAE, within 9 px):
+
+| rows | D77 | D78 |
+|---|---|---|
+| y 300-380 | 6.876 | 6.753 |
+| y 380-455 | 5.640 | 5.584 |
+| y 455-485 | 6.806 | 6.764 |
+| y 520-555 | 6.225 | 6.199 |
+| y 555-571 | 6.127 | 5.614 |
+| y 571-640 | 6.297 | 5.852 |
+| y 640-704 | 6.150 | 5.833 |
+
+Every other band of both curves is unchanged.
+
+### Stage 7: what else it touches
+
+- **Confinement.** Changed pixels against D77:
+
+  | render size | changed px (max) | rows | from the right curve | left curve | r < 25 | r < 110, > 9 px from both curves |
+  |---|---|---|---|---|---|---|
+  | 512 | 749 (13) | 291-775 | 12.0 px at most | 0 | 0 | 81 px, 2 levels at most |
+  | 1024 | 2922 (15) | 290-776 | 12.2 px at most | 0 | 2 | 382 px, 2 levels at most |
+  | 2048 | 11571 (15) | 292-778 | 13.0 px at most | 0 | 11 | 1806 px, 2 levels at most |
+
+  The reach is the glow tail's own, 12-13 px from the curve. In the flare
+  interior it moves pixels by 2 levels at most, and that region's MAE goes
+  3.4030 -> 3.4006. The tips and outer thirds are byte-identical.
+- **The flare.** Core r < 25 is unchanged (3.7474). Flare r < 110 goes
+  3.8514 -> 3.8305.
+- **The left curve** is byte-identical at all three sizes.
+- **1x.** Indistinguishable from D77. At x16 the change is a smooth band just
+  outside the right curve's flare edge, faded out at the junction, with no
+  seam at n +3.0.
+
+### Stage 8: D77's costs, re-evaluated
+
+D77's recorded costs are all on the left curve:
+- y 555-571 curve pixels;
+- the lens edge at y 651-670;
+- the lens-band step at LS.
+
+The left curve is byte-identical here, so none of them moves. None is related
+to this change, and none is compensated by it. No dark notch is added.
+
+### Decision
+
+Kept: `arc_glow1w`'s flare-facing part on the right curve at 0.3 of its table
+over the middle zones, split at n +3.0.
+
+| rule | met |
+|---|---|
+| 1. the excess repeats over multiple stations | yes: 13 of 13 middle stations, every pixel split (stage 2) |
+| 2. the source is identified | yes: `arc_glow1w`'s flare-facing tail, by per-source contribution and fit; not the core's width, `arc_core_edge` or `arc_glow1b` (stage 3) |
+| 3. the right cross-section improves | yes: band -9.2 / -11.4 -> -3.9 / -3.8, flare-half rms 6.99 / 7.37 -> 5.54 / 5.30, the rim and junction too |
+| 4. no new centre displacement | yes: -0.067 -> -0.060 (half level), -0.068 -> -0.040 (mirror) |
+| 5. the lens side does not worsen | yes: its edge, rim, band and rms unchanged or better |
+| 6. confined to the middle / junction | yes: rows 290-778, within 13 px of the right curve; the junction held |
+| 7. the left curve stable | yes: byte-identical at 512, 1024 and 2048 px |
+| 8. endpoints and tips stable | yes: byte-identical |
+| 9. survives the JPEG / raster checks | yes: before and after, in every split (stages 2, 6) |
+| 10. coherent at 1x | yes |
+
+### Validation
+
+- **Publish.** `sh tools/publish.sh` on the parameters as committed: **PUBLISH
+  OK**, 82 of 82 checks. The render it publishes is pixel-identical to the
+  candidate measured above, and the parameters rebuild the SVG byte for byte.
+- **The checks this pass changed:**
+  - the convex-taper check now runs on each layer that has one. `arc_glow1w`,
+    split on the right: identity split 1.00 cv, concave side 0 cv, flare side
+    up to 25 cv, and its left curve drawn whole (0 cv beyond x 523);
+  - the inventory of numbers the search does not bound has one new kind,
+    `split`, which is chosen from the measured cross-section and held.
+- **The checks this pass had to keep** all pass:
+  - the width-taper check, per curve;
+  - D75's Objective holds;
+  - D72/D73's `red_shift` objective;
+  - D74's isolation write-back;
+  - the objective composite (MAE 0.5308, as D77's).
+- **D76 and D77.** `end_blur`'s check still runs on its probe, and the core's
+  blur is 0.2042 along its whole length. The left curve's tables,
+  `arc_core_edge`, `arc_lens_band` and `red_shift` are unchanged, and the
+  left curve renders byte for byte as D77's.
+- **Structure.** `visual_regression`: 16 of 16 within band, none
+  unmeasurable. The retired flank wedges stay retired, so the west triangle
+  is absent.
+- **Metrics:**
+
+  | metric | D77 | D78 |
+  |---|---|---|
+  | MAE / RMSE | 1.5923 / 2.6871 | 1.5910 / 2.6826 |
+  | SSIM | 0.97746 | 0.97747 |
+  | edge IoU | 0.72758 | 0.73101 |
+  | centre MAE | 4.3887 | 4.3648 |
+  | flare r < 110 MAE | 3.8514 | 3.8305 |
+  | core r < 25 MAE | 3.7474 | 3.7474 |
+  | bright-region MAE | 5.5909 | 5.5821 |
+  | cross-engine MAE | 2.638 | 2.638 |
+
+  None of them decided anything. Every render size's MAE and RMSE is lower
+  (2048 px: 1.583 / 2.651 -> 1.581 / 2.644), and so is Chromium's
+  (2.913 -> 2.908).
+- **Artefacts.** Parameters c651f387..., SVG 68dc9391... (160 742 bytes), render
+  d1d99c8d...
+
+### Remaining
+
+- **Fixed:** the right curve's flare band over its middle (9-11 levels -> 3-4,
+  as the left curve's).
+- **Improved:**
+  - the right curve's rim and flare-half profile;
+  - its junction's flare half (8.10 -> 7.89);
+  - flare r < 110.
+- **Unchanged:**
+  - the left curve;
+  - the right curve's edges, width, lens side and tips;
+  - the core blur, `arc_core_edge` and the curve of record;
+  - core r < 25.
+- **Refuted:**
+  - the right curve's band as width (B, C) or as `arc_core_edge` (D);
+  - its lower-middle centre offset as a displaced curve.
+- **Worse, recorded:**
+  - y 472, at the junction's edge (+0.2 rms);
+  - just beyond the band on a few upper-middle stations (+3..+7 levels);
+  - 382 flare-interior pixels at 2 levels at most.
+- **JPEG-limited:** none new.
+- **Deferred:**
+  - the right junction's band (-7..-11 at y 492 and 552, in the flare's
+    light);
+  - the local lens-side wobble at y 592-631;
+  - D77's left-curve costs;
+  - `arc_core_wide`'s lens edge;
+  - the lens-side trough;
+  - the field-cache eviction;
+  - D72's list.
+
+### Recommendation
+
+Measure the step just lens-ward of the core's centre line.
+- **Why.** Over n -1.4..-0.4 the model is 7-9 levels too bright at three of
+  the four ends (LN -1.7 aside), and at n -0.4..+0.4 it is 2-6 too dark:
+  - right middle north -8.0 / +2.0;
+  - right middle south -9.0 / +4.4;
+  - left middle south -7.0 / +2.9.
+  That is where `arc_core_wide`'s inner edge sits (n -0.6, D74). It is now
+  the most consistent residual inside the core on both curves.
+- **What decides it.** Per station, with the pixel splits:
+  - whether the step is that edge's sharpness or its position;
+  - that the lens edge, the lens rim and the centre do not move.

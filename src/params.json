@@ -699,7 +699,11 @@
      30
     ]
    },
-   "note": "the WHITE half of arc_glow1, split out so white and cyan can vary along the curve independently (D61).  Same inset, width and blur as arc_glow1.  D66: its taper `glow1w` is now a per-side station table (the ramp y 290/495/535/780 rewritten on its own knots, render-identical), with the 20-px stations y 380-680 MEASURED on each curve: per station, the white this layer and the cyan+white arc_glow1 need to match the reference's concave band 1-12 px beyond the curve's edge, every other layer fixed (on the right curve's flare rows with a flare-shaped nuisance term pinned by u 2..30, so the flare's own light is not absorbed).  Near the flare's rows both curves' glow is whiter than the ramp drew: the white rises to 1.1-1.9x the ramp's flat top (left y 520: 1.85, right y 500: 1.81; right y 520 dips to 1.04), so the layer's white is x1.9 (0.4198 -> 0.7977) and every table value /1.9, which keeps the stations below the table's ceiling of 1.  Before D66: decomposing the outer-flank residual (d -12..-6 px) into white and cyan against A = [[1,0],[1,.94],[1,1]]: far from the flare the single-colour layer was too WHITE, near it too CYAN -- one colour cannot be both, which is why the layer was split."
+   "note": "the WHITE half of arc_glow1, split out so white and cyan can vary along the curve independently (D61).  Same inset, width and blur as arc_glow1.  D66: its taper `glow1w` is now a per-side station table (the ramp y 290/495/535/780 rewritten on its own knots, render-identical), with the 20-px stations y 380-680 MEASURED on each curve: per station, the white this layer and the cyan+white arc_glow1 need to match the reference's concave band 1-12 px beyond the curve's edge, every other layer fixed (on the right curve's flare rows with a flare-shaped nuisance term pinned by u 2..30, so the flare's own light is not absorbed).  Near the flare's rows both curves' glow is whiter than the ramp drew: the white rises to 1.1-1.9x the ramp's flat top (left y 520: 1.85, right y 500: 1.81; right y 520 dips to 1.04), so the layer's white is x1.9 (0.4198 -> 0.7977) and every table value /1.9, which keeps the stations below the table's ceiling of 1.  Before D66: decomposing the outer-flank residual (d -12..-6 px) into white and cyan against A = [[1,0],[1,.94],[1,1]]: far from the flare the single-colour layer was too WHITE, near it too CYAN -- one colour cannot be both, which is why the layer was split. D78: on the right curve its flare-facing part (beyond n +3.0, the split) takes `glow1w_cv`: this table's right rows times 0.3 over the middle (y 350-460 and 565-670, ramped from 1 at y 330, 480, 545 and 690; the junction rows 480-545, in the flare's light, held at 1).  Measured along the whole right curve, the band just outside its flare edge (n +4.4..+5.4) read 9-11 levels too bright over the middle (the left curve's 3-4), in every pixel split, and the light there is the broad glows', not the core's.  A linearised fit of each source's own contribution explains it by this layer's blurred tail crossing the core alone: its flare part 0.26-0.37 of its amount (the lens part unchanged, -0.01..-0.05), where the core's width, arc_core_edge and arc_glow1b do not.  The lens side, which D66 fitted this table to, is unchanged (docs/DECISIONS.md D78).",
+   "convex_taper": {
+    "right": "glow1w_cv"
+   },
+   "split": 3.0
   },
   {
    "blue": 0.054558,
@@ -6962,6 +6966,138 @@
     ],
     [
      932.36,
+     0.0
+    ]
+   ]
+  },
+  "glow1w_cv": {
+   "kind": "table",
+   "gamma": 1.0,
+   "scale": 1.0,
+   "y_offset": -13.309600000000003,
+   "right": [
+    [
+     303.3096,
+     0.0
+    ],
+    [
+     328.9346,
+     0.065789
+    ],
+    [
+     343.3096,
+     0.102696
+    ],
+    [
+     354.5596,
+     0.07977
+    ],
+    [
+     363.3096,
+     0.061829
+    ],
+    [
+     380,
+     0.10447
+    ],
+    [
+     400,
+     0.086993
+    ],
+    [
+     420,
+     0.130097
+    ],
+    [
+     440,
+     0.086276
+    ],
+    [
+     460,
+     0.141132
+    ],
+    [
+     473.3096,
+     0.162209
+    ],
+    [
+     480,
+     0.307686
+    ],
+    [
+     493.3096,
+     0.827376
+    ],
+    [
+     500,
+     0.953729
+    ],
+    [
+     520,
+     0.549266
+    ],
+    [
+     540,
+     0.741344
+    ],
+    [
+     558.3096,
+     0.712046
+    ],
+    [
+     560,
+     0.667374
+    ],
+    [
+     578.3096,
+     0.178078
+    ],
+    [
+     580,
+     0.174872
+    ],
+    [
+     600,
+     0.164836
+    ],
+    [
+     620,
+     0.135236
+    ],
+    [
+     640,
+     0.147826
+    ],
+    [
+     660,
+     0.150279
+    ],
+    [
+     680,
+     0.107098
+    ],
+    [
+     683.3096,
+     0.099055
+    ],
+    [
+     701.4346,
+     0.171337
+    ],
+    [
+     703.3096,
+     0.179405
+    ],
+    [
+     732.0596,
+     0.118586
+    ],
+    [
+     762.6846,
+     0.056289
+    ],
+    [
+     793.3096,
      0.0
     ]
    ]
