@@ -258,6 +258,19 @@ def rounded_rect_path(x0, y0, x1, y1, r):
     )
 
 
+def convex_taper_for(L, side):
+    """The taper arc layer `L` paints its flare-facing part with on curve
+    `side`, or None if that curve is not split.  `convex_taper` is one taper
+    name for both curves, or {"left": name, "right": name} naming only the
+    curves it splits: a curve it does not name is drawn whole, exactly as
+    without the key (D78)."""
+    cv = L.get("convex_taper")
+    if isinstance(cv, dict):
+        assert set(cv) <= {"left", "right"}, "a per-side convex_taper names left and/or right: %s" % sorted(cv)
+        return cv.get(side)
+    return cv
+
+
 def bezier_arc_path(g, side, inset=0.0):
     """Arc path from explicit cubic control points (SVG user space).
 
@@ -842,9 +855,10 @@ class Builder:
             # concave part (its own taper) and the flare-facing convex part
             # (the convex taper).  The split runs `split` px on the flare side
             # of the curve of record, inside the curve's bright core, so the
-            # seam sits where the core screens it out.
+            # seam sits where the core screens it out.  A per-side convex
+            # taper splits only the curves it names (convex_taper_for).
             for split in sorted({float(L.get("split", 1.5)) for L in p["layers"]
-                                 if L.get("kind") == "arc" and L.get("convex_taper")}):
+                                 if L.get("kind") == "arc" and convex_taper_for(L, side)}):
                 self.defs.extend(self.side_clips(side, split))
             # The broad glow lives only on the concave side of each arc, so it
             # is clipped to that arc's own ellipse intersected with the frame
@@ -1308,12 +1322,14 @@ class Builder:
                         g = dict(self.p["geometry"]["arc_" + side])
                         g["cubics"] = {side: extended_cubics(g["cubics"][side], float(L["extend"]))}
                         d = bezier_arc_path(g, side, L.get("inset", 0.0))
-                    if L.get("convex_taper"):
+                    cvt = convex_taper_for(L, side)
+                    if cvt:
                         # directional fade: the concave part keeps the layer's own
-                        # taper, the flare-facing part takes `convex_taper`
+                        # taper, the flare-facing part takes `convex_taper` (on
+                        # the curves a per-side one names)
                         assert cl == "frame" and L.get("taper"), "convex_taper needs a tapered, frame-clipped arc layer"
                         sp = float(L.get("split", 1.5))
-                        pcv = "url(#%s)" % self.taper_paint(gid + side[0] + "x", L["convex_taper"], col, side)
+                        pcv = "url(#%s)" % self.taper_paint(gid + side[0] + "x", cvt, col, side)
                         for pt, cid in ((paint, self.split_id(side, sp, False)), (pcv, self.split_id(side, sp, True))):
                             res.append(
                                 '<path d="%s" fill="none" stroke="%s" stroke-width="%s" stroke-linecap="%s"%s clip-path="url(#%s)"%s%s/>'
