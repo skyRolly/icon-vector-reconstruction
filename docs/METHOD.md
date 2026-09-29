@@ -497,6 +497,27 @@ too bright just inside the centre line (D74).
   the stroke's sharp edge (blur 0.20), and less from `arc_core`'s soft one.
   No blur was changed.
 
+Just outside both edges over the middle (n -5.4..-4.4 and +4.4..+5.4) the
+reference is darker than the model, by 9-11 levels on average (D75). The
+model has too much light there, not too little.
+- **What lights those bands in the model:**
+  - `arc_core`'s blurred edge tail, about a third of each band;
+  - on the flare side, the tails of the lens-side glows reaching across the
+    core.
+- **The glows are not the cause.**
+  - Their inner edges lie under the core (`arc_glow1`, `arc_glow1w` at n
+    -0.37 with a 5-px blur; `arc_glow1b` at +2.0 with 2.4 px).
+  - They are flat across both bands.
+  - Moving a flank outward lowers the band and its neighbours together,
+    moving the error next door.
+- **The lens band's rest is the reference's own trough.** It sits about 5
+  levels below the pixel beyond, and no screen layer draws it.
+- **Not a JPEG or resampling effect, as far as measured.**
+  - Through the reference's JPEG table it is not produced.
+  - A Lanczos downscale produces it over the middle, but the same filter
+    predicts a trough over the outer thirds that the reference does not have.
+  - So it is left unmodelled.
+
 Sharpening the edge removes the white light the soft edge spread outside it.
 It also shows what that light had covered: a cyan band on the lens side of
 the curves' outer thirds, which no layer drew (D71).

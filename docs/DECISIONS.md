@@ -13088,3 +13088,193 @@ It fails on four wrong fixes:
 - `visual_regression`'s 16 structures are all within band, and cross-engine
   MAE is 2.650.
 - A clean-clone run of the CI workflow's steps is recorded with the commit.
+
+### Stage 2: the coordinates, and which way the bands point
+
+This stage was done only after stage 1 was validated.
+
+*The coordinates.*
+- **Local (u, n)**, as since D70. u runs along the curve from its end, and n
+  is the signed distance along its normal.
+- **n > 0 is the convex (flare) side.** The two curves face each other with
+  their convex sides:
+  - the left curve's middle lies at x 455-457 with its tips out at x
+    217-231, and +n points to +x;
+  - the right curve's middle lies at x 550-553 with its tips at x 770-779,
+    and +n points to -x.
+- **The flare core** lies at n +6..+7 of the right curve's middle and
+  +53..+57 of the left's.
+- **n < 0 is the concave (lens) side,** facing outward, toward the curve's own
+  frame edge.
+- **A glow's inset** is positive on the lens side. Its stroke covers inset
+  -+ width/2 before the blur. Its inner edge is the one nearer the curve, and
+  moving it outward means further from the curve on its own side.
+
+*The sign, first.* The dark bands (n -5.4..-4.4 and +4.4..+5.4 over the
+middle) are where the reference is DARKER than the model: the model has too
+much light there.
+- ref - render is -9.2 (lens) and -10.6 (flare) on average over the 30
+  middle stations. It is negative at 28 and 29 of them, raw and through the
+  JPEG table alike.
+- So the bands are not light a glow fails to reach. D74's summary, "light the
+  reference lacks", meant the same thing, and a flank that reached further
+  in would add to the excess.
+
+*Where each glow lies* (its white coverage, mean over the middle stations):
+
+| layer | covers (inset, before blur) | blur | drawn along the curve | across the bands |
+|---|---|---|---|---|
+| `arc_glow1` | 0.37..10.19 (lens) | 5.11 | the whole curve | flat from n -8 to -3 (0.37-0.40 at LN) |
+| `arc_glow1w` | 0.37..10.19 (lens) | 5.11 | the middle only (y 303-793) | flat (0.20-0.23 at LN) |
+| `arc_glow1b` | -9.96..-2.04 (flare) | 2.41 | the whole curve | at its plateau from +4.6 to +6.1 |
+| `arc_glow2` | -6.4..20.4 | 19.1 | the whole curve | flat |
+| `arc_glow2b`, `arc_glow3` | wide | 29.6, 40.1 | the whole curve | flat |
+
+- **No glow has an inner flank at either band.** `arc_glow1` and
+  `arc_glow1w` begin under the core (n -0.37) with a 5-px blur; `arc_glow1b`
+  begins at n +2.0 with a 2.4-px blur.
+- **Each is flat across the band and the pixel beyond it.** None is narrow
+  enough to shape a 1-px feature.
+
+### Stage 3: what lights the bands, station by station
+
+For each of the 30 middle stations: the band's residual, and each layer's
+light in the band against the band 1 px further out (its step across it).
+
+| | lens band (n -5.4..-4.4) | flare band (+4.4..+5.4) |
+|---|---|---|
+| ref - render (Y), mean | -9.2 (28/30 negative) | -10.6 (29/30 negative) |
+| per channel R / G / B | -7.3 / -10.4 / -8.0 | -9.1 / -11.5 / -9.6 |
+| the reference's own dip against the band beyond | -5.2 (30/30 dip, 0.5-8.4) | 0.0 (-3.5..+3.8) |
+| step of `arc_core` / `arc_core_wide` / `arc_core_edge` | +2.8 / +0.6 / 0.0 | +3.4 / 0.0 / +0.6 |
+| step of `arc_glow1w` / `arc_glow1` | -0.6 / -0.3 | +2.1 / +1.2 |
+| step of `arc_glow1b` / `arc_glow2` / `arc_glow3` | 0.0 / -0.5 / -0.5 | -1.4 / -0.3 / +0.8 |
+
+- **Colour.** Both bands are a luminance excess with a slight cyan tilt: all
+  three channels are negative at 27 and 29 stations, with R and B at 0.7-0.83
+  of G. They are not red and not chromatic.
+- **The lens band has two parts:**
+  - about a third is the core's own edge tail (`arc_core`'s middle blur 0.61,
+    and `arc_core_wide`), which steps up across the band;
+  - the rest is a 1-px trough in the reference: 5.2 levels below its own
+    level 1 px further out, at every station, which the model does not have.
+- **The flare band has no trough.** The reference falls to its outer level
+  (about 75) by n +4.6 and stays there, while the model's edge decays over
+  1.5 px:
+  - `arc_core`'s blur tail (+3.4);
+  - the flare-side tails of the two lens-side glows, which reach across the
+    core (`arc_glow1w` +2.1, `arc_glow1` +1.2).
+
+### Stage 4: the candidates, built with the real builder
+
+Each moves one glow's inner edge outward, holding its outer edge; everything
+else is held.
+- **W15, W30, W45:** `arc_glow1w`'s inner edge moved 1.5 / 3 / 4.5 px outward.
+  It is drawn over the middle only, so it is the one confinable control.
+- **B10, B20:** `arc_glow1b`'s inner edge moved 1 / 2 px outward. It is drawn
+  along the whole curve, so this is a diagnostic only.
+- **G30:** `arc_glow1`'s inner edge moved 3 px outward. It is also drawn along
+  the whole curve, a diagnostic only.
+
+Middle stations, signed luminance through the JPEG table: the lens band, the
+band beyond it (n -6.4..-5.4), the flare band, and the whole profile's rms
+(n -12..+12):
+
+| candidate | LN | RN | LS | RS |
+|---|---|---|---|---|
+| A: D74 | -8.0, +1.1, -6.0, 5.21 | -10.3, -2.7, -13.3, 6.83 | -7.2, +1.1, -8.4, 6.92 | -11.2, -1.1, -15.0, 6.72 |
+| W15 | -4.6, +4.3, -3.3, 5.46 | -6.1, +1.1, -9.2, 6.38 | -3.9, +4.3, -5.8, 7.31 | -6.0, +3.5, -11.0, 6.40 |
+| W30 | -0.4, +8.0, -1.8, 6.40 | -0.7, +5.9, -6.8, 7.32 | +0.1, +8.1, -3.2, 8.17 | +0.4, +9.0, -7.4, 7.70 |
+| W45 | +4.0, +12.6, -0.6, 8.09 | +4.6, +11.8, -5.4, 9.31 | +4.5, +12.7, -2.5, 9.43 | +7.2, +15.4, -5.9, 10.23 |
+| B10 | -8.1, +1.0, -4.0, 5.24 | -10.4, -2.8, -10.7, 6.44 | -7.1, +1.1, -6.8, 7.17 | -11.0, -1.1, -13.2, 6.51 |
+| B20 | -7.9, +1.2, -1.1, 5.51 | -10.1, -2.7, -8.7, 6.32 | -7.1, +1.3, -3.8, 7.46 | -11.1, -1.1, -11.2, 6.38 |
+| G30 | -2.5, +6.4, -2.1, 5.68 | -6.2, +1.2, -9.8, 6.49 | -2.1, +5.8, -4.7, 7.54 | -6.7, +2.7, -11.5, 6.49 |
+
+- **Every candidate lowers its band and moves the error next door.** The
+  glows are 5-20 px wide, so moving a flank lowers the band and its
+  neighbours together.
+  - **`arc_glow1w`:** as the lens band approaches 0, the band beyond goes
+    from 0 to +4..+15 too dark. The lens rim and the far lens side darken too
+    (LN's rim -1.9 -> +4.0 at W45).
+  - **`arc_glow1b`:** the flare band improves by 2-5 levels, but the flare
+    rim, already too dark at LN and LS, darkens further (LS +11.0 -> +13.9).
+  - **`arc_glow1`:** it behaves like W15, and is drawn along the whole curve.
+- **The profile rms.** W15, the best, improves at RN and RS and is worse at LN
+  and LS; every larger move is worse at every end. The rule's "no transfer of
+  the residual to a neighbour" fails for all of them.
+- **No candidate draws the reference's trough.**
+
+*Resampling ringing, a diagnostic.* The lens band's trough has the shape of
+the undershoot a Lanczos or bicubic downscale leaves beside a sharp edge.
+D74's model, rendered at 4096 px and brought to 1024 px, against its direct
+1024-px render (mean of the four ends):
+- **Over the middle, a Lanczos downscale cuts a trough in the right place.**
+  - As shipped: n -5.25 / -4.75 -4.6 / -4.5 and +4.75 / +5.25 -3.3 / -4.3.
+  - With the middle's blur at the ends' 0.204: -3.8 / -5.8 and -5.4 / -3.5.
+  - That sharp middle plus the Lanczos trough would leave the bands within
+    1-3 levels of the reference.
+- **Over the outer thirds the same filter predicts a trough the reference
+  does not have.** It gives -6.7 at n -4.25 and -6.1 at +4.25. There the
+  reference is flat, and brighter than the model: D71's lens band and the
+  deferred flare-side skirt.
+- **Verdict:** ringing is consistent with the middle and contradicted by the
+  outer thirds. The bands are not classified as a resampling artefact; the
+  question stays open.
+
+*The blur.* `arc_core`'s middle blur supplies about a third of each band (the
+steps above). D74's diagnostic showed that sharpening it worsens the left
+curve's flare side, and nothing here changes that, so the blur stays held.
+
+### Decision
+
+No artwork change. The rule for keeping a glow-flank change fails at its
+second and fourth points:
+- **no glow is the responsible source,** since none has a flank at either
+  band;
+- **every flank move transfers the residual** to the band beside it.
+
+The parameters, the SVG and the render are D74's, byte for byte.
+
+### Remaining
+
+- **Fixed:** an Objective built as `main` builds it no longer freezes the
+  starting state's colour hold (engineering).
+- **Attributed, not fixed:** the middle's dark bands.
+  - The model has too much light there, not too little.
+  - About a third of each band is `arc_core`'s blur tail. The flare band's
+    rest is the lens-side glows' tails; the lens band's rest is a 1-px trough
+    in the reference that no screen layer draws.
+- **Refuted:**
+  - the bands as missing light;
+  - a glow inner flank as their source, or as a fix. No glow has a flank
+    there, and moving one transfers the error.
+- **Unchanged:** everything D74 left (LS's flare rim, the flare core r < 25,
+  the junction strip, RS's south transition, LN's centre band, the step
+  dipole at `arc_core_wide`'s inner edge, the outer thirds, the ends and the
+  tips).
+- **Not classified:** the lens band's trough as resampling ringing.
+  Consistent with the middle, contradicted by the outer thirds.
+- **JPEG-limited:** as D74. Through the reference's table a synthetic core
+  edge changes the bands by at most 0.35 levels (D74).
+- **Deferred:**
+  - the middle's blur;
+  - `measure_flare`'s field-cache eviction (no growth in use);
+  - D72's list;
+  - the left curve's ends;
+  - the right curve's rows inside the flare's r < 25.
+
+### Recommendation
+
+Test the one element the bands share with the rims: the middle's edge
+sharpness together with the flare rim.
+- **Why these two together.** Both bands carry `arc_core`'s blur tail, and the
+  flare rim just inside the flare band is too dark (LN +2.5, LS +11.0).
+  Blur alone failed in D73 and D74 because sharpening moved light out of that
+  rim.
+- **The candidate.** The middle's blur at the ends' 0.204, with
+  `arc_core_edge`'s position and width (n +2.7..+4.1 now) refit so the flare
+  rim keeps its light. `arc_core_edge` is drawn only over y 235-790, so the
+  refit stays off the ends.
+- **What decides it.** Measure it per station as here: both bands, both rims
+  and the flare interior. Keep it only if it lowers the bands without moving
+  the error into the rims.
