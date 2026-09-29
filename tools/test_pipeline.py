@@ -1992,12 +1992,21 @@ def main():
     # The bands come from the table itself, so a table that leaves one empty is
     # a failure of the check, reported by name (D72: a one-row table raised an
     # IndexError, and the detail's indexing was safe only by coincidence).
+    # A per-side table ({"left": [...], "right": [...]}, which the builder
+    # draws per curve) is read per curve: each curve's bands from its own table,
+    # over its own pixels (D77).
     def _width_taper_check(p):
         """(problems, detail) for `p`'s width-tapered arc"""
         wtd = []
         wtl = [L["id"] for L in p["layers"] if L.get("width_taper")]
         if wtl != ["arc_core"]:
             return ["layers with a width taper: %s (expected arc_core)" % wtl], ""
+        # one table for both curves, or a per-side one (D77), each curve read
+        # against its own
+        tab = [L for L in p["layers"] if L["id"] == "arc_core"][0]["width_taper"]
+        if isinstance(tab, dict) and sorted(tab) != ["left", "right"]:
+            return ["a per-side table must name both curves (it names %s)" % sorted(tab)], ""
+        per = {sd: tab[sd] for sd in ("left", "right")} if isinstance(tab, dict) else {None: tab}
         pwt = _cpk.deepcopy(p)
         for Lw in pwt["layers"]:
             Lw.pop("end_blur", None)
@@ -2006,7 +2015,9 @@ def main():
             Lw.pop("width_taper", None)
         for Lw in pw1["layers"]:
             if Lw.get("width_taper"):
-                Lw["width_taper"] = [[y, 1.0] for y, _ in Lw["width_taper"]]
+                wt1 = Lw["width_taper"]
+                Lw["width_taper"] = ({sd: [[y, 1.0] for y, _ in v] for sd, v in wt1.items()}
+                                     if isinstance(wt1, dict) else [[y, 1.0] for y, _ in wt1])
         svs = build_svg.build(pws, basis="arc_core")
         svt = build_svg.build(pwt, basis="arc_core")
         if 'stroke="none"' in svs or 'stroke-width' not in svs:
@@ -2016,35 +2027,41 @@ def main():
         ws, w1, wt = (_FP.render_array(sv, 1024)[..., 0].astype(np.float64)
                       for sv in (svs, build_svg.build(pw1, basis="arc_core"), svt))
         near = np.abs(regions.curve_frame((1024, 1024))[0]) < 12
-        yyw = np.mgrid[0:1024, 0:1024][0] + 0.5
-        rows = [(int(y), float(fa)) for y, fa in [L for L in p["layers"] if L["id"] == "arc_core"][0]["width_taper"]]
-        # the bands read, each with the factor it must show: the north tip short
-        # of the table's first row, the south tip past its last, and the longest
-        # stretch between two rows at factor 1, 10 rows inside it
-        flat = [(r0[0], r1[0]) for r0, r1 in zip(rows, rows[1:]) if r0[1] == 1.0 and r1[1] == 1.0]
-        mid = max(flat, key=lambda ab: ab[1] - ab[0]) if flat else None
-        # and every stretch the table WIDENS, between two rows at the same
-        # factor above 1 (D73: the curves' middle), with that factor
-        wide = [(r0[0], r1[0], r0[1]) for r0, r1 in zip(rows, rows[1:])
-                if r0[1] == r1[1] and r0[1] > 1.0 and r1[0] - r0[0] >= 40]
-        bands = (("north tip", (100, rows[0][0] - 5), rows[0][1], 0.003),
-                 ("south tip", (rows[-1][0] + 20, 930), rows[-1][1], 0.003),
-                 ("middle", (mid[0] + 10, mid[1] - 10) if mid else None, 1.0, 0.002)) + tuple(
-                    ("widened y %d-%d" % (a, b), (a + 10, b - 10), f, 0.003) for a, b, f in wide)
-        cov = {}
-        for nm, band, want, tol in bands:
-            if band is None:
-                wtd.append("the table has no two rows at factor 1, so the middle band is missing")
-                continue
-            y0, y1 = band
-            if y1 < y0 + 10:
-                wtd.append("the table leaves the %s band empty (y %d-%d)" % (nm, y0, y1))
-                continue
-            mw = near & (yyw >= y0) & (yyw < y1)
-            cov[nm] = float(wt[mw].sum() / ws[mw].sum()) if ws[mw].sum() > 0 else float("nan")
-            if not np.isfinite(cov[nm]) or abs(cov[nm] - want) > tol:
-                wtd.append("coverage of the %s band (y %d-%d) is %.4f of the stroke's (expected %.4f)"
-                           % (nm, y0, y1, cov[nm], want))
+        yyw, xxw = np.mgrid[0:1024, 0:1024] + 0.5
+        cov, bands = {}, ()
+        for sd, tb in per.items():
+            rows = [(int(y), float(fa)) for y, fa in tb]
+            pre = sd + " " if sd else ""
+            # the bands read, each with the factor it must show: the north tip short
+            # of the table's first row, the south tip past its last, and the longest
+            # stretch between two rows at factor 1, 10 rows inside it
+            flat = [(r0[0], r1[0]) for r0, r1 in zip(rows, rows[1:]) if r0[1] == 1.0 and r1[1] == 1.0]
+            mid = max(flat, key=lambda ab: ab[1] - ab[0]) if flat else None
+            # and every stretch the table WIDENS, between two rows at the same
+            # factor above 1 (D73: the curves' middle), with that factor
+            wide = [(r0[0], r1[0], r0[1]) for r0, r1 in zip(rows, rows[1:])
+                    if r0[1] == r1[1] and r0[1] > 1.0 and r1[0] - r0[0] >= 40]
+            sb = ((pre + "north tip", (100, rows[0][0] - 5), rows[0][1], 0.003),
+                  (pre + "south tip", (rows[-1][0] + 20, 930), rows[-1][1], 0.003),
+                  (pre + "middle", (mid[0] + 10, mid[1] - 10) if mid else None, 1.0, 0.002)) + tuple(
+                     (pre + "widened y %d-%d" % (a, b), (a + 10, b - 10), f, 0.003) for a, b, f in wide)
+            bands += sb
+            # a side's table is read on its own curve's pixels only (x < 505 is
+            # the left curve: the two apexes are at x 465 and 545)
+            nsd = near if sd is None else near & ((xxw < 505) if sd == "left" else (xxw >= 505))
+            for nm, band, want, tol in sb:
+                if band is None:
+                    wtd.append("the %stable has no two rows at factor 1, so the middle band is missing" % pre)
+                    continue
+                y0, y1 = band
+                if y1 < y0 + 10:
+                    wtd.append("the table leaves the %s band empty (y %d-%d)" % (nm, y0, y1))
+                    continue
+                mw = nsd & (yyw >= y0) & (yyw < y1)
+                cov[nm] = float(wt[mw].sum() / ws[mw].sum()) if ws[mw].sum() > 0 else float("nan")
+                if not np.isfinite(cov[nm]) or abs(cov[nm] - want) > tol:
+                    wtd.append("coverage of the %s band (y %d-%d) is %.4f of the stroke's (expected %.4f)"
+                               % (nm, y0, y1, cov[nm], want))
 
         def half_centre(row, lo, hi):
             seg = row[lo:hi]
@@ -2117,6 +2134,61 @@ def main():
             _wbr.append("%s -> %s" % (_tab, _hit[0]))
     check("the width-taper check reports a band its table empties as a failure",
           not _wbd, "; ".join(_wbd) if _wbd else "; ".join(_wbr))
+
+    # ---- ... and reads a per-side table per curve (D77) -------------------- #
+    # `width_taper` may be {"left": [...], "right": [...]}: build_svg.ribbon_path
+    # draws each curve with its own rows.  Probes on the shipped state, whose
+    # table may be either form:
+    # - one curve's widened rows raised by 0.04, the other's as shipped (each
+    #   way round): the check passes, so each curve reads its own factor;
+    # - the right-raised probe drawn by a builder that hands ribbon_path the
+    #   left table for both curves: the check must fail on the right curve's
+    #   raised band;
+    # - a per-side table naming one curve: a failure that says so, where the
+    #   builder would raise a KeyError.
+    _psd, _psr = [], []
+    _wt0 = [L for L in params["layers"] if L["id"] == "arc_core"][0]["width_taper"]
+    _wt0 = ({s: _wt0[s] for s in ("left", "right")} if isinstance(_wt0, dict)
+            else {"left": _wt0, "right": _wt0})
+    _pps = {}
+    for _sd in ("left", "right"):
+        _tb = {s: [[y, round(f + 0.04, 4) if (s == _sd and f > 1.0) else f] for y, f in _wt0[s]]
+               for s in ("left", "right")}
+        _pps[_sd] = _cpk.deepcopy(params)
+        [L for L in _pps[_sd]["layers"] if L["id"] == "arc_core"][0]["width_taper"] = _tb
+        _prp, _prr = _width_taper_check(_pps[_sd])
+        if _prp:
+            _psd.append("%s raised: %s" % (_sd, "; ".join(_prp)))
+        else:
+            _psr.append("%s raised: passes" % _sd)
+    _rp0 = build_svg.ribbon_path
+
+    def _one_table(g, side, inset, width, table, knot=24.0):
+        return _rp0(g, side, inset, width, table["left"] if isinstance(table, dict) else table, knot)
+    build_svg.ribbon_path = _one_table
+    try:
+        _prb, _ = _width_taper_check(_pps["right"])
+    finally:
+        build_svg.ribbon_path = _rp0
+    _hit = [x for x in _prb if x.startswith("coverage of the right widened")]
+    if not _hit:
+        _psd.append("one table drawn for both curves: no failure on the right curve's widened band (%s)"
+                    % ("; ".join(_prb) or "passed"))
+    else:
+        _psr.append("one table drawn for both curves -> %s" % _hit[0])
+    _pm1 = _cpk.deepcopy(params)
+    [L for L in _pm1["layers"] if L["id"] == "arc_core"][0]["width_taper"] = {"left": _wt0["left"]}
+    try:
+        _prm, _ = _width_taper_check(_pm1)
+    except Exception as _em:
+        _prm = []
+        _psd.append("a one-curve table: the check raised %s: %s" % (type(_em).__name__, _em))
+    if _prm and "both curves" in _prm[0]:
+        _psr.append("a one-curve table -> %s" % _prm[0])
+    elif not any(x.startswith("a one-curve") for x in _psd):
+        _psd.append("a one-curve table: no failure names it (%s)" % ("; ".join(_prm) or "passed"))
+    check("the width-taper check reads a per-side table per curve",
+          not _psd, "; ".join(_psd) if _psd else "; ".join(_psr))
 
     # ---- an extended arc runs past its ends only along its own curve (D68) - #
     # arc_core_tip carries `extend`: its stroke runs that many px of arc length
