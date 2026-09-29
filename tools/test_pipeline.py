@@ -187,7 +187,7 @@ def main():
     # number -- most of the model's numeric leaves are unbounded on purpose (830
     # of 1131 in D72; the check prints the count), so a report of all of them
     # reports nothing.  What CAN be pinned is the inventory: every unbounded
-    # number today belongs to one of nineteen kinds, each searched by a
+    # number today belongs to one of twenty kinds, each searched by a
     # different mechanism or measured rather than fitted.  A
     # new unbounded field in a NEW kind is the case worth catching, and this
     # fires on it.  `paint/x1..y2` is the one kind that is neither -- eight
@@ -222,6 +222,10 @@ def main():
         # D72: arc_core's red along the right curve, read from the reference's
         # core plateau and held (its colour is held with it)
         "red_shift": "measured along the right curve and held (D72)",
+        # D78: where a convex-taper layer is split across its curve (arc_glow1w,
+        # at n +3.0, the inner edge of arc_core_edge's light), chosen from the
+        # measured profile so the flare interior is left as it is, and held
+        "split": "chosen from the measured cross-section and held (D78)",
     }
 
     def _numeric_leaves(node, prefix):
@@ -1927,51 +1931,110 @@ def main():
           % (_added, _removed, _away, int(_inP.sum()), 100 * _left[1.0], 100 * _left[0.5]))
 
     # ---- an arc's convex taper acts only on its flare-facing side (D67) ---- #
-    # arc_glow2 is split at each curve (1.5 px towards the flare, inside the
-    # curve's bright core): its concave part keeps the layer's own taper, the
-    # flare-facing part takes `convex_taper`.  Three things must hold:
-    # - the split is a partition: with the convex taper set to the layer's own
+    # A layer carrying `convex_taper` is split at each curve it names (`split`
+    # px towards the flare, inside the curve's bright core): its concave part
+    # keeps the layer's own taper, the flare-facing part takes the convex
+    # taper.  arc_glow2 carries one on both curves (D67); a per-side one,
+    # {"left"/"right": name}, splits only the curves it names
+    # (build_svg.convex_taper_for; arc_glow1w's, D78).  For every such layer:
+    # - the split is a partition: with each convex taper set to the layer's own
     #   taper, the whole composite equals the unsplit build (the anti-aliased
     #   seam is screened out by the core);
     # - the convex taper changes the layer nowhere on the concave side, and
     #   does change it on the flare side;
-    # - without a convex taper no split is emitted, and the optimiser counts
-    #   the convex taper's user, or it would never search that taper.
+    # - a curve a per-side convex taper does not name is drawn whole: beyond
+    #   the named curve's reach, the layer is the unsplit build's exactly;
+    # - the optimiser counts the convex taper's user, or it would never search
+    #   that taper.
+    # Without a convex taper no split is emitted.  The per-side form is also
+    # probed on arc_glow2 ({"right": its own convex taper}), so it is checked
+    # whether or not a shipped layer uses it.
     _cvL = [L["id"] for L in params["layers"] if L.get("convex_taper")]
-    _cvd = []
-    if _cvL != ["arc_glow2"]:
-        _cvd.append("layers with a convex taper: %s (expected arc_glow2)" % _cvL)
-    else:
-        _pcn, _pci = _cpk.deepcopy(params), _cpk.deepcopy(params)
-        for _Lc in _pcn["layers"]:
-            _Lc.pop("convex_taper", None)
-        for _Lc in _pci["layers"]:
-            if _Lc.get("convex_taper"):
-                _Lc["convex_taper"] = _Lc["taper"]
-        _svn = build_svg.build(_pcn)
-        if "url(#cv" in _svn or "url(#cc" in _svn:
-            _cvd.append("a stack without a convex taper still emits a split")
-        _cvI = float(np.abs(_FP.render_array(build_svg.build(_pci), 1024).astype(np.float64)
-                            - _FP.render_array(_svn, 1024).astype(np.float64)).max() * 255)
-        if _cvI > 1.01:
-            _cvd.append("the identity split differs from the unsplit build by %.1f cv" % _cvI)
-        _dS = regions.curve_frame((1024, 1024))[0]      # < 0 on the concave side
-        _cvS = np.abs(_FP.render_array(build_svg.build(params, basis="arc_glow2"), 1024)[..., 0].astype(np.float64)
-                      - _FP.render_array(build_svg.build(_pci, basis="arc_glow2"), 1024)[..., 0]) * 255
-        _cvC, _cvF = float(_cvS[_dS < -1.0].max()), float(_cvS[_dS > 3.0].max())
-        if _cvC > 0.5:
-            _cvd.append("the convex taper changes the concave side (up to %.1f cv)" % _cvC)
-        if _cvF < 3.0:
-            _cvd.append("the convex taper changes nothing on the flare side (max %.1f cv)" % _cvF)
-        _cvU = [sp["affects"] for sp in O.taper_specs(params) if sp["path"].startswith("tapers/glow2_cv/")]
-        if not _cvU or any(u != ["arc_glow2"] for u in _cvU):
-            _cvd.append("taper_specs does not search glow2_cv for arc_glow2 (%s)" % _cvU)
+    _cvd, _cvr = [], []
+    _dS = regions.curve_frame((1024, 1024))[0]      # < 0 on the concave side
+    _xS = np.mgrid[0:1024, 0:1024][1] + 0.5
+    # the apexes: the left curve reaches x 465.4 at most, the right x 544.8 at least
+    _apx = {"left": 465.4, "right": 544.8}
+
+    def _cv_basis(p, lid):
+        return _FP.render_array(build_svg.build(p, basis=lid), 1024)[..., 0].astype(np.float64) * 255
+
+    def _cv_layer(p, lid):
+        return [L for L in p["layers"] if L["id"] == lid][0]
+
+    def _cv_cases(p, lid, tag):
+        """the four properties for layer `lid` of `p`; (problems, detail)"""
+        dd = []
+        L0 = _cv_layer(p, lid)
+        cv0 = L0["convex_taper"]
+        named = [s for s in ("left", "right") if build_svg.convex_taper_for(L0, s)]
+        pn, pi = _cpk.deepcopy(p), _cpk.deepcopy(p)
+        _cv_layer(pn, lid).pop("convex_taper", None)
+        _cv_layer(pi, lid)["convex_taper"] = ({s: L0["taper"] for s in cv0} if isinstance(cv0, dict) else L0["taper"])
+        cI = float(np.abs(_FP.render_array(build_svg.build(pi), 1024).astype(np.float64)
+                          - _FP.render_array(build_svg.build(pn), 1024).astype(np.float64)).max() * 255)
+        if cI > 1.01:
+            dd.append("%s: the identity split differs from the unsplit build by %.1f cv" % (tag, cI))
+        bs, bi, bn = _cv_basis(p, lid), _cv_basis(pi, lid), _cv_basis(pn, lid)
+        cS = np.abs(bs - bi)
+        cC, cF = float(cS[_dS < -1.0].max()), float(cS[_dS > 3.0].max())
+        if cC > 0.5:
+            dd.append("%s: the convex taper changes the concave side (up to %.1f cv)" % (tag, cC))
+        if cF < 3.0:
+            dd.append("%s: the convex taper changes nothing on the flare side (max %.1f cv)" % (tag, cF))
+        whole = []
+        for s in ("left", "right"):
+            if s in named:
+                continue
+            reach = 3 * float(L0.get("blur", 0.0)) + 0.5 * float(L0["width"]) + 2.0
+            far = max(_apx[o] for o in named) - reach if s == "left" else min(_apx[o] for o in named) + reach
+            m = (_xS < far) if s == "left" else (_xS > far)
+            if bn[m].max() < 1.0:
+                dd.append("%s: no light of the %s curve lies beyond the named curve's reach" % (tag, s))
+                continue
+            dW = float(np.abs(bs - bn)[m].max())
+            whole.append("%s whole (%.0f cv beyond x %.0f)" % (s, dW, far))
+            if dW > 0:
+                dd.append("%s: the %s curve, which the convex taper does not name, differs from the unsplit "
+                          "build by %.0f cv" % (tag, s, dW))
+        names = sorted(set(cv0.values()) if isinstance(cv0, dict) else {cv0})
+        for nm in names:
+            U = [sp["affects"] for sp in O.taper_specs(p) if sp["path"].startswith("tapers/%s/" % nm)]
+            if not U or any(lid not in u for u in U):
+                dd.append("%s: taper_specs does not search %s for %s (%s)" % (tag, nm, lid, U))
+        return dd, ("%s split on %s: identity split %.2f cv, concave side %.0f cv, flare side up to %.0f cv%s"
+                    % (tag, "/".join(named), cI, cC, cF, ("; " + ", ".join(whole)) if whole else ""))
+
+    if "arc_glow2" not in _cvL:
+        _cvd.append("arc_glow2 carries no convex taper (layers with one: %s)" % _cvL)
+    _pz = _cpk.deepcopy(params)
+    for _Lc in _pz["layers"]:
+        _Lc.pop("convex_taper", None)
+    _svz = build_svg.build(_pz)
+    if "url(#cv" in _svz or "url(#cc" in _svz:
+        _cvd.append("a stack without a convex taper still emits a split")
+    for _lid in _cvL:
+        _dd, _rr = _cv_cases(params, _lid, _lid)
+        _cvd += _dd
+        _cvr.append(_rr)
+    if "arc_glow2" in _cvL and not isinstance(_cv_layer(params, "arc_glow2")["convex_taper"], dict):
+        _pps = _cpk.deepcopy(params)
+        _cv_layer(_pps, "arc_glow2")["convex_taper"] = {"right": _cv_layer(params, "arc_glow2")["convex_taper"]}
+        _dd, _rr = _cv_cases(_pps, "arc_glow2", "probe arc_glow2 {right}")
+        _cvd += _dd
+        _cvr.append(_rr)
+        # the named curve is split exactly as the both-curve form splits it,
+        # read beyond the left curve's reach
+        _L2 = _cv_layer(params, "arc_glow2")
+        _far = _apx["left"] + 3 * float(_L2["blur"]) + 0.5 * float(_L2["width"]) + 2.0
+        _dR = float(np.abs(_cv_basis(_pps, "arc_glow2") - _cv_basis(params, "arc_glow2"))[_xS > _far].max())
+        if _dR > 0:
+            _cvd.append("probe arc_glow2 {right}: the right curve differs from the both-curve split by %.0f cv "
+                        "beyond x %.0f" % (_dR, _far))
+        else:
+            _cvr.append("its right curve split as the both-curve form splits it (0 cv beyond x %.0f)" % _far)
     check("an arc's convex taper acts only on its flare-facing side",
-          not _cvd, "; ".join(_cvd) if _cvd else
-          "arc_glow2 split at its curves: the identity split matches the unsplit composite (max %.2f cv); "
-          "the shipped convex taper changes the layer by 0 cv on the concave side and up to %.0f cv on the "
-          "flare side; no split without a convex taper; glow2_cv searched (%d specs)"
-          % (_cvI, _cvF, len(_cvU)))
+          not _cvd, "; ".join(_cvd) if _cvd else "; ".join(_cvr) + "; no split without a convex taper")
 
     # ---- a width-tapered arc narrows only where its table says (D67) ------- #
     # arc_core carries `width_taper`: its width runs 6.832 px over the curves'

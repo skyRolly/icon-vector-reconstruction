@@ -324,9 +324,12 @@ def taper_specs(params):
     out = []
     for name, t in params["tapers"].items():
         # a layer uses a taper through `taper`, or through `convex_taper` for
-        # its flare-facing part (build_svg: an arc split at its curve)
+        # its flare-facing part (build_svg: an arc split at its curve), one
+        # name for both curves or a per-side {"left"/"right": name} (D78)
         users = [L["id"] for L in params["layers"]
-                 if name in (L.get("taper"), L.get("convex_taper"))]
+                 if name == L.get("taper")
+                 or name in (set(L["convex_taper"].values()) if isinstance(L.get("convex_taper"), dict)
+                             else {L.get("convex_taper")})]
         if not users:
             continue
         for k, (lo, hi, st) in (("y0", (20, 500, 6)), ("y1", (60, 520, 10)),
