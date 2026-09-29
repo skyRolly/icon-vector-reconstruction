@@ -2960,7 +2960,9 @@ def main():
         if _unrefused:
             _rsd.append("not refused: " + ", ".join(_unrefused))
         # held: the colour fit, the optimiser (its main() builds its Objective
-        # with the held set: stopped there), and a real fit's row
+        # by run_objective: stopped there, and asked what it holds for the
+        # shipped state -- since D75 the hold is the state's, not the
+        # constructor's), and a real fit's row
         _rci = [i for i, L in enumerate(params["layers"]) if L["id"] == "arc_core"][0]
         if not (_FP.colour_held(params) == ["arc_core"] and _rci not in _FP.held_free(params)
                 and _rci not in _FP.held_free(params, rays=False)):
@@ -2971,24 +2973,24 @@ def main():
         class _RsStop(Exception):
             pass
         _rs_seen = {}
+        _rs_argv, _rs_run = sys.argv, O.run_objective
 
-        class _RsObjective:
-            def __init__(self, *a, **k):
-                _rs_seen["held"] = set(k.get("held", ()))
-                raise _RsStop()
-        _rs_argv, _rs_obj = sys.argv, O.Objective
+        def _RsRun(p, *a, **k):
+            _rs_seen["obj"], _ = _rs_run(p, *a, **k)
+            _rs_seen["held"] = set(_rs_seen["obj"].held_ids(p))
+            raise _RsStop()
         for _mode in ([], ["--include-rays"]):
             _rs_seen.clear()
             sys.argv = ["optimize.py", "--params", os.path.join(ROOT, "src", "params.json")] + _mode
-            O.Objective = _RsObjective
+            O.run_objective = _RsRun
             try:
                 O.main()
             except _RsStop:
                 pass
             finally:
-                sys.argv, O.Objective = _rs_argv, _rs_obj
+                sys.argv, O.run_objective = _rs_argv, _rs_run
             if "arc_core" not in _rs_seen.get("held", ()):
-                _rsd.append("optimize.py %s builds its Objective without arc_core held (%s)"
+                _rsd.append("optimize.py %s scores the shipped state without arc_core held (%s)"
                             % (" ".join(_mode) or "(default)", sorted(_rs_seen.get("held", ())) or "nothing"))
     check("a red-shifted core changes only its red, where its table says",
           not _rsd, "; ".join(_rsd) if _rsd else
@@ -3057,10 +3059,9 @@ def main():
                 "both": _rsState({"left": [[300, 0], [340, 12], [680, 12], [720, 0]],
                                   "right": [[140, 0], [160, 18], [300, 18], [320, 0]]}),
                 "north": _rsState({"right": [[20, 0], [60, 15], [120, 15], [150, 0]]})}
-        _oheld = O.held_layers(params)
-
         def _ofresh():
-            f = O.Objective(os.path.join(ROOT, "reference.png"), stride=4, fit_iters=1, held=_oheld)
+            # as optimize.main builds it (run_objective: the permanent holds)
+            f = O.run_objective(params, os.path.join(ROOT, "reference.png"), stride=4, fit_iters=1)[0]
             f.cache = _objK.cache
             return f
         _ore = _ofresh()
@@ -3302,6 +3303,88 @@ def main():
           "again (%s); reused without carrying it scores each transition bitwise as fresh (on %.10g, off "
           "%.10g); explicit ray holds hold in both states"
           % (_hcol(_hwc["on"]), _hds, _hcol(_hwt["on"]), _hcol(_hKoff), _hcol(_hK2off), _hsc["on"], _hsc["off"]))
+
+    # ---- an Objective built as optimize.main builds it holds per state (D75) -- #
+    # The review case: optimize.main built its Objective with the rays AND the
+    # starting state's red-shifted layer as constructor holds, so that layer
+    # stayed held in every state scored after it: reused on a state without
+    # the table, the Objective kept arc_core's colour locked where a fresh one
+    # fits it, and scored differently.  The constructor now gets only the
+    # permanent holds (the rays), and each state's own colour holds are read
+    # as it is scored (held_ids, D73).  Each Objective is built by
+    # optimize.run_objective, as main builds it, from the state it starts in,
+    # then reused on the next (arc_core stored 10% dim in both, so a fit that
+    # frees it must move it), in all four transitions between "on" (the
+    # shipped table) and "off" (none):
+    # - into "off" arc_core is fitted and the write-back stores it; into "on"
+    #   it keeps its stored colour;
+    # - every transition scores bitwise as a fresh Objective built from the
+    #   second state, which holds the same layers;
+    # - the rays are held in every state, and arc_glow1 (never red-shifted) is
+    #   fitted in every state.
+    # On the old main both transitions from "on" into "off" keep arc_core
+    # locked and score differently from fresh.
+    _pdiag, _prep = [], []
+    _pids = [L["id"] for L in params["layers"]]
+    _pci, _pgi = _pids.index("arc_core"), _pids.index("arc_glow1")
+    _pray = [i for i, lid in enumerate(_pids) if lid in MFL.CALIBRATED_LAYERS]
+
+    def _pdim(p):
+        q = _cpk.deepcopy(p)
+        Lq = q["layers"][_pci]
+        wq = FP.params_wc({"layers": [Lq]})[0] * 0.9
+        for _n, _v in zip(FP.COMPONENTS, wq):
+            if _n in Lq:
+                Lq[_n] = round(float(_v), 6)
+        Lq["color"] = [round(float(_v) * 255.0, 2) for _v in FP.color_from_wc(wq)]
+        return q
+    _pS = {"on": _pdim(params)}
+    _pS["off"] = _cpk.deepcopy(_pS["on"])
+    _pS["off"]["layers"][_pci].pop("red_shift", None)
+    if "arc_core" not in FP.colour_held(_pS["on"]) or "arc_core" in FP.colour_held(_pS["off"]) or not _pray:
+        _pdiag.append("the shipped arc_core is not red-shifted, or no ray is calibrated: nothing to test")
+    else:
+        _pW = {k: FP.params_wc(v) for k, v in _pS.items()}
+
+        def _pobj(p):
+            f = O.run_objective(p, os.path.join(ROOT, "reference.png"), stride=8, fit_iters=1)[0]
+            f.cache = _objK.cache
+            return f
+        for _a, _b in (("on", "off"), ("off", "on"), ("on", "on"), ("off", "off")):
+            _t = "%s -> %s" % (_a, _b)
+            _r = _pobj(_pS[_a])
+            _r.evaluate(_pS[_a])
+            _rs, _, _rK = _r.evaluate(_pS[_b])
+            _f = _pobj(_pS[_b])
+            _fs, _, _fK = _f.evaluate(_pS[_b])
+            if sorted(_r.held_ids(_pS[_b])) != sorted(_f.held_ids(_pS[_b])):
+                _pdiag.append("%s: reused holds %s, fresh %s, besides the rays" % (
+                    _t, sorted(set(_r.held_ids(_pS[_b])) - set(MFL.CALIBRATED_LAYERS)),
+                    sorted(set(_f.held_ids(_pS[_b])) - set(MFL.CALIBRATED_LAYERS))))
+            if _rs != _fs:
+                _pdiag.append("%s scores %.10g reused, %.10g fresh" % (_t, _rs, _fs))
+            _mc = float(np.abs(_rK[_pci] - _pW[_b][_pci]).max())
+            if _b == "on" and _mc != 0.0:
+                _pdiag.append("%s: arc_core moves %.3g under its table" % (_t, _mc))
+            if _b == "off" and _mc < 1e-3:
+                _pdiag.append("%s: without its table arc_core is still held (moves %.3g)" % (_t, _mc))
+            _mr = float(np.abs(_rK[_pray] - _pW[_b][_pray]).max())
+            if _mr != 0.0:
+                _pdiag.append("%s: the rays move %.3g" % (_t, _mr))
+            _mg = float(np.abs(_rK[_pgi] - _pW[_b][_pgi]).max())
+            if _mg < 1e-4:
+                _pdiag.append("%s: arc_glow1 is not fitted (moves %.3g)" % (_t, _mg))
+            _pq = _cpk.deepcopy(_pS[_b])
+            FP.store_wc(_pq, _rK, only=_r.free_indices(_pq, None))
+            if (_pq["layers"][_pci]["color"] != _pS[_b]["layers"][_pci]["color"]) != (_b == "off"):
+                _pdiag.append("%s: the write-back stores arc_core %s (stored %s)"
+                              % (_t, _pq["layers"][_pci]["color"], _pS[_b]["layers"][_pci]["color"]))
+            _prep.append("%s arc_core %.4f, arc_glow1 %.4f" % (_t, _mc, _mg))
+    check("an Objective built as optimize.main builds it holds what each state holds",
+          not _pdiag, "; ".join(_pdiag) if _pdiag else
+          "built by run_objective from the first state and reused on the second, every transition holds "
+          "what a fresh Objective holds and scores bitwise as it does; the fit moves (%s); the rays stay "
+          "held" % "; ".join(_prep))
 
     # ---- the lens-side band stays beside the core's ends (D71) ------------ #
     # arc_lens_band is the reference's cyan band just outside the core's lens

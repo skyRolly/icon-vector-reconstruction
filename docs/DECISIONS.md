@@ -12946,3 +12946,145 @@ leaves the gap the reference has, on both sides and at every end, without
 costing the band 5-12 px out. The candidates are the middle rows' inset,
 width or blur, or a glow's own table. Change nothing there before then, and
 keep `arc_core`'s blur held.
+
+## D75. The optimiser's Objective is built with the permanent holds only; the middle's dark bands attributed
+
+D74 left one review finding (Devin, `tools/optimize.py`) and one open
+question. The finding: `optimize.main` built its `Objective` with
+`held_layers(params)`, which froze the starting state's colour hold. The
+question: which layer puts the light in the dark bands just outside both
+edges over the curves' middle. This pass fixes the finding first, as its own
+commit, with the artwork byte for byte unchanged. Only then does it measure
+the bands (stages 2-4). No artwork change was supported, and none is made.
+
+### Stage 0: the D74 baseline
+
+- **Commits.** The branch head is 3685be5 (D74's artwork), and the working
+  tree is clean.
+- **CI and review.** GitHub CI (both regression-gate runs) is green on
+  3685be5, and the PR has no review threads or comments.
+- **Publish.** `sh tools/publish.sh` on 3685be5: **PUBLISH OK**, 80 of 80
+  checks. Every artefact it rewrote is byte-identical to the committed ones.
+- **Artefacts.** Parameters a94a5801..., SVG 2f9a44e5..., render
+  2bb5a7d3...
+- **Metrics:**
+
+  | metric | D74 |
+  |---|---|
+  | MAE / RMSE | 1.5944 / 2.6962 |
+  | SSIM | 0.97738 |
+  | edge IoU | 0.72080 |
+  | centre MAE | 4.3976 |
+  | flare r < 110 MAE | 3.8606 |
+  | core r < 25 MAE | 3.7450 |
+  | bright-region MAE | 5.6472 |
+  | cross-engine MAE | 2.650 |
+
+### Stage 1: the optimiser's Objective holds what each state holds (engineering)
+
+*Reproduced* on 3685be5 with the real `Objective`, built exactly as `main`
+built it: `Objective(reference, held=held_layers(params))` from the state the
+run starts in. Both states store `arc_core`'s colour 10% dim (the table stays
+valid), so a fit that frees it must move it.
+
+| built from -> reused on | the constructor holds `arc_core` | held for the second state: reused / fresh | `arc_core` moved by the fit: reused / fresh | score: reused / fresh |
+|---|---|---|---|---|
+| table -> no table | yes | yes / no | 0 / 0.0062 | 0.0001825252257 / 0.0001819476893 |
+| no table -> table | no | yes / yes | 0 / 0 | equal |
+
+- **Why.** `held_layers` returned the calibrated rays and
+  `fit_photometry.colour_held(params)`. The second part belongs to the state,
+  not the run, but as a constructor hold it outlived the state it came from.
+- **The effect.** Reused on a state without the table, the Objective kept
+  `arc_core`'s colour locked where a fresh one fits it, and scored
+  differently. Its write-back left the colour as stored.
+- **The other direction.** It was already right: D73's `held_ids` adds each
+  state's own holds.
+- **Exposure.** `main` itself never scores a state without the starting
+  table, since no search moves `red_shift`. The defect bites any caller that
+  builds the Objective as `main` does and reuses it across states.
+
+*The fix.*
+- **`permanent_holds(include_rays)`** returns the holds that do not depend on
+  the parameters: the calibrated rays, unless `include_rays`.
+- **`run_objective(params, reference, ...)`** builds the Objective `main` runs
+  with, from those holds only. It returns the Objective and the layers it
+  holds for the starting state, which `main` reports.
+- **Each state's colour holds** are read as it is scored (`held_ids`, D73):
+  a red-shifted layer is held in exactly the states that carry the table.
+- **`held_layers` is removed.** Its one other user, D72's objective check, now
+  builds its Objective with `run_objective`. It scores with `free=[]`, so none
+  of its numbers change.
+- **D72's `red_shift` check changed its probe, not its assertion.** It
+  stopped `main` at the Objective's constructor and required `arc_core` among
+  the constructor's holds: the frozen hold this fix removes. It now stops
+  `main` at `run_objective` and requires `arc_core` among the holds `main`'s
+  Objective applies to the shipped state (`held_ids`), with and without
+  `--include-rays`. A wrong fix that ignores the state's holds fails it.
+- **Unchanged:** the constructor's explicit-hold semantics, the D67/D69
+  carried rows, the caches, and `evaluate`.
+
+*The regression*, new check "an Objective built as optimize.main builds it
+holds what each state holds".
+- **Setup.** Four transitions between "on" (the shipped table) and "off"
+  (none): on -> off, off -> on, on -> on and off -> off. Each Objective is
+  built by `run_objective` from the first state and reused on the second.
+  `arc_core` is stored 10% dim.
+- **Into "off":** `arc_core` is fitted (it moves 0.0062), and the write-back
+  stores it.
+- **Into "on":** it keeps its stored colour.
+- **Against fresh:** every transition holds what a fresh Objective built from
+  the second state holds, and scores bitwise as it does.
+- **In every state:** the rays stay held, and `arc_glow1` (never
+  red-shifted) is fitted (it moves 0.0013-0.0014).
+
+It fails on four wrong fixes:
+
+| wrong fix | what fails |
+|---|---|
+| the old `main` (the starting state's colour hold given to the constructor) | on -> off holds `arc_core`, scores 0.0001825252257 against fresh 0.0001819476893, and does not store the fitted colour |
+| the rays dropped from the permanent holds | the rays move 0.0022-0.0023 in every transition |
+| the state's holds read once, at the first evaluation | both cross transitions: on -> off stays held, off -> on moves `arc_core` 0.0058 under its table |
+| the state's holds ignored (constructor only) | `arc_core` moves 0.0058 under its table |
+
+*Devin's second note, investigated: `measure_flare`'s field cache.*
+- **What it is.** `Stack._fcache` keeps each shift field on the digest of its
+  SVG, with no eviction. `Objective.fields` keeps at most 8.
+- **What makes an entry.** Only a change to the red-shifted layer's own paint
+  can: its table, geometry, tapers, width or end blur.
+- **Measured** with the real `calibrate()` and `Stack.refresh()`:
+
+  | use | fields | memory |
+  |---|---|---|
+  | `calibrate()` as the CLI runs it (a fresh stack) | 1 | 12 MiB |
+  | refreshed for every ray's colour x0.9, then a ray 6 px longer | 1 | 12 MiB |
+  | a table with a part below 0, then the shipped table again | 2 | 24 MiB |
+  | worst case: one stack refreshed through 12 widths of `arc_core` | 14 | 168 MiB |
+
+- **Who reuses a stack.** Nothing outside the test pipeline, whose states
+  differ in the rays (and, once, the table).
+  - The CLI builds a fresh stack per run.
+  - The optimiser uses the Objective's bounded cache, not a stack.
+- **Decision: no eviction.** Growth needs a caller that sweeps
+  `arc_core`'s paint through one stack, and none exists.
+- **Recorded, not changed.** Each cached field is a view of its full RGB
+  render, so it keeps 12 MiB where the R channel alone is 4. The Objective's
+  field cache does the same.
+
+*Validation.*
+- `sh tools/publish.sh`: **PUBLISH OK**, 81 of 81 checks (80 on 3685be5, plus
+  this one).
+- Every artefact it rewrote is byte-identical to 3685be5's. The parameters
+  (a94a5801...) rebuild the SVG byte for byte (2f9a44e5...), and the published
+  render is the evaluated one (2bb5a7d3...).
+- The earlier objective checks all pass unchanged:
+  - D72's `red_shift` scores (on 0.000177344351, off 0.000177494323, zero
+    equal to off; reused bitwise as fresh);
+  - D73's per-state holds;
+  - D67's held rays and D69's movable colours;
+  - D74's isolation write-back;
+  - the gradient check (0.0034) and the composite against the render (MAE
+    0.5309).
+- `visual_regression`'s 16 structures are all within band, and cross-engine
+  MAE is 2.650.
+- A clean-clone run of the CI workflow's steps is recorded with the commit.

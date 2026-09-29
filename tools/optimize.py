@@ -434,8 +434,11 @@ class Objective:
         # (tools/measure_flare.py).  A whole-image fit moves light into them
         # that belongs to a broad glow -- D61 caught it drawing a lower-left ray
         # 2.5x the reference -- so they are held, not merely down-weighted.
-        # These are the explicit holds; each evaluation adds the layers its own
-        # parameters colour-hold (held_ids, D73).
+        # These are the explicit holds, and they are permanent: pass only
+        # holds that do not depend on the parameters (`permanent_holds`).
+        # Each evaluation adds the layers its own parameters colour-hold
+        # (held_ids, D73); a state-dependent hold given here would outlive the
+        # state it came from (D75).
         self.held = set(held)
         self.target_full = np.minimum(ref, 254.4 / 255.0)
         self.stride = stride
@@ -756,12 +759,28 @@ def sweep(obj, params, specs, log=print, accept_tol=2e-7):
     return best_sse
 
 
-def held_layers(params, include_rays=False):
-    """Layers whose colour the Objective never fits: the calibrated rays
-    (unless `include_rays`) and, always, a red-shifted layer
-    (fit_photometry.colour_held, D72)."""
+def permanent_holds(include_rays=False):
+    """The holds an Objective is built with: the calibrated rays, unless
+    `include_rays`.  They hold whatever the parameters say.  A red-shifted
+    layer's hold is not one of them: it belongs to the state being scored,
+    and `Objective.held_ids` reads it from that state on every evaluation."""
     import measure_flare as MFL
-    return tuple(FP.colour_held(params)) + (() if include_rays else tuple(MFL.CALIBRATED_LAYERS))
+    return () if include_rays else tuple(MFL.CALIBRATED_LAYERS)
+
+
+def run_objective(params, reference, stride=4, fit_iters=3, include_rays=False):
+    """The Objective `main` runs with, for a run that starts from `params`,
+    and the layers it holds there (for the report).
+
+    It is built with the permanent holds only.  Until D75 `main` built it
+    with the rays AND the starting state's red-shifted layer
+    (fit_photometry.colour_held), so that layer stayed held in every state
+    the Objective scored after, table or no table: reused on a state without
+    the table it kept arc_core's colour locked where a fresh Objective fits
+    it (the review finding).  The red-shifted layer is now held in exactly
+    the states that carry the table (`held_ids`, D73)."""
+    obj = Objective(reference, stride=stride, fit_iters=fit_iters, held=permanent_holds(include_rays))
+    return obj, obj.held_ids(params)
 
 
 def main():
@@ -783,9 +802,9 @@ def main():
 
     params = json.load(open(a.params))
     import measure_flare as MFL
-    held = held_layers(params, a.include_rays)
+    obj, held = run_objective(params, a.reference, stride=a.stride, fit_iters=a.fit_iters,
+                              include_rays=a.include_rays)
     shape_hold = () if a.include_rays else tuple(MFL.RAY_GEOMETRY)
-    obj = Objective(a.reference, stride=a.stride, fit_iters=a.fit_iters, held=held)
     builders = {"shapes": lambda p: layer_specs(p, hold=shape_hold), "tapers": taper_specs,
                 "geometry": geometry_specs, "field": field_specs}
     if a.spec == "all":

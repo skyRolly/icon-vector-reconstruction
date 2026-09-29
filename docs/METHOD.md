@@ -561,7 +561,10 @@ the red its table adds, so no other layer is fitted to make it up (D72,
 stage 14). The optimiser's objective reads the hold from each state it
 scores, as well as from the list it was given, so an `Objective` built without
 one holds the layer too, and a state that gains or loses a table holds or
-frees it (D73). Every fit writes back only the layers it freed
+frees it (D73). `optimize.main` builds its Objective with the permanent holds
+only (the calibrated rays, `permanent_holds`), so the starting state's
+red-shifted layer is not frozen into it: it is held in exactly the states
+that carry the table (D75). Every fit writes back only the layers it freed
 (`store_wc(..., only=free)`): `store_wc` re-derives and rounds whatever it
 writes, so a held colour written back unfitted could still move, and near the
 table's limit (R + dR = max(G, B)) a 0.01 rounding is enough for the builder
