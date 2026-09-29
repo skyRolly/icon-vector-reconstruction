@@ -2625,8 +2625,20 @@ def main():
     # - rows that are not multiples of 4, that cross, that are missing or that
     #   are not numbers are refused, and so are an empty key and the key on a
     #   layer that is not an arc.
+    # When no shipped layer carries the key (arc_core drawn with one blur over
+    # its whole length), all of it runs on a probe: arc_core given D75's end
+    # blur, 0.2042 on the end rows and 0.6137 between, so the builder option
+    # stays covered whatever the artwork uses.
     _ebL = [L["id"] for L in params["layers"] if L.get("end_blur")]
     _ebd, _ebr = [], []
+    _pEb, _ebProbe = params, not _ebL
+    if _ebProbe:
+        _pEb = _cpk.deepcopy(params)
+        for _L in _pEb["layers"]:
+            if _L["id"] == "arc_core":
+                _L["end_blur"] = {"blur": 0.20421316015498364, "north": 300, "south": 704}
+                _L["blur"] = 0.6137416122421083
+        _ebL = [L["id"] for L in _pEb["layers"] if L.get("end_blur")]
 
     def _eb_split(p_eb, lid, eb, own, size, composite):
         """For layer `lid` of `p_eb` carrying end blur `eb`: the most levels
@@ -2656,13 +2668,13 @@ def main():
     if _ebL != ["arc_core"]:
         _ebd.append("layers with an end blur: %s (expected arc_core)" % _ebL)
     else:
-        _Leb = [L for L in params["layers"] if L["id"] == "arc_core"][0]
+        _Leb = [L for L in _pEb["layers"] if L["id"] == "arc_core"][0]
         _eb = _Leb["end_blur"]
-        _qOb = _cpk.deepcopy(params)
+        _qOb = _cpk.deepcopy(_pEb)
         for _L in _qOb["layers"]:
             if _L["id"] == "arc_core":
                 _L.pop("end_blur")
-        _svEb = build_svg.build(params, basis="arc_core")
+        _svEb = build_svg.build(_pEb, basis="arc_core")
         _svOb = build_svg.build(_qOb, basis="arc_core")
         _rid = "rows_%d_%d" % (_eb["north"], _eb["south"])
         if _svEb.count('mask="url(#%s)"' % _rid) != 2 or _svEb.count('mask="url(#rows') != 2:
@@ -2690,11 +2702,11 @@ def main():
             if _L["id"] == "arc_lens_band":
                 _L["end_blur"] = _ebLb
         for _tag, _pp, _lid, _e, _own, _size, _comp, _need in (
-                ("arc_core alone, 1024 px", params, "arc_core", _eb, _Leb["blur"], 1024, False, 10),
-                ("arc_core alone, 2048 px", params, "arc_core", _eb, _Leb["blur"], 2048, False, 10),
-                ("arc_core alone, 1000 px", params, "arc_core", _eb, _Leb["blur"], 1000, False, 10),
-                ("arc_core alone, 872 px", params, "arc_core", _eb, _Leb["blur"], 872, False, 10),
-                ("the composite, 1024 px", params, "arc_core", _eb, _Leb["blur"], 1024, True, 10),
+                ("arc_core alone, 1024 px", _pEb, "arc_core", _eb, _Leb["blur"], 1024, False, 10),
+                ("arc_core alone, 2048 px", _pEb, "arc_core", _eb, _Leb["blur"], 2048, False, 10),
+                ("arc_core alone, 1000 px", _pEb, "arc_core", _eb, _Leb["blur"], 1000, False, 10),
+                ("arc_core alone, 872 px", _pEb, "arc_core", _eb, _Leb["blur"], 872, False, 10),
+                ("the composite, 1024 px", _pEb, "arc_core", _eb, _Leb["blur"], 1024, True, 10),
                 ("the composite with a probe end blur on arc_lens_band, 1024 px", _pLb, "arc_lens_band",
                  _ebLb, [L for L in params["layers"] if L["id"] == "arc_lens_band"][0]["blur"], 1024, True, 3)):
             _dE, _dO, _dT, _diff, _tr = _eb_split(_pp, _lid, _e, _own, _size, _comp)
@@ -2719,7 +2731,7 @@ def main():
                            ("arc_core", {}),
                            ("arc_core", {"blur": _eb["blur"], "north": str(_eb["north"]), "south": _eb["south"]}),
                            (_nonarc, _eb)):
-            _qx = _cpk.deepcopy(params)
+            _qx = _cpk.deepcopy(_pEb)
             [L for L in _qx["layers"] if L["id"] == _lid][0]["end_blur"] = _bad
             try:
                 build_svg.build(_qx, basis=_lid)
@@ -2728,9 +2740,10 @@ def main():
                 pass
     check("an end-blurred arc draws each row with one of its two blurs",
           not _ebd, "; ".join(_ebd) if _ebd else
-          "arc_core, blur %g at y < %d and y >= %d, %g between. %s; at 872 px the mask reads %g on the cut's row; "
+          "%sarc_core, blur %g at y < %d and y >= %d, %g between. %s; at 872 px the mask reads %g on the cut's row; "
           "misplaced, crossing, missing or non-numeric rows, an empty key and the key on a non-arc layer are refused"
-          % (_eb["blur"], _eb["north"], _eb["south"], _Leb["blur"], "; ".join(_ebr), _m872))
+          % ("no shipped layer carries the key; on a probe, " if _ebProbe else "", _eb["blur"], _eb["north"],
+             _eb["south"], _Leb["blur"], "; ".join(_ebr), _m872))
 
     # ---- a split arc's end blur keeps each half's screen, seam included (D72)
     # `end_blur` on an arc split by `convex_taper` (no shipped layer has both,
