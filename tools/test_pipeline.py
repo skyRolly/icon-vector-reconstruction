@@ -184,10 +184,11 @@ def main():
     # verify_searchable() audits `bounds` against emitted specs, so a numeric
     # field that carries no bound is invisible to it: it can stay frozen without
     # ever being reported.  That gap cannot be closed by flagging every unbounded
-    # number -- 486 of the model's 627 numeric leaves are unbounded on purpose,
-    # so a report of all of them reports nothing.  What CAN be pinned is the
-    # inventory: every unbounded number today belongs to one of seventeen kinds,
-    # each searched by a different mechanism or measured rather than fitted.  A
+    # number -- most of the model's numeric leaves are unbounded on purpose (830
+    # of 1131 in D72; the check prints the count), so a report of all of them
+    # reports nothing.  What CAN be pinned is the inventory: every unbounded
+    # number today belongs to one of nineteen kinds, each searched by a
+    # different mechanism or measured rather than fitted.  A
     # new unbounded field in a NEW kind is the case worth catching, and this
     # fires on it.  `paint/x1..y2` is the one kind that is neither -- eight
     # canvas gradient extents, frozen, and measured at +-40 px they are worth at
@@ -215,6 +216,12 @@ def main():
         # D68: how far the tip layer's stroke runs past the curves' ends,
         # read from the reference's tails and held
         "extend": "measured past the curve ends and held (D68)",
+        # D71: arc_core's blur on the rows outside arc_core_edge's
+        # full-strength span, read from the reference's core edges and held
+        "end_blur": "measured at the curve ends and held (D71)",
+        # D72: arc_core's red along the right curve, read from the reference's
+        # core plateau and held (its colour is held with it)
+        "red_shift": "measured along the right curve and held (D72)",
     }
 
     def _numeric_leaves(node, prefix):
@@ -293,6 +300,8 @@ def main():
     import regions as RG
     from PIL import Image as _Image
     A = np.stack([obj.basis(params, L["id"]) for L in params["layers"]])
+    # a red-shifted layer's extra light, as the objective composites it (D72)
+    EX = obj.shift_extra(params)
     tgt = np.asarray(_Image.open(os.path.join(ROOT, "reference.png")).convert("RGB"))
     tgt = tgt.astype(np.float32) / 255.0
     W = FP.make_weight(tgt)
@@ -381,6 +390,7 @@ def main():
     # 1.6x too large; LM's line search hid it.
     sub = slice(None, None, 8)
     Asub = A[:, sub, sub]
+    Esub = FP.sub_terms(EX, 8)
     tsub = np.minimum(tgt, 254.4 / 255.0)[sub, sub]
     Wsub = FP.make_weight(tsub)
     WC = FP.params_wc(params)
@@ -409,11 +419,12 @@ def main():
                 # of 3e5 terms loses the signal to cancellation, which is what
                 # made this check report 2.5% error on an exact derivative.
                 M = FP.composite(Asub.astype(np.float64),
-                                 FP.colors(w).astype(np.float64), nfl)
+                                 FP.colors(w).astype(np.float64), nfl,
+                                 extra={i: e.astype(np.float64) for i, e in Esub.items()})
                 e = (M - tsub.astype(np.float64)) * Wsub.astype(np.float64)[..., None]
                 return float((e * e).sum())
             num = (f(wp) - f(wm)) / (h if _bound else 2 * h)
-            ana = FP.analytic_grad(Asub, tsub, WC, Wsub, nfl, li, j)
+            ana = FP.analytic_grad(Asub, tsub, WC, Wsub, nfl, li, j, extra=Esub)
             den = max(abs(num), 1e-9)
             rel = abs(ana - num) / den
             if rel > worst[0]:
@@ -520,7 +531,7 @@ def main():
 
     # ---- 6. the objective scores the same artwork the SVG rebuild emits --- #
 
-    an = FP.composite(A, FP.colors(FP.params_wc(params)), FP.normal_flags(params))
+    an = FP.composite(A, FP.colors(FP.params_wc(params)), FP.normal_flags(params), extra=EX)
     import render as R
     import io
     from PIL import Image
@@ -585,6 +596,67 @@ def main():
     check("isolation refuses orderings its algebra cannot express",
           bad is not None and "normal-blended" in bad,
           (bad or "no exception raised")[:110])
+
+    # ---- an isolation refit writes back only what it fitted (D74) --------- #
+    # The review case (Devin): isolate's refit holds a red-shifted layer's
+    # colour (fit_photometry.held_free), but wrote every layer back, and
+    # store_wc re-derives and rounds what it writes.  A held colour then moved
+    # although nothing fitted it.  Near the red_shift limit that makes a valid
+    # state invalid: arc_core stored at R 237.00 under the shipped +18 table
+    # (R + dR = 255 = max(G, B)).  Two such states, each through the real
+    # isolate() with a refit (the flare dropped, fitted outside r 60):
+    # - "rounded": amounts that re-compose to R 237.012, within params_wc's
+    #   0.02 acceptance, so they are kept; written back, R rounds to 237.01;
+    # - "decomposed": amounts that do not reproduce the colour, so params_wc
+    #   decomposes the clipped colour, which re-composes to (237.03, 254.43,
+    #   255).
+    # arc_core's stored colour and amounts must come back exactly as given,
+    # the result must build, and the refit must still be written (a fitted
+    # layer's stored colour moves).  On the old code both states come back
+    # with arc_core moved, and the builder refuses them.
+    _idiag, _irep = [], []
+    _iref = np.minimum(tgt, 254.4 / 255.0)
+    _iyy, _ixx = np.mgrid[0:1024, 0:1024]
+    _imask = np.hypot(_ixx - 530.95, _iyy - 513.33) > 60
+    _ici = [L["id"] for L in params["layers"]].index("arc_core")
+    _icases = ("rounded", "decomposed")
+    if not [L for L in params["layers"] if L["id"] == "arc_core"][0].get("red_shift"):
+        _idiag.append("arc_core carries no red_shift, so there is nothing to test")
+        _icases = ()
+    for _inm in _icases:
+        _iP = json.loads(json.dumps(params))
+        _iL = _iP["layers"][_ici]
+        _iL["color"] = [237.0, 255.0, 255.0]
+        if _inm == "rounded":
+            _iL["white"], _iL["cyan"], _iL["blue"] = round(237.012 / 255.0, 6), 0.1, 0.0
+        else:
+            _iL["white"], _iL["cyan"], _iL["blue"] = 0.84799, 0.16363, 0.0
+        _ikeys = ["color"] + [n for n in FP.COMPONENTS if n in _iL]
+        _iwant = {k: json.dumps(_iL[k]) for k in _ikeys}
+        try:
+            build_svg.build(_iP)
+        except AssertionError as _ie:
+            _idiag.append("%s: the state under test is itself invalid (%s)" % (_inm, _ie))
+            continue
+        _, _, _ib = ISO.isolate(_iP, _iref, ["flare"], refit_mask=_imask, iters=1)
+        _ibL = [L for L in _ib["layers"] if L["id"] == "arc_core"][0]
+        _igot = {k: json.dumps(_ibL.get(k)) for k in _ikeys}
+        if _igot != _iwant:
+            _idiag.append("%s: the held arc_core comes back %s, stored %s"
+                          % (_inm, {k: _ibL.get(k) for k in _ikeys}, {k: _iL[k] for k in _ikeys}))
+        try:
+            build_svg.build(_ib)
+        except AssertionError as _ie:
+            _idiag.append("%s: the builder refuses isolate's result (%s)" % (_inm, _ie))
+        _iorig = {L["id"]: L["color"] for L in _iP["layers"]}
+        _imoved = [L["id"] for L in _ib["layers"]
+                   if L["id"] != "arc_core" and L["color"] != _iorig[L["id"]]]
+        if not _imoved:
+            _idiag.append("%s: no fitted layer's colour was written back" % _inm)
+        _irep.append("%s: arc_core kept at %s, %d fitted layers written" % (_inm, _ibL["color"], len(_imoved)))
+    check("an isolation refit writes back only what it fitted",
+          not _idiag, "; ".join(_idiag) if _idiag else
+          "; ".join(_irep) + "; both results build under the +18 table at R 237.00")
 
     # ---- 6c. the profile weight belongs to the target it was built for ---- #
 
@@ -1350,7 +1422,7 @@ def main():
             _gW0 = _FPf.params_wc(_pert)
             _gW1 = _FPf.fit(_stack.A[:, ::4, ::4], _gt, _gW0, np.ones(_gt.shape[:2], np.float32), iters=2,
                             verbose=False, free=_FPf.held_free(_pert), normal=_FPf.normal_flags(_pert),
-                            teal_ok=_FPf.teal_eligible(_pert))
+                            teal_ok=_FPf.teal_eligible(_pert), extra=_FPf.sub_terms(_stack.E, 4))
             _gi = [[L["id"] for L in _pert["layers"]].index(lid) for lid in _lr]
             _gmoved = float(np.abs(_gW1[_gi] - _gW0[_gi]).max())
             _gfree = float(np.abs(_gW1 - _gW0).max())
@@ -1607,7 +1679,7 @@ def main():
     _WC0 = _FP.params_wc(params)
     _WC1 = _FP.fit(_stack.A[:, ::4, ::4], _tgt, _WC0, np.ones(_tgt.shape[:2], np.float32), iters=2,
                    verbose=False, free=_hf, normal=_FP.normal_flags(params),
-                   teal_ok=_FP.teal_eligible(params))
+                   teal_ok=_FP.teal_eligible(params), extra=_FP.sub_terms(_stack.E, 4))
     _moved_free = float(np.abs(_WC1[_hf] - _WC0[_hf]).max())
     _moved_held = float(np.abs(_WC1[_hidx] - _WC0[_hidx]).max())
     _unprot = sorted(set(MFL.RAY_GEOMETRY) - _PL.protected("exterior"))
@@ -1803,7 +1875,8 @@ def main():
     # probe gap over the halo's bright part: depth 1 removes (all but) all of
     # it inside, depth 0.5 about half (resvg reads a luminance mask linearly).
     # A stack without gaps must emit no mask at all (once its curve-axis ends,
-    # whose paint carries a mask of its own (D70), are put back on y).
+    # whose paint carries a mask of its own (D70), are put back on y, and its
+    # end blur, whose two copies are cut by row masks (D71), is dropped).
     _gapL = [L for L in params["layers"] if L.get("gap")]
     _gd = []
     _yy, _xx = np.mgrid[0:1024, 0:1024] + 0.5
@@ -1821,6 +1894,7 @@ def main():
         for _Lg in _pn["layers"]:
             _Lg.pop("gap", None)
             _Lg.pop("taper_axis", None)
+            _Lg.pop("end_blur", None)
         if "<mask" in build_svg.build(_pn):
             _gd.append("a stack without gaps still emits a mask")
         _cw, _cn = _halo(params), _halo(_pn)
@@ -1900,49 +1974,96 @@ def main():
           % (_cvI, _cvF, len(_cvU)))
 
     # ---- a width-tapered arc narrows only where its table says (D67) ------- #
-    # arc_core carries `width_taper`: its width runs 6.832 px between y 210 and
-    # 820 and narrows to 0.9368 of that at the tips, where the reference's core
-    # is narrower.  A stroke's width is constant, so such a layer is drawn as a
-    # filled outline (build_svg.ribbon_path).  Checked:
+    # arc_core carries `width_taper`: its width runs 6.832 px over the curves'
+    # middle and narrows toward the tips (D67; its tips and knees re-measured
+    # in D71), where the reference's core is narrower.  A stroke's width is
+    # constant, so such a layer is drawn as a filled outline
+    # (build_svg.ribbon_path).  Checked:
     # - its coverage across the curve is the table's factor times the stroke's:
     #   the factor at the tips, 1 in the middle (coverage integrates the blur,
-    #   so this reads the width itself);
+    #   so this reads the width itself), and the factor where the table widens
+    #   the curves' middle (D73);
     # - at factor 1 the outline follows the curve of record (half-level centre
     #   against the analytic cubics).  It follows it more closely than resvg's
     #   stroke, whose flattening chords sit up to 0.26 px on the concave side;
     # - a layer without the key is still a stroke.
-    _wtL = [L["id"] for L in params["layers"] if L.get("width_taper")]
-    _wtd = []
-    if _wtL != ["arc_core"]:
-        _wtd.append("layers with a width taper: %s (expected arc_core)" % _wtL)
-    else:
-        _pws, _pw1 = _cpk.deepcopy(params), _cpk.deepcopy(params)
-        for _Lw in _pws["layers"]:
-            _Lw.pop("width_taper", None)
-        for _Lw in _pw1["layers"]:
-            if _Lw.get("width_taper"):
-                _Lw["width_taper"] = [[_y, 1.0] for _y, _ in _Lw["width_taper"]]
-        _svs = build_svg.build(_pws, basis="arc_core")
-        _svt = build_svg.build(params, basis="arc_core")
-        if 'stroke="none"' in _svs or 'stroke-width' not in _svs:
-            _wtd.append("an arc without a width taper is not drawn as a stroke")
-        if 'stroke="none"' not in _svt:
-            _wtd.append("the width-tapered arc is not drawn as a filled outline")
-        _ws, _w1, _wt = (_FP.render_array(_sv, 1024)[..., 0].astype(np.float64)
-                         for _sv in (_svs, build_svg.build(_pw1, basis="arc_core"), _svt))
-        _near = np.abs(regions.curve_frame((1024, 1024))[0]) < 12
-        _yyw = np.mgrid[0:1024, 0:1024][0] + 0.5
-        _fac = [_f for _y, _f in [L for L in params["layers"] if L["id"] == "arc_core"][0]["width_taper"]]
-        _cov = {}
-        for (_y0, _y1), _want, _tol in (((100, 165), _fac[0], 0.003), ((880, 930), _fac[-1], 0.003),
-                                        ((220, 810), 1.0, 0.002)):
-            _mw = _near & (_yyw >= _y0) & (_yyw < _y1)
-            _cov[(_y0, _y1)] = float(_wt[_mw].sum() / _ws[_mw].sum())
-            if abs(_cov[(_y0, _y1)] - _want) > _tol:
-                _wtd.append("coverage at y %d-%d is %.4f of the stroke's (expected %.4f)"
-                            % (_y0, _y1, _cov[(_y0, _y1)], _want))
+    # All three are read without `end_blur` (D71): they are about the outline,
+    # and the end rows' sharper blur moves a half-level centre by 0.02-0.03 px.
+    # The bands come from the table itself, so a table that leaves one empty is
+    # a failure of the check, reported by name (D72: a one-row table raised an
+    # IndexError, and the detail's indexing was safe only by coincidence).
+    # A per-side table ({"left": [...], "right": [...]}, which the builder
+    # draws per curve) is read per curve: each curve's bands from its own table,
+    # over its own pixels (D77).
+    def _width_taper_check(p):
+        """(problems, detail) for `p`'s width-tapered arc"""
+        wtd = []
+        wtl = [L["id"] for L in p["layers"] if L.get("width_taper")]
+        if wtl != ["arc_core"]:
+            return ["layers with a width taper: %s (expected arc_core)" % wtl], ""
+        # one table for both curves, or a per-side one (D77), each curve read
+        # against its own
+        tab = [L for L in p["layers"] if L["id"] == "arc_core"][0]["width_taper"]
+        if isinstance(tab, dict) and sorted(tab) != ["left", "right"]:
+            return ["a per-side table must name both curves (it names %s)" % sorted(tab)], ""
+        per = {sd: tab[sd] for sd in ("left", "right")} if isinstance(tab, dict) else {None: tab}
+        pwt = _cpk.deepcopy(p)
+        for Lw in pwt["layers"]:
+            Lw.pop("end_blur", None)
+        pws, pw1 = _cpk.deepcopy(pwt), _cpk.deepcopy(pwt)
+        for Lw in pws["layers"]:
+            Lw.pop("width_taper", None)
+        for Lw in pw1["layers"]:
+            if Lw.get("width_taper"):
+                wt1 = Lw["width_taper"]
+                Lw["width_taper"] = ({sd: [[y, 1.0] for y, _ in v] for sd, v in wt1.items()}
+                                     if isinstance(wt1, dict) else [[y, 1.0] for y, _ in wt1])
+        svs = build_svg.build(pws, basis="arc_core")
+        svt = build_svg.build(pwt, basis="arc_core")
+        if 'stroke="none"' in svs or 'stroke-width' not in svs:
+            wtd.append("an arc without a width taper is not drawn as a stroke")
+        if 'stroke="none"' not in svt:
+            wtd.append("the width-tapered arc is not drawn as a filled outline")
+        ws, w1, wt = (_FP.render_array(sv, 1024)[..., 0].astype(np.float64)
+                      for sv in (svs, build_svg.build(pw1, basis="arc_core"), svt))
+        near = np.abs(regions.curve_frame((1024, 1024))[0]) < 12
+        yyw, xxw = np.mgrid[0:1024, 0:1024] + 0.5
+        cov, bands = {}, ()
+        for sd, tb in per.items():
+            rows = [(int(y), float(fa)) for y, fa in tb]
+            pre = sd + " " if sd else ""
+            # the bands read, each with the factor it must show: the north tip short
+            # of the table's first row, the south tip past its last, and the longest
+            # stretch between two rows at factor 1, 10 rows inside it
+            flat = [(r0[0], r1[0]) for r0, r1 in zip(rows, rows[1:]) if r0[1] == 1.0 and r1[1] == 1.0]
+            mid = max(flat, key=lambda ab: ab[1] - ab[0]) if flat else None
+            # and every stretch the table WIDENS, between two rows at the same
+            # factor above 1 (D73: the curves' middle), with that factor
+            wide = [(r0[0], r1[0], r0[1]) for r0, r1 in zip(rows, rows[1:])
+                    if r0[1] == r1[1] and r0[1] > 1.0 and r1[0] - r0[0] >= 40]
+            sb = ((pre + "north tip", (100, rows[0][0] - 5), rows[0][1], 0.003),
+                  (pre + "south tip", (rows[-1][0] + 20, 930), rows[-1][1], 0.003),
+                  (pre + "middle", (mid[0] + 10, mid[1] - 10) if mid else None, 1.0, 0.002)) + tuple(
+                     (pre + "widened y %d-%d" % (a, b), (a + 10, b - 10), f, 0.003) for a, b, f in wide)
+            bands += sb
+            # a side's table is read on its own curve's pixels only (x < 505 is
+            # the left curve: the two apexes are at x 465 and 545)
+            nsd = near if sd is None else near & ((xxw < 505) if sd == "left" else (xxw >= 505))
+            for nm, band, want, tol in sb:
+                if band is None:
+                    wtd.append("the %stable has no two rows at factor 1, so the middle band is missing" % pre)
+                    continue
+                y0, y1 = band
+                if y1 < y0 + 10:
+                    wtd.append("the table leaves the %s band empty (y %d-%d)" % (nm, y0, y1))
+                    continue
+                mw = nsd & (yyw >= y0) & (yyw < y1)
+                cov[nm] = float(wt[mw].sum() / ws[mw].sum()) if ws[mw].sum() > 0 else float("nan")
+                if not np.isfinite(cov[nm]) or abs(cov[nm] - want) > tol:
+                    wtd.append("coverage of the %s band (y %d-%d) is %.4f of the stroke's (expected %.4f)"
+                               % (nm, y0, y1, cov[nm], want))
 
-        def _half_centre(row, lo, hi):
+        def half_centre(row, lo, hi):
             seg = row[lo:hi]
             k = int(np.argmax(seg))
             h = seg[k] / 2
@@ -1956,8 +2077,8 @@ def main():
             xr = j - 1 + (seg[j - 1] - h) / (seg[j - 1] - seg[j])
             return lo + (xl + xr) / 2 + 0.5
 
-        def _curve_x(side, yq):
-            for seg in params["geometry"]["arc_" + side]["cubics"][side]:
+        def curve_x(side, yq):
+            for seg in p["geometry"]["arc_" + side]["cubics"][side]:
                 t = np.linspace(0, 1, 20001)
                 u = 1 - t
                 P = np.asarray(seg, float)
@@ -1967,25 +2088,107 @@ def main():
                     o = np.argsort(y)
                     return float(np.interp(yq, y[o], x[o]))
             return None
-        _cerr = {}
-        for _sd, (_lo, _hi) in (("left", (150, 530)), ("right", (533, 900))):
-            _e1, _es = [], []
-            for _y in range(110, 930, 10):
-                _xa = _curve_x(_sd, _y + 0.5)
-                if _xa is None:
+        cerr = {}
+        for sd, (lo, hi) in (("left", (150, 530)), ("right", (533, 900))):
+            e1, es = [], []
+            for y in range(110, 930, 10):
+                xa = curve_x(sd, y + 0.5)
+                if xa is None:
                     continue
-                _e1.append(abs(_half_centre(_w1[_y], _lo, _hi) - _xa))
-                _es.append(abs(_half_centre(_ws[_y], _lo, _hi) - _xa))
-            _cerr[_sd] = (max(_e1), max(_es))
-            if max(_e1) > 0.15:
-                _wtd.append("the outline strays %.2f px from the %s curve of record" % (max(_e1), _sd))
+                e1.append(abs(half_centre(w1[y], lo, hi) - xa))
+                es.append(abs(half_centre(ws[y], lo, hi) - xa))
+            cerr[sd] = (max(e1), max(es))
+            if max(e1) > 0.15:
+                wtd.append("the outline strays %.2f px from the %s curve of record" % (max(e1), sd))
+        return wtd, ("arc_core's outline: coverage %s of the stroke's; at factor 1 its centre stays within %.2f / "
+                     "%.2f px of the curve of record (left / right; resvg's stroke %.2f / %.2f); an arc without a "
+                     "width taper is still a stroke"
+                     % (", ".join("%s %.4f (table %.4f)" % (nm, cov[nm], want)
+                                  for nm, _b, want, _t in bands if nm in cov),
+                        cerr["left"][0], cerr["right"][0], cerr["left"][1], cerr["right"][1]))
+
+    _wtd, _wtr = _width_taper_check(params)
     check("a width-tapered arc narrows only where its table says",
-          not _wtd, "; ".join(_wtd) if _wtd else
-          "arc_core's outline: coverage %.4f / %.4f of the stroke's at the tips (table %.4f), %.4f in the middle; "
-          "at factor 1 its centre stays within %.2f / %.2f px of the curve of record (left / right; resvg's stroke "
-          "%.2f / %.2f); an arc without a width taper is still a stroke"
-          % (_cov[(100, 165)], _cov[(880, 930)], _fac[0], _cov[(220, 810)],
-             _cerr["left"][0], _cerr["right"][0], _cerr["left"][1], _cerr["right"][1]))
+          not _wtd, "; ".join(_wtd) if _wtd else _wtr)
+
+    # ---- ... and says so, not crashes, when a table empties a band (D72) --- #
+    # Tables that leave one of the check's bands empty, each of which the
+    # builder accepts: the check must return a failure that names the band.
+    _wbd, _wbr = [], []
+    for _tab, _nm in (([[170, 0.905]], "middle"),
+                      ([[170, 0.905], [500, 1.0], [860, 0.888]], "middle"),
+                      ([[100, 0.905], [240, 1.0], [790, 1.0], [860, 0.888]], "north tip"),
+                      ([[170, 0.905], [240, 1.0], [790, 1.0], [915, 0.888]], "south tip")):
+        _pbw = _cpk.deepcopy(params)
+        [L for L in _pbw["layers"] if L["id"] == "arc_core"][0]["width_taper"] = _tab
+        try:
+            _prw, _ = _width_taper_check(_pbw)
+        except Exception as _ew:
+            # the defect this exists for: record it as this check's failure
+            _wbd.append("table %s: the check raised %s: %s" % (_tab, type(_ew).__name__, _ew))
+            continue
+        _hit = [x for x in _prw if _nm in x]
+        if not _hit:
+            _wbd.append("table %s: no failure names the %s band (%s)" % (_tab, _nm, "; ".join(_prw) or "passed"))
+        else:
+            _wbr.append("%s -> %s" % (_tab, _hit[0]))
+    check("the width-taper check reports a band its table empties as a failure",
+          not _wbd, "; ".join(_wbd) if _wbd else "; ".join(_wbr))
+
+    # ---- ... and reads a per-side table per curve (D77) -------------------- #
+    # `width_taper` may be {"left": [...], "right": [...]}: build_svg.ribbon_path
+    # draws each curve with its own rows.  Probes on the shipped state, whose
+    # table may be either form:
+    # - one curve's widened rows raised by 0.04, the other's as shipped (each
+    #   way round): the check passes, so each curve reads its own factor;
+    # - the right-raised probe drawn by a builder that hands ribbon_path the
+    #   left table for both curves: the check must fail on the right curve's
+    #   raised band;
+    # - a per-side table naming one curve: a failure that says so, where the
+    #   builder would raise a KeyError.
+    _psd, _psr = [], []
+    _wt0 = [L for L in params["layers"] if L["id"] == "arc_core"][0]["width_taper"]
+    _wt0 = ({s: _wt0[s] for s in ("left", "right")} if isinstance(_wt0, dict)
+            else {"left": _wt0, "right": _wt0})
+    _pps = {}
+    for _sd in ("left", "right"):
+        _tb = {s: [[y, round(f + 0.04, 4) if (s == _sd and f > 1.0) else f] for y, f in _wt0[s]]
+               for s in ("left", "right")}
+        _pps[_sd] = _cpk.deepcopy(params)
+        [L for L in _pps[_sd]["layers"] if L["id"] == "arc_core"][0]["width_taper"] = _tb
+        _prp, _prr = _width_taper_check(_pps[_sd])
+        if _prp:
+            _psd.append("%s raised: %s" % (_sd, "; ".join(_prp)))
+        else:
+            _psr.append("%s raised: passes" % _sd)
+    _rp0 = build_svg.ribbon_path
+
+    def _one_table(g, side, inset, width, table, knot=24.0):
+        return _rp0(g, side, inset, width, table["left"] if isinstance(table, dict) else table, knot)
+    build_svg.ribbon_path = _one_table
+    try:
+        _prb, _ = _width_taper_check(_pps["right"])
+    finally:
+        build_svg.ribbon_path = _rp0
+    _hit = [x for x in _prb if x.startswith("coverage of the right widened")]
+    if not _hit:
+        _psd.append("one table drawn for both curves: no failure on the right curve's widened band (%s)"
+                    % ("; ".join(_prb) or "passed"))
+    else:
+        _psr.append("one table drawn for both curves -> %s" % _hit[0])
+    _pm1 = _cpk.deepcopy(params)
+    [L for L in _pm1["layers"] if L["id"] == "arc_core"][0]["width_taper"] = {"left": _wt0["left"]}
+    try:
+        _prm, _ = _width_taper_check(_pm1)
+    except Exception as _em:
+        _prm = []
+        _psd.append("a one-curve table: the check raised %s: %s" % (type(_em).__name__, _em))
+    if _prm and "both curves" in _prm[0]:
+        _psr.append("a one-curve table -> %s" % _prm[0])
+    elif not any(x.startswith("a one-curve") for x in _psd):
+        _psd.append("a one-curve table: no failure names it (%s)" % ("; ".join(_prm) or "passed"))
+    check("the width-taper check reads a per-side table per curve",
+          not _psd, "; ".join(_psd) if _psd else "; ".join(_psr))
 
     # ---- an extended arc runs past its ends only along its own curve (D68) - #
     # arc_core_tip carries `extend`: its stroke runs that many px of arc length
@@ -2350,7 +2553,7 @@ def main():
     # refusals
     for _lid2, _extra, _nm in (("arc_core", {"taper_axis": "diagonal"}, "an unknown axis"),
                                ("arc_core", {"taper_axis": True}, "a value neither a string nor a dict"),
-                               ("arc_core_wide", {"taper_axis": "curve"}, "a ramp taper"),
+                               ("arc_core_edge", {"taper_axis": "curve"}, "a ramp taper"),
                                ("arc_glow2", {"taper_axis": "curve"}, "a convex_taper layer"),
                                ("arc_glow2b", {"taper_axis": "curve"}, "an untapered layer"),
                                ("flare_halo", {"taper_axis": "curve"}, "a layer that is not an arc")):
@@ -2464,6 +2667,856 @@ def main():
           "arc_core's table, across/along (95th percentile) up to a quarter-turn: %s; the centre line within "
           "0.002 of the y-paint, the zone edges within %.1g" % (", ".join(_cmr), np.nanmax(_edges)))
 
+    # ---- an end-blurred arc draws each row with one of its two blurs (D71) - #
+    # arc_core carries `end_blur`: the rows outside arc_core_edge's
+    # full-strength span (y < 300, y >= 704) are drawn with the reference's
+    # sharper core blur, the rows between with the layer's own, which the
+    # middle's composite edge (the core plus its cyan edge strokes) needs.
+    # Each side is one group carrying the layer's blend: the end copy, then
+    # the middle copy over an opaque black in a group masked to its rows after
+    # its blur (hard gradient stops, read at pixel centres).
+    # Checked:
+    # - on the layer alone, at 1024, 2048 and 1000 px: every pixel row whose
+    #   centre lies in an end zone is the layer drawn with the end blur
+    #   everywhere, and every other row is the layer drawn with its own blur,
+    #   to a level.  The mask selects whole rows, with no overlap and no gap,
+    #   also where the cut falls inside a pixel (1000 px), where a shape's edge
+    #   would be anti-aliased into both copies;
+    # - at 872 px, where the south cut falls exactly on a pixel centre and the
+    #   mask reads about half there: that row lies between the two renders, to
+    #   a level (the copies mix linearly), and every other row is one of them.
+    #   Two masked copies screened one after the other drew that row up to 45
+    #   levels darker than either;
+    # - on the whole composite at 1024 px, the same: the group is screened
+    #   onto the canvas like the plain layer;
+    # - the same on a translucent layer, `arc_lens_band` given a probe end blur
+    #   (its opacity rides in each copy);
+    # - the two blurs really differ there (the check is not vacuous);
+    # - with the key each side is one row-masked group, without it one element
+    #   and no row mask;
+    # - rows that are not multiples of 4, that cross, that are missing or that
+    #   are not numbers are refused, and so are an empty key and the key on a
+    #   layer that is not an arc.
+    # When no shipped layer carries the key (arc_core drawn with one blur over
+    # its whole length), all of it runs on a probe: arc_core given D75's end
+    # blur, 0.2042 on the end rows and 0.6137 between, so the builder option
+    # stays covered whatever the artwork uses.
+    _ebL = [L["id"] for L in params["layers"] if L.get("end_blur")]
+    _ebd, _ebr = [], []
+    _pEb, _ebProbe = params, not _ebL
+    if _ebProbe:
+        _pEb = _cpk.deepcopy(params)
+        for _L in _pEb["layers"]:
+            if _L["id"] == "arc_core":
+                _L["end_blur"] = {"blur": 0.20421316015498364, "north": 300, "south": 704}
+                _L["blur"] = 0.6137416122421083
+        _ebL = [L["id"] for L in _pEb["layers"] if L.get("end_blur")]
+
+    def _eb_split(p_eb, lid, eb, own, size, composite):
+        """For layer `lid` of `p_eb` carrying end blur `eb`: the most levels
+        an end row is from the render with the end blur everywhere, any other
+        row from the render with the own blur, a row whose centre lies exactly
+        on a cut is outside the two, and the two renders differ on the end
+        rows; and the tie rows"""
+        qs = []
+        for bl in (eb["blur"], own):
+            q = _cpk.deepcopy(p_eb)
+            for _L in q["layers"]:
+                if _L["id"] == lid:
+                    _L.pop("end_blur", None)
+                    _L["blur"] = bl
+            qs.append(q)
+        b = None if composite else lid
+        iB, iE, iO = (np.rint(_FP.render_array(build_svg.build(q, basis=b), size) * 255) for q in [p_eb] + qs)
+        yc = (np.arange(size) + 0.5) * 1024.0 / size
+        tie = (np.abs(yc - eb["north"]) < 1e-9) | (np.abs(yc - eb["south"]) < 1e-9)
+        ends = ((yc < eb["north"]) | (yc >= eb["south"])) & ~tie
+        mid = ~ends & ~tie
+        out = np.maximum(np.minimum(iE, iO) - iB, iB - np.maximum(iE, iO))[tie]
+        return (float(np.abs(iB[ends] - iE[ends]).max()), float(np.abs(iB[mid] - iO[mid]).max()),
+                float(out.max()) if tie.any() else 0.0, float(np.abs(iE[ends] - iO[ends]).max()),
+                np.nonzero(tie)[0])
+
+    if _ebL != ["arc_core"]:
+        _ebd.append("layers with an end blur: %s (expected arc_core)" % _ebL)
+    else:
+        _Leb = [L for L in _pEb["layers"] if L["id"] == "arc_core"][0]
+        _eb = _Leb["end_blur"]
+        _qOb = _cpk.deepcopy(_pEb)
+        for _L in _qOb["layers"]:
+            if _L["id"] == "arc_core":
+                _L.pop("end_blur")
+        _svEb = build_svg.build(_pEb, basis="arc_core")
+        _svOb = build_svg.build(_qOb, basis="arc_core")
+        _rid = "rows_%d_%d" % (_eb["north"], _eb["south"])
+        if _svEb.count('mask="url(#%s)"' % _rid) != 2 or _svEb.count('mask="url(#rows') != 2:
+            _ebd.append("with the key, arc_core is not one row-masked group per side")
+        if "url(#rows" in _svOb:
+            _ebd.append("without the key, arc_core still carries a row mask")
+        # the mask alone at 872 px: the tie row must read a middle value, or
+        # the 872 px case cannot tell a mix of the copies from one copy
+        _mk = [m for m in (__import__("re").search(r'<linearGradient id="%sg".*?</linearGradient>' % _rid, _svEb),
+                           __import__("re").search(r'<mask id="%s".*?</mask>' % _rid, _svEb)) if m]
+        _t872 = int(np.nonzero(np.abs((np.arange(872) + 0.5) * 1024.0 / 872 - _eb["south"]) < 1e-9)[0][0])
+        _m872 = None
+        if len(_mk) == 2:
+            _m872 = float(np.rint(_FP.render_array(
+                '<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">'
+                '<defs>%s%s</defs><rect width="1024" height="1024" fill="#000000"/>'
+                '<rect width="1024" height="1024" fill="#ffffff" mask="url(#%s)"/></svg>'
+                % (_mk[0].group(0), _mk[1].group(0), _rid), 872)[_t872, 400, 0] * 255))
+        if _m872 is None or not 32 <= _m872 <= 223:
+            _ebd.append("at 872 px the row mask reads %s on the row whose centre is the south cut, so the case "
+                        "cannot tell a mix of the copies from one copy" % _m872)
+        _pLb = _cpk.deepcopy(params)
+        _ebLb = {"blur": 1.0, "north": 200, "south": 800}
+        for _L in _pLb["layers"]:
+            if _L["id"] == "arc_lens_band":
+                _L["end_blur"] = _ebLb
+        for _tag, _pp, _lid, _e, _own, _size, _comp, _need in (
+                ("arc_core alone, 1024 px", _pEb, "arc_core", _eb, _Leb["blur"], 1024, False, 10),
+                ("arc_core alone, 2048 px", _pEb, "arc_core", _eb, _Leb["blur"], 2048, False, 10),
+                ("arc_core alone, 1000 px", _pEb, "arc_core", _eb, _Leb["blur"], 1000, False, 10),
+                ("arc_core alone, 872 px", _pEb, "arc_core", _eb, _Leb["blur"], 872, False, 10),
+                ("the composite, 1024 px", _pEb, "arc_core", _eb, _Leb["blur"], 1024, True, 10),
+                ("the composite with a probe end blur on arc_lens_band, 1024 px", _pLb, "arc_lens_band",
+                 _ebLb, [L for L in params["layers"] if L["id"] == "arc_lens_band"][0]["blur"], 1024, True, 3)):
+            _dE, _dO, _dT, _diff, _tr = _eb_split(_pp, _lid, _e, _own, _size, _comp)
+            _ebr.append("%s: end rows %g, others %g levels from the single-blur renders (which differ by up to %g "
+                        "there)%s" % (_tag, _dE, _dO, _diff, "; the row on the cut (%s) %g outside the two"
+                                      % (",".join(str(int(r)) for r in _tr), _dT) if len(_tr) else ""))
+            if _dE > 1 or _dO > 1:
+                _ebd.append("%s: the end rows are %g and the others %g levels from the layer drawn with one blur"
+                            % (_tag, _dE, _dO))
+            if _dT > 1:
+                _ebd.append("%s: the row whose centre is on a cut is %g levels outside the two single-blur renders"
+                            % (_tag, _dT))
+            if _size == 872 and not len(_tr):
+                _ebd.append("%s: no row's centre lies on a cut" % _tag)
+            if _diff < _need:
+                _ebd.append("%s: the two blurs differ by only %g levels, so the check cannot tell them apart"
+                            % (_tag, _diff))
+        _nonarc = [L["id"] for L in params["layers"] if L["kind"] != "arc"][0]
+        for _lid, _bad in (("arc_core", {"blur": _eb["blur"], "north": _eb["north"] + 1, "south": _eb["south"]}),
+                           ("arc_core", {"blur": _eb["blur"], "north": _eb["south"], "south": _eb["north"]}),
+                           ("arc_core", {"blur": _eb["blur"], "north": _eb["north"]}),
+                           ("arc_core", {}),
+                           ("arc_core", {"blur": _eb["blur"], "north": str(_eb["north"]), "south": _eb["south"]}),
+                           (_nonarc, _eb)):
+            _qx = _cpk.deepcopy(_pEb)
+            [L for L in _qx["layers"] if L["id"] == _lid][0]["end_blur"] = _bad
+            try:
+                build_svg.build(_qx, basis=_lid)
+                _ebd.append("end_blur %s was accepted on %s" % (_bad, _lid))
+            except AssertionError:
+                pass
+    check("an end-blurred arc draws each row with one of its two blurs",
+          not _ebd, "; ".join(_ebd) if _ebd else
+          "%sarc_core, blur %g at y < %d and y >= %d, %g between. %s; at 872 px the mask reads %g on the cut's row; "
+          "misplaced, crossing, missing or non-numeric rows, an empty key and the key on a non-arc layer are refused"
+          % ("no shipped layer carries the key; on a probe, " if _ebProbe else "", _eb["blur"], _eb["north"],
+             _eb["south"], _Leb["blur"], "; ".join(_ebr), _m872))
+
+    # ---- a split arc's end blur keeps each half's screen, seam included (D72)
+    # `end_blur` on an arc split by `convex_taper` (no shipped layer has both,
+    # the builder allows it): each copy must composite its two halves as the
+    # layer does without the key, each screened.  Drawn source-over inside the
+    # copy, the halves darken the pixels their anti-aliased clips share on the
+    # split, even with the end blur equal to the layer's own (Devin's review:
+    # 7 levels on some 700 pixels).  The probe is arc_glow2 given arc_core's
+    # colour, width and blur on the curve itself, so the split (1.5 px out)
+    # runs through the bright stroke; alone, on black.  Checked at 1024, 1000,
+    # 872 and 968 px:
+    # - with the end blur equal to its own, the probe equals the probe without
+    #   the key, to a level, on the seam and everywhere else;
+    # - with a sharper end blur, every end row is the probe drawn with that blur
+    #   and every other row the probe drawn with its own, to a level (a row on
+    #   a cut lies between the two), and the two blurs really differ.
+    def _split_probe(eb=None, blur=None):
+        q = _cpk.deepcopy(params)
+        L = [L for L in q["layers"] if L["id"] == "arc_glow2"][0]
+        L.update(color=[216.24, 255.0, 255.0], width=6.832, blur=0.6137416122421083, inset=0.0)
+        if blur is not None:
+            L["blur"] = blur
+        if eb is not None:
+            L["end_blur"] = eb
+        q["layers"] = [L]
+        return q
+
+    _spd, _spr = [], []
+    _sp0 = _split_probe()
+    if not _sp0["layers"][0].get("convex_taper"):
+        _spd.append("arc_glow2 no longer carries a convex_taper, so the probe is not split")
+    else:
+        _svS = build_svg.build(_sp0)
+        _cids = sorted(set(__import__("re").findall(r'clip-path="url\(#(c[cv][LR]_[^)]+)\)"', _svS)))
+        _dfS = _svS.split("</defs>")[0] + "</defs>"
+        _ebS = {"blur": 0.20421316015498364, "north": 300, "south": 704}
+        for _S in (1024, 1000, 872, 968):
+            _cv = [np.rint(_FP.render_array(_dfS + '<rect width="1024" height="1024" fill="#000"/><rect width="1024" '
+                                            'height="1024" fill="#fff" clip-path="url(#%s)"/></svg>' % _c, _S)[..., 0] * 255)
+                   for _c in _cids]
+            # the seam: pixels lit by both halves' clips of one curve
+            _seam = np.zeros(_cv[0].shape, bool)
+            for _a in range(len(_cv)):
+                for _b in range(_a + 1, len(_cv)):
+                    if _cids[_a][2] == _cids[_b][2]:
+                        _seam |= (_cv[_a] > 0) & (_cv[_b] > 0)
+            _i0 = np.rint(_FP.render_array(_svS, _S) * 255)
+            _iq = np.rint(_FP.render_array(build_svg.build(_split_probe(
+                {"blur": _sp0["layers"][0]["blur"], "north": 300, "south": 704})), _S) * 255)
+            _dq = np.abs(_iq - _i0).max(axis=2)
+            if not _seam.any() or _i0[_seam].max() < 100:
+                _spd.append("%d px: the probe's seam is not lit (%d pixels), so the check cannot see it" % (_S, _seam.sum()))
+            if _dq.max() > 1:
+                _spd.append("%d px: with the end blur equal to its own the split arc differs by %d levels (%d on the "
+                            "seam's %d pixels)" % (_S, _dq.max(), _dq[_seam].max() if _seam.any() else 0, _seam.sum()))
+            _iB = np.rint(_FP.render_array(build_svg.build(_split_probe(_ebS)), _S) * 255)
+            _iE = np.rint(_FP.render_array(build_svg.build(_split_probe(blur=_ebS["blur"])), _S) * 255)
+            _yc = (np.arange(_S) + 0.5) * 1024.0 / _S
+            _tie = (np.abs(_yc - 300) < 1e-9) | (np.abs(_yc - 704) < 1e-9)
+            _end = ((_yc < 300) | (_yc >= 704)) & ~_tie
+            _midr = ~_end & ~_tie
+            _dE, _dO = np.abs(_iB[_end] - _iE[_end]).max(), np.abs(_iB[_midr] - _i0[_midr]).max()
+            _dT = float(np.maximum(np.minimum(_iE, _i0) - _iB, _iB - np.maximum(_iE, _i0))[_tie].max()) if _tie.any() else 0.0
+            _dd = np.abs(_iE[_end] - _i0[_end]).max()
+            if _dE > 1 or _dO > 1 or _dT > 1:
+                _spd.append("%d px: with a sharper end blur the end rows are %d, the others %d and a row on a cut %g "
+                            "levels from the single-blur renders" % (_S, _dE, _dO, _dT))
+            if _dd < 10:
+                _spd.append("%d px: the two blurs differ by only %d levels" % (_S, _dd))
+            _spr.append("%d px: %d, seam %d px lit to %d; sharper: %d / %d (blurs differ by %d)"
+                        % (_S, _dq.max(), _seam.sum(), _i0[_seam].max(), _dE, _dO, _dd))
+    check("a split arc's end blur keeps each half's screen, seam included",
+          not _spd, "; ".join(_spd) if _spd else
+          "arc_glow2 given arc_core's stroke, split by its convex_taper; end blur equal to its own vs none, max "
+          "levels: " + "; ".join(_spr))
+
+    # ---- a red-shifted core changes only its red, where its table says (D72)
+    # `red_shift` moves an arc layer's red along each curve (build_svg.
+    # red_shade): its stops carry R + dR(y), with G, B and the opacity as they
+    # were.  Drawn alone on black, a layer is its paint times its coverage, so
+    # its G reads the coverage times the colour's G, and adding the key moves R
+    # by G x dR(y) / G_colour.  Read on three probes: arc_core's own table (at
+    # 1024 and 1000 px), an off-grid table on arc_core whose rows fall between
+    # the taper's (so R is interpolated between rows and stops are added), and
+    # arc_glow1, whose screen opacity is below 1 (the shift is premultiplied):
+    # - G and B are the layer's own, and 3 rows from any shifted row nothing
+    #   moves (to a level where stops are added: an added stop turns a rounding
+    #   here and there within its taper segment); R moves by G x dR / G_colour
+    #   to 2.5 levels at a pixel (each render rounds in every 8-bit buffer it
+    #   passes through) and 0.3 on average; on the flat rows R moves by at
+    #   least half of what the relation predicts at the brightest pixel;
+    # - in the full composite only R changes, only on the table's side within 3
+    #   rows of a shifted row, and only where arc_core draws;
+    # - a table of zeros on the taper's own rows builds the same SVG, one whose
+    #   rows fall between the taper's renders to a level (an added stop turns a
+    #   rounding here and there);
+    # - the white basis ignores the key;
+    # - a malformed table, or the key where it cannot apply, is refused;
+    # - the colour fit and the optimiser hold the layer's colour
+    #   (fit_photometry.colour_held; optimize.main's own Objective is built
+    #   with it held), and a real fit leaves its row alone.
+    _rsd, _rsr = [], []
+    _rsL = [L for L in params["layers"] if L.get("red_shift")]
+    if [L["id"] for L in _rsL] != ["arc_core"]:
+        _rsd.append("layers with a red shift: %s (expected arc_core)" % [L["id"] for L in _rsL])
+    else:
+        _rsA = _rsL[0]
+        _rs0 = _cpk.deepcopy(params)
+        for _Lr in _rs0["layers"]:
+            _Lr.pop("red_shift", None)
+
+        def _rs_with(rs, lid="arc_core", p=None):
+            q = _cpk.deepcopy(params if p is None else p)
+            [L for L in q["layers"] if L["id"] == lid][0]["red_shift"] = rs
+            return q
+
+        def _rs_alone(p, lid):
+            q = _cpk.deepcopy(p)
+            q["layers"] = [L for L in q["layers"] if L["id"] == lid]
+            return q
+
+        def _rs_map(L, yc, xc, pad=0.0):
+            """L's table shift per pixel (with `pad`, the largest |shift| within
+            that many rows)"""
+            off = float(params["tapers"][L["taper"]].get("y_offset", 0.5))
+            out = np.zeros((len(yc), len(xc)))
+            for sd, xm in (("left", xc < 512), ("right", xc >= 512)):
+                rows = L["red_shift"].get(sd)
+                if rows:
+                    ys, ds = [r[0] + off for r in rows], [r[1] for r in rows]
+                    v = np.max([np.abs(np.interp(yc + e, ys, ds)) for e in np.linspace(-pad, pad, 13)], 0) if pad \
+                        else np.interp(yc, ys, ds)
+                    out[:, xm] = v[:, None]
+            return out
+
+        def _rs_probe(tag, lid, rs, S, gb_tol):
+            """the layer drawn alone with `rs` against without; problems, summary"""
+            q1 = _rs_alone(_rs_with(rs, lid, _rs0), lid)
+            q0 = _rs_alone(_rs0, lid)
+            L = q1["layers"][0]
+            kG = float(L["color"][1])
+            yc = (np.arange(S) + 0.5) * 1024.0 / S
+            a1 = np.rint(_FP.render_array(build_svg.build(q1), S) * 255)
+            a0 = np.rint(_FP.render_array(build_svg.build(q0), S) * 255)
+            dm = _rs_map(L, yc, yc)
+            far = _rs_map(L, yc, yc, pad=3.0) == 0
+            e = (a1[..., 0] - a0[..., 0]) - a1[..., 1] * dm / kG
+            eR, eM = float(np.abs(e).max()), float(np.abs(e[a1[..., 1] > 0].mean()))
+            efar = float(np.abs(a1 - a0)[far].max())
+            flat = (a1[..., 1] > 0) & (np.abs(dm) >= 0.999 * np.abs(dm).max())
+            want = float((a1[..., 1] * np.abs(dm) / kG)[flat].max()) if flat.any() else 0.0
+            mv = float(np.abs(a1[..., 0] - a0[..., 0])[flat].max()) if flat.any() else 0.0
+            gb = float(np.abs(a1[..., 1:] - a0[..., 1:]).max())
+            bad = []
+            if gb > gb_tol or eR > 2.5 or eM > 0.3 or efar > gb_tol or want < 5 or mv < 0.5 * want:
+                bad.append("%s, %d px: G/B move by %g; R moves %.2f levels from G x dR / G_colour at worst, %.2f on "
+                           "average, and %g 3 rows from any shifted row; on its flat rows R moves by %g where %.1f is "
+                           "predicted" % (tag, S, gb, eR, eM, efar, mv, want))
+            return bad, a1, "%s %d px: R moves by G x dR / G to %.2f (%.2f on average), %g on the flat rows (%.1f " \
+                "predicted), G/B %g" % (tag, S, eR, eM, mv, want, gb)
+        for _tag, _lid, _rsv, _S, _gbt in (("arc_core's table", "arc_core", _rsA["red_shift"], 1024, 0),
+                                           ("arc_core's table", "arc_core", _rsA["red_shift"], 1000, 0),
+                                           ("an off-grid table", "arc_core", {"right": [[150, 0], [250, 18], [330, 0]]},
+                                            1024, 1),
+                                           ("arc_glow1 (opacity below 1)", "arc_glow1",
+                                            {"left": [[300, 0], [400, 60], [600, 60], [700, 0]]}, 1024, 1)):
+            _b, _a1, _sm = _rs_probe(_tag, _lid, _rsv, _S, _gbt)
+            _rsd += _b
+            _rsr.append(_sm)
+            if _tag != "arc_core's table":
+                continue
+            _yc = (np.arange(_S) + 0.5) * 1024.0 / _S
+            _f1 = np.rint(_FP.render_array(build_svg.build(params), _S) * 255)
+            _f0 = np.rint(_FP.render_array(build_svg.build(_rs0), _S) * 255)
+            _chg = np.abs(_f1 - _f0).max(axis=2) > 0
+            _gbf = float(np.abs(_f1[..., 1:] - _f0[..., 1:]).max())
+            _stray = int((_chg & ~((_rs_map(_rsA, _yc, _yc, pad=3.0) > 0) & (_a1[..., 1] > 0))).sum())
+            if _gbf > 0 or _stray or not _chg.any():
+                _rsd.append("%d px, composite: G/B move by %g; %d changed pixels outside the table's rows or arc_core's "
+                            "light; %d changed in all" % (_S, _gbf, _stray, _chg.sum()))
+            _rsr.append("composite %d px: %d px changed, G/B %g" % (_S, _chg.sum(), _gbf))
+        # zero tables: on the taper's rows, and between them
+        _zs = {"left": [[300, 0], [420, 0]], "right": [[300, 0], [420, 0]]}
+        if build_svg.build(_rs_with(_zs)) != build_svg.build(_rs0):
+            _rsd.append("a table of zeros on the taper's rows builds another SVG")
+        _zb = np.abs(np.rint(_FP.render_array(build_svg.build(_rs_with({"right": [[150, 0], [330, 0]]})), 1024) * 255)
+                     - np.rint(_FP.render_array(build_svg.build(_rs0), 1024) * 255)).max()
+        if _zb > 1:
+            _rsd.append("a table of zeros between the taper's rows moves the render by %g levels" % _zb)
+        if build_svg.build(params, basis="arc_core") != build_svg.build(_rs0, basis="arc_core"):
+            _rsd.append("the white basis takes the red shift")
+        # refused: malformed tables, and the key where it cannot apply
+        _bad = [("a list", []), ("empty", {}), ("a key other than a side", {"middle": [[100, 0], [200, 0]]}),
+                ("one row", {"right": [[140, 0]]}), ("a string", {"right": [[140, 0], ["160", 5], [200, 0]]}),
+                ("a bool", {"right": [[140, 0], [160, True], [200, 0]]}),
+                ("a NaN", {"right": [[140, 0], [160, float("nan")], [200, 0]]}),
+                ("a row of three", {"right": [[140, 0], [160, 5, 1], [200, 0]]}),
+                ("rows out of order", {"right": [[160, 0], [140, 5], [200, 0]]}),
+                ("a row at y 0", {"right": [[0, 0], [160, 5], [200, 0]]}),
+                ("a row off the canvas", {"right": [[140, 0], [160, 5], [1030, 0]]}),
+                ("a non-zero end row", {"right": [[140, 5], [160, 5], [200, 0]]}),
+                ("a red past G and B", {"right": [[140, 0], [160, 40], [200, 0]]}),
+                ("a red below 0", {"right": [[140, 0], [160, -220], [200, 0]]})]
+        _okrs = {"right": [[140, 0], [160, 5], [200, 0]]}
+        for _lid, _why, _mut in (("field_base", "a layer that is not an arc", None),
+                                 ("arc_glow2", "a split arc (convex_taper)", None),
+                                 ("arc_glow1", "an untapered arc", lambda L: L.pop("taper")),
+                                 ("arc_glow1", "a normal-blended arc", lambda L: L.update(blend="normal")),
+                                 ("arc_core", "a side the layer does not draw", lambda L: L.update(side="left"))):
+            _q = _cpk.deepcopy(_rs0)
+            _Lq = [L for L in _q["layers"] if L["id"] == _lid][0]
+            _Lq["red_shift"] = _okrs
+            if _mut:
+                _mut(_Lq)
+            _bad.append((_why, _q))
+        _unrefused = []
+        for _why, _rsv in _bad:
+            _q = _rsv if isinstance(_rsv, dict) and "layers" in _rsv else _rs_with(_rsv)
+            try:
+                build_svg.build(_q)
+                _unrefused.append(_why)
+            except AssertionError as _e:
+                if "red_shift" not in str(_e):
+                    _unrefused.append("%s (refused for another reason: %s)" % (_why, _e))
+            except Exception as _e:
+                _unrefused.append("%s (raised %s)" % (_why, type(_e).__name__))
+        if _unrefused:
+            _rsd.append("not refused: " + ", ".join(_unrefused))
+        # held: the colour fit, the optimiser (its main() builds its Objective
+        # by run_objective: stopped there, and asked what it holds for the
+        # shipped state -- since D75 the hold is the state's, not the
+        # constructor's), and a real fit's row
+        _rci = [i for i, L in enumerate(params["layers"]) if L["id"] == "arc_core"][0]
+        if not (_FP.colour_held(params) == ["arc_core"] and _rci not in _FP.held_free(params)
+                and _rci not in _FP.held_free(params, rays=False)):
+            _rsd.append("the colour fit may move arc_core's colour")
+        if not np.array_equal(_WC1[_rci], _WC0[_rci]):
+            _rsd.append("a real fit moved arc_core's colour row")
+
+        class _RsStop(Exception):
+            pass
+        _rs_seen = {}
+        _rs_argv, _rs_run = sys.argv, O.run_objective
+
+        def _RsRun(p, *a, **k):
+            _rs_seen["obj"], _ = _rs_run(p, *a, **k)
+            _rs_seen["held"] = set(_rs_seen["obj"].held_ids(p))
+            raise _RsStop()
+        for _mode in ([], ["--include-rays"]):
+            _rs_seen.clear()
+            sys.argv = ["optimize.py", "--params", os.path.join(ROOT, "src", "params.json")] + _mode
+            O.run_objective = _RsRun
+            try:
+                O.main()
+            except _RsStop:
+                pass
+            finally:
+                sys.argv, O.run_objective = _rs_argv, _rs_run
+            if "arc_core" not in _rs_seen.get("held", ()):
+                _rsd.append("optimize.py %s scores the shipped state without arc_core held (%s)"
+                            % (" ".join(_mode) or "(default)", sorted(_rs_seen.get("held", ())) or "nothing"))
+    check("a red-shifted core changes only its red, where its table says",
+          not _rsd, "; ".join(_rsd) if _rsd else
+          "arc_core, %s; " % _rsA["red_shift"] + "; ".join(_rsr) + "; a zero table on the taper's rows builds the "
+          "same SVG, between them renders within %g; the basis ignores it; %d malformed tables and misplaced keys "
+          "refused; its colour held by the colour fit (rays held or not), optimize.py's Objective (rays held or not) "
+          "and a real fit" % (_zb, len(_bad)))
+
+    # ---- the objective scores the red_shift the SVG draws (D72, stage 14) --- #
+    # The review case: `red_shift` changed the SVG but not the photometric
+    # model, whose basis is white and whose composite takes one colour per
+    # layer.  Objective.evaluate scored the shipped table, no table and any
+    # other table bit for bit alike; the analytic composite missed 9-17 levels
+    # of R on the 2,516 pixels the table changes; and a colour fit given the
+    # SVG's own render moved unrelated layers to supply that red
+    # (arc_lens_band's R by 2.7).  The model now adds each red-shifted layer's
+    # shift field to its term (fit_photometry.shift_terms).  With everything
+    # else identical, six states: the shipped table ("on"), none ("off"), a
+    # table of zeros on the taper's rows, a multi-row table that also goes
+    # below 0, a table on both curves, and one inside the right curve's north
+    # curve-axis zone (y 20-150).  Then:
+    # - the render changes where a table does, and so does the score of a
+    #   fresh Objective with nothing freed; a zero table scores as none;
+    # - one Objective reused through all the states scores each bitwise as a
+    #   fresh one (the bases are content-addressed and shared, as in D69's
+    #   check; the shift fields are the state under test, and each fresh
+    #   Objective renders its own);
+    # - on the pixels a table changes, the analytic composite changes as the
+    #   render does: to 3 levels at a pixel, 0.8 on average and 0.5 in the mean
+    #   (the render's change is the difference of two 8-bit images, so +-0.5 is
+    #   its floor; the model before stage 14 missed it by 10 on average), and it
+    #   stays within 1.5 levels of the render on average; and over the rest of
+    #   arc_core's light, where the render does not change, the model does not
+    #   change either: 0.05 on average, 2.5 at a pixel (the render's own 8-bit
+    #   layers drop up to about 2 levels of the shift at an edge pixel, which
+    #   the finer field keeps).  A field drawn where a table draws nothing, on
+    #   a side without rows say, adds its full red there and fails (the
+    #   review's case); and drawn alone with the largest red a table may add
+    #   (+38) over both curves' north tips, inside the curve-axis zone, the
+    #   layer's change follows the render's to 1.7 levels at the 99th percentile
+    #   and 0.5 on average (a field drawn without the zone's mask reads 2.2 and
+    #   0.65 there);
+    # - a colour fit to the SVG's own render over the right curve (stride 2,
+    #   the same free set, arc_core held) lands on the same colours with the
+    #   table as without it, to 0.25 levels: no layer makes up its red;
+    # - the model's other users carry the term: measure_flare's stack follows a
+    #   table through refresh (its image is the composite with the term), and
+    #   prune_layers scores the composite with the term, not without it.
+    _odiag, _orep = [], []
+    _rsP = [L for L in params["layers"] if L["id"] == "arc_core"][0].get("red_shift")
+    if not _rsP:
+        _odiag.append("arc_core carries no red_shift, so there is nothing to test")
+    else:
+        def _rsState(rs):
+            q = _cpk.deepcopy(params)
+            Lq = [L for L in q["layers"] if L["id"] == "arc_core"][0]
+            if rs is None:
+                Lq.pop("red_shift", None)
+            else:
+                Lq["red_shift"] = rs
+            return q
+        _rsS = {"on": params, "off": _rsState(None),
+                "zero": _rsState({"left": [[300, 0], [420, 0]], "right": [[300, 0], [420, 0]]}),
+                "multi": _rsState({"right": [[140, 0], [160, 18], [300, 18], [320, 0], [400, 0], [440, -30],
+                                             [480, -30], [520, 0], [840, 0], [860, 18], [900, 18], [920, 0]]}),
+                "both": _rsState({"left": [[300, 0], [340, 12], [680, 12], [720, 0]],
+                                  "right": [[140, 0], [160, 18], [300, 18], [320, 0]]}),
+                "north": _rsState({"right": [[20, 0], [60, 15], [120, 15], [150, 0]]})}
+        def _ofresh():
+            # as optimize.main builds it (run_objective: the permanent holds)
+            f = O.run_objective(params, os.path.join(ROOT, "reference.png"), stride=4, fit_iters=1)[0]
+            f.cache = _objK.cache
+            return f
+        _ore = _ofresh()
+        _osc = {}
+        for _nm in ("on", "off", "multi", "both", "north", "zero", "on"):
+            _r1 = _ore.evaluate(_rsS[_nm], free=[])[0]
+            _f1 = _ofresh().evaluate(_rsS[_nm], free=[])[0]
+            _osc[_nm] = _f1
+            if _r1 != _f1:
+                _odiag.append("%s scored %.10g reused against %.10g fresh" % (_nm, _r1, _f1))
+        if build_svg.build(_rsS["on"]) == build_svg.build(_rsS["off"]):
+            _odiag.append("the shipped table does not change the SVG")
+        if _osc["on"] == _osc["off"]:
+            _odiag.append("toggling the shipped table changes the SVG but not the score (%.10g)" % _osc["on"])
+        if len({_osc[k] for k in ("on", "off", "multi", "both", "north")}) < 5:
+            _odiag.append("two different tables score alike: %s" % {k: _osc[k] for k in ("on", "off", "multi", "both", "north")})
+        if _osc["zero"] != _osc["off"]:
+            _odiag.append("a zero table scores %.10g, no table %.10g" % (_osc["zero"], _osc["off"]))
+        try:
+            _oA = np.stack([_ore.basis(params, L["id"]) for L in params["layers"]])
+            _onf, _oK = FP.normal_flags(params), FP.colors(FP.params_wc(params))
+            _oreal, _oan, _oex = {}, {}, {}
+            _ofoot = _oA[[L["id"] for L in params["layers"]].index("arc_core")] > 0
+            for _nm in ("off", "on", "multi", "both", "north"):
+                _oreal[_nm] = FP.render_array(build_svg.build(_rsS[_nm]), 1024) * 255
+                _oex[_nm] = _ore.shift_extra(_rsS[_nm])
+                _oan[_nm] = FP.composite(_oA, _oK, _onf, extra=_oex[_nm]) * 255
+            for _nm in ("on", "multi", "both", "north"):
+                _om = np.abs(_oreal[_nm] - _oreal["off"]).max(axis=2) > 0
+                _osv = np.abs(_oan[_nm] - _oan["off"])[..., 0][_ofoot & ~_om]
+                _ostill, _ostm = float(_osv.max()), float(_osv.mean())
+                if _ostill > 2.5 or _ostm > 0.05:
+                    _odiag.append("%s: where the render does not change, over arc_core's light, the model moves by "
+                                  "up to %.2f levels (%.3f on average)" % (_nm, _ostill, _ostm))
+                _dR = (_oreal[_nm] - _oreal["off"])[..., 0][_om]
+                _dA = (_oan[_nm] - _oan["off"])[..., 0][_om]
+                _e = np.abs(_dA - _dR)
+                _gap = float(np.abs(_oan[_nm] - _oreal[_nm])[..., 0][_om].mean())
+                if (_om.sum() < 150 or _e.max() > 3.0 or _e.mean() > 0.8 or abs(_dA.mean() - _dR.mean()) > 0.5
+                        or _gap > 1.5):
+                    _odiag.append("%s: on the %d px the table changes, the render's R moves by %+.2f on average "
+                                  "and the composite's by %+.2f (%.2f apart at worst, %.2f on average); the "
+                                  "composite is %.2f from the render there"
+                                  % (_nm, _om.sum(), _dR.mean(), _dA.mean(), _e.max(), _e.mean(), _gap))
+                _orep.append("%s %d px: render R %+.2f, composite %+.2f (worst %.2f apart), composite-render %.2f, "
+                             "elsewhere %.2f at worst, %.4f on average" % (_nm, _om.sum(), _dR.mean(), _dA.mean(),
+                                                                          _e.max(), _gap, _ostill, _ostm))
+            # arc_core alone, the largest red a table may add, inside both
+            # curves' north curve-axis zones
+            _oci = [L["id"] for L in params["layers"]].index("arc_core")
+            _otip = {s_: [[20, 0], [40, 38], [140, 38], [160, 0]] for s_ in ("left", "right")}
+
+            def _oalone(q):
+                r = _cpk.deepcopy(q)
+                r["layers"] = [L for L in r["layers"] if L["id"] == "arc_core"]
+                return r
+            _qt1, _qt0 = _oalone(_rsState(_otip)), _oalone(_rsState(None))
+            _ra1 = FP.render_array(build_svg.build(_qt1), 1024) * 255
+            _ra0 = FP.render_array(build_svg.build(_qt0), 1024) * 255
+            _Kc = FP.colors(FP.params_wc(_qt0))
+            _ma1 = FP.composite(_oA[_oci][None], _Kc, [False], extra=FP.shift_terms(_qt1)) * 255
+            _ma0 = FP.composite(_oA[_oci][None], _Kc, [False]) * 255
+            _otm = np.abs(_ra1 - _ra0).max(axis=2) > 0
+            _ote = np.abs((_ma1 - _ma0)[..., 0] - (_ra1 - _ra0)[..., 0])[_otm]
+            _ot99 = float(np.percentile(_ote, 99)) if _otm.any() else float("nan")
+            if _otm.sum() < 500 or not _ot99 <= 1.7 or _ote.mean() > 0.5:
+                _odiag.append("arc_core alone with +38 over the north tips' curve-axis zones: the layer's change "
+                              "follows the render's to %.2f at the 99th percentile, %.2f on average (%d px)"
+                              % (_ot99, _ote.mean(), _otm.sum()))
+            _orep.append("arc_core alone, +38 in the tips' curve-axis zones, %d px: p99 %.2f, mean %.2f"
+                         % (_otm.sum(), _ot99, _ote.mean()))
+            _oy0, _oy1, _ox0, _ox1 = 96, 960, 528, 800
+            _ofree = FP.held_free(params)
+            _ofit = {}
+            for _nm in ("off", "on"):
+                _ot = np.minimum(_oreal[_nm] / 255.0, 254.4 / 255.0)[_oy0:_oy1:2, _ox0:_ox1:2].astype(np.float32)
+                _oe = FP.sub_terms({i: e[_oy0:_oy1, _ox0:_ox1] for i, e in _oex[_nm].items()}, 2)
+                _ow = FP.fit(_oA[:, _oy0:_oy1:2, _ox0:_ox1:2], _ot, FP.params_wc(_rsS[_nm]),
+                             np.ones(_ot.shape[:2], np.float32), iters=6, verbose=False, free=_ofree,
+                             normal=_onf, teal_ok=FP.teal_eligible(params), extra=_oe)
+                _ofit[_nm] = FP.colors(_ow) * 255.0
+            _odK = np.abs(_ofit["on"] - _ofit["off"])[_ofree]
+            _oworst = _ofree[int(np.argmax(_odK.max(axis=1)))]
+            if _odK.max() > 0.25:
+                _odiag.append("a colour fit to the render moves %s by %.2f levels to make up the table's red"
+                              % (params["layers"][_oworst]["id"], _odK.max()))
+            _orep.append("fits with and without the table agree to %.3f levels (%s)"
+                         % (_odK.max(), params["layers"][_oworst]["id"]))
+            # measure_flare's stack: the term follows a table through refresh,
+            # and its image is the composite with it
+            _ostk = []
+            for _nm in ("off", "multi", "on"):
+                _stack.refresh(_rsS[_nm])
+                _owant = FP.shift_terms(_rsS[_nm], box=_stack.box)
+                _okw = np.ones(len(_stack.idx))
+                _oimg = _stack.image(_okw)
+                _WCs = _stack.WC.copy()
+                _oexp = FP.composite(_stack.A, FP.colors(_WCs).astype(np.float32), _stack.normal, extra=_owant) * 255.0
+                if (sorted(_stack.E) != sorted(_owant)
+                        or any(not np.array_equal(_stack.E[i], _owant[i]) for i in _owant)
+                        or not np.array_equal(_oimg, _oexp)):
+                    _ostk.append(_nm)
+            if _ostk:
+                _odiag.append("measure_flare's stack does not composite the table after refresh to %s" % _ostk)
+            # prune_layers scores the composite with the term
+            import prune_layers as _PLo
+            _opc = {L["id"]: _oA[i] for i, L in enumerate(params["layers"])}
+            _oref = np.minimum(np.asarray(_Image.open(os.path.join(ROOT, "reference.png")).convert("RGB"))
+                               .astype(np.float32) / 255.0, 254.4 / 255.0)
+            _opm = _PLo.evaluate(params, _oref, stride=8, iters=0, cache=_opc)[0]
+            _ot8 = _oref[::8, ::8]
+            _opw = float(np.abs(FP.composite(_oA[:, ::8, ::8], _oK, _onf,
+                                             extra=FP.sub_terms(_oex["on"], 8)) - _ot8).mean() * 255)
+            _opo = float(np.abs(FP.composite(_oA[:, ::8, ::8], _oK, _onf) - _ot8).mean() * 255)
+            if _opm != _opw or _opw == _opo:
+                _odiag.append("prune_layers scores %.6f; the composite with the term %.6f, without %.6f"
+                              % (_opm, _opw, _opo))
+            _orep.append("measure_flare's stack follows off -> multi -> on; prune_layers scores the composite "
+                         "with the term (%.6f; %.6f without)" % (_opm, _opo))
+        except Exception as _oe_:
+            _odiag.append("the model cannot composite the shift: %s: %s" % (type(_oe_).__name__, _oe_))
+    check("the objective scores the red_shift the SVG draws",
+          not _odiag, "; ".join(_odiag) if _odiag else
+          "fresh scores: on %.10g, off %.10g, multi %.10g, both %.10g, north %.10g, zero %.10g (= off); one "
+          "reused Objective scores all seven states bitwise as fresh ones; %s"
+          % (_osc["on"], _osc["off"], _osc["multi"], _osc["both"], _osc["north"], _osc["zero"],
+             "; ".join(_orep)))
+
+    # ---- the objective holds what each state colour-holds (D73) ---------- #
+    # The review case: the Objective held only the layers its constructor was
+    # given, so `Objective(reference)` -- no list -- fitted a red-shifted
+    # arc_core's base colour under a fixed table, which is valid only for the
+    # stored colour (fit_photometry.colour_held), and optimize.main's
+    # write-back would have stored that colour beside the unchanged table.  A
+    # reused Objective kept the hold of the state it was built for.  What it
+    # holds is now the constructor's list plus what the state being scored
+    # colour-holds.  With the shipped table ("on") and without it ("off"),
+    # everything else identical, each fit with every layer the state allows:
+    # - a direct Objective scores "on" with arc_core's stored colour, exactly as
+    #   one given colour_held explicitly, and its write-back leaves that colour;
+    # - one Objective carried from "off" (where arc_core is fitted, and sweep
+    #   keeps the fit) into "on" scores arc_core with the stored colour, not
+    #   the fitted one; carried from "on" into "off" it fits arc_core again
+    #   (both with arc_core's colour stored 10% dim, so that the fit must move
+    #   it whatever the artwork);
+    # - reused through either transition without carrying, it scores the
+    #   second state bitwise as a fresh one;
+    # - explicit ray holds still hold the rays in both states.
+    # On the old code the direct and carried "on" fits move arc_core's colour.
+    _hdiag = []
+    _hids = [L["id"] for L in params["layers"]]
+    _hci = _hids.index("arc_core")
+    _hray = [i for i, lid in enumerate(_hids) if lid in MFL.CALIBRATED_LAYERS]
+    _hon = params
+    _hoff = _cpk.deepcopy(params)
+    _hoff["layers"][_hci].pop("red_shift", None)
+    if "arc_core" not in FP.colour_held(_hon) or "arc_core" in FP.colour_held(_hoff):
+        _hdiag.append("the shipped arc_core is not colour-held, so there is nothing to test")
+    else:
+        _hwc = {"on": FP.params_wc(_hon), "off": FP.params_wc(_hoff)}
+
+        def _hobj(held=()):
+            f = O.Objective(os.path.join(ROOT, "reference.png"), stride=8, fit_iters=1, held=held)
+            f.cache = _objK.cache
+            return f
+
+        def _hcol(K):
+            return "[%s]" % ", ".join("%.2f" % v for v in FP.color_from_wc(K[_hci]) * 255.0)
+        _hd = _hobj()
+        _hds, _, _hdK = _hd.evaluate(_hon)
+        if not np.array_equal(_hdK[_hci], _hwc["on"][_hci]):
+            _hdiag.append("a direct Objective fits arc_core under its table: %s, stored %s"
+                          % (_hcol(_hdK), _hcol(_hwc["on"])))
+        _hds2 = _hobj(held=tuple(FP.colour_held(_hon))).evaluate(_hon)[0]
+        if _hds != _hds2:
+            _hdiag.append("a direct Objective scores the shipped state %.10g, one holding colour_held "
+                          "explicitly %.10g" % (_hds, _hds2))
+        _hq = _cpk.deepcopy(_hon)
+        FP.store_wc(_hq, _hdK, only=_hd.free_indices(_hq, None))
+        if _hq["layers"][_hci]["color"] != _hon["layers"][_hci]["color"]:
+            _hdiag.append("optimize.main's write-back from a direct Objective stores arc_core %s beside its "
+                          "table (was %s)" % (_hq["layers"][_hci]["color"], _hon["layers"][_hci]["color"]))
+        # carried as sweep carries it.  Both states store arc_core's colour
+        # 10% below the shipped one (the table stays valid: R + 18 <= G), so
+        # the fit without a table moves it well clear of the stored colour
+        # whatever the artwork; the shipped colour sits so near the fit's
+        # optimum that one iteration moves it by about 1e-5.
+        def _hdim(p):
+            q = _cpk.deepcopy(p)
+            Lq = q["layers"][_hci]
+            wq = FP.params_wc({"layers": [Lq]})[0] * 0.9
+            for _n, _v in zip(FP.COMPONENTS, wq):
+                if _n in Lq:
+                    Lq[_n] = round(float(_v), 6)
+            Lq["color"] = [round(float(_v) * 255.0, 2) for _v in FP.color_from_wc(wq)]
+            return q
+        _htoff, _hton = _hdim(_hoff), _hdim(_hon)
+        _hwt = {"on": FP.params_wc(_hton), "off": FP.params_wc(_htoff)}
+        # off (arc_core fitted) -> on
+        _hr = _hobj()
+        _, _, _hKoff = _hr.evaluate(_htoff)
+        _hr.K = _hKoff
+        _, _, _hKon = _hr.evaluate(_hton)
+        if float(np.abs(_hKoff[_hci] - _hwt["off"][_hci]).max()) < 1e-3:
+            _hdiag.append("without a table arc_core was not fitted, so the transition proves nothing")
+        if not np.array_equal(_hKon[_hci], _hwt["on"][_hci]):
+            _hdiag.append("gaining a table, a carried arc_core is scored with %s, not its stored %s"
+                          % (_hcol(_hKon), _hcol(_hwt["on"])))
+        # on -> off, arc_core is fitted again
+        _hr2 = _hobj()
+        _, _, _hK2 = _hr2.evaluate(_hton)
+        _hr2.K = _hK2
+        _, _, _hK2off = _hr2.evaluate(_htoff)
+        if float(np.abs(_hK2off[_hci] - _hwt["off"][_hci]).max()) < 1e-3:
+            _hdiag.append("losing its table, arc_core is still held")
+        # reused without carrying, both ways, against fresh
+        _hsc = {}
+        for _a, _b in (("off", "on"), ("on", "off")):
+            _hr3 = _hobj()
+            _hr3.evaluate({"on": _hon, "off": _hoff}[_a])
+            _re = _hr3.evaluate({"on": _hon, "off": _hoff}[_b])[0]
+            _fr = _hobj().evaluate({"on": _hon, "off": _hoff}[_b])[0]
+            _hsc[_b] = _fr
+            if _re != _fr:
+                _hdiag.append("%s after %s scores %.10g reused, %.10g fresh" % (_b, _a, _re, _fr))
+        # explicit ray holds, in both states
+        for _nm, _p in (("on", _hon), ("off", _hoff)):
+            _, _, _hKr = _hobj(held=MFL.CALIBRATED_LAYERS).evaluate(_p)
+            _mr = float(np.abs(_hKr[_hray] - _hwc[_nm][_hray]).max()) if _hray else 1.0
+            _mc = float(np.abs(_hKr[_hci] - _hwc[_nm][_hci]).max())
+            if _mr != 0.0 or (_nm == "on") != (_mc == 0.0):
+                _hdiag.append("with the rays held explicitly (%s): the rays move %.3g, arc_core %.3g"
+                              % (_nm, _mr, _mc))
+    check("the objective holds what each state colour-holds",
+          not _hdiag, "; ".join(_hdiag) if _hdiag else
+          "a direct Objective scores the shipped state with arc_core's stored colour %s (as with colour_held "
+          "explicit: %.10g) and its write-back keeps it; with its colour stored at %s, carried from a state "
+          "without the table (arc_core fitted to %s) it is held again, and carried the other way it is fitted "
+          "again (%s); reused without carrying it scores each transition bitwise as fresh (on %.10g, off "
+          "%.10g); explicit ray holds hold in both states"
+          % (_hcol(_hwc["on"]), _hds, _hcol(_hwt["on"]), _hcol(_hKoff), _hcol(_hK2off), _hsc["on"], _hsc["off"]))
+
+    # ---- an Objective built as optimize.main builds it holds per state (D75) -- #
+    # The review case: optimize.main built its Objective with the rays AND the
+    # starting state's red-shifted layer as constructor holds, so that layer
+    # stayed held in every state scored after it: reused on a state without
+    # the table, the Objective kept arc_core's colour locked where a fresh one
+    # fits it, and scored differently.  The constructor now gets only the
+    # permanent holds (the rays), and each state's own colour holds are read
+    # as it is scored (held_ids, D73).  Each Objective is built by
+    # optimize.run_objective, as main builds it, from the state it starts in,
+    # then reused on the next (arc_core stored 10% dim in both, so a fit that
+    # frees it must move it), in all four transitions between "on" (the
+    # shipped table) and "off" (none):
+    # - into "off" arc_core is fitted and the write-back stores it; into "on"
+    #   it keeps its stored colour;
+    # - every transition scores bitwise as a fresh Objective built from the
+    #   second state, which holds the same layers;
+    # - the rays are held in every state, and arc_glow1 (never red-shifted) is
+    #   fitted in every state.
+    # On the old main both transitions from "on" into "off" keep arc_core
+    # locked and score differently from fresh.
+    _pdiag, _prep = [], []
+    _pids = [L["id"] for L in params["layers"]]
+    _pci, _pgi = _pids.index("arc_core"), _pids.index("arc_glow1")
+    _pray = [i for i, lid in enumerate(_pids) if lid in MFL.CALIBRATED_LAYERS]
+
+    def _pdim(p):
+        q = _cpk.deepcopy(p)
+        Lq = q["layers"][_pci]
+        wq = FP.params_wc({"layers": [Lq]})[0] * 0.9
+        for _n, _v in zip(FP.COMPONENTS, wq):
+            if _n in Lq:
+                Lq[_n] = round(float(_v), 6)
+        Lq["color"] = [round(float(_v) * 255.0, 2) for _v in FP.color_from_wc(wq)]
+        return q
+    _pS = {"on": _pdim(params)}
+    _pS["off"] = _cpk.deepcopy(_pS["on"])
+    _pS["off"]["layers"][_pci].pop("red_shift", None)
+    if "arc_core" not in FP.colour_held(_pS["on"]) or "arc_core" in FP.colour_held(_pS["off"]) or not _pray:
+        _pdiag.append("the shipped arc_core is not red-shifted, or no ray is calibrated: nothing to test")
+    else:
+        _pW = {k: FP.params_wc(v) for k, v in _pS.items()}
+
+        def _pobj(p):
+            f = O.run_objective(p, os.path.join(ROOT, "reference.png"), stride=8, fit_iters=1)[0]
+            f.cache = _objK.cache
+            return f
+        for _a, _b in (("on", "off"), ("off", "on"), ("on", "on"), ("off", "off")):
+            _t = "%s -> %s" % (_a, _b)
+            _r = _pobj(_pS[_a])
+            _r.evaluate(_pS[_a])
+            _rs, _, _rK = _r.evaluate(_pS[_b])
+            _f = _pobj(_pS[_b])
+            _fs, _, _fK = _f.evaluate(_pS[_b])
+            if sorted(_r.held_ids(_pS[_b])) != sorted(_f.held_ids(_pS[_b])):
+                _pdiag.append("%s: reused holds %s, fresh %s, besides the rays" % (
+                    _t, sorted(set(_r.held_ids(_pS[_b])) - set(MFL.CALIBRATED_LAYERS)),
+                    sorted(set(_f.held_ids(_pS[_b])) - set(MFL.CALIBRATED_LAYERS))))
+            if _rs != _fs:
+                _pdiag.append("%s scores %.10g reused, %.10g fresh" % (_t, _rs, _fs))
+            _mc = float(np.abs(_rK[_pci] - _pW[_b][_pci]).max())
+            if _b == "on" and _mc != 0.0:
+                _pdiag.append("%s: arc_core moves %.3g under its table" % (_t, _mc))
+            if _b == "off" and _mc < 1e-3:
+                _pdiag.append("%s: without its table arc_core is still held (moves %.3g)" % (_t, _mc))
+            _mr = float(np.abs(_rK[_pray] - _pW[_b][_pray]).max())
+            if _mr != 0.0:
+                _pdiag.append("%s: the rays move %.3g" % (_t, _mr))
+            _mg = float(np.abs(_rK[_pgi] - _pW[_b][_pgi]).max())
+            if _mg < 1e-4:
+                _pdiag.append("%s: arc_glow1 is not fitted (moves %.3g)" % (_t, _mg))
+            _pq = _cpk.deepcopy(_pS[_b])
+            FP.store_wc(_pq, _rK, only=_r.free_indices(_pq, None))
+            if (_pq["layers"][_pci]["color"] != _pS[_b]["layers"][_pci]["color"]) != (_b == "off"):
+                _pdiag.append("%s: the write-back stores arc_core %s (stored %s)"
+                              % (_t, _pq["layers"][_pci]["color"], _pS[_b]["layers"][_pci]["color"]))
+            _prep.append("%s arc_core %.4f, arc_glow1 %.4f" % (_t, _mc, _mg))
+    check("an Objective built as optimize.main builds it holds what each state holds",
+          not _pdiag, "; ".join(_pdiag) if _pdiag else
+          "built by run_objective from the first state and reused on the second, every transition holds "
+          "what a fresh Objective holds and scores bitwise as it does; the fit moves (%s); the rays stay "
+          "held" % "; ".join(_prep))
+
+    # ---- the lens-side band stays beside the core's ends (D71) ------------ #
+    # arc_lens_band is the reference's cyan band just outside the core's lens
+    # edge, over the curves' outer thirds.  What was measured is where it may
+    # draw, and in what colour:
+    # - on the lens (concave) side of the curve: almost none of its light
+    #   beyond the core's flare edge (4 px on the flare side);
+    # - beside the core: all of it within 16 px of the curve;
+    # - over the outer thirds only: nothing on the rows of the curves' middle,
+    #   where the model's own lens-side glows already match the reference;
+    # - cyan, as the reference's band reads (G/B 0.89-0.99), with almost no
+    #   white (R at most a quarter of G).  The photometric fit frees every
+    #   layer's colour but the rays', so a refit that gave it white or blue
+    #   fails here.
+    # The band's bounds (inset 4.75-5.75, width 1-5.5, blur 0.5-3.25) keep the
+    # first two at every corner of the search box.  The taper search moves
+    # every table's y_offset within +-14 px; beyond about +-10 the band's table
+    # reaches the middle rows, and this check fails, as it should.
+    _lbL = [L for L in params["layers"] if L["id"] == "arc_lens_band"]
+    _lbd = []
+    if len(_lbL) != 1:
+        _lbd.append("there is no arc_lens_band layer")
+    else:
+        _iLb = _FP.render_array(build_svg.build(params, basis="arc_lens_band"), 1024)[..., 0].astype(np.float64)
+        _dLb = regions.curve_frame((1024, 1024))[0]
+        _tLb = _iLb.sum()
+        _fl = float(_iLb[_dLb > 4].sum() / max(_tLb, 1e-9))
+        _nr = float(_iLb[np.abs(_dLb) < 16].sum() / max(_tLb, 1e-9))
+        _mid = float(_iLb[380:640].max() * 255)
+        if _tLb <= 0:
+            _lbd.append("the band draws nothing")
+        if _fl > 0.01:
+            _lbd.append("%.1f%% of its light is beyond the core's flare edge" % (100 * _fl))
+        if _nr < 0.999:
+            _lbd.append("only %.2f%% of its light is within 16 px of the curve" % (100 * _nr))
+        if _mid > 0:
+            _lbd.append("it draws %g levels on the rows of the curves' middle (y 380-640)" % _mid)
+        _cLb = np.asarray(_lbL[0]["color"], float)
+        _gb = _cLb[1] / max(_cLb[2], 1e-9)
+        if not (_cLb[1] > 0 and 0.89 <= _gb <= 0.99 and _cLb[0] <= 0.25 * _cLb[1]):
+            _lbd.append("its colour %s is not the band's (G/B 0.89-0.99, R at most a quarter of G)"
+                        % _cLb.tolist())
+    check("the lens-side band stays beside the core's ends",
+          not _lbd, "; ".join(_lbd) if _lbd else
+          "arc_lens_band: %.2f%% of its light beyond the core's flare edge, %.3f%% within 16 px of the curve, "
+          "none on rows 380-640; colour G/B %.3f, R/G %.3f" % (100 * _fl, 100 * _nr, _gb, _cLb[0] / _cLb[1]))
+
     # ---- teal is a PERMISSION, not the current amount (D65) --------------- #
     # The review case: fit() locked the fourth primary on every layer whose
     # teal amount was 0, so an ELIGIBLE ray that had reached 0 could never use
@@ -2568,6 +3621,11 @@ def main():
                 _fp_diag.append("%s saved no fitted colour" % _tag)
             if not _mode and any(_got[lid].get("color") != _was[lid].get("color") for lid in _held):
                 _fp_diag.append("%s moved a calibrated ray" % _tag)
+            # a red-shifted layer's colour is held in both modes (D72)
+            _chl = _FP.colour_held(_fp_src)
+            if not _chl or any(_got[lid].get(c) != _was[lid].get(c) for lid in _chl
+                               for c in ("color", "white", "cyan", "blue")):
+                _fp_diag.append("%s moved a red-shifted layer's colour (%s)" % (_tag, _chl or "none present"))
             if any("teal" in _got[lid] for lid in _cone0):
                 _fp_diag.append("%s gave a cone layer a teal key" % _tag)
             if any("teal" not in _got[lid] for lid in _teal0):
@@ -2582,7 +3640,7 @@ def main():
           "fit_photometry.py (documented mode and --fit-rays) exits 0 and saves, on cone layers "
           "without a teal key (reported ineligible, never given one), six eligible rays (one with "
           "no light at all, key kept), a colour-only layer and the normal-blended frame; calibrated "
-          "rays held in the documented mode")
+          "rays held in the documented mode, a red-shifted layer's colour in both")
 
     # ---- pruning down to the calibrated rays completes and saves (D68) ---- #
     # The review case (prune_layers.py:42): once pruning has removed every
@@ -2672,6 +3730,36 @@ def main():
           "and the saved file renders and scores %.4f as reported; with nothing protected it stops at "
           "the last layer" % (len(_pr_rays), _pr_mae))
 
+    # The before/after sheet's probes (6i and D65's) run against two
+    # baselines.  One is the pinned one, out/baseline/.  The other is this
+    # release pinned as its own baseline, which is what a commit that only
+    # re-pins the baseline looks like (out/baseline/manifest.json asks for
+    # that once a release is accepted): until D71 two probes used the pinned
+    # baseline as their "other" SVG and render, and so failed a sound sheet
+    # whenever the two were the same release.  Each probe now makes its own
+    # other input, and this keeps them honest whether or not they differ.
+    def _sheet_baselines(td):
+        import hashlib as _hl
+        import shutil as _shb
+        out = []
+        for say, own in (("", False), ("with the release as its own baseline: ", True)):
+            d = os.path.join(td, "baseline_own" if own else "baseline")
+            os.makedirs(d)
+            if own:
+                _shb.copy(os.path.join(ROOT, "reconstruction.svg"), d)
+                m = json.load(open(os.path.join(ROOT, "out", "baseline", "manifest.json")))
+                m["svg"] = "reconstruction.svg"
+                m["svg_sha256"] = _hl.sha256(open(os.path.join(d, "reconstruction.svg"), "rb").read()).hexdigest()
+                json.dump(m, open(os.path.join(d, "manifest.json"), "w"))
+            else:
+                for f in ("reconstruction.svg", "manifest.json"):
+                    _shb.copy(os.path.join(ROOT, "out", "baseline", f), d)
+            _sp.run([sys.executable, os.path.join(ROOT, "tools", "render.py"),
+                     os.path.join(d, "reconstruction.svg"), os.path.join(d, "render_1024.png")],
+                    check=True, capture_output=True)
+            out.append((say, d))
+        return out
+
     # ---- 6i. the diagnostics refuse inputs they cannot read ---------------- #
 
     # ray_lines sampled whatever it was given: a 512-px render came back as a
@@ -2703,58 +3791,55 @@ def main():
         # The before/after sheet is a publish artefact: built from a baseline
         # whose manifest names its SVG by digest and from renders whose
         # provenance matches the SVGs they are labelled as -- and refused
-        # otherwise.
-        _bd = os.path.join(_td3, "baseline")
-        os.makedirs(_bd)
-        for _f in ("reconstruction.svg", "manifest.json"):
-            _sh2.copy(os.path.join(ROOT, "out", "baseline", _f), _bd)
-        _sp.run([sys.executable, os.path.join(ROOT, "tools", "render.py"),
-                 os.path.join(_bd, "reconstruction.svg"), os.path.join(_bd, "render_1024.png")],
-                check=True, capture_output=True)
-        _fp_args = [os.path.join(ROOT, "out", "render_1024.png"), "--svg",
-                    os.path.join(ROOT, "reconstruction.svg"), "--baseline", _bd,
-                    "--labels", "this release", "--out", os.path.join(_td3, "sheet.png")]
-        _r = _sp.run([sys.executable, os.path.join(ROOT, "tools", "flare_parts.py")] + _fp_args,
-                     capture_output=True, text=True, cwd=ROOT)
-        if _r.returncode != 0:
-            _diag.append("flare_parts refused the shipped release: %s" % _r.stderr.strip()[:160])
-        # ... and it says what it was drawn from, so a stale sheet is caught.
+        # otherwise.  Each probe runs against the pinned baseline and against
+        # the release pinned as its own baseline (_sheet_baselines): no probe
+        # may lean on the two being different releases.
         import flare_parts as _FPT
-        _sheet = os.path.join(_td3, "sheet.png")
-        # (Only if it was drawn: a refusal above is already a failure, and
-        # copying a sheet that does not exist would abort the whole suite.)
-        if os.path.exists(_sheet):
-            _fresh = _FPT.sheet_problems(_sheet, os.path.join(ROOT, "reconstruction.svg"), _bd,
-                                         os.path.join(ROOT, "reference.png"))
-            if _fresh:
-                _diag.append("a sheet drawn just now reads as stale: %s" % _fresh[0])
-            # The different SVG is made here: the release with a comment
-            # appended, so its digest differs.  It used to be the baseline's
-            # SVG, which on a commit that only re-pins the baseline to this
-            # release IS this release -- the probe then compared the release
-            # with itself and failed a sound sheet.
-            _other = os.path.join(_td3, "other.svg")
-            open(_other, "wb").write(open(os.path.join(ROOT, "reconstruction.svg"), "rb").read()
-                                     + b"<!-- not the release -->\n")
-            if not _FPT.sheet_problems(_sheet, _other, _bd):
-                _diag.append("a sheet checked against a different SVG was not reported stale")
-            _sh2.copy(_sheet, _sheet + ".t.png")
-            _sh2.copy(_sheet + ".prov.json", _sheet + ".t.png.prov.json")
-            open(_sheet + ".t.png", "ab").write(b"\0")
-            if not _FPT.sheet_problems(_sheet + ".t.png", os.path.join(ROOT, "reconstruction.svg"), _bd):
-                _diag.append("a sheet whose bytes changed was not caught")
-        _man = json.load(open(os.path.join(_bd, "manifest.json")))
-        _man["svg_sha256"] = "0" * 64
-        json.dump(_man, open(os.path.join(_bd, "manifest.json"), "w"))
-        _r = _sp.run([sys.executable, os.path.join(ROOT, "tools", "flare_parts.py")] + _fp_args,
-                     capture_output=True, text=True, cwd=ROOT)
-        if _r.returncode != 2:
-            _diag.append("flare_parts drew a sheet whose baseline manifest does not name its SVG")
+        for _bsay, _bd in _sheet_baselines(_td3):
+            _sheet = os.path.join(_bd, "sheet.png")
+            _fp_args = [os.path.join(ROOT, "out", "render_1024.png"), "--svg",
+                        os.path.join(ROOT, "reconstruction.svg"), "--baseline", _bd,
+                        "--labels", "this release", "--out", _sheet]
+            _r = _sp.run([sys.executable, os.path.join(ROOT, "tools", "flare_parts.py")] + _fp_args,
+                         capture_output=True, text=True, cwd=ROOT)
+            if _r.returncode != 0:
+                _diag.append("%sflare_parts refused the shipped release: %s" % (_bsay, _r.stderr.strip()[:160]))
+            # ... and it says what it was drawn from, so a stale sheet is caught.
+            # (Only if it was drawn: a refusal above is already a failure, and
+            # copying a sheet that does not exist would abort the whole suite.)
+            if os.path.exists(_sheet):
+                _fresh = _FPT.sheet_problems(_sheet, os.path.join(ROOT, "reconstruction.svg"), _bd,
+                                             os.path.join(ROOT, "reference.png"))
+                if _fresh:
+                    _diag.append("%sa sheet drawn just now reads as stale: %s" % (_bsay, _fresh[0]))
+                # The different SVG is made here: the release with a comment
+                # appended, so its digest differs.  It used to be the
+                # baseline's SVG, which on a commit that only re-pins the
+                # baseline to this release IS this release -- the probe then
+                # compared the release with itself and failed a sound sheet.
+                _other = os.path.join(_bd, "other.svg")
+                open(_other, "wb").write(open(os.path.join(ROOT, "reconstruction.svg"), "rb").read()
+                                         + b"<!-- not the release -->\n")
+                if not _FPT.sheet_problems(_sheet, _other, _bd):
+                    _diag.append("%sa sheet checked against a different SVG was not reported stale" % _bsay)
+                _sh2.copy(_sheet, _sheet + ".t.png")
+                _sh2.copy(_sheet + ".prov.json", _sheet + ".t.png.prov.json")
+                open(_sheet + ".t.png", "ab").write(b"\0")
+                if not _FPT.sheet_problems(_sheet + ".t.png", os.path.join(ROOT, "reconstruction.svg"), _bd):
+                    _diag.append("%sa sheet whose bytes changed was not caught" % _bsay)
+            _man = json.load(open(os.path.join(_bd, "manifest.json")))
+            _man["svg_sha256"] = "0" * 64
+            json.dump(_man, open(os.path.join(_bd, "manifest.json"), "w"))
+            _r = _sp.run([sys.executable, os.path.join(ROOT, "tools", "flare_parts.py")] + _fp_args,
+                         capture_output=True, text=True, cwd=ROOT)
+            if _r.returncode != 2:
+                _diag.append("%sflare_parts drew a sheet whose baseline manifest does not name its SVG" % _bsay)
     check("the diagnostics refuse inputs they cannot read",
           not _diag, "; ".join(_diag) if _diag else
           "ray_lines, visual_regression and flare_parts exit 2 on a 512-px image; no sample "
           "outside the canvas; the before/after sheet verifies its baseline and its release, and "
-          "its provenance catches a stale or altered sheet")
+          "its provenance catches a stale or altered sheet, with the pinned baseline and with the "
+          "release as its own baseline")
 
     # ---- a sheet cannot vouch for a source image it no longer shows (D65) -- #
     # The review case: the sidecar recorded each column's image digest, but
@@ -2769,13 +3854,6 @@ def main():
         _rel = os.path.join(_td4, "release.png")
         for _ext in ("", ".prov.json"):
             _sh4.copy(os.path.join(ROOT, "out", "render_1024.png") + _ext, _rel + _ext)
-        _bd4 = os.path.join(_td4, "baseline")
-        os.makedirs(_bd4)
-        for _f in ("reconstruction.svg", "manifest.json"):
-            _sh4.copy(os.path.join(ROOT, "out", "baseline", _f), _bd4)
-        _sp.run([sys.executable, os.path.join(ROOT, "tools", "render.py"),
-                 os.path.join(_bd4, "reconstruction.svg"), os.path.join(_bd4, "render_1024.png")],
-                check=True, capture_output=True)
         # (2)'s other authentic render is made here too, by render.py so it has
         # its own sidecar: the release with a mark drawn on it, so its pixels
         # differ (a comment alone changes the SVG's digest and not one pixel).
@@ -2788,53 +3866,54 @@ def main():
                                 + _svg4[_end4:])
         _sp.run([sys.executable, os.path.join(ROOT, "tools", "render.py"), _osvg, _opng],
                 check=True, capture_output=True)
-        _sheet4 = os.path.join(_td4, "sheet.png")
-        _r4 = _sp.run([sys.executable, os.path.join(ROOT, "tools", "flare_parts.py"), _rel,
-                       "--svg", os.path.join(ROOT, "reconstruction.svg"), "--baseline", _bd4,
-                       "--labels", "this release", "--out", _sheet4],
-                      capture_output=True, text=True, cwd=ROOT)
-        _p4 = lambda: _FPS.sheet_problems(_sheet4, os.path.join(ROOT, "reconstruction.svg"),  # noqa: E731
-                                          _bd4, os.path.join(ROOT, "reference.png"))
         _keep = {q: open(q, "rb").read() for q in (_rel, _rel + ".prov.json")}
 
         def _restore():
             for q, b in _keep.items():
                 open(q, "wb").write(b)
-        if _r4.returncode != 0:
-            _src_diag.append("the sheet was not drawn: %s" % _r4.stderr.strip()[:160])
-        elif _p4():
-            _src_diag.append("(1) a fresh sheet with untouched sources reads as stale: %s" % _p4()[0])
-        else:
-            # (2) another AUTHENTIC render, with its own valid sidecar, put in its place
-            for _ext in ("", ".prov.json"):
-                _sh4.copy(_opng + _ext, _rel + _ext)
-            if not any("no longer there" in m for m in _p4()):
-                _src_diag.append("(2) a source render replaced by another authentic render passed")
-            _restore()
-            # (3) same filename, different bytes, sidecar left alone
-            open(_rel, "ab").write(b"\0")
-            if not _p4():
-                _src_diag.append("(3) a source render with changed bytes passed")
-            _restore()
-            # (4a) the render's provenance removed
-            os.remove(_rel + ".prov.json")
-            if not any("no provenance" in m for m in _p4()):
-                _src_diag.append("(4a) a source render without provenance passed")
-            _restore()
-            # (4b) provenance naming a different SVG (the render itself unchanged)
-            _pv = json.loads(_keep[_rel + ".prov.json"])
-            _pv["svg_sha256"] = "0" * 64
-            open(_rel + ".prov.json", "w").write(json.dumps(_pv))
-            if not _p4():
-                _src_diag.append("(4b) a source render whose provenance names another SVG passed")
-            _restore()
-            if _p4():
-                _src_diag.append("restored sources still read as stale: %s" % _p4()[0])
+        for _bsay, _bd4 in _sheet_baselines(_td4):
+            _sheet4 = os.path.join(_bd4, "sheet.png")
+            _r4 = _sp.run([sys.executable, os.path.join(ROOT, "tools", "flare_parts.py"), _rel,
+                           "--svg", os.path.join(ROOT, "reconstruction.svg"), "--baseline", _bd4,
+                           "--labels", "this release", "--out", _sheet4],
+                          capture_output=True, text=True, cwd=ROOT)
+            _p4 = lambda: _FPS.sheet_problems(_sheet4, os.path.join(ROOT, "reconstruction.svg"),  # noqa: E731
+                                              _bd4, os.path.join(ROOT, "reference.png"))
+            if _r4.returncode != 0:
+                _src_diag.append("%sthe sheet was not drawn: %s" % (_bsay, _r4.stderr.strip()[:160]))
+            elif _p4():
+                _src_diag.append("%s(1) a fresh sheet with untouched sources reads as stale: %s" % (_bsay, _p4()[0]))
+            else:
+                # (2) another AUTHENTIC render, with its own valid sidecar, put in its place
+                for _ext in ("", ".prov.json"):
+                    _sh4.copy(_opng + _ext, _rel + _ext)
+                if not any("no longer there" in m for m in _p4()):
+                    _src_diag.append("%s(2) a source render replaced by another authentic render passed" % _bsay)
+                _restore()
+                # (3) same filename, different bytes, sidecar left alone
+                open(_rel, "ab").write(b"\0")
+                if not _p4():
+                    _src_diag.append("%s(3) a source render with changed bytes passed" % _bsay)
+                _restore()
+                # (4a) the render's provenance removed
+                os.remove(_rel + ".prov.json")
+                if not any("no provenance" in m for m in _p4()):
+                    _src_diag.append("%s(4a) a source render without provenance passed" % _bsay)
+                _restore()
+                # (4b) provenance naming a different SVG (the render itself unchanged)
+                _pv = json.loads(_keep[_rel + ".prov.json"])
+                _pv["svg_sha256"] = "0" * 64
+                open(_rel + ".prov.json", "w").write(json.dumps(_pv))
+                if not _p4():
+                    _src_diag.append("%s(4b) a source render whose provenance names another SVG passed" % _bsay)
+                _restore()
+                if _p4():
+                    _src_diag.append("%srestored sources still read as stale: %s" % (_bsay, _p4()[0]))
     check("a before/after sheet re-verifies every source image it was drawn from",
           not _src_diag, "; ".join(_src_diag) if _src_diag else
           "valid sources pass; a source replaced by another authentic render, a source with "
           "changed bytes, a source without provenance and one whose provenance names another "
-          "SVG each fail")
+          "SVG each fail, with the pinned baseline and with the release as its own baseline")
 
     # ---- the baseline setup is a pinned, verified, reproducible step (D66) - #
     # A clean checkout carries the previous release's SVG, not its render;

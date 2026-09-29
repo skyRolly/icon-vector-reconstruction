@@ -434,11 +434,18 @@ class Objective:
         # (tools/measure_flare.py).  A whole-image fit moves light into them
         # that belongs to a broad glow -- D61 caught it drawing a lower-left ray
         # 2.5x the reference -- so they are held, not merely down-weighted.
+        # These are the explicit holds, and they are permanent: pass only
+        # holds that do not depend on the parameters (`permanent_holds`).
+        # Each evaluation adds the layers its own parameters colour-hold
+        # (held_ids, D73); a state-dependent hold given here would outlive the
+        # state it came from (D75).
         self.held = set(held)
         self.target_full = np.minimum(ref, 254.4 / 255.0)
         self.stride = stride
         self.fit_iters = fit_iters
         self.cache = {}
+        # red-shifted layers' shift fields, keyed on each field's SVG (D72)
+        self.fields = {}
         self.K = None
         self.K_ids = None           # the layer schema self.K's rows belong to (colours())
         self.K_seen = None          # the stored colours colours() last read from params
@@ -473,6 +480,25 @@ class Objective:
             self.n_render += 1
         return slots[key]
 
+    def shift_extra(self, params):
+        """The light each red-shifted layer adds beyond its basis times its
+        colour (fit_photometry.shift_terms), from its shift fields.
+
+        A field is cached like a basis, on the digest of the SVG it is
+        rendered from, which holds the `red_shift` table: a changed table is a
+        changed key, so it is re-rendered, and the score follows it.  Until
+        D72's stage 14 the Objective had no such term, so it scored every
+        table, and none, identically (the review finding)."""
+        def render(svg):
+            key = hashlib.sha1(svg.encode("utf-8")).hexdigest()
+            if key not in self.fields:
+                if len(self.fields) >= 8:
+                    self.fields.pop(next(iter(self.fields)))
+                self.fields[key] = FP.render_array(svg, self.size)[..., 0]
+                self.n_render += 1
+            return self.fields[key]
+        return FP.shift_terms(params, self.size, render=render)
+
     def invalidate(self, affects):
         """Kept for the caller's benefit only -- correctness no longer needs it.
 
@@ -482,6 +508,7 @@ class Objective:
         """
         if affects == "all":
             self.cache.clear()
+            self.fields.clear()
 
     def families(self, params, affects):
         """Layer indices worth re-fitting when `affects` changed.
@@ -497,11 +524,26 @@ class Objective:
         fams = {lid.split("_")[0] for lid in affects}
         return [i for i, L in enumerate(params["layers"]) if L["id"].split("_")[0] in fams] or None
 
+    def held_ids(self, params):
+        """The layers this objective holds when it scores `params`: the
+        constructor's explicit holds (the calibrated rays) and the layers
+        `params` ITSELF says are colour-held (fit_photometry.colour_held: a
+        red-shifted layer, whose table is valid only for its stored colour).
+
+        The second part is read from each state, not fixed at construction.
+        Until D73 only the constructor's list was held, so an Objective built
+        without one -- `Objective(reference)` -- fitted a red-shifted
+        `arc_core`'s base colour under a fixed table, and an Objective reused
+        across a state that gained or lost a table kept the hold of the state
+        it was built for (the review finding)."""
+        return self.held | set(FP.colour_held(params))
+
     def free_indices(self, params, free):
-        """`free` (None = every layer) minus the held layers."""
+        """`free` (None = every layer) minus the layers held for `params`."""
+        held = self.held_ids(params)
         idx = range(len(params["layers"])) if free is None else free
-        out = [i for i in idx if params["layers"][i]["id"] not in self.held]
-        return None if (free is None and not self.held) else out
+        out = [i for i in idx if params["layers"][i]["id"] not in held]
+        return None if (free is None and not held) else out
 
     def colours(self, params):
         """Bring `self.K` up to date with `params` before a fit starts from it.
@@ -513,7 +555,9 @@ class Objective:
           `sweep` carries from one accepted move to the next and `main` writes
           back at the end; reusing it is the point;
         - a HELD layer's row is never fitted, so it can only ever be what
-          `params` says.
+          `params` says.  Held means held for THESE parameters (`held_ids`):
+          a layer that gains a `red_shift` table is re-read here, not scored
+          with a colour fitted while it was free.
         Until D67 held rows were seeded once and then kept, so an Objective
         that scored parameters A and then B -- B differing only in a held
         ray's colour -- scored B with A's colour (the review finding).  Held
@@ -547,8 +591,9 @@ class Objective:
         if self.K is None or self.K_ids != schema or self.K.shape[0] != len(ids):
             self.K, self.K_ids, self.K_seen = wc, schema, wc.copy()
             return
+        held = self.held_ids(params)
         stale = [i for i, lid in enumerate(ids)
-                 if lid in self.held or not np.array_equal(wc[i], self.K_seen[i])]
+                 if lid in held or not np.array_equal(wc[i], self.K_seen[i])]
         if stale and not np.array_equal(self.K[stale], wc[stale]):
             K = np.array(self.K, copy=True)
             K[stale] = wc[stale]
@@ -561,12 +606,13 @@ class Objective:
         st = 1 if full else (stride or self.stride)
         tgt = self.target_full[::st, ::st]
         Asub = A[:, ::st, ::st]
+        ex = FP.sub_terms(self.shift_extra(params), st)
         W = FP.make_weight(tgt)
         self.colours(params)
         nf = FP.normal_flags(params)
         K = FP.fit(Asub, tgt, self.K, W, iters=fit_iters or self.fit_iters, verbose=False,
-                   free=free, normal=nf, teal_ok=FP.teal_eligible(params))
-        out = FP.composite(Asub, FP.colors(K), nf)
+                   free=free, normal=nf, teal_ok=FP.teal_eligible(params), extra=ex)
+        out = FP.composite(Asub, FP.colors(K), nf, extra=ex)
         sse = FP.weighted_sse(out - tgt, W) / (Asub.shape[1] * Asub.shape[2])
         mae = float(np.abs(out - tgt).mean() * 255)
         return sse, mae, K
@@ -713,6 +759,30 @@ def sweep(obj, params, specs, log=print, accept_tol=2e-7):
     return best_sse
 
 
+def permanent_holds(include_rays=False):
+    """The holds an Objective is built with: the calibrated rays, unless
+    `include_rays`.  They hold whatever the parameters say.  A red-shifted
+    layer's hold is not one of them: it belongs to the state being scored,
+    and `Objective.held_ids` reads it from that state on every evaluation."""
+    import measure_flare as MFL
+    return () if include_rays else tuple(MFL.CALIBRATED_LAYERS)
+
+
+def run_objective(params, reference, stride=4, fit_iters=3, include_rays=False):
+    """The Objective `main` runs with, for a run that starts from `params`,
+    and the layers it holds there (for the report).
+
+    It is built with the permanent holds only.  Until D75 `main` built it
+    with the rays AND the starting state's red-shifted layer
+    (fit_photometry.colour_held), so that layer stayed held in every state
+    the Objective scored after, table or no table: reused on a state without
+    the table it kept arc_core's colour locked where a fresh Objective fits
+    it (the review finding).  The red-shifted layer is now held in exactly
+    the states that carry the table (`held_ids`, D73)."""
+    obj = Objective(reference, stride=stride, fit_iters=fit_iters, held=permanent_holds(include_rays))
+    return obj, obj.held_ids(params)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--params", default=os.path.join(ROOT, "src", "params.json"))
@@ -732,9 +802,9 @@ def main():
 
     params = json.load(open(a.params))
     import measure_flare as MFL
-    held = () if a.include_rays else MFL.CALIBRATED_LAYERS
+    obj, held = run_objective(params, a.reference, stride=a.stride, fit_iters=a.fit_iters,
+                              include_rays=a.include_rays)
     shape_hold = () if a.include_rays else tuple(MFL.RAY_GEOMETRY)
-    obj = Objective(a.reference, stride=a.stride, fit_iters=a.fit_iters, held=held)
     builders = {"shapes": lambda p: layer_specs(p, hold=shape_hold), "tapers": taper_specs,
                 "geometry": geometry_specs, "field": field_specs}
     if a.spec == "all":
@@ -742,9 +812,9 @@ def main():
                                  for k in ("shapes", "tapers", "field", "geometry")), []))
     else:
         specs = builders[a.spec](params)
-    if held:
-        print("holding %d ray layers (shape and colour): %s" % (len(set(held) | set(shape_hold)),
-              ", ".join(sorted(set(held) | set(shape_hold)))))
+    if held or shape_hold:
+        print("holding %d layers (the rays' shape and colour, a red-shifted layer's colour): %s"
+              % (len(set(held) | set(shape_hold)), ", ".join(sorted(set(held) | set(shape_hold)))))
     if a.only:
         pre = tuple(x.strip() for x in a.only.split(","))
         specs = [sp for sp in specs

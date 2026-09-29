@@ -9,8 +9,8 @@ rounded-square frame — as a hand-built, parametric SVG.
 | ![reference](out/side_reference.png) | ![reconstruction](out/side_reconstruction.png) | ![difference](out/side_diff.png) |
 
 <!-- DELIVERABLE:START -->
-**Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 55 named
-layers, 146 KB, no embedded bitmap and no traced outlines. Every mark is a
+**Primary deliverable: [`reconstruction.svg`](reconstruction.svg)** — 56 named
+layers, 154 KB, no embedded bitmap and no traced outlines. Every mark is a
 primitive driven by a named parameter in
 [`src/params.json`](src/params.json): one path for the frame, two cubic-Bézier
 paths for the luminous curves (reused, offset and clipped, by every glow
@@ -25,15 +25,15 @@ Reconstruction rendered at 1024 px (resvg) against `reference.png`:
 
 | metric | value | for scale |
 |---|---|---|
-| mean absolute error | **1.673** / 255 | a flat black canvas scores 17.89 |
-| RMSE | 3.060 | |
-| MAE on a 1/2.2 display curve | 5.219 | weights the dark background as the eye does; black scores 59.7 |
-| SSIM (luminance) | **0.9765** | black scores 0.142 |
-| worst single-channel error | 67 | |
-| pixels off by more than 2 / 8 / 24 | 33.8% / 3.6% / 0.3% | |
-| mean bias | -0.182 | |
+| mean absolute error | **1.592** / 255 | a flat black canvas scores 17.89 |
+| RMSE | 2.687 | |
+| MAE on a 1/2.2 display curve | 5.163 | weights the dark background as the eye does; black scores 59.7 |
+| SSIM (luminance) | **0.9775** | black scores 0.142 |
+| worst single-channel error | 73 | |
+| pixels off by more than 2 / 8 / 24 | 33.8% / 3.0% / 0.1% | |
+| mean bias | -0.136 | |
 
-Per region (MAE): frame band 2.50, centre 90 px 4.58, bright pixels 7.48, dark background 1.31, everything else 1.51.
+Per region (MAE): frame band 2.50, centre 90 px 4.39, bright pixels 5.59, dark background 1.29, everything else 1.42.
 
 About a quarter of that error is the reference's own JPEG noise: decomposed by
 scale, the background residual implies an MAE floor of 0.57-0.61 per channel
@@ -44,16 +44,16 @@ The two regions a whole-image average cannot police, from
 
 | targeted measurement | value |
 |---|---|
-| MAE within 110 px of the central light | 4.04 |
-| worst ring of the flare's radial profile | +1.1 code values at r = 20-30 |
+| MAE within 110 px of the central light | 3.85 |
+| worst ring of the flare's radial profile | +0.9 code values at r = 20-30 |
 | curve glow, rms relative error over 21 signed-distance bins | 2.8% |
-| the same, resolved along the curve (71 cells) | 4.8% |
+| the same, resolved along the curve (71 cells) | 5.0% |
 | light in the four interior corners, rms relative error | 5.0% |
 | worst single bin of that profile | -5.8% at s = -70..-52 px |
 | left lobe, MAE more than 25 px from the ridge | 1.34 (bias -0.19) |
 | right lobe, MAE more than 25 px from the ridge | 1.31 (bias -0.11) |
 
-Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.693 (SSIM 0.9554); see `out/validation.md` for the resolution sweep.
+Cross-engine: the same SVG in resvg and headless Chromium agrees to MAE 2.638 (SSIM 0.9559); see `out/validation.md` for the resolution sweep.
 <!-- METRICS:END -->
 
 ## What is in here

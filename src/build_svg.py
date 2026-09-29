@@ -655,6 +655,84 @@ def _curve_axis_stops(tab, c, which, reach, tol_a=0.0015, tol_w=0.004):
     return E, T, tuple((S[k], A[k], W[k]) for k in sorted(keep)), y_zone
 
 
+def red_shift_span(L):
+    """(lo, hi): the range of arc layer L's `red_shift` over both sides, 0
+    included.  Its shift fields (`red_shade`) are drawn on this scale: the part
+    above 0 on hi, the part below on -lo, and the photometric model reads them
+    back on the same (fit_photometry.shift_term)."""
+    ds = [0.0] + [float(d) for rows in (L.get("red_shift") or {}).values() for _, d in rows]
+    return min(ds), max(ds)
+
+
+def red_shade(L, side, off, field=0):
+    """The colour of arc layer L's paint down one curve, as (offsets, colour):
+    the gradient offsets of its `red_shift` rows and the stop colour at an
+    offset, or None where the layer has no rows on that side.
+
+    `red_shift` {"left"|"right": [[y, dR], ...]} moves the red of the layer's
+    premultiplied colour by dR, linear in y between the rows, which are placed
+    as the taper table's own ((y + y_offset) / 1024) and held beyond the first
+    and last.  Green, blue and the opacity are the layer's own.  Both end rows
+    are 0 and the red stays within [0, max(G, B)], so the shift is confined to
+    its rows and `split_color`'s opacity, which the rows' colours share, is
+    unchanged (D72).
+
+    With `field` +1 (-1), the colour is instead the part of the shift above
+    (below) 0, as a grey on its own range (`red_shift_span`): 255 max(dR, 0) /
+    hi, or 255 max(-dR, 0) / -lo.  A side without rows has dR 0 throughout.
+    Drawn through the layer's own opacities, masks and blur, the two fields'
+    difference is the red light the shift adds, which the photometric model
+    cannot get from the white basis (D72, stage 14).  Each part is 0 exactly
+    where the shift is, so the model moves nothing outside the table's rows;
+    where the shift changes sign between two rows a row is added at the
+    crossing, so each part stays linear between stops."""
+    rows = (L.get("red_shift") or {}).get(side)
+    if not rows and not field:
+        return None
+    rows = [[float(y), float(d)] for y, d in (rows or [])]
+    if field:
+        cross = []
+        for (y0, d0), (y1, d1) in zip(rows, rows[1:]):
+            if d0 * d1 < 0:
+                cross.append([y0 + (y1 - y0) * d0 / (d0 - d1), 0.0])
+        rows = sorted(rows + cross)
+    k = [float(c) for c in L["color"]]
+    o = min(1.0, max(k) / 255.0)
+    lo, hi = red_shift_span(L)
+    m = (hi if field > 0 else -lo) or 1.0
+    offs = [(y + off) / 1024.0 for y, _ in rows]
+    ds = [d for _, d in rows] or [0.0]
+
+    def colour(x):
+        j = bisect.bisect_right(offs, x)
+        d = ds[0] if j == 0 else ds[-1] if j == len(offs) else \
+            ds[j - 1] + (ds[j] - ds[j - 1]) * (x - offs[j - 1]) / (offs[j] - offs[j - 1])
+        if field:
+            g = 255.0 * max(field * d, 0.0) / m
+            return hexc([g, g, g])
+        return hexc([(k[0] + d) / o, k[1] / o, k[2] / o])
+    return offs, colour
+
+
+def shade_rows(rows, shade):
+    """Gradient rows [(offset, opacity, cut)] -> [(offset, opacity, cut,
+    colour)] in `shade`'s colours (red_shade), with a stop added at each of the
+    shade's rows the gradient lacks, at the opacity it already has there, so
+    that its colour and its opacity are both piecewise linear between stops.
+    An added stop is a cut (1), printed to a cut's precision: at a table
+    stop's four places its opacity would move the paint by up to 0.013 of a
+    level, which turns a pixel's rounding here and there."""
+    offs, colour = shade
+    out = list(rows)
+    for x in offs:
+        if any(r[0] == x for r in out) or not out[0][0] < x < out[-1][0]:
+            continue
+        j = next(i for i, r in enumerate(out) if r[0] > x)
+        (o0, a0), (o1, a1) = out[j - 1][:2], out[j][:2]
+        out.insert(j, (x, a0 + (a1 - a0) * (x - o0) / (o1 - o0), 1))
+    return [(o, a, c, colour(o)) for o, a, c in out]
+
+
 #: Streak cross-section: source rect height as a multiple of its blur sigma.
 #: A uniform slab of height h blurred by sigma_b has on-axis value
 #: erf(h / (2*sqrt(2)*sigma_b)) and effective width sigma_eff^2 = sigma_b^2 +
@@ -785,6 +863,26 @@ class Builder:
     def split_id(self, side, split, convex):
         return "%s%s_%s" % ("cv" if convex else "cc", side[0].upper(), f(split, 2).replace(".", "p").replace("-", "n"))
 
+    def end_rows(self, north, south):
+        """The mask that keeps `end_blur`'s middle rows: white on the rows
+        north <= y < south, black elsewhere, cut by hard gradient stops, which
+        are read at each pixel's centre, so a row is wholly in or wholly out.
+        A pixel centre that falls exactly on a cut (at some render sizes; never
+        at a multiple of 256 px, the rows being multiples of 4 px) can read a
+        fraction (0.5 at 872 px), and `layer` mixes the two copies so that
+        such a row lies between them."""
+        mid = "rows_%d_%d" % (north, south)
+        o_n, o_s = f(north / 1024.0, 8), f(south / 1024.0, 8)
+        self.add_def(
+            '<linearGradient id="%sg" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1024">%s'
+            '</linearGradient>' % (mid, "".join('<stop offset="%s" stop-color="%s"/>' % s for s in (
+                ("0", "#000000"), (o_n, "#000000"), (o_n, "#ffffff"), (o_s, "#ffffff"), (o_s, "#000000"),
+                ("1", "#000000")))),
+            mid + "g")
+        return self.add_def(
+            '<mask id="%s" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">'
+            '<rect width="1024" height="1024" fill="url(#%sg)"/></mask>' % (mid, mid), mid)
+
     def side_clips(self, side, split):
         """Two complementary clips for one curve: its concave side and its
         convex (flare-facing) side, divided along the curve of record moved
@@ -885,17 +983,21 @@ class Builder:
             self.defs.append(d)
         return gid
 
-    def taper_paint(self, gid, name, color, side="left"):
+    def taper_paint(self, gid, name, color, side="left", shade=None):
+        """`shade` (red_shade) colours the stops, in place of `color`"""
         stops = taper_stops(self.p["tapers"][name], side)
+        rows = (shade_rows([(o, a, 0) for o, a in stops], shade) if shade
+                else [(o, a, 0, color) for o, a in stops])
         body = "".join(
-            '<stop offset="%s" stop-color="%s" stop-opacity="%s"/>' % (f(o, 5), color, f(a, 4))
-            for o, a in stops
+            '<stop offset="%s" stop-color="%s" stop-opacity="%s"/>'
+            % ((f(o, 8), c, f(a, 7)) if cut else (f(o, 5), c, f(a, 4)))
+            for o, a, cut, c in rows
         )
         return self.add_def(
             '<linearGradient id="%s" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1024">%s</linearGradient>'
             % (gid, body), gid)
 
-    def curve_axis_paint(self, gid, name, color, side, cps, axes, reach):
+    def curve_axis_paint(self, gid, name, color, side, cps, axes, reach, shade=None):
         """A table taper painted along the curve at the ends `axes` names
         ({"north"|"south": "curve"}), as (paint, mask id) for one element.
 
@@ -917,7 +1019,8 @@ class Builder:
         paint's one, and the fade would be applied twice (a dark line of up to
         50 levels at 1000 px).  T needs no cut: its weight is 0 at the zone
         edge and beyond it along the curve, and its rect only keeps it off the
-        rows outside the zone."""
+        rows outside the zone.  `shade` (red_shade) colours the paint's stops,
+        in place of `color`; the mask is grey and takes none."""
         t = self.p["tapers"][name]
         stops = taper_stops(t, side)
         zone, ends = {}, []
@@ -933,14 +1036,15 @@ class Builder:
             (o0, a0), (o1, a1) = stops[k - 1], stops[min(k, len(stops) - 1)]
             return a0 + (a1 - a0) * (o - o0) / ((o1 - o0) or 1.0)
 
-        def vgrad(i, color, rows):
+        def vgrad(i, color, rows, shade=None):
             """a gradient down the canvas from rows (offset, opacity, cut), a
             cut's stop printed to the precision the paint's are"""
+            rows = shade_rows(rows, shade) if shade else [r + (color,) for r in rows]
             return self.add_def(
                 '<linearGradient id="%s" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1024">%s'
                 '</linearGradient>' % (i, "".join('<stop offset="%s" stop-color="%s" stop-opacity="%s"/>'
-                                                  % ((f(o, 8), color, f(a, 7)) if cut else (f(o, 5), color, f(a, 4)))
-                                                  for o, a, cut in rows)), i)
+                                                  % ((f(o, 8), c, f(a, 7)) if cut else (f(o, 5), c, f(a, 4)))
+                                                  for o, a, cut, c in rows)), i)
         # the mask: white; black in the zones; Y in the zones, white at the
         # table's opacities (a grey over the black); then each zone's T
         black = ([(0.0, 1.0, 1), (lo, 1.0, 1), (lo, 0.0, 1)] if "north" in zone else [(0.0, 0.0, 1)]) + \
@@ -975,7 +1079,7 @@ class Builder:
         body += [(o, a, 0) for o, a in stops if lo < o < hi or (o == lo and "north" not in zone)
                  or (o == hi and "south" not in zone)]
         body += [(hi, at(hi), 1), (hi, 1.0, 1), (1.0, 1.0, 1)] if "south" in zone else []
-        pid = vgrad(gid + "p", color, body)
+        pid = vgrad(gid + "p", color, body, shade)
         return "url(#%s)" % pid, mid
 
     def radial_paint(self, gid, color, cx, cy, r, profile, squash=1.0, rot=0.0):
@@ -1025,8 +1129,10 @@ class Builder:
             % (mid, d, f(g.get("depth", 1.0), 4), filt), mid)
 
     # -- one layer --------------------------------------------------------- #
-    def layer(self, L, white=False):
-        """Return the SVG element for layer L (white/full opacity when fitting).
+    def layer(self, L, white=False, field=0):
+        """Return the SVG element for layer L (white/full opacity when fitting;
+        with `field` +1 or -1, the part of the red light its `red_shift` adds
+        above or below 0, as a grey on its own range, `red_shade`).
 
         Screen-blended layers are emitted as a bright colour times a small
         `opacity`, which keeps their premultiplied colour accurate to far better
@@ -1041,7 +1147,7 @@ class Builder:
         opacity 1 with the colour itself, at the cost of 8-bit rounding
         (under half a code value on a 6 px ring).
         """
-        if white:
+        if white or field:
             col, op = "#ffffff", 1.0
         elif L.get("blend", "screen") == "normal":
             col, op = hexc(L.get("color", [255, 255, 255])), 1.0
@@ -1054,6 +1160,8 @@ class Builder:
         opa = "" if op >= 1.0 else ' opacity="%s"' % f(op, 4)
         gid = "g_" + L["id"]
         assert kind == "arc" or "taper_axis" not in L, "taper_axis is a key of arc layers only"
+        assert kind == "arc" or "end_blur" not in L, "end_blur is a key of arc layers only"
+        assert kind == "arc" or "red_shift" not in L, "red_shift is a key of arc layers only"
 
         if kind == "canvas":
             # `region: "outside"` confines the layer to the area outside the
@@ -1102,11 +1210,52 @@ class Builder:
                 assert L.get("taper") and self.p["tapers"][L["taper"]].get("kind") == "table", \
                     "taper_axis needs a table taper"
                 assert not L.get("convex_taper"), "taper_axis and convex_taper do not combine"
+            # `end_blur`: {"blur": b, "north": yn, "south": ys} draws the rows
+            # y < yn and y >= ys with blur b and the rows between with the
+            # layer's own (end_rows)
+            eb = L.get("end_blur")
+            if eb is not None:
+                assert isinstance(eb, dict) and set(eb) == {"blur", "north", "south"}, \
+                    "end_blur is {'blur': b, 'north': y, 'south': y}"
+                yn, ys = eb["north"], eb["south"]
+                assert all(isinstance(v, (int, float)) and not isinstance(v, bool) and float(v) == int(v)
+                           and int(v) % 4 == 0 for v in (yn, ys)) and 0 < yn < ys < 1024, \
+                    "end_blur's rows are multiples of 4 px, 0 < north < south < 1024"
+                assert isinstance(eb["blur"], (int, float)) and eb["blur"] > 0 and L.get("blur"), \
+                    "end_blur needs a blur of its own and the layer's"
+                assert blend, "end_blur draws its copies over black, so it needs a screened layer"
+                rows = self.end_rows(int(yn), int(ys))
+                efilt = ' filter="url(#%s)"' % self.blur(eb["blur"])
+            # `red_shift`: {"left"|"right": [[y, dR], ...]} moves the red of
+            # the layer's colour along the curve (red_shade); a white basis
+            # render takes none
+            rs = L.get("red_shift")
+            if rs is not None:
+                k = L.get("color")
+                assert isinstance(rs, dict) and rs and set(rs) <= {"left", "right"}, \
+                    "red_shift is {'left'|'right': [[y, dR], ...]}"
+                assert L.get("taper") and blend and isinstance(k, list) and len(k) == 3 and max(k) > 0, \
+                    "red_shift needs a tapered, screened layer with a colour"
+                assert not L.get("convex_taper"), "red_shift and convex_taper do not combine"
+                assert not L.get("side") or set(rs) <= {L["side"]}, \
+                    "red_shift names a side the layer does not draw"
+                for v in rs.values():
+                    assert isinstance(v, list) and len(v) >= 2 and all(
+                        isinstance(r, list) and len(r) == 2 and all(
+                            isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x) for x in r)
+                        for r in v), "red_shift's rows are [y, dR] pairs, two or more"
+                    assert all(0 < a[0] < b[0] < 1024 for a, b in zip(v, v[1:])), \
+                        "red_shift's rows run down the canvas, 0 < y < 1024"
+                    assert v[0][1] == 0 and v[-1][1] == 0, "red_shift's first and last rows are 0"
+                    assert all(0 <= k[0] + dr <= max(k[1], k[2]) for _, dr in v), \
+                        "red_shift keeps the red within [0, max(G, B)]"
+            off = float(self.p["tapers"][L["taper"]].get("y_offset", 0.5)) if L.get("taper") else 0.5
             out = []
             for side in ("left", "right"):
                 if L.get("side") and L["side"] != side:
                     continue
                 d = self.arc_d(side, L.get("inset", 0.0))
+                shade = red_shade(L, side, off, field) if field else None if white else red_shade(L, side, off)
                 mask = None
                 if "curve" in tax.values():
                     g = self.p["geometry"]["arc_" + side]
@@ -1119,9 +1268,9 @@ class Builder:
                                                                 if wt else [])])
                     paint, mask = self.curve_axis_paint(
                         gid + side[0], L["taper"], col, side, inset_cubics(g, side, L.get("inset", 0.0)), tax,
-                        float(L.get("extend", 0.0)) + 0.5 * float(L["width"]) * wmax + 4.0)
+                        float(L.get("extend", 0.0)) + 0.5 * float(L["width"]) * wmax + 4.0, shade)
                 else:
-                    paint = ("url(#%s)" % self.taper_paint(gid + side[0], L["taper"], col, side)
+                    paint = ("url(#%s)" % self.taper_paint(gid + side[0], L["taper"], col, side, shade)
                              if L.get("taper") else col)
                 cl = L.get("clip", "frame")
                 if cl == "lens":
@@ -1130,51 +1279,77 @@ class Builder:
                     cattr = ""
                 else:
                     cattr = ' clip-path="url(#fc)"'
-                # a masked element: the mask on the path and everything else on
-                # a group around it, so it is masked before its blur, as a paint
-                # is (the group carries its own blend: not the isolated-group
-                # case of the module docstring)
-                grp = '<g%s%s%s%s>%%s</g>' % (filt, cattr, opa, blend)
-                if L.get("width_taper"):
-                    # a variable-width core: one filled offset outline (a
-                    # stroke's width is constant along its path)
-                    assert not L.get("convex_taper"), "width_taper and convex_taper do not combine"
-                    assert not L.get("extend"), "width_taper and extend do not combine"
-                    g = self.p["geometry"]["arc_" + side]
-                    rd = ribbon_path(g, side, L.get("inset", 0.0), L["width"], L["width_taper"])
+                def emit(filt, blend, d=d):
+                    """this side's elements, drawn with `filt` and `blend`"""
+                    res = []
+                    # a masked element: the mask on the path and everything else on
+                    # a group around it, so it is masked before its blur, as a paint
+                    # is (the group carries its own blend: not the isolated-group
+                    # case of the module docstring)
+                    grp = '<g%s%s%s%s>%%s</g>' % (filt, cattr, opa, blend)
+                    if L.get("width_taper"):
+                        # a variable-width core: one filled offset outline (a
+                        # stroke's width is constant along its path)
+                        assert not L.get("convex_taper"), "width_taper and convex_taper do not combine"
+                        assert not L.get("extend"), "width_taper and extend do not combine"
+                        g = self.p["geometry"]["arc_" + side]
+                        rd = ribbon_path(g, side, L.get("inset", 0.0), L["width"], L["width_taper"])
+                        if mask:
+                            res.append(grp % ('<path d="%s" fill="%s" stroke="none" mask="url(#%s)"/>' % (rd, paint, mask)))
+                            return res
+                        res.append('<path d="%s" fill="%s" stroke="none"%s%s%s%s/>'
+                                   % (rd, paint, filt, cattr, opa, blend))
+                        return res
+                    if L.get("extend"):
+                        # a tip layer: the stroke runs `extend` px past both ends
+                        # of the curve of record, along the end cubics' own
+                        # continuation (the cubics themselves are not changed)
+                        assert not L.get("convex_taper"), "extend and convex_taper do not combine"
+                        g = dict(self.p["geometry"]["arc_" + side])
+                        g["cubics"] = {side: extended_cubics(g["cubics"][side], float(L["extend"]))}
+                        d = bezier_arc_path(g, side, L.get("inset", 0.0))
+                    if L.get("convex_taper"):
+                        # directional fade: the concave part keeps the layer's own
+                        # taper, the flare-facing part takes `convex_taper`
+                        assert cl == "frame" and L.get("taper"), "convex_taper needs a tapered, frame-clipped arc layer"
+                        sp = float(L.get("split", 1.5))
+                        pcv = "url(#%s)" % self.taper_paint(gid + side[0] + "x", L["convex_taper"], col, side)
+                        for pt, cid in ((paint, self.split_id(side, sp, False)), (pcv, self.split_id(side, sp, True))):
+                            res.append(
+                                '<path d="%s" fill="none" stroke="%s" stroke-width="%s" stroke-linecap="%s"%s clip-path="url(#%s)"%s%s/>'
+                                % (d, pt, f(L["width"]), L.get("linecap", "round"), filt, cid, opa, blend))
+                        return res
                     if mask:
-                        out.append(grp % ('<path d="%s" fill="%s" stroke="none" mask="url(#%s)"/>' % (rd, paint, mask)))
-                        continue
-                    out.append('<path d="%s" fill="%s" stroke="none"%s%s%s%s/>'
-                               % (rd, paint, filt, cattr, opa, blend))
+                        res.append(grp % ('<path d="%s" fill="none" stroke="%s" stroke-width="%s" stroke-linecap="%s" '
+                                          'mask="url(#%s)"/>' % (d, paint, f(L["width"]), L.get("linecap", "round"), mask)))
+                        return res
+                    res.append(
+                        '<path d="%s" fill="none" stroke="%s" stroke-width="%s" stroke-linecap="%s"%s%s%s%s/>'
+                        % (d, paint, f(L["width"]), L.get("linecap", "round"), filt, cattr, opa, blend)
+                    )
+                    return res
+
+                if eb is None:
+                    out.extend(emit(filt, blend))
                     continue
-                if L.get("extend"):
-                    # a tip layer: the stroke runs `extend` px past both ends
-                    # of the curve of record, along the end cubics' own
-                    # continuation (the cubics themselves are not changed)
-                    assert not L.get("convex_taper"), "extend and convex_taper do not combine"
-                    g = dict(self.p["geometry"]["arc_" + side])
-                    g["cubics"] = {side: extended_cubics(g["cubics"][side], float(L["extend"]))}
-                    d = bezier_arc_path(g, side, L.get("inset", 0.0))
-                if L.get("convex_taper"):
-                    # directional fade: the concave part keeps the layer's own
-                    # taper, the flare-facing part takes `convex_taper`
-                    assert cl == "frame" and L.get("taper"), "convex_taper needs a tapered, frame-clipped arc layer"
-                    sp = float(L.get("split", 1.5))
-                    pcv = "url(#%s)" % self.taper_paint(gid + side[0] + "x", L["convex_taper"], col, side)
-                    for pt, cid in ((paint, self.split_id(side, sp, False)), (pcv, self.split_id(side, sp, True))):
-                        out.append(
-                            '<path d="%s" fill="none" stroke="%s" stroke-width="%s" stroke-linecap="%s"%s clip-path="url(#%s)"%s%s/>'
-                            % (d, pt, f(L["width"]), L.get("linecap", "round"), filt, cid, opa, blend))
-                    continue
-                if mask:
-                    out.append(grp % ('<path d="%s" fill="none" stroke="%s" stroke-width="%s" stroke-linecap="%s" '
-                                      'mask="url(#%s)"/>' % (d, paint, f(L["width"]), L.get("linecap", "round"), mask)))
-                    continue
-                out.append(
-                    '<path d="%s" fill="none" stroke="%s" stroke-width="%s" stroke-linecap="%s"%s%s%s%s/>'
-                    % (d, paint, f(L["width"]), L.get("linecap", "round"), filt, cattr, opa, blend)
-                )
+                # two copies in one group that carries the blend: the end copy,
+                # then the middle copy in a group masked to its rows, after its
+                # blur.  The middle copy is drawn over an opaque black, so where
+                # the mask reads m the group is m * middle + (1 - m) * end, and
+                # on the opaque canvas the black screens to nothing.  Two masked
+                # copies screened one after the other would draw a row that
+                # both masks read at 0.5 darker than either copy.
+                # A copy of more than one element (a split arc, convex_taper)
+                # keeps each element's own blend inside it, as without the key:
+                # screening is associative, so the copy screened onto the
+                # canvas is its elements screened one by one.  Drawn
+                # source-over, the two halves would darken the pixels their
+                # clips share on the split (D72).  A copy of one element needs
+                # none: screening it onto the group's transparent start, or the
+                # black, is the element itself.
+                inner = blend if len(emit(filt, blend)) > 1 else ""
+                out.append('<g%s>%s<g mask="url(#%s)"><rect width="1024" height="1024" fill="#000000"/>%s</g></g>'
+                           % (blend, "".join(emit(efilt, inner)), rows, "".join(emit(filt, inner))))
             return "".join(out)
 
         if kind == "radial":
@@ -1458,14 +1633,19 @@ class Builder:
         raise ValueError("unknown layer kind %r" % kind)
 
     # -- whole document ---------------------------------------------------- #
-    def document(self, basis=None):
+    def document(self, basis=None, field=0):
         """The whole SVG.  With `basis` set, only that layer, painted white --
-        that is the coverage field the photometric fit needs."""
+        that is the coverage field the photometric fit needs.  With `field`
+        (+1 or -1) too, a part of that layer's red-shift field (Builder.layer)."""
+        assert field in (0, 1, -1), "a shift field is +1 or -1"
+        assert not field or basis is not None, "a shift field is one layer's"
         body = ['<rect width="1024" height="1024" fill="#000000"/>']
         for L in self.p["layers"]:
             if basis is not None and L["id"] != basis:
                 continue
-            el = self.layer(L, white=(basis is not None))
+            assert not field or (L.get("kind") == "arc" and L.get("red_shift")), \
+                "a shift field needs an arc layer with a red_shift"
+            el = self.layer(L, white=(basis is not None), field=field)
             if basis is None:
                 body.append("<!-- %s -->" % L["id"])
             body.append(el)
@@ -1511,9 +1691,9 @@ def flare_dependent_layers(params):
             if L["kind"] in FLARE_ANCHORED_KINDS and ("cx" not in L or "cy" not in L)]
 
 
-def build(params, basis=None):
+def build(params, basis=None, field=0):
     b = Builder(params)
-    return b.document(basis)
+    return b.document(basis, field)
 
 
 def main():

@@ -116,6 +116,71 @@ def basis_stack(params, size=1024, cache=None):
     return np.stack(out), names
 
 
+def shift_parts(L):
+    """The shift-field parts arc layer L needs: +1 if its `red_shift` goes
+    above 0, -1 if it goes below (build_svg.red_shade)."""
+    lo, hi = build_svg.red_shift_span(L)
+    return [p for p, m in ((1, hi), (-1, -lo)) if m > 0]
+
+
+def shift_term(L, fields):
+    """The light arc layer L's `red_shift` adds on top of its white basis
+    times its colour: (H, W, 3) in 0..1, red only.
+
+    `fields` {+1|-1: R channel (0..1)} are the layer's shift fields
+    (build_svg.build(params, basis=id, field=+1 or -1)): the part of the shift
+    above 0 as a grey on hi, the part below on -lo (`red_shift_span`), each
+    drawn through the layer's own opacities, masks and blur.  Both are linear
+    in the paint, so the red the shift adds is their difference, rescaled.
+    The renderer draws the layer's red as (R + dR) times its coverage; the
+    model draws it as its basis times R plus this (D72, stage 14).  Each part
+    is exactly 0 where the table is, so nothing moves outside its rows."""
+    lo, hi = build_svg.red_shift_span(L)
+    e = None
+    for part, m in ((1, hi), (-1, -lo)):
+        if part in fields:
+            t = np.asarray(fields[part], np.float32) * np.float32(part * m / 255.0)
+            e = t if e is None else e + t
+    out = np.zeros(e.shape + (3,), np.float32)
+    out[..., 0] = e
+    return out
+
+
+def shift_terms(params, size=1024, box=None, cache=None, render=None):
+    """{layer index: shift_term} for every layer of `params` with a
+    `red_shift`, cropped to `box` (y0, y1, x0, x1) if given.  Each field is
+    cached in `cache` (a dict) on the digest of its SVG, so a changed table is
+    re-rendered and an unchanged one is not; `render(svg)` is the rasteriser
+    (default `render_array` at `size`, R channel)."""
+    import hashlib
+    render = render or (lambda svg: render_array(svg, size)[..., 0])
+    out = {}
+    for i, L in enumerate(params["layers"]):
+        if not L.get("red_shift"):
+            continue
+        fields = {}
+        for part in shift_parts(L):
+            svg = build_svg.build(params, basis=L["id"], field=part)
+            key = ("field", size, hashlib.sha1(svg.encode("utf-8")).hexdigest())
+            f = cache.get(key) if cache is not None else None
+            if f is None:
+                f = render(svg)
+                if cache is not None:
+                    cache[key] = f
+            if box is not None:
+                y0, y1, x0, x1 = box
+                f = f[y0:y1, x0:x1]
+            fields[part] = f
+        if fields:
+            out[i] = shift_term(L, fields)
+    return out
+
+
+def sub_terms(extra, st):
+    """`extra` (shift_terms) at stride `st`, as the basis stack is subsampled"""
+    return {i: e[::st, ::st] for i, e in (extra or {}).items()}
+
+
 def wc_from_color(color, teal=False):
     """Exact non-negative basis amounts for an sRGB 0..255 colour.
 
@@ -156,7 +221,7 @@ def colors(WC):
     return np.clip(WC @ BASIS, 0.0, 1.0)
 
 
-def composite(A, K, normal=None):
+def composite(A, K, normal=None, extra=None):
     """Composite the layer stack exactly as the renderer does.
 
     Each layer is an affine step on the accumulated colour:
@@ -167,12 +232,18 @@ def composite(A, K, normal=None):
     `normal` is a boolean per layer (default: all screen).  The frame rim is
     composited `normal` because it is an opaque stroke -- screening it over the
     interior field would brighten it by several code values.
+
+    `extra` ({layer index: (H, W, 3)}, `shift_terms`) is light a layer adds
+    beyond A*C, its `red_shift`: that screen layer's term is A*C + extra.
     """
     n, H, W = A.shape
     out = np.zeros((H, W, 3), np.float32)
+    extra = extra or {}
     for i in range(n):
         a = A[i][..., None]
         b = a * K[i][None, None, :]
+        if i in extra:
+            b = b + extra[i]
         m = (1.0 - a) if (normal is not None and normal[i]) else (1.0 - b)
         out = out * m + b
     return out
@@ -192,7 +263,7 @@ def weighted_sse(residual, weight):
     return float(((r * w) ** 2).sum())
 
 
-def analytic_grad(A, target, WC, weight, normal, layer, comp):
+def analytic_grad(A, target, WC, weight, normal, layer, comp, extra=None):
     """d(weighted_sse)/d(WC[layer, comp]) the way `fit` computes it.
 
     Exported so the regression check differentiates the production Jacobian
@@ -208,6 +279,7 @@ def analytic_grad(A, target, WC, weight, normal, layer, comp):
     K = np.clip(Kraw, 0.0, 1.0).astype(np.float32)
     live = (Kraw <= 1.0).astype(np.float32)       # see fit(): 0 and 1 are edges, not clips
     P = Af.shape[1]
+    Ef = {i: np.asarray(e, np.float32).reshape(-1, 3) for i, e in (extra or {}).items()}
     out = np.zeros((P, 3), np.float32)
     before = np.empty((n, P, 3), np.float32)
     ms = np.empty((n, P, 3), np.float32)
@@ -215,6 +287,8 @@ def analytic_grad(A, target, WC, weight, normal, layer, comp):
         before[i] = out
         a = Af[i][:, None]
         b = a * K[i][None, :]
+        if i in Ef:
+            b = b + Ef[i]
         ms[i] = (1.0 - a) if isnorm[i] else (1.0 - b)
         out = out * ms[i] + b
     suf = np.empty((n, P, 3), np.float32)
@@ -231,7 +305,7 @@ def analytic_grad(A, target, WC, weight, normal, layer, comp):
 
 
 def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=None,
-        normal=None, teal_ok=None):
+        normal=None, teal_ok=None, extra=None):
     """Levenberg-Marquardt on the per-layer basis amounts.
 
     `teal_ok` (one bool per layer, `teal_eligible(params)`) says which layers
@@ -251,6 +325,11 @@ def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=No
     blurred strokes), so J^T J is strongly ill-conditioned and undamped
     Gauss-Newton overshoots in every trial step; adaptive LM damping converges
     reliably from any start.
+
+    `extra` (`shift_terms`, at the stack's stride) is light a layer adds beyond
+    A*C, which no colour controls: it enters every term it belongs to, so the
+    other layers are fitted against the light the renderer really draws.  It
+    does not depend on C, so d out / d C is as above.
     """
     n = A.shape[0]
     idx = list(range(n)) if free is None else list(free)
@@ -273,6 +352,7 @@ def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=No
     Tf = target.reshape(-1, 3).astype(np.float32)
     Wf = weight.reshape(-1).astype(np.float32)
     B = BASIS.astype(np.float32)
+    Ef = {i: np.asarray(e, np.float32).reshape(-1, 3) for i, e in (extra or {}).items()}
 
     def forward(WC):
         Kraw = WC @ B
@@ -300,6 +380,8 @@ def fit(A, target, WC0, weight, iters=14, lam=0.1, verbose=True, hi=1.0, free=No
             before[i] = out
             a = Af[i][:, None]
             b = a * K[i][None, :]
+            if i in Ef:
+                b = b + Ef[i]
             ms[i] = (1.0 - a) if isnorm[i] else (1.0 - b)
             out = out * ms[i] + b
         # suffix products of m
@@ -608,8 +690,22 @@ def params_wc(params):
     return np.array(out, np.float32)
 
 
-def held_free(params):
-    """Indices this fit may move: every layer except the calibrated rays.
+def colour_held(params):
+    """Ids of the layers whose colour no fit may move, whatever else it frees.
+
+    A layer with `red_shift` (D72) draws its colour with a red that varies
+    along the curve, measured together with the colour it is relative to, and
+    its table is valid only for that colour (R + dR within [0, max(G, B)]).
+    The composite sees the shift (`shift_terms`), but a fit that moved the
+    colour could leave the table drawing something else, or nothing valid.  It
+    is held instead, like a calibrated ray.
+    """
+    return [L["id"] for L in params["layers"] if L.get("red_shift")]
+
+
+def held_free(params, rays=True):
+    """Indices this fit may move: every layer except the calibrated rays
+    (unless `rays` is False) and the `colour_held` ones.
 
     The rays' amplitudes are calibrated against their own measured profiles
     (tools/measure_flare.py CALIBRATED_LAYERS).  This fit's whole-image
@@ -617,7 +713,8 @@ def held_free(params):
     a few hundred pixels, so it holds them rather than overwriting them.
     """
     import measure_flare as MFL
-    return [i for i, L in enumerate(params["layers"]) if L["id"] not in MFL.CALIBRATED_LAYERS]
+    held = set(colour_held(params)) | (set(MFL.CALIBRATED_LAYERS) if rays else set())
+    return [i for i, L in enumerate(params["layers"]) if L["id"] not in held]
 
 
 def store_wc(params, WC, only=None):
@@ -653,14 +750,17 @@ def main():
     ref = np.asarray(Image.open(a.reference).convert("RGB")).astype(np.float32) / 255.0
     target = np.minimum(ref, 254.4 / 255.0)
     A, names = basis_stack(params)
+    ex = shift_terms(params)
     st = max(1, a.stride)
     tsub, Asub = target[::st, ::st], A[:, ::st, ::st]
     W = make_weight(tsub, a.weight, emphasis=not a.no_emphasis)
     print("fitting %d layers x %s  [stride %d]" % (len(names), str(COMPONENTS), st))
     nf = normal_flags(params)
-    free = None if a.fit_rays else held_free(params)
+    free = held_free(params, rays=not a.fit_rays)
+    if a.fit_rays and len(free) == len(params["layers"]):
+        free = None
     WC = fit(Asub, tsub, params_wc(params), W, iters=a.iters, normal=nf, free=free,
-             teal_ok=teal_eligible(params))
+             teal_ok=teal_eligible(params), extra=sub_terms(ex, st))
     store_wc(params, WC, only=free)
     # The fit is SAVED before anything is reported: until D66 the report came
     # first and read every component as `L[c]`, so the first cone layer --
@@ -670,7 +770,7 @@ def main():
     if not a.no_write:
         json.dump(params, open(a.params, "w"), indent=1)
         print("updated", a.params)
-    out = composite(A, colors(WC), nf)
+    out = composite(A, colors(WC), nf, extra=ex)
     print("analytic composite mae=%.4f" % (np.abs(out - target).mean() * 255))
     for L in params["layers"]:
         print("  %-18s %s -> rgb%s" % (L["id"], component_text(L), L.get("color")))
