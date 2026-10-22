@@ -265,6 +265,15 @@ class ProductTests(unittest.TestCase):
         d=diagnostics(OUTPUT/'master/anamorph-rounded-1024.png')
         self.assertLess(d['all_channels_ge_250_pixels'],1024*1024*.003)
 
+    def test_14_final_review_preserves_published_B0_platform_assets(self):
+        # Guard the unchanged-artwork acceptance decision independently of
+        # the exporter and its refreshed manifest. Existing checks stay intact.
+        control=json.loads((ROOT/'design/final-review.json').read_text())
+        for path,expected in control['baseline_platform_sha256'].items():
+            self.assertEqual(digest((OUTPUT/path).read_bytes()),expected,path)
+        for suffix,key in (('', 'baseline_svg_sha256'),('-small','baseline_small_svg_sha256')):
+            self.assertEqual(digest((OUTPUT/f'previews/final/B0{suffix}.svg').read_bytes()),control[key])
+
 
 def cross_renderer(engine='auto'):
     inkscape=shutil.which('inkscape')

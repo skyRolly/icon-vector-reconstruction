@@ -73,6 +73,22 @@ Rebuild with `python tools/export_product_icon.py`. All dimensions are pixels un
 | `previews/comparison-64-dark.png` | PNG | [1080, 164] | no | sRGB | Review: native 64 px on dark desktop | structurally validated |
 | `previews/comparison-64-light.png` | PNG | [1080, 164] | no | sRGB | Review: native 64 px on light desktop | structurally validated |
 | `previews/corner-study.png` | PNG | [1140, 440] | no | sRGB | Review: equal square bounds/radius, alternative corner curvature; not a system mask | structurally validated |
+| `previews/final/B0-small.svg` | SVG | [1024, 1024] | yes | sRGB | Final review experiment; not a selected platform asset | structurally validated |
+| `previews/final/B0.svg` | SVG | [1024, 1024] | yes | sRGB | Final review experiment; not a selected platform asset | structurally validated |
+| `previews/final/B1-small.svg` | SVG | [1024, 1024] | yes | sRGB | Final review experiment; not a selected platform asset | structurally validated |
+| `previews/final/B1.svg` | SVG | [1024, 1024] | yes | sRGB | Final review experiment; not a selected platform asset | structurally validated |
+| `previews/final/B2-small.svg` | SVG | [1024, 1024] | yes | sRGB | Final review experiment; not a selected platform asset | structurally validated |
+| `previews/final/B2.svg` | SVG | [1024, 1024] | yes | sRGB | Final review experiment; not a selected platform asset | structurally validated |
+| `previews/final/F1-small.svg` | SVG | [1024, 1024] | yes | sRGB | Final review experiment; not a selected platform asset | structurally validated |
+| `previews/final/F1.svg` | SVG | [1024, 1024] | yes | sRGB | Final review experiment; not a selected platform asset | structurally validated |
+| `previews/final/F2-small.svg` | SVG | [1024, 1024] | yes | sRGB | Final review experiment; not a selected platform asset | structurally validated |
+| `previews/final/F2.svg` | SVG | [1024, 1024] | yes | sRGB | Final review experiment; not a selected platform asset | structurally validated |
+| `previews/final/S1-small.svg` | SVG | [1024, 1024] | yes | sRGB | Final review experiment; not a selected platform asset | structurally validated |
+| `previews/final/S2-small.svg` | SVG | [1024, 1024] | yes | sRGB | Final review experiment; not a selected platform asset | structurally validated |
+| `previews/final/backgrounds.png` | PNG | [1080, 1560] | no | sRGB | Final native 16..256 exports on four backgrounds and labelled simulated launcher | structurally validated |
+| `previews/final/before-after.png` | PNG | [900, 360] | no | sRGB | Historical / B0 / selected final, equal native 256 px | structurally validated |
+| `previews/final/candidates.png` | PNG | [1140, 1568] | no | sRGB | Constrained B boundary, flare and small factors, native pixels on light/dark | structurally validated |
+| `previews/final/masking.png` | PNG | [1168, 400] | no | sRGB | Independent / full-bleed flat / unmasked native layers / approximate mask, no Apple effects | structurally validated |
 | `previews/masking-comparison.png` | PNG | [1120, 620] | no | sRGB | Review: approximate system enclosure versus precomposed icon; native mask pending | structurally validated |
 | `previews/selected-size-ladder.png` | PNG | [1140, 2300] | no | sRGB | Review: selected master and small variant at native sizes | structurally validated |
 | `previews/small-optical-comparison.png` | PNG | [1200, 380] | no | sRGB | Review: same geometry with reduced glow/rays and stronger curve cores | structurally validated |

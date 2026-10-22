@@ -380,19 +380,21 @@ per-component measurement reports the reconstruction was built from.
 
 ## Anamorph product icon — independent design deliverable
 
-Recommended **Candidate B**, pending owner brand approval: a genuinely square
+Recommended **Candidate B (B0), retained unchanged after final visual review**,
+pending owner brand approval: a genuinely square
 960 × 960 visible body, measured-template-inspired corners, restrained blue/cyan
 light and a dedicated 16–32 px optical treatment. The measured opposing curves
 and their asymmetric central interaction are preserved.
 
-![Historical reconstruction and recommended product icon](assets/anamorph/previews/before-after.png)
+![Historical reconstruction, B0 and unchanged final icon](assets/anamorph/previews/final/before-after.png)
 
+- [Final native-size review, exact refinements and acceptance](docs/PRODUCT_ICON_FINAL_REVIEW.md)
 - [Design rationale and candidate decisions](docs/PRODUCT_ICON_DESIGN.md)
-- [Full candidate comparison](assets/anamorph/previews/comparison-1024.png),
+- [Focused B comparison](assets/anamorph/previews/final/candidates.png),
   [native-size ladder](assets/anamorph/previews/selected-size-ladder.png) and
-  [unmasked Apple layer study](assets/anamorph/previews/apple-layers-flat.png)
+  [Apple source/mask study](assets/anamorph/previews/final/masking.png)
 - [Apple 27 research, source conventions and remaining native steps](docs/APPLE_ICON_WORKFLOW.md)
-- [All 75 asset files and validation status](assets/anamorph/manifests/ASSET_MATRIX.md)
+- [All 91 asset files and validation status](assets/anamorph/manifests/ASSET_MATRIX.md)
 - [Engineering/recovery record](docs/PRODUCT_ICON_ENGINEERING.md) and
   [measured product checks](docs/PRODUCT_ICON_VALIDATION.json)
 - [Future Anamorph integration plan — no integration performed](docs/ANAMORPH_ICON_INTEGRATION_PLAN.md)

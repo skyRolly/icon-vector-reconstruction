@@ -62,6 +62,26 @@ the actual three SVG foregrounds at 16, 32, 128 and 512 px on a plain background
 without native materials or masking. It is a source-legibility check, not an
 Icon Composer preview.
 
+## Final masking audit
+
+The [four-way source study](../assets/anamorph/previews/final/masking.png)
+compares the independent 960-unit body, full-bleed flat fallback, actual crisp
+native-layer composition and that composition under an approximate full-bleed
+mask. The latter is a non-native preview. B0 and all Apple handoff bytes remain
+unchanged in the final acceptance round.
+
+The flat fallback has an opaque 1024 × 1024 background without a pre-rounded
+body or enclosure edge. Native foregrounds contain one motif similarity
+transform and no body mask or extra 32-unit inset. Configure their full-bleed
+background in Composer. Do not import the opaque imagery master (which still
+contains a rounded body) or the conventional precomposed ICNS into this route.
+That would retain the independent inset inside another system mask.
+
+The crisp composition has less authored atmosphere than B's conventional
+artwork. Native materials, central-light prominence, small sizes and all six
+appearances still require actual Composer/Xcode inspection. Structural source
+correctness and this approximation do not establish native visual equivalence.
+
 ## Remaining native steps
 
 1. Open Icon Composer on a supported Mac. Create a new genuine document with

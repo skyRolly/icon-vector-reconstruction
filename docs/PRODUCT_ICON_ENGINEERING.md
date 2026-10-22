@@ -29,15 +29,17 @@ are protected by content digest; no history is rewritten.
 
 ## Package and reproducibility
 
-The selected product is **B**, canonical source
+The selected product is **published B0, unchanged after final review**, canonical source
 `assets/anamorph/master/anamorph.svg`. Editable material/layout values live in
 `design/anamorph.json`; existing reconstruction primitives are imported rather
 than copied into another renderer.
 
-The generated package has **75 files**: 55 PNGs, 12 SVGs, 3 supporting JSONs,
+The generated package has **91 files**: 59 PNGs, 24 SVGs, 3 supporting JSONs,
 1 ICO, 1 ICNS, 1 desktop entry, plus the digest manifest and asset-matrix index.
 The PNG count includes actual equal-scale review sheets, platform resources
-and four candidate/control renders, not 54 unrelated masters.
+and candidate/control renders. The final acceptance round adds four compact
+review sheets and twelve constrained experiment SVGs; it does not add new
+platform masters. All 47 platform/handoff files retain their published B0 bytes.
 
 - PNG matrix: 16, 20, 24, 32, 40, 48, 64, 128, 256, 512, 1024 px.
 - ICO: 9 independently verified PNG frames, 16/20/24/32/40/48/64/128/256.
@@ -64,8 +66,74 @@ the final export is committed. Export staging never reads previously generated
 PNGs; sources changing during export cause failure. `--check` compares all
 regenerated file bytes and rejects missing, extra or stale files.
 
-The completed clean rebuild matched **all 75 files byte-for-byte**, source
-revision `fab84095b3c903c9d1c97449e8790b506f3c674e588d4307578a5ebd06c658a8`.
+The initial 75-file B0 package rebuilt byte-for-byte at source revision
+`fab84095b3c903c9d1c97449e8790b506f3c674e588d4307578a5ebd06c658a8`.
+The final package's source revision and clean-rebuild result are recorded in
+the generated manifest and measured report, including the new review sources.
+The final `sh tools/publish_product_icon.sh` completed successfully: **all 91
+files matched byte-for-byte**, source revision
+`859d31a747a9a1ca0bf7bee8519ae4956fe676ecbf6ef091a8419575a08bfeb3`.
+
+## Final acceptance round
+
+Fetched and inspected PR #10 at head
+`d231a7a42b3ae55af6d62031ba1c2a4d7343574f`, base `main`, head branch
+`design/anamorph-icon-modernization`. Both `product-icon` and historical
+`checks` workflows were successful on that exact head (push and PR runs).
+There were no review submissions, discussion comments or inline threads.
+The working tree was clean; remote main and backup were still at the original
+commit/tree; Anamorph remained clean at the recorded read-only audit commit.
+No branches or PRs were recreated. Auto-merge was disabled.
+
+The [final visual record](PRODUCT_ICON_FINAL_REVIEW.md) captures observations
+before experiments and the exact B1/B2/F1/F2/S1/S2 settings. Every refinement
+was rejected after native-size inspection. B-final is B0, with no changes to
+`design/anamorph.json` or `src/product_icon.py`. The master SHA-256 is
+`9d944b2b04abeb92dddc6840cf949d126162169159e937f23a384160d0db56b4`;
+the small SVG is
+`88d56815ea3596a143e3609a99daaa1697ffff27e264bff855d866c131475acd`.
+
+`design/final-review.json` pins the control configuration and all 47 production
+and platform handoff digests. `tools/review_product_icon.py` reuses the existing
+renderer and makes only in-memory experiment changes. The exporter includes
+those sources and all four new sheets/twelve vectors in its exhaustive digest
+manifest. It still builds from fresh vectors and rejects stale files.
+
+The existing 13 product checks and every historical check remain intact. One
+additional product check independently pins the unchanged B0 platform files
+and control SVGs. No acceptance threshold was relaxed and no artwork was
+adjusted to force a test to pass. Re-run the same product publish command;
+current-head GitHub checks are the authority for the final commit's CI status.
+
+The final product run passed **14 checks**, including all 47 unchanged handoff
+digests. A negative control modified one pixel of a valid 16 px PNG in an
+isolated temporary copy; the new B0 preservation check rejected it. Production
+files were untouched. Independent Inkscape/resvg comparisons again passed at
+32/128/512/1024, with the same measured differences as B0 below. Additional
+256 px checks passed for opaque imagery (MAE .28800), full-bleed flat fallback
+(.56564), left/right native foregrounds (.04824/.05649) and interaction
+(.00317), all in 8-bit RGB units over black. These compare vector renderers,
+not native Apple materials. `desktop-file-validate` and Python/shell syntax
+also passed.
+
+PNG corner alpha and light/dark composites were inspected at native sizes.
+Transparent RGB is zeroed; antialias pixels have no visible bright/dark matte.
+Equal alpha bounds are preserved, with subpixel insets naturally reaching the
+canvas at 16/24. ICO/ICNS actual decoded pixels, not only filenames/container
+headers, are checked against the direct raster sources. Linux hicolor PNGs
+match those sources, while scalable SVG equals the regular master. Desktop
+selection of scalable SVG at tiny sizes may bypass the optical variant and
+remains a native session check.
+
+The Apple mask/source study confirms the independent pre-rounded body is
+distinct from full-bleed flat input and unmasked crisp foreground layers.
+Only the mathematical preview applies an approximate mask. No real `.icon`
+project, `iconutil` validation or native Liquid Glass rendering is claimed.
+
+Recommendation: **category 2, ready with documented non-blocking native-platform
+limitations**, as an independent icon-design baseline after current-head CI
+passes. Brand approval, repository merge, Anamorph integration and shipping
+installers remain separate owner decisions. PR #10 stays open and unmerged.
 
 ## Validation record
 
@@ -130,7 +198,7 @@ CI completion; local validation is not represented as a remote CI result.
 
 ## Limits and owner decisions
 
-- Owner brand choice: B is recommended, with A/C and layout control retained.
+- Owner brand choice: B0 is recommended unchanged; A/C remain the earlier archive.
 - Native Composer import, material tuning, all six iOS/macOS 27 appearances,
   exact system masking and older-OS fallback remain unverified.
 - Xcode/actool/catalog and native iconutil; JUCE `.app`/VST3/AU resources,

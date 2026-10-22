@@ -26,6 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'src'), str(ROOT / 'tools')]
 import product_icon as P
 import render as R
+import review_product_icon as Review
 
 OUTPUT = ROOT / 'assets/anamorph'
 SIZES = (16, 20, 24, 32, 40, 48, 64, 128, 256, 512, 1024)
@@ -33,6 +34,7 @@ ICO_SIZES = tuple(n for n in SIZES if n <= 256)
 ICONSET = ((16, 1), (16, 2), (32, 1), (32, 2), (128, 1),
            (128, 2), (256, 1), (256, 2), (512, 1), (512, 2))
 SOURCE_FILES = ('design/anamorph.json', 'design/baseline.json', 'design/apple-research.json',
+                'design/final-review.json', 'tools/review_product_icon.py',
                 'src/product_icon.py', 'src/build_svg.py', 'src/params.json',
                 'tools/export_product_icon.py', 'tools/render.py', 'requirements.txt')
 
@@ -303,6 +305,7 @@ def build_package(output):
           'Optional iOS 1024 px flat fallback; Anamorph currently has no iOS target', status='Opaque RGB/sRGB validated; actool pending')
 
     make_previews(p, config, historical, candidates, selected, small, apple)
+    Review.make_review(p, P, config, historical, selected, small, apple, png_bytes)
     if sources != {path:digest((ROOT/path).read_bytes()) for path in SOURCE_FILES}:
         raise RuntimeError('Source files changed during export; rerun from a settled design state')
     manifest = {'schema_version':1, 'selected_candidate':config['selected'],

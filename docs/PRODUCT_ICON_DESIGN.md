@@ -1,10 +1,22 @@
 # Anamorph product icon: design review
 
-**Recommendation: Candidate B, pending owner brand approval.** This is a separate
+**Final recommendation: published Candidate B (B0) unchanged, pending owner brand approval.** This is a separate
 product design, not another attempt to minimize error against `reference.png`.
 No artwork has been integrated into Anamorph.
 
-![Historical reconstruction and recommended product design](../assets/anamorph/previews/before-after.png)
+![Historical reconstruction, B0 and unchanged B-final](../assets/anamorph/previews/final/before-after.png)
+
+The focused [final visual review](PRODUCT_ICON_FINAL_REVIEW.md) records the
+independent observations made before experiments, exact B1/B2/F1/F2/S1/S2
+settings, native-size findings and rejected refinements. B0 remains stronger
+overall; no cosmetic change was invented to mark completion. Start with the
+[final candidate sheet](../assets/anamorph/previews/final/candidates.png),
+[four-background review](../assets/anamorph/previews/final/backgrounds.png),
+[native-size ladder](../assets/anamorph/previews/selected-size-ladder.png) and
+[mask/source study](../assets/anamorph/previews/final/masking.png).
+
+The following A/B/C sheets document the earlier design stage and remain
+available as its archive. They are not a reopened direction-selection study.
 
 ## Review images
 
@@ -131,8 +143,11 @@ requires an explicit review if that dependency ever changes.
 
 The canonical selected output is
 [`assets/anamorph/master/anamorph.svg`](../assets/anamorph/master/anamorph.svg).
-To switch the recommendation, change `selected` to A or C in the design JSON,
-then regenerate the package and review it. No candidate is deleted.
+Earlier A/C alternatives remain editable archive sources. A future change to
+the recommendation requires a new visual review and an explicit update to
+the final acceptance record and B0 preservation check; changing `selected`
+alone would contradict this round's unchanged-artwork decision. Keep the
+frozen B0 control available for comparison.
 
 ```sh
 sh tools/publish_product_icon.sh

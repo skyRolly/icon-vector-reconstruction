@@ -2,15 +2,17 @@
   "schema_version": 1,
   "selected_candidate": "B",
   "source_base_commit": "0e39f2421dd1256e6224b117b63d6933ca55e0b5",
-  "source_revision": "fab84095b3c903c9d1c97449e8790b506f3c674e588d4307578a5ebd06c658a8",
+  "source_revision": "859d31a747a9a1ca0bf7bee8519ae4956fe676ecbf6ef091a8419575a08bfeb3",
   "source_files_sha256": {
     "design/anamorph.json": "f6295eb4b5a2418645e39e2d884794c35581c5db321ff04e7ea9d2fd07f9115f",
     "design/baseline.json": "4a85d87161a2a21c5bdf6b74e82d88cdb0bfde1561ddc419ec92c58771103790",
     "design/apple-research.json": "08ebbc2628424d005ee1109e4cfdaeebc97d2dc17e34d7b448572dbc81da4828",
+    "design/final-review.json": "a16963f83935188d44dbab93ad68085563d0c393bbcb0b017c357149a8df4bdb",
+    "tools/review_product_icon.py": "9dcbce74c4a5a49a8ca98b4c9ebaf5dd784876ca982134a16d2391471bbdba44",
     "src/product_icon.py": "b6b94afd33b7f003304cac156538acfd147ae4d8be616e810bd36d1a7304fc83",
     "src/build_svg.py": "496b6f4e97efbc46d3885e0e0f241224716671ec9ef9c38ddd57497cd709ede2",
     "src/params.json": "c651f3874fc5c321a91c4d469c5e0dc31a2f552594f8cab7125e460bbb701de5",
-    "tools/export_product_icon.py": "0f82783feeb87d3b05c1ca0228ed3f16c3cdfad7903082c28970b8303bcef026",
+    "tools/export_product_icon.py": "edcf76b8a4ad9c3bb3d15efc78af83b1f3fd73d4e6dac263d98e9e487b6d4ec2",
     "tools/render.py": "0d0fb8738fe2426a272780946edf74e05f408b377394cd604fb5d212d777e804",
     "requirements.txt": "2f2f52f0625c6e503df9532959350e7f2186dd810346d3415483cd0e1e97f3c0"
   },
@@ -1049,6 +1051,246 @@
       "validation": "structurally validated",
       "sha256": "b0691ee3ef6c84890c82de06de1e199e9178a1d7edcfe88c597b3245c02e1442",
       "bytes": 14176
+    },
+    {
+      "path": "previews/final/B0-small.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "B0",
+      "validation": "structurally validated",
+      "sha256": "88d56815ea3596a143e3609a99daaa1697ffff27e264bff855d866c131475acd",
+      "bytes": 133191
+    },
+    {
+      "path": "previews/final/B0.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "B0",
+      "validation": "structurally validated",
+      "sha256": "9d944b2b04abeb92dddc6840cf949d126162169159e937f23a384160d0db56b4",
+      "bytes": 155594
+    },
+    {
+      "path": "previews/final/B1-small.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "B1",
+      "validation": "structurally validated",
+      "sha256": "ec177b228f53a658ad38ec5c55b47dbbcb726ed951daccca6e041a42892d8c21",
+      "bytes": 133192
+    },
+    {
+      "path": "previews/final/B1.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "B1",
+      "validation": "structurally validated",
+      "sha256": "790f1d1c6ab80ed0a1119ad479134a902246855a23dcad88a25091addedd5cdd",
+      "bytes": 155595
+    },
+    {
+      "path": "previews/final/B2-small.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "B2",
+      "validation": "structurally validated",
+      "sha256": "379fee5e71be1978523df4ad560701ba74e5b6740430a88cfe5061828f288d06",
+      "bytes": 133967
+    },
+    {
+      "path": "previews/final/B2.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "B2",
+      "validation": "structurally validated",
+      "sha256": "9f106d45f4bcb5118d54b50da417f477b8cce5a8bdf69ac73c9b771a928417e5",
+      "bytes": 156370
+    },
+    {
+      "path": "previews/final/F1-small.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "F1",
+      "validation": "structurally validated",
+      "sha256": "ef1dc90c22ec7079b71739faa572bb7c9742cdad9edeead73de241d4de98d771",
+      "bytes": 133198
+    },
+    {
+      "path": "previews/final/F1.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "F1",
+      "validation": "structurally validated",
+      "sha256": "f944665cd2a712d42c0b22a9351f86e42d633e4c99e89a19f1c254e05abf1ecf",
+      "bytes": 155601
+    },
+    {
+      "path": "previews/final/F2-small.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "F2",
+      "validation": "structurally validated",
+      "sha256": "0f346bfba30e3fcf67b80961320653d28a81e2422bc3c48ab43f95996acdd948",
+      "bytes": 133191
+    },
+    {
+      "path": "previews/final/F2.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "F2",
+      "validation": "structurally validated",
+      "sha256": "3a543d54fc3974f35cc64c792f1a263a82e6d5a73ffa4dd16ce9fb018134fddb",
+      "bytes": 155593
+    },
+    {
+      "path": "previews/final/S1-small.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "S1",
+      "validation": "structurally validated",
+      "sha256": "266affa73809a1ee4ae2bf30d2a5d0fffbca0d9491cbf68cab79b413c88c0788",
+      "bytes": 133211
+    },
+    {
+      "path": "previews/final/S2-small.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "S2",
+      "validation": "structurally validated",
+      "sha256": "0ad71fe197dd91f2099d34c1b8f229c435afe1c10f5f9b53e4e51c0b6fb39f1c",
+      "bytes": 133194
+    },
+    {
+      "path": "previews/final/backgrounds.png",
+      "format": "PNG",
+      "dimensions": [
+        1080,
+        1560
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Final native 16..256 exports on four backgrounds and labelled simulated launcher",
+      "variant": "final review",
+      "validation": "structurally validated",
+      "sha256": "9ef257fbd2a592719a01312697023ad82ee599478bba841d73b0ec2f644a62e6",
+      "bytes": 270137
+    },
+    {
+      "path": "previews/final/before-after.png",
+      "format": "PNG",
+      "dimensions": [
+        900,
+        360
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Historical / B0 / selected final, equal native 256 px",
+      "variant": "final review",
+      "validation": "structurally validated",
+      "sha256": "d28442d93b3eee8b08c0b83616fe8a394406e035e29de5f9f7d5372cc783f113",
+      "bytes": 76723
+    },
+    {
+      "path": "previews/final/candidates.png",
+      "format": "PNG",
+      "dimensions": [
+        1140,
+        1568
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Constrained B boundary, flare and small factors, native pixels on light/dark",
+      "variant": "final review",
+      "validation": "structurally validated",
+      "sha256": "da94625db625c240182b3581246fefcc4b7e4558ab77e1c1e3daf558c30099ed",
+      "bytes": 241815
+    },
+    {
+      "path": "previews/final/masking.png",
+      "format": "PNG",
+      "dimensions": [
+        1168,
+        400
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Independent / full-bleed flat / unmasked native layers / approximate mask, no Apple effects",
+      "variant": "final review",
+      "validation": "structurally validated",
+      "sha256": "1410404000b042a089e69691fc638cf93900c311eedb251ada9e06d5807ef444",
+      "bytes": 70709
     },
     {
       "path": "previews/masking-comparison.png",

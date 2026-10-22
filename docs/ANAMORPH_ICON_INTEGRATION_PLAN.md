@@ -4,6 +4,12 @@
 icons, commits, PRs or releases in `skyRolly/Anamorph` were changed. This plan
 requires a separate owner instruction before implementation.
 
+The final B acceptance round retains all platform handoff bytes unchanged.
+Its [masking/source audit](PRODUCT_ICON_FINAL_REVIEW.md#geometry-masking-and-export-interpretation)
+confirms distinct conventional and native Apple inputs. The matrix below
+remains an integration plan, with the same native validation requirements;
+none of its future hooks was applied to Anamorph.
+
 ## Inspected implementation
 
 - Current remote main, confirmed with `git ls-remote`:
