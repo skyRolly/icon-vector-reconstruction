@@ -1,0 +1,27 @@
+name: product-icon
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  design-and-export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pinned Python dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Install independent SVG renderer and launcher validator
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y inkscape desktop-file-utils
+      - name: Rebuild every export from source and compare bytes
+        run: python tools/export_product_icon.py --check
+      - name: Product geometry, historical preservation, formats and independent rendering
+        run: python tools/test_product_icon.py --cross-renderer --engine inkscape --report /tmp/product-validation.json
+      - name: Linux launcher syntax
+        run: desktop-file-validate assets/anamorph/linux/com.rollytech.anamorph.desktop
