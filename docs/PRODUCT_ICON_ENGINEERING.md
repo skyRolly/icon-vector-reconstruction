@@ -239,3 +239,10 @@ pass with the pinned Python dependencies. Historical reconstruction/master/desig
 files and the backup branch are unchanged. No desktop installation, icon cache,
 GNOME/KDE/WM session or native Apple/Windows display result is claimed. This PR
 changes resource names only; plugin namespace/installer work is reviewed separately.
+
+The prepared local environment initially carried Pillow 12.3.0 while current
+requirements.txt pins **13.0.0**. CI rejected only that manifest dependency
+field; no image differed. Regenerated with the actual declared pins
+(numpy 2.4.6 / Pillow 13.0.0 / resvg-py 0.5.0), repeated the reproducible export,
+15 tests and Inkscape checks, and re-compared every visual byte against starting
+main. The source dependency declarations and all visual assets remain unchanged.

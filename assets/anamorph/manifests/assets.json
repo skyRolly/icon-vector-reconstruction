@@ -19,7 +19,7 @@
   "dependencies": {
     "resvg-py": "0.5.0",
     "numpy": "2.4.6",
-    "pillow": "12.3.0"
+    "pillow": "13.0.0"
   },
   "raster_policy": "Direct vector render at each size; small optical source only at <=32 px.",
   "native_platform_validation": "pending; owner brand approval pending; no integration performed",
