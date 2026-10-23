@@ -4,5 +4,5 @@
 # PNG to be byte-for-byte the image out/flare_parts.png was drawn from, which
 # holds for a given resvg-py; and every acceptance number is resvg's.
 numpy==2.4.6
-pillow==12.3.0
+pillow==13.0.0
 resvg-py==0.5.0

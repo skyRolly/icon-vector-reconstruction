@@ -2,7 +2,7 @@
   "schema_version": 1,
   "selected_candidate": "B",
   "source_base_commit": "0e39f2421dd1256e6224b117b63d6933ca55e0b5",
-  "source_revision": "859d31a747a9a1ca0bf7bee8519ae4956fe676ecbf6ef091a8419575a08bfeb3",
+  "source_revision": "c5229b4c5dc049d21fe866978a42987147450448bdb5f1fb5af6d0ce9e39912f",
   "source_files_sha256": {
     "design/anamorph.json": "f6295eb4b5a2418645e39e2d884794c35581c5db321ff04e7ea9d2fd07f9115f",
     "design/baseline.json": "4a85d87161a2a21c5bdf6b74e82d88cdb0bfde1561ddc419ec92c58771103790",
@@ -14,12 +14,12 @@
     "src/params.json": "c651f3874fc5c321a91c4d469c5e0dc31a2f552594f8cab7125e460bbb701de5",
     "tools/export_product_icon.py": "edcf76b8a4ad9c3bb3d15efc78af83b1f3fd73d4e6dac263d98e9e487b6d4ec2",
     "tools/render.py": "0d0fb8738fe2426a272780946edf74e05f408b377394cd604fb5d212d777e804",
-    "requirements.txt": "2f2f52f0625c6e503df9532959350e7f2186dd810346d3415483cd0e1e97f3c0"
+    "requirements.txt": "102f77b98a9ff3a6341510062cdeb7d4bf3a447bb64efcc7cb200eae3f76f046"
   },
   "dependencies": {
     "resvg-py": "0.5.0",
     "numpy": "2.4.6",
-    "pillow": "12.3.0"
+    "pillow": "13.0.0"
   },
   "raster_policy": "Direct vector render at each size; small optical source only at <=32 px.",
   "native_platform_validation": "pending; owner brand approval pending; no integration performed",
