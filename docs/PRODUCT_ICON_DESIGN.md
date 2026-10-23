@@ -141,6 +141,16 @@ variable-width ribbons, gradients and superellipse utility. It does not clone
 the renderer or write historical state. A historical-parameter digest guard
 requires an explicit review if that dependency ever changes.
 
+`design/baseline.json` retains the original historical-file digests, including
+the original `requirements.txt` digest. The historical-file guard exempts only
+`requirements.txt` so dependency pins can be maintained. The generated asset
+manifest records its current digest and the installed dependency versions.
+After updating a pin, install `requirements.txt`, regenerate the package with
+`python tools/export_product_icon.py`, and commit the changed outputs. Verify
+`python tools/export_product_icon.py --check` and the product tests in that
+pinned environment. The independent B0 platform digests still apply; review
+any changed platform bytes explicitly before updating their acceptance record.
+
 The canonical selected output is
 [`assets/anamorph/master/anamorph.svg`](../assets/anamorph/master/anamorph.svg).
 Earlier A/C alternatives remain editable archive sources. A future change to
