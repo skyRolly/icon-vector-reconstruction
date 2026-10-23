@@ -2,7 +2,7 @@
   "schema_version": 1,
   "selected_candidate": "B",
   "source_base_commit": "0e39f2421dd1256e6224b117b63d6933ca55e0b5",
-  "source_revision": "c5229b4c5dc049d21fe866978a42987147450448bdb5f1fb5af6d0ce9e39912f",
+  "source_revision": "e91b4d1db9bf1a5fb1a69f01d35dd82fe498c0248de062d93ea175f47a52a2e9",
   "source_files_sha256": {
     "design/anamorph.json": "f6295eb4b5a2418645e39e2d884794c35581c5db321ff04e7ea9d2fd07f9115f",
     "design/baseline.json": "4a85d87161a2a21c5bdf6b74e82d88cdb0bfde1561ddc419ec92c58771103790",
@@ -12,14 +12,14 @@
     "src/product_icon.py": "b6b94afd33b7f003304cac156538acfd147ae4d8be616e810bd36d1a7304fc83",
     "src/build_svg.py": "496b6f4e97efbc46d3885e0e0f241224716671ec9ef9c38ddd57497cd709ede2",
     "src/params.json": "c651f3874fc5c321a91c4d469c5e0dc31a2f552594f8cab7125e460bbb701de5",
-    "tools/export_product_icon.py": "edcf76b8a4ad9c3bb3d15efc78af83b1f3fd73d4e6dac263d98e9e487b6d4ec2",
+    "tools/export_product_icon.py": "dae3b591466a68b4aa729b0483f9c19ff2062a9d0e02d639bff82e666e7dc2dd",
     "tools/render.py": "0d0fb8738fe2426a272780946edf74e05f408b377394cd604fb5d212d777e804",
     "requirements.txt": "102f77b98a9ff3a6341510062cdeb7d4bf3a447bb64efcc7cb200eae3f76f046"
   },
   "dependencies": {
     "resvg-py": "0.5.0",
     "numpy": "2.4.6",
-    "pillow": "13.0.0"
+    "pillow": "12.3.0"
   },
   "raster_policy": "Direct vector render at each size; small optical source only at <=32 px.",
   "native_platform_validation": "pending; owner brand approval pending; no integration performed",
@@ -121,19 +121,7 @@
       "bytes": 473
     },
     {
-      "path": "linux/com.rollytech.anamorph.desktop",
-      "format": "DESKTOP",
-      "dimensions": null,
-      "transparency": null,
-      "color_space": "n/a",
-      "target": "Future launcher template; executable must be installed on PATH",
-      "variant": "selected",
-      "validation": "desktop-file-validate checked separately; not installed",
-      "sha256": "655ea33f288c00a19f87ef921658f8da66f01fa7ecd40bab2649644209345be8",
-      "bytes": 162
-    },
-    {
-      "path": "linux/hicolor/128x128/apps/com.rollytech.anamorph.png",
+      "path": "linux/hicolor/128x128/apps/tech.rolly.anamorph.png",
       "format": "PNG",
       "dimensions": [
         128,
@@ -148,7 +136,7 @@
       "bytes": 11213
     },
     {
-      "path": "linux/hicolor/16x16/apps/com.rollytech.anamorph.png",
+      "path": "linux/hicolor/16x16/apps/tech.rolly.anamorph.png",
       "format": "PNG",
       "dimensions": [
         16,
@@ -163,7 +151,7 @@
       "bytes": 622
     },
     {
-      "path": "linux/hicolor/24x24/apps/com.rollytech.anamorph.png",
+      "path": "linux/hicolor/24x24/apps/tech.rolly.anamorph.png",
       "format": "PNG",
       "dimensions": [
         24,
@@ -178,7 +166,7 @@
       "bytes": 1072
     },
     {
-      "path": "linux/hicolor/256x256/apps/com.rollytech.anamorph.png",
+      "path": "linux/hicolor/256x256/apps/tech.rolly.anamorph.png",
       "format": "PNG",
       "dimensions": [
         256,
@@ -193,7 +181,7 @@
       "bytes": 31175
     },
     {
-      "path": "linux/hicolor/32x32/apps/com.rollytech.anamorph.png",
+      "path": "linux/hicolor/32x32/apps/tech.rolly.anamorph.png",
       "format": "PNG",
       "dimensions": [
         32,
@@ -208,7 +196,7 @@
       "bytes": 1519
     },
     {
-      "path": "linux/hicolor/48x48/apps/com.rollytech.anamorph.png",
+      "path": "linux/hicolor/48x48/apps/tech.rolly.anamorph.png",
       "format": "PNG",
       "dimensions": [
         48,
@@ -223,7 +211,7 @@
       "bytes": 2818
     },
     {
-      "path": "linux/hicolor/512x512/apps/com.rollytech.anamorph.png",
+      "path": "linux/hicolor/512x512/apps/tech.rolly.anamorph.png",
       "format": "PNG",
       "dimensions": [
         512,
@@ -238,7 +226,7 @@
       "bytes": 85174
     },
     {
-      "path": "linux/hicolor/64x64/apps/com.rollytech.anamorph.png",
+      "path": "linux/hicolor/64x64/apps/tech.rolly.anamorph.png",
       "format": "PNG",
       "dimensions": [
         64,
@@ -253,7 +241,7 @@
       "bytes": 4142
     },
     {
-      "path": "linux/hicolor/scalable/apps/com.rollytech.anamorph.svg",
+      "path": "linux/hicolor/scalable/apps/tech.rolly.anamorph.svg",
       "format": "SVG",
       "dimensions": [
         1024,
@@ -266,6 +254,18 @@
       "validation": "structurally validated",
       "sha256": "9d944b2b04abeb92dddc6840cf949d126162169159e937f23a384160d0db56b4",
       "bytes": 155594
+    },
+    {
+      "path": "linux/tech.rolly.anamorph.desktop",
+      "format": "DESKTOP",
+      "dimensions": null,
+      "transparency": null,
+      "color_space": "n/a",
+      "target": "Future launcher template; executable must be installed on PATH",
+      "variant": "selected",
+      "validation": "desktop-file-validate checked separately; not installed",
+      "sha256": "8489d9a2e72c59f024addc4236d3388a64db6d4cee8be33da4500111ea51dffb",
+      "bytes": 159
     },
     {
       "path": "macos/Anamorph.icns",

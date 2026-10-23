@@ -11,16 +11,16 @@ Rebuild with `python tools/export_product_icon.py`. All dimensions are pixels un
 | `apple/layers/01-left.svg` | SVG | [1024, 1024] | yes | sRGB | Icon Composer foreground import | SVG structure validated; native import/materials pending |
 | `apple/layers/02-right.svg` | SVG | [1024, 1024] | yes | sRGB | Icon Composer foreground import | SVG structure validated; native import/materials pending |
 | `apple/layers/03-interaction.svg` | SVG | [1024, 1024] | yes | sRGB | Icon Composer foreground import | SVG structure validated; native import/materials pending |
-| `linux/com.rollytech.anamorph.desktop` | DESKTOP | n/a | format/source dependent | n/a | Future launcher template; executable must be installed on PATH | desktop-file-validate checked separately; not installed |
-| `linux/hicolor/128x128/apps/com.rollytech.anamorph.png` | PNG | [128, 128] | yes | sRGB | Freedesktop icon theme / launcher | structurally validated |
-| `linux/hicolor/16x16/apps/com.rollytech.anamorph.png` | PNG | [16, 16] | yes | sRGB | Freedesktop icon theme / launcher | structurally validated |
-| `linux/hicolor/24x24/apps/com.rollytech.anamorph.png` | PNG | [24, 24] | yes | sRGB | Freedesktop icon theme / launcher | structurally validated |
-| `linux/hicolor/256x256/apps/com.rollytech.anamorph.png` | PNG | [256, 256] | yes | sRGB | Freedesktop icon theme / launcher | structurally validated |
-| `linux/hicolor/32x32/apps/com.rollytech.anamorph.png` | PNG | [32, 32] | yes | sRGB | Freedesktop icon theme / launcher | structurally validated |
-| `linux/hicolor/48x48/apps/com.rollytech.anamorph.png` | PNG | [48, 48] | yes | sRGB | Freedesktop icon theme / launcher | structurally validated |
-| `linux/hicolor/512x512/apps/com.rollytech.anamorph.png` | PNG | [512, 512] | yes | sRGB | Freedesktop icon theme / launcher | structurally validated |
-| `linux/hicolor/64x64/apps/com.rollytech.anamorph.png` | PNG | [64, 64] | yes | sRGB | Freedesktop icon theme / launcher | structurally validated |
-| `linux/hicolor/scalable/apps/com.rollytech.anamorph.svg` | SVG | [1024, 1024] | yes | sRGB | Freedesktop scalable icon | structurally validated |
+| `linux/hicolor/128x128/apps/tech.rolly.anamorph.png` | PNG | [128, 128] | yes | sRGB | Freedesktop icon theme / launcher | structurally validated |
+| `linux/hicolor/16x16/apps/tech.rolly.anamorph.png` | PNG | [16, 16] | yes | sRGB | Freedesktop icon theme / launcher | structurally validated |
+| `linux/hicolor/24x24/apps/tech.rolly.anamorph.png` | PNG | [24, 24] | yes | sRGB | Freedesktop icon theme / launcher | structurally validated |
+| `linux/hicolor/256x256/apps/tech.rolly.anamorph.png` | PNG | [256, 256] | yes | sRGB | Freedesktop icon theme / launcher | structurally validated |
+| `linux/hicolor/32x32/apps/tech.rolly.anamorph.png` | PNG | [32, 32] | yes | sRGB | Freedesktop icon theme / launcher | structurally validated |
+| `linux/hicolor/48x48/apps/tech.rolly.anamorph.png` | PNG | [48, 48] | yes | sRGB | Freedesktop icon theme / launcher | structurally validated |
+| `linux/hicolor/512x512/apps/tech.rolly.anamorph.png` | PNG | [512, 512] | yes | sRGB | Freedesktop icon theme / launcher | structurally validated |
+| `linux/hicolor/64x64/apps/tech.rolly.anamorph.png` | PNG | [64, 64] | yes | sRGB | Freedesktop icon theme / launcher | structurally validated |
+| `linux/hicolor/scalable/apps/tech.rolly.anamorph.svg` | SVG | [1024, 1024] | yes | sRGB | Freedesktop scalable icon | structurally validated |
+| `linux/tech.rolly.anamorph.desktop` | DESKTOP | n/a | format/source dependent | n/a | Future launcher template; executable must be installed on PATH | desktop-file-validate checked separately; not installed |
 | `macos/Anamorph.icns` | ICNS | [16, 32, 64, 128, 256, 512, 1024] | yes | sRGB tagged PNG frames | Finder/Dock/bundle conventional fallback | Pillow decode and chunk validation; macOS iconutil/Finder pending |
 | `macos/Anamorph.iconset/icon_128x128.png` | PNG | [128, 128] | yes | sRGB | macOS conventional iconset: 128 pt at 1x | structurally validated |
 | `macos/Anamorph.iconset/icon_128x128@2x.png` | PNG | [256, 256] | yes | sRGB | macOS conventional iconset: 128 pt at 2x | structurally validated |

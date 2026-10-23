@@ -24,4 +24,4 @@ jobs:
       - name: Product geometry, historical preservation, formats and independent rendering
         run: python tools/test_product_icon.py --cross-renderer --engine inkscape --report /tmp/product-validation.json
       - name: Linux launcher syntax
-        run: desktop-file-validate assets/anamorph/linux/com.rollytech.anamorph.desktop
+        run: desktop-file-validate assets/anamorph/linux/tech.rolly.anamorph.desktop

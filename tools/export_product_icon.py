@@ -268,13 +268,13 @@ def build_package(output):
           status='All directory entries and decoded pixels validated; Windows resource/ISCC pending', transparency=True)
 
     for size in (16,24,32,48,64,128,256,512):
-        p.put(f'linux/hicolor/{size}x{size}/apps/com.rollytech.anamorph.png', rasters[size],
+        p.put(f'linux/hicolor/{size}x{size}/apps/tech.rolly.anamorph.png', rasters[size],
               'Freedesktop icon theme / launcher')
-    p.put('linux/hicolor/scalable/apps/com.rollytech.anamorph.svg', selected,
+    p.put('linux/hicolor/scalable/apps/tech.rolly.anamorph.svg', selected,
           'Freedesktop scalable icon', dimensions=[1024,1024], transparency=True)
-    p.put('linux/com.rollytech.anamorph.desktop',
+    p.put('linux/tech.rolly.anamorph.desktop',
           '[Desktop Entry]\nType=Application\nName=Anamorph\nComment=Stereo image toolkit\n'
-          'Exec=Anamorph\nIcon=com.rollytech.anamorph\nTerminal=false\nCategories=AudioVideo;Audio;\n',
+          'Exec=Anamorph\nIcon=tech.rolly.anamorph\nTerminal=false\nCategories=AudioVideo;Audio;\n',
           'Future launcher template; executable must be installed on PATH', color='n/a',
           status='desktop-file-validate checked separately; not installed')
 
