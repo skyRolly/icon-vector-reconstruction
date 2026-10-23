@@ -1,0 +1,30 @@
+{
+  "status": "prepared sources, NOT a validated .icon project",
+  "canvas": [
+    1024,
+    1024
+  ],
+  "background": {
+    "configure_in_composer": true,
+    "opaque": true,
+    "gradient_colors": [
+      "#0b1826",
+      "#030812"
+    ]
+  },
+  "foreground_back_to_front": [
+    "apple/layers/01-left.svg",
+    "apple/layers/02-right.svg",
+    "apple/layers/03-interaction.svg"
+  ],
+  "source_effects": "No masking, blur, shadows, opacity or baked system specular effects.",
+  "appearances": {
+    "default": "Shared source geometry; full-bleed opaque background configured in Composer.",
+    "dark": "Same dark optical identity; tune background and illumination in Composer.",
+    "clear/light": "Mono material configuration from shared crisp foreground silhouettes; pending native contrast check.",
+    "clear/dark": "Same Mono geometry; pending native contrast check.",
+    "tinted/light": "System Mono tint from same silhouettes; pending native tint/edge check.",
+    "tinted/dark": "Same Mono geometry; pending native tint/edge check."
+  },
+  "next_step": "Import in Icon Composer on macOS, tune and inspect all six appearances, save genuine .icon, validate with Xcode."
+}

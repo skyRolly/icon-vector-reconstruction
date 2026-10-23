@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Anamorph
+Comment=Stereo image toolkit
+Exec=Anamorph
+Icon=com.rollytech.anamorph
+Terminal=false
+Categories=AudioVideo;Audio;

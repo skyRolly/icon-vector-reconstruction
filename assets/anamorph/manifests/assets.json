@@ -1,0 +1,1363 @@
+{
+  "schema_version": 1,
+  "selected_candidate": "B",
+  "source_base_commit": "0e39f2421dd1256e6224b117b63d6933ca55e0b5",
+  "source_revision": "859d31a747a9a1ca0bf7bee8519ae4956fe676ecbf6ef091a8419575a08bfeb3",
+  "source_files_sha256": {
+    "design/anamorph.json": "f6295eb4b5a2418645e39e2d884794c35581c5db321ff04e7ea9d2fd07f9115f",
+    "design/baseline.json": "4a85d87161a2a21c5bdf6b74e82d88cdb0bfde1561ddc419ec92c58771103790",
+    "design/apple-research.json": "08ebbc2628424d005ee1109e4cfdaeebc97d2dc17e34d7b448572dbc81da4828",
+    "design/final-review.json": "a16963f83935188d44dbab93ad68085563d0c393bbcb0b017c357149a8df4bdb",
+    "tools/review_product_icon.py": "9dcbce74c4a5a49a8ca98b4c9ebaf5dd784876ca982134a16d2391471bbdba44",
+    "src/product_icon.py": "b6b94afd33b7f003304cac156538acfd147ae4d8be616e810bd36d1a7304fc83",
+    "src/build_svg.py": "496b6f4e97efbc46d3885e0e0f241224716671ec9ef9c38ddd57497cd709ede2",
+    "src/params.json": "c651f3874fc5c321a91c4d469c5e0dc31a2f552594f8cab7125e460bbb701de5",
+    "tools/export_product_icon.py": "edcf76b8a4ad9c3bb3d15efc78af83b1f3fd73d4e6dac263d98e9e487b6d4ec2",
+    "tools/render.py": "0d0fb8738fe2426a272780946edf74e05f408b377394cd604fb5d212d777e804",
+    "requirements.txt": "2f2f52f0625c6e503df9532959350e7f2186dd810346d3415483cd0e1e97f3c0"
+  },
+  "dependencies": {
+    "resvg-py": "0.5.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+  },
+  "raster_policy": "Direct vector render at each size; small optical source only at <=32 px.",
+  "native_platform_validation": "pending; owner brand approval pending; no integration performed",
+  "assets": [
+    {
+      "path": "apple/Assets.xcassets/AppIcon.appiconset/Anamorph-1024.png",
+      "format": "PNG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Optional iOS 1024 px flat fallback; Anamorph currently has no iOS target",
+      "variant": "selected",
+      "validation": "Opaque RGB/sRGB validated; actool pending",
+      "sha256": "59dc648a0c7ecba7d336e96e1ef105974b932350f9e864aeae6fbdc1f5b6f63e",
+      "bytes": 194766
+    },
+    {
+      "path": "apple/Assets.xcassets/AppIcon.appiconset/Contents.json",
+      "format": "JSON",
+      "dimensions": null,
+      "transparency": null,
+      "color_space": "n/a",
+      "target": "Optional current iOS flat fallback asset catalog",
+      "variant": "selected",
+      "validation": "JSON validated; actool pending",
+      "sha256": "f39e3a7af7cff8d2c39d38bdd1900e372c84f176d2cc5d52f39c2d16f250783e",
+      "bytes": 209
+    },
+    {
+      "path": "apple/Assets.xcassets/Contents.json",
+      "format": "JSON",
+      "dimensions": null,
+      "transparency": null,
+      "color_space": "n/a",
+      "target": "Optional current iOS flat fallback asset catalog",
+      "variant": "selected",
+      "validation": "JSON validated; actool pending",
+      "sha256": "10e3b5dc202f1cd9fad1f688c8fc9fe9e9669bf3f8295e67d216b10fd99b6f49",
+      "bytes": 40
+    },
+    {
+      "path": "apple/import-manifest.json",
+      "format": "JSON",
+      "dimensions": null,
+      "transparency": null,
+      "color_space": "n/a",
+      "target": "Human-readable import handoff; not an Apple project format",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "159b0d3f56ade52303df899623434edc1064474bd2e2aabe3570d2918ab677d9",
+      "bytes": 1180
+    },
+    {
+      "path": "apple/layers/01-left.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Icon Composer foreground import",
+      "variant": "selected",
+      "validation": "SVG structure validated; native import/materials pending",
+      "sha256": "844e88c9309c83bd92ef0dde75678895c84f06d5e569c8c3440351f3499bdc1f",
+      "bytes": 4885
+    },
+    {
+      "path": "apple/layers/02-right.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Icon Composer foreground import",
+      "variant": "selected",
+      "validation": "SVG structure validated; native import/materials pending",
+      "sha256": "0e87fcaf77ee832a6061250213319dfab1b9820825a3344591b041b373472ed7",
+      "bytes": 4785
+    },
+    {
+      "path": "apple/layers/03-interaction.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Icon Composer foreground import",
+      "variant": "selected",
+      "validation": "SVG structure validated; native import/materials pending",
+      "sha256": "388517bb2ba88fec0b7ade926ad233b9e91232a8e4728d8f3f56942c04bbb45e",
+      "bytes": 473
+    },
+    {
+      "path": "linux/com.rollytech.anamorph.desktop",
+      "format": "DESKTOP",
+      "dimensions": null,
+      "transparency": null,
+      "color_space": "n/a",
+      "target": "Future launcher template; executable must be installed on PATH",
+      "variant": "selected",
+      "validation": "desktop-file-validate checked separately; not installed",
+      "sha256": "655ea33f288c00a19f87ef921658f8da66f01fa7ecd40bab2649644209345be8",
+      "bytes": 162
+    },
+    {
+      "path": "linux/hicolor/128x128/apps/com.rollytech.anamorph.png",
+      "format": "PNG",
+      "dimensions": [
+        128,
+        128
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Freedesktop icon theme / launcher",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "6ea3c005c17c69498744082d0cfefbaa89b20b3aac48aee5292bcde54156d163",
+      "bytes": 11213
+    },
+    {
+      "path": "linux/hicolor/16x16/apps/com.rollytech.anamorph.png",
+      "format": "PNG",
+      "dimensions": [
+        16,
+        16
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Freedesktop icon theme / launcher",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "026306d286b636aa9a8bf6a537362cfe638a6e1b206fff8dc23ae3abb2e6e183",
+      "bytes": 622
+    },
+    {
+      "path": "linux/hicolor/24x24/apps/com.rollytech.anamorph.png",
+      "format": "PNG",
+      "dimensions": [
+        24,
+        24
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Freedesktop icon theme / launcher",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "019f92e97405a2b5272586ce6bf29ec5bcb6bad5dc2a4ad2b1e6c4b43950e15f",
+      "bytes": 1072
+    },
+    {
+      "path": "linux/hicolor/256x256/apps/com.rollytech.anamorph.png",
+      "format": "PNG",
+      "dimensions": [
+        256,
+        256
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Freedesktop icon theme / launcher",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "b906dbbaa5ff74f8dcde8bd5cc6e377a5149f9e47eea98ec24bee5c23a1b4845",
+      "bytes": 31175
+    },
+    {
+      "path": "linux/hicolor/32x32/apps/com.rollytech.anamorph.png",
+      "format": "PNG",
+      "dimensions": [
+        32,
+        32
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Freedesktop icon theme / launcher",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "f2a80389e5f47c23b69a0e8956f0492c5f1194a6970df0726c172bf633fb2002",
+      "bytes": 1519
+    },
+    {
+      "path": "linux/hicolor/48x48/apps/com.rollytech.anamorph.png",
+      "format": "PNG",
+      "dimensions": [
+        48,
+        48
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Freedesktop icon theme / launcher",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "c833a92c8b3b42f6f8b7a52267fa56354b4d2847d636b52da29f864cb1a1f96d",
+      "bytes": 2818
+    },
+    {
+      "path": "linux/hicolor/512x512/apps/com.rollytech.anamorph.png",
+      "format": "PNG",
+      "dimensions": [
+        512,
+        512
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Freedesktop icon theme / launcher",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "46fa75f587843b29e7aa0a82cd518cd24f3ef8791b20cdfd3cc48f42c93bcb3c",
+      "bytes": 85174
+    },
+    {
+      "path": "linux/hicolor/64x64/apps/com.rollytech.anamorph.png",
+      "format": "PNG",
+      "dimensions": [
+        64,
+        64
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Freedesktop icon theme / launcher",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "37bdffc8dd356b3a8536e3ed784dbeed19ca25d27629f2c6bbf520050af34b41",
+      "bytes": 4142
+    },
+    {
+      "path": "linux/hicolor/scalable/apps/com.rollytech.anamorph.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Freedesktop scalable icon",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "9d944b2b04abeb92dddc6840cf949d126162169159e937f23a384160d0db56b4",
+      "bytes": 155594
+    },
+    {
+      "path": "macos/Anamorph.icns",
+      "format": "ICNS",
+      "dimensions": [
+        16,
+        32,
+        64,
+        128,
+        256,
+        512,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB tagged PNG frames",
+      "target": "Finder/Dock/bundle conventional fallback",
+      "variant": "selected",
+      "validation": "Pillow decode and chunk validation; macOS iconutil/Finder pending",
+      "sha256": "c362a0c1440bf11a67a6aa2dd60943639d18c802dc2a4c2cbcd2298e4f6b355b",
+      "bytes": 481662
+    },
+    {
+      "path": "macos/Anamorph.iconset/icon_128x128.png",
+      "format": "PNG",
+      "dimensions": [
+        128,
+        128
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "macOS conventional iconset: 128 pt at 1x",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "6ea3c005c17c69498744082d0cfefbaa89b20b3aac48aee5292bcde54156d163",
+      "bytes": 11213
+    },
+    {
+      "path": "macos/Anamorph.iconset/icon_128x128@2x.png",
+      "format": "PNG",
+      "dimensions": [
+        256,
+        256
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "macOS conventional iconset: 128 pt at 2x",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "b906dbbaa5ff74f8dcde8bd5cc6e377a5149f9e47eea98ec24bee5c23a1b4845",
+      "bytes": 31175
+    },
+    {
+      "path": "macos/Anamorph.iconset/icon_16x16.png",
+      "format": "PNG",
+      "dimensions": [
+        16,
+        16
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "macOS conventional iconset: 16 pt at 1x",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "026306d286b636aa9a8bf6a537362cfe638a6e1b206fff8dc23ae3abb2e6e183",
+      "bytes": 622
+    },
+    {
+      "path": "macos/Anamorph.iconset/icon_16x16@2x.png",
+      "format": "PNG",
+      "dimensions": [
+        32,
+        32
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "macOS conventional iconset: 16 pt at 2x",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "f2a80389e5f47c23b69a0e8956f0492c5f1194a6970df0726c172bf633fb2002",
+      "bytes": 1519
+    },
+    {
+      "path": "macos/Anamorph.iconset/icon_256x256.png",
+      "format": "PNG",
+      "dimensions": [
+        256,
+        256
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "macOS conventional iconset: 256 pt at 1x",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "b906dbbaa5ff74f8dcde8bd5cc6e377a5149f9e47eea98ec24bee5c23a1b4845",
+      "bytes": 31175
+    },
+    {
+      "path": "macos/Anamorph.iconset/icon_256x256@2x.png",
+      "format": "PNG",
+      "dimensions": [
+        512,
+        512
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "macOS conventional iconset: 256 pt at 2x",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "46fa75f587843b29e7aa0a82cd518cd24f3ef8791b20cdfd3cc48f42c93bcb3c",
+      "bytes": 85174
+    },
+    {
+      "path": "macos/Anamorph.iconset/icon_32x32.png",
+      "format": "PNG",
+      "dimensions": [
+        32,
+        32
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "macOS conventional iconset: 32 pt at 1x",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "f2a80389e5f47c23b69a0e8956f0492c5f1194a6970df0726c172bf633fb2002",
+      "bytes": 1519
+    },
+    {
+      "path": "macos/Anamorph.iconset/icon_32x32@2x.png",
+      "format": "PNG",
+      "dimensions": [
+        64,
+        64
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "macOS conventional iconset: 32 pt at 2x",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "37bdffc8dd356b3a8536e3ed784dbeed19ca25d27629f2c6bbf520050af34b41",
+      "bytes": 4142
+    },
+    {
+      "path": "macos/Anamorph.iconset/icon_512x512.png",
+      "format": "PNG",
+      "dimensions": [
+        512,
+        512
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "macOS conventional iconset: 512 pt at 1x",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "46fa75f587843b29e7aa0a82cd518cd24f3ef8791b20cdfd3cc48f42c93bcb3c",
+      "bytes": 85174
+    },
+    {
+      "path": "macos/Anamorph.iconset/icon_512x512@2x.png",
+      "format": "PNG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "macOS conventional iconset: 512 pt at 2x",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "b7dd6efd377125a08360f1ce2bf5c82450bf05932d70a7c957f329b73bc29b0e",
+      "bytes": 225615
+    },
+    {
+      "path": "master/anamorph-apple-square.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Unmasked full-bleed flat fallback; not layered native source",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "58a8f99ca767fecb1be40bfcd69c370a7c3e6005651ac33c3d719dce46570535",
+      "bytes": 153904
+    },
+    {
+      "path": "master/anamorph-opaque-1024.png",
+      "format": "PNG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Vector-derived 1024 px master raster",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "7e2177e65be794c683d7e945f8a60519ccd84c4aedd6d71f810c298570f2e297",
+      "bytes": 221638
+    },
+    {
+      "path": "master/anamorph-opaque.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Opaque precomposed square for imagery",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "6af59ed32b0267bd1bf9e9830cf48db61130e607fbeee766f5a3c6d6f8fec272",
+      "bytes": 155643
+    },
+    {
+      "path": "master/anamorph-rounded-1024.png",
+      "format": "PNG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Vector-derived 1024 px master raster",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "b7dd6efd377125a08360f1ce2bf5c82450bf05932d70a7c957f329b73bc29b0e",
+      "bytes": 225615
+    },
+    {
+      "path": "master/anamorph-small.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "16\u201332 px optical master",
+      "variant": "small",
+      "validation": "structurally validated",
+      "sha256": "88d56815ea3596a143e3609a99daaa1697ffff27e264bff855d866c131475acd",
+      "bytes": 133191
+    },
+    {
+      "path": "master/anamorph-square-1024.png",
+      "format": "PNG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Vector-derived 1024 px master raster",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "c0ee7d7c1335b1e42c0580fb38d5a84a8a2ca5cc7bfed33381180ef50b86b245",
+      "bytes": 214341
+    },
+    {
+      "path": "master/anamorph.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Canonical independent product master",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "9d944b2b04abeb92dddc6840cf949d126162169159e937f23a384160d0db56b4",
+      "bytes": 155594
+    },
+    {
+      "path": "portable/png/anamorph-1024.png",
+      "format": "PNG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Portable imagery / cross-platform icon input",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "b7dd6efd377125a08360f1ce2bf5c82450bf05932d70a7c957f329b73bc29b0e",
+      "bytes": 225615
+    },
+    {
+      "path": "portable/png/anamorph-128.png",
+      "format": "PNG",
+      "dimensions": [
+        128,
+        128
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Portable imagery / cross-platform icon input",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "6ea3c005c17c69498744082d0cfefbaa89b20b3aac48aee5292bcde54156d163",
+      "bytes": 11213
+    },
+    {
+      "path": "portable/png/anamorph-16.png",
+      "format": "PNG",
+      "dimensions": [
+        16,
+        16
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Portable imagery / cross-platform icon input",
+      "variant": "small",
+      "validation": "structurally validated",
+      "sha256": "026306d286b636aa9a8bf6a537362cfe638a6e1b206fff8dc23ae3abb2e6e183",
+      "bytes": 622
+    },
+    {
+      "path": "portable/png/anamorph-20.png",
+      "format": "PNG",
+      "dimensions": [
+        20,
+        20
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Portable imagery / cross-platform icon input",
+      "variant": "small",
+      "validation": "structurally validated",
+      "sha256": "aa065e682663bbfd691aaa60809a1ce7ca637f7ab4f33456ab30e8139b7067ff",
+      "bytes": 852
+    },
+    {
+      "path": "portable/png/anamorph-24.png",
+      "format": "PNG",
+      "dimensions": [
+        24,
+        24
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Portable imagery / cross-platform icon input",
+      "variant": "small",
+      "validation": "structurally validated",
+      "sha256": "019f92e97405a2b5272586ce6bf29ec5bcb6bad5dc2a4ad2b1e6c4b43950e15f",
+      "bytes": 1072
+    },
+    {
+      "path": "portable/png/anamorph-256.png",
+      "format": "PNG",
+      "dimensions": [
+        256,
+        256
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Portable imagery / cross-platform icon input",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "b906dbbaa5ff74f8dcde8bd5cc6e377a5149f9e47eea98ec24bee5c23a1b4845",
+      "bytes": 31175
+    },
+    {
+      "path": "portable/png/anamorph-32.png",
+      "format": "PNG",
+      "dimensions": [
+        32,
+        32
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Portable imagery / cross-platform icon input",
+      "variant": "small",
+      "validation": "structurally validated",
+      "sha256": "f2a80389e5f47c23b69a0e8956f0492c5f1194a6970df0726c172bf633fb2002",
+      "bytes": 1519
+    },
+    {
+      "path": "portable/png/anamorph-40.png",
+      "format": "PNG",
+      "dimensions": [
+        40,
+        40
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Portable imagery / cross-platform icon input",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "abbe4fdc554d8a5287967163dc76eee3c1296ff6602ad873d24d490076cf12ee",
+      "bytes": 2233
+    },
+    {
+      "path": "portable/png/anamorph-48.png",
+      "format": "PNG",
+      "dimensions": [
+        48,
+        48
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Portable imagery / cross-platform icon input",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "c833a92c8b3b42f6f8b7a52267fa56354b4d2847d636b52da29f864cb1a1f96d",
+      "bytes": 2818
+    },
+    {
+      "path": "portable/png/anamorph-512.png",
+      "format": "PNG",
+      "dimensions": [
+        512,
+        512
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Portable imagery / cross-platform icon input",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "46fa75f587843b29e7aa0a82cd518cd24f3ef8791b20cdfd3cc48f42c93bcb3c",
+      "bytes": 85174
+    },
+    {
+      "path": "portable/png/anamorph-64.png",
+      "format": "PNG",
+      "dimensions": [
+        64,
+        64
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Portable imagery / cross-platform icon input",
+      "variant": "selected",
+      "validation": "structurally validated",
+      "sha256": "37bdffc8dd356b3a8536e3ed784dbeed19ca25d27629f2c6bbf520050af34b41",
+      "bytes": 4142
+    },
+    {
+      "path": "previews/apple-layers-flat.png",
+      "format": "PNG",
+      "dimensions": [
+        900,
+        624
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Review: actual native SVG foreground geometry without masking or system material; native effects pending",
+      "variant": "comparison",
+      "validation": "structurally validated",
+      "sha256": "a7b3d3427934d2397d436af62ff8ed964d623c1fac0ab867d652d3f9a38d0660",
+      "bytes": 19246
+    },
+    {
+      "path": "previews/before-after.png",
+      "format": "PNG",
+      "dimensions": [
+        1120,
+        620
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Review and release/documentation illustration",
+      "variant": "comparison",
+      "validation": "structurally validated",
+      "sha256": "a3f46e9c6bbab840056f1d7dd1f03fc85eaec954e927507e8066448318d8bd50",
+      "bytes": 188711
+    },
+    {
+      "path": "previews/candidates/A-1024.png",
+      "format": "PNG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Full-resolution candidate review",
+      "variant": "A",
+      "validation": "structurally validated",
+      "sha256": "c46991b8fa49b86c763e67feeb392b3d95de3ec090e6a67986c770adfcefee8d",
+      "bytes": 230480
+    },
+    {
+      "path": "previews/candidates/A.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Editable alternative for owner review",
+      "variant": "A",
+      "validation": "structurally validated",
+      "sha256": "6106e59ed06ad048bb06c916a52adccf2afab5906d45a0fcefbb50f681353a3f",
+      "bytes": 155724
+    },
+    {
+      "path": "previews/candidates/B-1024.png",
+      "format": "PNG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Full-resolution candidate review",
+      "variant": "B",
+      "validation": "structurally validated",
+      "sha256": "b7dd6efd377125a08360f1ce2bf5c82450bf05932d70a7c957f329b73bc29b0e",
+      "bytes": 225615
+    },
+    {
+      "path": "previews/candidates/B.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Editable alternative for owner review",
+      "variant": "B",
+      "validation": "structurally validated",
+      "sha256": "9d944b2b04abeb92dddc6840cf949d126162169159e937f23a384160d0db56b4",
+      "bytes": 155594
+    },
+    {
+      "path": "previews/candidates/C-1024.png",
+      "format": "PNG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Full-resolution candidate review",
+      "variant": "C",
+      "validation": "structurally validated",
+      "sha256": "e9551b7af7d06fbfa2702adee4d13aa6d870d63eb68625d639bdaf4e7ac33d64",
+      "bytes": 213156
+    },
+    {
+      "path": "previews/candidates/C.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Editable alternative for owner review",
+      "variant": "C",
+      "validation": "structurally validated",
+      "sha256": "a4f0fbac5a50194b1b07797dbc810236fa42cc956c93dd8448a2b3e50ef91e7d",
+      "bytes": 164526
+    },
+    {
+      "path": "previews/candidates/square-baseline-1024.png",
+      "format": "PNG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Full-resolution candidate review",
+      "variant": "square-baseline",
+      "validation": "structurally validated",
+      "sha256": "6eff8141f641c0cf3c26b8c4f60c0d5f79e3c69711061cc19a3c9b6cc63d76ac",
+      "bytes": 231641
+    },
+    {
+      "path": "previews/candidates/square-baseline.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Editable alternative for owner review",
+      "variant": "square-baseline",
+      "validation": "structurally validated",
+      "sha256": "f2242222997ee26cf0a5fda2c3bcb748e212758d8d4ef4bc92c4f933e25fcd1a",
+      "bytes": 155703
+    },
+    {
+      "path": "previews/comparison-1024-light.png",
+      "format": "PNG",
+      "dimensions": [
+        6336,
+        1124
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Review: all designs at native 1024 px on light desktop",
+      "variant": "comparison",
+      "validation": "structurally validated",
+      "sha256": "2b2d6b582f644e8a77b322fef393ca509c93430ea8e6b265f4692d04b83dc19a",
+      "bytes": 1181250
+    },
+    {
+      "path": "previews/comparison-1024.png",
+      "format": "PNG",
+      "dimensions": [
+        6336,
+        1124
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Review: all designs at native 1024 px on dark desktop",
+      "variant": "comparison",
+      "validation": "structurally validated",
+      "sha256": "90ab953a9c4c0516578a36610f8e7a55d42e4849e8a225e1f28782a0a00b2f07",
+      "bytes": 1165712
+    },
+    {
+      "path": "previews/comparison-128-dark.png",
+      "format": "PNG",
+      "dimensions": [
+        1080,
+        228
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Review: native 128 px on dark desktop",
+      "variant": "comparison",
+      "validation": "structurally validated",
+      "sha256": "ac52db0b738481bb055c0ca6d50fe06caef9988f13bc45fe4c1abcffb6361148",
+      "bytes": 57970
+    },
+    {
+      "path": "previews/comparison-128-light.png",
+      "format": "PNG",
+      "dimensions": [
+        1080,
+        228
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Review: native 128 px on light desktop",
+      "variant": "comparison",
+      "validation": "structurally validated",
+      "sha256": "a2e8cb6ed6e15080104b133aa1a911ddf4da316470a70bd32a62975756da69b9",
+      "bytes": 59688
+    },
+    {
+      "path": "previews/comparison-16-dark.png",
+      "format": "PNG",
+      "dimensions": [
+        1080,
+        116
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Review: native 16 px on dark desktop",
+      "variant": "comparison",
+      "validation": "structurally validated",
+      "sha256": "a7b99b3588f0640bc03ac41371c183a65eb25b407daf9f235727a87db508a418",
+      "bytes": 6944
+    },
+    {
+      "path": "previews/comparison-16-light.png",
+      "format": "PNG",
+      "dimensions": [
+        1080,
+        116
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Review: native 16 px on light desktop",
+      "variant": "comparison",
+      "validation": "structurally validated",
+      "sha256": "8833be9ca7ab3b4b952512b9ec0b62d28f9d7624194699afa87f419dcc6415de",
+      "bytes": 7066
+    },
+    {
+      "path": "previews/comparison-32-dark.png",
+      "format": "PNG",
+      "dimensions": [
+        1080,
+        132
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Review: native 32 px on dark desktop",
+      "variant": "comparison",
+      "validation": "structurally validated",
+      "sha256": "ceaa880bb968d0dbc89d42a27890323e1437fe570eaac0b441bfde46f6f552dc",
+      "bytes": 11696
+    },
+    {
+      "path": "previews/comparison-32-light.png",
+      "format": "PNG",
+      "dimensions": [
+        1080,
+        132
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Review: native 32 px on light desktop",
+      "variant": "comparison",
+      "validation": "structurally validated",
+      "sha256": "feb3e3db2999876a84435f72a998f377cbf6abaf63a158c0fbc7b3f305abbe2b",
+      "bytes": 12011
+    },
+    {
+      "path": "previews/comparison-512-light.png",
+      "format": "PNG",
+      "dimensions": [
+        3264,
+        612
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Review: all designs at native 512 px on light desktop",
+      "variant": "comparison",
+      "validation": "structurally validated",
+      "sha256": "4932f8c2b867fb070713f29c5fc79e3159ec71b128ae5294d23befc180085f7e",
+      "bytes": 430737
+    },
+    {
+      "path": "previews/comparison-512.png",
+      "format": "PNG",
+      "dimensions": [
+        3264,
+        612
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Review: all designs at native 512 px on dark desktop",
+      "variant": "comparison",
+      "validation": "structurally validated",
+      "sha256": "95dc84227ffdb6d8406ef8208cb87ead69e0df043f8cf8eea52b34812da903e1",
+      "bytes": 422387
+    },
+    {
+      "path": "previews/comparison-64-dark.png",
+      "format": "PNG",
+      "dimensions": [
+        1080,
+        164
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Review: native 64 px on dark desktop",
+      "variant": "comparison",
+      "validation": "structurally validated",
+      "sha256": "afb32ae0b07a343d61c8a35eb07e0a71b0ec9c8cb555fce3c7d8113bd1539f28",
+      "bytes": 24259
+    },
+    {
+      "path": "previews/comparison-64-light.png",
+      "format": "PNG",
+      "dimensions": [
+        1080,
+        164
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Review: native 64 px on light desktop",
+      "variant": "comparison",
+      "validation": "structurally validated",
+      "sha256": "8f5c4f3c42ae3657cb103b417b5977badd61ed2fa546babee2d31b3d5535d15a",
+      "bytes": 25103
+    },
+    {
+      "path": "previews/corner-study.png",
+      "format": "PNG",
+      "dimensions": [
+        1140,
+        440
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Review: equal square bounds/radius, alternative corner curvature; not a system mask",
+      "variant": "comparison",
+      "validation": "structurally validated",
+      "sha256": "b0691ee3ef6c84890c82de06de1e199e9178a1d7edcfe88c597b3245c02e1442",
+      "bytes": 14176
+    },
+    {
+      "path": "previews/final/B0-small.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "B0",
+      "validation": "structurally validated",
+      "sha256": "88d56815ea3596a143e3609a99daaa1697ffff27e264bff855d866c131475acd",
+      "bytes": 133191
+    },
+    {
+      "path": "previews/final/B0.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "B0",
+      "validation": "structurally validated",
+      "sha256": "9d944b2b04abeb92dddc6840cf949d126162169159e937f23a384160d0db56b4",
+      "bytes": 155594
+    },
+    {
+      "path": "previews/final/B1-small.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "B1",
+      "validation": "structurally validated",
+      "sha256": "ec177b228f53a658ad38ec5c55b47dbbcb726ed951daccca6e041a42892d8c21",
+      "bytes": 133192
+    },
+    {
+      "path": "previews/final/B1.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "B1",
+      "validation": "structurally validated",
+      "sha256": "790f1d1c6ab80ed0a1119ad479134a902246855a23dcad88a25091addedd5cdd",
+      "bytes": 155595
+    },
+    {
+      "path": "previews/final/B2-small.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "B2",
+      "validation": "structurally validated",
+      "sha256": "379fee5e71be1978523df4ad560701ba74e5b6740430a88cfe5061828f288d06",
+      "bytes": 133967
+    },
+    {
+      "path": "previews/final/B2.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "B2",
+      "validation": "structurally validated",
+      "sha256": "9f106d45f4bcb5118d54b50da417f477b8cce5a8bdf69ac73c9b771a928417e5",
+      "bytes": 156370
+    },
+    {
+      "path": "previews/final/F1-small.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "F1",
+      "validation": "structurally validated",
+      "sha256": "ef1dc90c22ec7079b71739faa572bb7c9742cdad9edeead73de241d4de98d771",
+      "bytes": 133198
+    },
+    {
+      "path": "previews/final/F1.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "F1",
+      "validation": "structurally validated",
+      "sha256": "f944665cd2a712d42c0b22a9351f86e42d633e4c99e89a19f1c254e05abf1ecf",
+      "bytes": 155601
+    },
+    {
+      "path": "previews/final/F2-small.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "F2",
+      "validation": "structurally validated",
+      "sha256": "0f346bfba30e3fcf67b80961320653d28a81e2422bc3c48ab43f95996acdd948",
+      "bytes": 133191
+    },
+    {
+      "path": "previews/final/F2.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "F2",
+      "validation": "structurally validated",
+      "sha256": "3a543d54fc3974f35cc64c792f1a263a82e6d5a73ffa4dd16ce9fb018134fddb",
+      "bytes": 155593
+    },
+    {
+      "path": "previews/final/S1-small.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "S1",
+      "validation": "structurally validated",
+      "sha256": "266affa73809a1ee4ae2bf30d2a5d0fffbca0d9491cbf68cab79b413c88c0788",
+      "bytes": 133211
+    },
+    {
+      "path": "previews/final/S2-small.svg",
+      "format": "SVG",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true,
+      "color_space": "sRGB",
+      "target": "Final review experiment; not a selected platform asset",
+      "variant": "S2",
+      "validation": "structurally validated",
+      "sha256": "0ad71fe197dd91f2099d34c1b8f229c435afe1c10f5f9b53e4e51c0b6fb39f1c",
+      "bytes": 133194
+    },
+    {
+      "path": "previews/final/backgrounds.png",
+      "format": "PNG",
+      "dimensions": [
+        1080,
+        1560
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Final native 16..256 exports on four backgrounds and labelled simulated launcher",
+      "variant": "final review",
+      "validation": "structurally validated",
+      "sha256": "9ef257fbd2a592719a01312697023ad82ee599478bba841d73b0ec2f644a62e6",
+      "bytes": 270137
+    },
+    {
+      "path": "previews/final/before-after.png",
+      "format": "PNG",
+      "dimensions": [
+        900,
+        360
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Historical / B0 / selected final, equal native 256 px",
+      "variant": "final review",
+      "validation": "structurally validated",
+      "sha256": "d28442d93b3eee8b08c0b83616fe8a394406e035e29de5f9f7d5372cc783f113",
+      "bytes": 76723
+    },
+    {
+      "path": "previews/final/candidates.png",
+      "format": "PNG",
+      "dimensions": [
+        1140,
+        1568
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Constrained B boundary, flare and small factors, native pixels on light/dark",
+      "variant": "final review",
+      "validation": "structurally validated",
+      "sha256": "da94625db625c240182b3581246fefcc4b7e4558ab77e1c1e3daf558c30099ed",
+      "bytes": 241815
+    },
+    {
+      "path": "previews/final/masking.png",
+      "format": "PNG",
+      "dimensions": [
+        1168,
+        400
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Independent / full-bleed flat / unmasked native layers / approximate mask, no Apple effects",
+      "variant": "final review",
+      "validation": "structurally validated",
+      "sha256": "1410404000b042a089e69691fc638cf93900c311eedb251ada9e06d5807ef444",
+      "bytes": 70709
+    },
+    {
+      "path": "previews/masking-comparison.png",
+      "format": "PNG",
+      "dimensions": [
+        1120,
+        620
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Review: approximate system enclosure versus precomposed icon; native mask pending",
+      "variant": "comparison",
+      "validation": "structurally validated",
+      "sha256": "ae2a850e34050e49c5d632fdeff9a21650fbfc3e3d5483a9932df93c894907e8",
+      "bytes": 126423
+    },
+    {
+      "path": "previews/selected-size-ladder.png",
+      "format": "PNG",
+      "dimensions": [
+        1140,
+        2300
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Review: selected master and small variant at native sizes",
+      "variant": "comparison",
+      "validation": "structurally validated",
+      "sha256": "19d97fdf178c1acaa96841caa1787c2787002f82ff4fb0763a0719ab011902aa",
+      "bytes": 354474
+    },
+    {
+      "path": "previews/small-optical-comparison.png",
+      "format": "PNG",
+      "dimensions": [
+        1200,
+        380
+      ],
+      "transparency": false,
+      "color_space": "sRGB",
+      "target": "Review: same geometry with reduced glow/rays and stronger curve cores",
+      "variant": "comparison",
+      "validation": "structurally validated",
+      "sha256": "61cab8acff7cfd83dfb224ddba66dfc353c7896c54837af2f47986c24bf85c2a",
+      "bytes": 17186
+    },
+    {
+      "path": "windows/Anamorph.ico",
+      "format": "ICO",
+      "dimensions": [
+        16,
+        20,
+        24,
+        32,
+        40,
+        48,
+        64,
+        128,
+        256
+      ],
+      "transparency": true,
+      "color_space": "sRGB source samples; embedded PNG frames untagged",
+      "target": "EXE / Explorer / Start Menu / Taskbar / Inno Setup SetupIconFile",
+      "variant": "selected",
+      "validation": "All directory entries and decoded pixels validated; Windows resource/ISCC pending",
+      "sha256": "17c2f958e07de4d0e1bcfd8d6e67f1e254368b7ea11764e12eca8da2742fbdf1",
+      "bytes": 60131
+    }
+  ]
+}

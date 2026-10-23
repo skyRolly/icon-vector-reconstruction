@@ -1,0 +1,111 @@
+{
+  "control_commit": "d231a7a42b3ae55af6d62031ba1c2a4d7343574f",
+  "baseline_config": {
+    "schema_version": 1,
+    "selected": "B",
+    "historical_params_sha256": "c651f3874fc5c321a91c4d469c5e0dc31a2f552594f8cab7125e460bbb701de5",
+    "canvas": 1024,
+    "body": {
+      "inset": 32,
+      "radius": 310.3,
+      "exponent": 2.61
+    },
+    "motif": {
+      "scale": 0.9,
+      "anchor": [
+        505.03,
+        515.0
+      ],
+      "center": [
+        512,
+        512
+      ]
+    },
+    "small": {
+      "maximum_size": 32,
+      "core_width_gain": 1.65,
+      "glow_gain": 0.64,
+      "flare_gain": 0.55
+    },
+    "candidates": {
+      "B": {
+        "name": "Premium optical refinement",
+        "glow_gain": 0.79,
+        "core_gain": 0.96,
+        "flare_gain": 0.74,
+        "ray_gain": 0.32,
+        "channel_scale": [
+          0.96,
+          0.94,
+          1.05
+        ],
+        "background": [
+          "#0b1826",
+          "#030812"
+        ],
+        "edge": 1.6,
+        "glass_band": false
+      }
+    }
+  },
+  "baseline_svg_sha256": "9d944b2b04abeb92dddc6840cf949d126162169159e937f23a384160d0db56b4",
+  "baseline_small_svg_sha256": "88d56815ea3596a143e3609a99daaa1697ffff27e264bff855d866c131475acd",
+  "baseline_platform_sha256": {
+    "apple/Assets.xcassets/AppIcon.appiconset/Anamorph-1024.png": "59dc648a0c7ecba7d336e96e1ef105974b932350f9e864aeae6fbdc1f5b6f63e",
+    "apple/Assets.xcassets/AppIcon.appiconset/Contents.json": "f39e3a7af7cff8d2c39d38bdd1900e372c84f176d2cc5d52f39c2d16f250783e",
+    "apple/Assets.xcassets/Contents.json": "10e3b5dc202f1cd9fad1f688c8fc9fe9e9669bf3f8295e67d216b10fd99b6f49",
+    "apple/import-manifest.json": "159b0d3f56ade52303df899623434edc1064474bd2e2aabe3570d2918ab677d9",
+    "apple/layers/01-left.svg": "844e88c9309c83bd92ef0dde75678895c84f06d5e569c8c3440351f3499bdc1f",
+    "apple/layers/02-right.svg": "0e87fcaf77ee832a6061250213319dfab1b9820825a3344591b041b373472ed7",
+    "apple/layers/03-interaction.svg": "388517bb2ba88fec0b7ade926ad233b9e91232a8e4728d8f3f56942c04bbb45e",
+    "linux/com.rollytech.anamorph.desktop": "655ea33f288c00a19f87ef921658f8da66f01fa7ecd40bab2649644209345be8",
+    "linux/hicolor/128x128/apps/com.rollytech.anamorph.png": "6ea3c005c17c69498744082d0cfefbaa89b20b3aac48aee5292bcde54156d163",
+    "linux/hicolor/16x16/apps/com.rollytech.anamorph.png": "026306d286b636aa9a8bf6a537362cfe638a6e1b206fff8dc23ae3abb2e6e183",
+    "linux/hicolor/24x24/apps/com.rollytech.anamorph.png": "019f92e97405a2b5272586ce6bf29ec5bcb6bad5dc2a4ad2b1e6c4b43950e15f",
+    "linux/hicolor/256x256/apps/com.rollytech.anamorph.png": "b906dbbaa5ff74f8dcde8bd5cc6e377a5149f9e47eea98ec24bee5c23a1b4845",
+    "linux/hicolor/32x32/apps/com.rollytech.anamorph.png": "f2a80389e5f47c23b69a0e8956f0492c5f1194a6970df0726c172bf633fb2002",
+    "linux/hicolor/48x48/apps/com.rollytech.anamorph.png": "c833a92c8b3b42f6f8b7a52267fa56354b4d2847d636b52da29f864cb1a1f96d",
+    "linux/hicolor/512x512/apps/com.rollytech.anamorph.png": "46fa75f587843b29e7aa0a82cd518cd24f3ef8791b20cdfd3cc48f42c93bcb3c",
+    "linux/hicolor/64x64/apps/com.rollytech.anamorph.png": "37bdffc8dd356b3a8536e3ed784dbeed19ca25d27629f2c6bbf520050af34b41",
+    "linux/hicolor/scalable/apps/com.rollytech.anamorph.svg": "9d944b2b04abeb92dddc6840cf949d126162169159e937f23a384160d0db56b4",
+    "macos/Anamorph.icns": "c362a0c1440bf11a67a6aa2dd60943639d18c802dc2a4c2cbcd2298e4f6b355b",
+    "macos/Anamorph.iconset/icon_128x128.png": "6ea3c005c17c69498744082d0cfefbaa89b20b3aac48aee5292bcde54156d163",
+    "macos/Anamorph.iconset/icon_128x128@2x.png": "b906dbbaa5ff74f8dcde8bd5cc6e377a5149f9e47eea98ec24bee5c23a1b4845",
+    "macos/Anamorph.iconset/icon_16x16.png": "026306d286b636aa9a8bf6a537362cfe638a6e1b206fff8dc23ae3abb2e6e183",
+    "macos/Anamorph.iconset/icon_16x16@2x.png": "f2a80389e5f47c23b69a0e8956f0492c5f1194a6970df0726c172bf633fb2002",
+    "macos/Anamorph.iconset/icon_256x256.png": "b906dbbaa5ff74f8dcde8bd5cc6e377a5149f9e47eea98ec24bee5c23a1b4845",
+    "macos/Anamorph.iconset/icon_256x256@2x.png": "46fa75f587843b29e7aa0a82cd518cd24f3ef8791b20cdfd3cc48f42c93bcb3c",
+    "macos/Anamorph.iconset/icon_32x32.png": "f2a80389e5f47c23b69a0e8956f0492c5f1194a6970df0726c172bf633fb2002",
+    "macos/Anamorph.iconset/icon_32x32@2x.png": "37bdffc8dd356b3a8536e3ed784dbeed19ca25d27629f2c6bbf520050af34b41",
+    "macos/Anamorph.iconset/icon_512x512.png": "46fa75f587843b29e7aa0a82cd518cd24f3ef8791b20cdfd3cc48f42c93bcb3c",
+    "macos/Anamorph.iconset/icon_512x512@2x.png": "b7dd6efd377125a08360f1ce2bf5c82450bf05932d70a7c957f329b73bc29b0e",
+    "master/anamorph-apple-square.svg": "58a8f99ca767fecb1be40bfcd69c370a7c3e6005651ac33c3d719dce46570535",
+    "master/anamorph-opaque-1024.png": "7e2177e65be794c683d7e945f8a60519ccd84c4aedd6d71f810c298570f2e297",
+    "master/anamorph-opaque.svg": "6af59ed32b0267bd1bf9e9830cf48db61130e607fbeee766f5a3c6d6f8fec272",
+    "master/anamorph-rounded-1024.png": "b7dd6efd377125a08360f1ce2bf5c82450bf05932d70a7c957f329b73bc29b0e",
+    "master/anamorph-small.svg": "88d56815ea3596a143e3609a99daaa1697ffff27e264bff855d866c131475acd",
+    "master/anamorph-square-1024.png": "c0ee7d7c1335b1e42c0580fb38d5a84a8a2ca5cc7bfed33381180ef50b86b245",
+    "master/anamorph.svg": "9d944b2b04abeb92dddc6840cf949d126162169159e937f23a384160d0db56b4",
+    "portable/png/anamorph-1024.png": "b7dd6efd377125a08360f1ce2bf5c82450bf05932d70a7c957f329b73bc29b0e",
+    "portable/png/anamorph-128.png": "6ea3c005c17c69498744082d0cfefbaa89b20b3aac48aee5292bcde54156d163",
+    "portable/png/anamorph-16.png": "026306d286b636aa9a8bf6a537362cfe638a6e1b206fff8dc23ae3abb2e6e183",
+    "portable/png/anamorph-20.png": "aa065e682663bbfd691aaa60809a1ce7ca637f7ab4f33456ab30e8139b7067ff",
+    "portable/png/anamorph-24.png": "019f92e97405a2b5272586ce6bf29ec5bcb6bad5dc2a4ad2b1e6c4b43950e15f",
+    "portable/png/anamorph-256.png": "b906dbbaa5ff74f8dcde8bd5cc6e377a5149f9e47eea98ec24bee5c23a1b4845",
+    "portable/png/anamorph-32.png": "f2a80389e5f47c23b69a0e8956f0492c5f1194a6970df0726c172bf633fb2002",
+    "portable/png/anamorph-40.png": "abbe4fdc554d8a5287967163dc76eee3c1296ff6602ad873d24d490076cf12ee",
+    "portable/png/anamorph-48.png": "c833a92c8b3b42f6f8b7a52267fa56354b4d2847d636b52da29f864cb1a1f96d",
+    "portable/png/anamorph-512.png": "46fa75f587843b29e7aa0a82cd518cd24f3ef8791b20cdfd3cc48f42c93bcb3c",
+    "portable/png/anamorph-64.png": "37bdffc8dd356b3a8536e3ed784dbeed19ca25d27629f2c6bbf520050af34b41",
+    "windows/Anamorph.ico": "17c2f958e07de4d0e1bcfd8d6e67f1e254368b7ea11764e12eca8da2742fbdf1"
+  },
+  "variants": {
+    "B0": "Unchanged published B, including small policy.",
+    "B1": "Edge width 1.6 -> 2.0; edge stop opacities .55/.20/.32 -> .60/.26/.40; field unchanged.",
+    "B2": "B0 edge and field plus local upper-left depth light: #27465e at .16, fading to zero; no full-field exposure change.",
+    "F1": "Compact flare_core_w only: radius x.94 and color x1.12; anchor/asymmetric cloud unchanged.",
+    "F2": "Immediate flare_halo color x.88 and flare_core_w color x1.06; remaining glow/streaks unchanged.",
+    "S1": "Small core width 1.65 -> 1.50; other small factors unchanged.",
+    "S2": "Small flare .55 -> .65 and noncore glow .64 -> .70; core width stays 1.65."
+  }
+}

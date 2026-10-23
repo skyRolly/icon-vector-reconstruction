@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "selected": "B",
+  "historical_params_sha256": "c651f3874fc5c321a91c4d469c5e0dc31a2f552594f8cab7125e460bbb701de5",
+  "canvas": 1024,
+  "body": {"inset": 32, "radius": 310.3, "exponent": 2.61},
+  "motif": {"scale": 0.9, "anchor": [505.03, 515.0], "center": [512, 512]},
+  "small": {"maximum_size": 32, "core_width_gain": 1.65, "glow_gain": 0.64, "flare_gain": 0.55},
+  "candidates": {
+    "square-baseline": {
+      "name": "Square layout baseline", "glow_gain": 1.0, "core_gain": 1.0,
+      "flare_gain": 1.0, "ray_gain": 1.0, "channel_scale": [1.0, 1.0, 1.0],
+      "background": ["#03080d", "#010409"], "edge": 2.0, "glass_band": false
+    },
+    "A": {
+      "name": "Conservative refinement", "glow_gain": 0.95, "core_gain": 1.0,
+      "flare_gain": 0.92, "ray_gain": 0.82, "channel_scale": [1.0, 0.98, 1.0],
+      "background": ["#050c13", "#02060b"], "edge": 1.7, "glass_band": false
+    },
+    "B": {
+      "name": "Premium optical refinement", "glow_gain": 0.79, "core_gain": 0.96,
+      "flare_gain": 0.74, "ray_gain": 0.32, "channel_scale": [0.96, 0.94, 1.05],
+      "background": ["#0b1826", "#030812"], "edge": 1.6, "glass_band": false
+    },
+    "C": {
+      "name": "Restrained glass study", "glow_gain": 0.53, "core_gain": 0.86,
+      "flare_gain": 0.62, "ray_gain": 0.16, "channel_scale": [1.08, 0.94, 1.03],
+      "background": ["#152638", "#060d19"], "edge": 1.15, "glass_band": true
+    }
+  }
+}

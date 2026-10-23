@@ -1,0 +1,35 @@
+{
+  "accessed": "2026-10-23",
+  "sources": [
+    "https://developer.apple.com/design/human-interface-guidelines/app-icons",
+    "https://developer.apple.com/design/resources/",
+    "https://developer.apple.com/icon-composer/",
+    "https://developer.apple.com/documentation/xcode/creating-your-app-icon-using-icon-composer",
+    "https://developer.apple.com/documentation/xcode/configuring-your-app-icon"
+  ],
+  "template_url": "https://devimages-cdn.apple.com/design/resources/download/iOS-27-Icon-Templates-Photoshop-Illustrator.dmg",
+  "template_sha256": "4498b294bbb364501f71129444207fd30ed7e429f6dcee856ba5bf3cbe50c7f6",
+  "template_contents_inspected": [
+    "App Icon Template.ai (PDF metadata and vector document)",
+    "Icon Composer Demo Project/Demo Project.icon/icon.json",
+    "Icon Composer Demo Project/Exports/Demo Project-iOS-Default-1024@1x.png"
+  ],
+  "enclosure_measurement": {
+    "method": "First alpha >= 128 pixel on rows 3..259 of the official 1024 px default demo export; fit top-left superellipse quadrant at pixel centers, radius grid 240..389 step 1, exponent 2..3.09 step .01.",
+    "fit_full_canvas_radius": 331,
+    "fit_exponent": 2.61,
+    "fit_rmse_pixels": 1.23,
+    "independent_body_width": 960,
+    "independent_body_radius": 310.3,
+    "status": "Measured approximation for independent artwork and shape studies; not Apple's exact runtime mask. Native source has no enclosure mask."
+  },
+  "native_validation": "pending: Linux has no Icon Composer, Xcode, actool, iconutil or Apple device",
+  "appearances": {
+    "default": "Shared source geometry; full-bleed opaque background configured in Composer.",
+    "dark": "Same dark optical identity; tune background and illumination in Composer.",
+    "clear/light": "Mono material configuration from shared crisp foreground silhouettes; pending native contrast check.",
+    "clear/dark": "Same Mono geometry; pending native contrast check.",
+    "tinted/light": "System Mono tint from same silhouettes; pending native tint/edge check.",
+    "tinted/dark": "Same Mono geometry; pending native tint/edge check."
+  }
+}

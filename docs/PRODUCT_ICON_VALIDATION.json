@@ -1,0 +1,147 @@
+{
+  "tests_run": 14,
+  "failures": 0,
+  "errors": 0,
+  "source_revision": "859d31a747a9a1ca0bf7bee8519ae4956fe676ecbf6ef091a8419575a08bfeb3",
+  "geometry": {
+    "historical": {
+      "canvas": [
+        1024,
+        1024
+      ],
+      "frame_centerline_dimensions": [
+        885.0475,
+        957.2995999999999
+      ],
+      "frame_height_over_width": 1.081636409345261,
+      "frame_stroke_envelope": [
+        891.1825,
+        963.4345999999999
+      ],
+      "margins_left_right_top_bottom": [
+        66.5225,
+        72.42999999999995,
+        34.3555,
+        32.34490000000005
+      ],
+      "corner_tangent_run": 207.6370705951176,
+      "top_corner_tangent_points": [
+        [
+          274.1595705951176,
+          34.3555
+        ],
+        [
+          743.9329294048824,
+          34.3555
+        ]
+      ],
+      "bottom_corner_tangent_points": [
+        [
+          274.1595705951176,
+          991.6551
+        ],
+        [
+          743.9329294048824,
+          991.6551
+        ]
+      ],
+      "nominal_curve_bounds": [
+        216.904,
+        86.296,
+        778.84,
+        948.839
+      ],
+      "nominal_curve_height_over_width": 1.534948819794425,
+      "frame_center": [
+        509.04625000000004,
+        513.0052999999999
+      ]
+    },
+    "product": {
+      "canvas": [
+        1024,
+        1024
+      ],
+      "body_dimensions": [
+        960,
+        960
+      ],
+      "body_height_over_width": 1,
+      "margins": [
+        32,
+        32,
+        32,
+        32
+      ],
+      "motif_transform": "translate(57.473 48.5) scale(0.9)",
+      "curves_scaled_uniformly": true,
+      "flare_anchor_retains_original_right_bias": true
+    }
+  },
+  "selected": {
+    "luminous_centroid_px": [
+      508.29,
+      501.024
+    ],
+    "light_left_fraction": 0.49855,
+    "light_top_fraction": 0.52027,
+    "all_channels_ge_250_pixels": 0,
+    "any_channel_ge_250_pixels": 1611,
+    "luminance_gt_160_pixels": 10327,
+    "optical_midtone_oklab_mean": [
+      0.34008,
+      -0.03915,
+      -0.04168
+    ],
+    "optical_midtone_oklch_hue_degrees": 226.79,
+    "optical_midtone_oklch_chroma": 0.05719,
+    "sample_policy": "Luminance 35..150, outside central radius 7.5% of canvas; sRGB D65 Oklab."
+  },
+  "historical": {
+    "luminous_centroid_px": [
+      507.125,
+      506.087
+    ],
+    "light_left_fraction": 0.49327,
+    "light_top_fraction": 0.49405,
+    "all_channels_ge_250_pixels": 1,
+    "any_channel_ge_250_pixels": 2324,
+    "luminance_gt_160_pixels": 15250,
+    "optical_midtone_oklab_mean": [
+      0.36222,
+      -0.04486,
+      -0.02698
+    ],
+    "optical_midtone_oklch_hue_degrees": 211.02,
+    "optical_midtone_oklch_chroma": 0.05235,
+    "sample_policy": "Luminance 35..150, outside central radius 7.5% of canvas; sRGB D65 Oklab."
+  },
+  "cross_renderer": {
+    "status": "executed",
+    "engine": "inkscape",
+    "version": "Inkscape 1.4 (e7c3feb100, 2024-10-09)",
+    "sizes": {
+      "32": {
+        "mae": 0.81579,
+        "p99_channel_error": 12.0,
+        "max_channel_error": 24.0
+      },
+      "128": {
+        "mae": 0.339,
+        "p99_channel_error": 6.0,
+        "max_channel_error": 21.0
+      },
+      "512": {
+        "mae": 0.25636,
+        "p99_channel_error": 5.0,
+        "max_channel_error": 31.0
+      },
+      "1024": {
+        "mae": 0.22824,
+        "p99_channel_error": 4.0,
+        "max_channel_error": 30.0
+      }
+    }
+  },
+  "native_platforms": "not executed: macOS/Windows toolchains and desktop OS sessions unavailable"
+}

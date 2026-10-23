@@ -4,6 +4,8 @@ A resolution-independent reconstruction of `reference.png` — a 1024x1024 dark
 icon showing two luminous cyan curves pinched around a central light inside a
 rounded-square frame — as a hand-built, parametric SVG.
 
+**Anamorph product-icon design:** [review and rationale](docs/PRODUCT_ICON_DESIGN.md) · [canonical product SVG](assets/anamorph/master/anamorph.svg) · [platform asset inventory](assets/anamorph/manifests/ASSET_MATRIX.md).
+
 | reference | reconstruction | difference (x4) |
 |---|---|---|
 | ![reference](out/side_reference.png) | ![reconstruction](out/side_reconstruction.png) | ![difference](out/side_diff.png) |
@@ -374,3 +376,40 @@ enough to search the geometry.
 `docs/METHOD.md` has the measurements; `docs/DECISIONS.md` has the decision
 record, including what was rejected and why; `out/analysis/` has the
 per-component measurement reports the reconstruction was built from.
+
+
+## Anamorph product icon — independent design deliverable
+
+Recommended **Candidate B (B0), retained unchanged after final visual review**,
+pending owner brand approval: a genuinely square
+960 × 960 visible body, measured-template-inspired corners, restrained blue/cyan
+light and a dedicated 16–32 px optical treatment. The measured opposing curves
+and their asymmetric central interaction are preserved.
+
+![Historical reconstruction, B0 and unchanged final icon](assets/anamorph/previews/final/before-after.png)
+
+- [Final native-size review, exact refinements and acceptance](docs/PRODUCT_ICON_FINAL_REVIEW.md)
+- [Design rationale and candidate decisions](docs/PRODUCT_ICON_DESIGN.md)
+- [Focused B comparison](assets/anamorph/previews/final/candidates.png),
+  [native-size ladder](assets/anamorph/previews/selected-size-ladder.png) and
+  [Apple source/mask study](assets/anamorph/previews/final/masking.png)
+- [Apple 27 research, source conventions and remaining native steps](docs/APPLE_ICON_WORKFLOW.md)
+- [All 91 asset files and validation status](assets/anamorph/manifests/ASSET_MATRIX.md)
+- [Engineering/recovery record](docs/PRODUCT_ICON_ENGINEERING.md) and
+  [measured product checks](docs/PRODUCT_ICON_VALIDATION.json)
+- [Future Anamorph integration plan — no integration performed](docs/ANAMORPH_ICON_INTEGRATION_PLAN.md)
+
+The product source is `design/anamorph.json` + `src/product_icon.py`; its outputs
+live only under `assets/anamorph/`. Rebuild and validate the product package:
+
+```sh
+python -m pip install -r requirements.txt
+sh tools/publish_product_icon.sh
+```
+
+The existing `src/build_svg.py`, parameters, reference, `reconstruction.svg`,
+historical tests and `tools/publish.sh` remain the reconstruction workflow.
+Product design is not optimized against the reference PNG's error metrics.
+Apple native material/appearance and macOS/Windows packaging validation remain
+pending. Anamorph has not been modified; adoption and integration require
+separate owner approval.
