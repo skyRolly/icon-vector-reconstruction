@@ -1,14 +1,20 @@
-# Future Anamorph icon integration plan — READ ONLY audit
+# Anamorph icon integration record and remaining platform plan
 
-**Integration has NOT been performed.** No files, build settings, installers,
-icons, commits, PRs or releases in `skyRolly/Anamorph` were changed. This plan
-requires a separate owner instruction before implementation.
+**Current status — record updated 2026-10-24 (Asia/Shanghai):** the owner confirms
+final approval of completed Anamorph #170/#171/#172, Anabasis #51 and icon #12.
+The [engineering record](PRODUCT_ICON_ENGINEERING.md#current-approval-and-integration-status--record-updated-2026-10-24-asiashanghai)
+records actual merge commits, main ancestry and scoped native CI evidence. B0 is accepted;
+Anamorph JUCE resources, the `tech.rolly.anamorph` namespace and the stable Windows
+installer/uninstall icon are implemented on main. The original final-approval date is not recorded.
+Linux handoff names are merged; Linux desktop installation/runtime and genuine Composer
+integration remain future work. Owner approval does not certify their unperformed tests.
 
 The final B acceptance round retains all platform handoff bytes unchanged.
 Its [masking/source audit](PRODUCT_ICON_FINAL_REVIEW.md#geometry-masking-and-export-interpretation)
 confirms distinct conventional and native Apple inputs. The matrix below
-remains an integration plan, with the same native validation requirements;
-none of its future hooks was applied to Anamorph.
+is retained as the historical pre-integration plan, with native validation requirements
+that still apply where unperformed. Completed JUCE/Windows hooks are governed by the
+current record above; future Linux/Composer work requires its own applicable review.
 
 ## Current resource namespace — 2026-10-23
 
@@ -16,8 +22,8 @@ The owner chose `tech.rolly.anamorph` from the domain `rolly.tech`. Current
 Linux desktop/hicolor handoff names use that identifier; pixels and B0 geometry
 are unchanged. The inspected implementation below is dated historical evidence
 at `c4f390f`, including its former bundle ID. The plugin namespace migration and
-Windows installer changes have separate PRs and architecture review gates. This
-source-resource change performs no plugin installation or integration.
+Windows installer changes are merged and approved under their separate ADRs. #12 was
+a source-resource change; it did not install a Linux launcher or validate desktop runtime.
 
 ## Inspected implementation (historical snapshot)
 
@@ -92,7 +98,7 @@ Status describes capability; **none of these future changes is implemented**.
 | Linux application launcher / desktop entry | Supported with packaging changes | `linux/tech.rolly.anamorph.desktop` and `linux/hicolor` PNG/SVG | `desktop-file-validate`; launch under GNOME/KDE, icon lookup, WM/taskbar identity, per-user/system install and uninstall |
 | Linux VST3 bundle/host list | Host controlled / not verified for custom folder artwork | No icon injection found in JUCE Linux VST3 layout; bundle contains `Contents/x86_64-linux/Anamorph.so` and metadata | Native host/browser test; do not install a global generic VST3 MIME override for this product |
 | Portable/manual ZIP | Supported with packaging changes | Existing executable/bundle resources travel with payload; Linux launcher/theme files would need staging and install/uninstall handling | Archive inventory, platform permissions/Windows attributes and actual launch after extraction |
-| Downloads, docs, GitHub presentation | Directly usable artwork, pending brand approval | Master SVG/opaque or rounded PNG; before/after sheet is review imagery | Owner choice and correct background/scale; no automatic publication |
+| Downloads, docs, GitHub presentation | Directly usable owner-approved B0 artwork | Master SVG/opaque or rounded PNG; before/after sheet is review imagery | Owner choice and correct background/scale; no automatic publication |
 | About / splash | No existing integration slot; not selected | Current About panel remains as designed | Separate UI design request if desired |
 
 Host control is independent of filesystem icon support. AU metadata does not

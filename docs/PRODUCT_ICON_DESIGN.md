@@ -1,8 +1,11 @@
 # Anamorph product icon: design review
 
-**Final recommendation: published Candidate B (B0) unchanged, pending owner brand approval.** This is a separate
+**Accepted design: published Candidate B (B0), unchanged under owner approval.** The
+[current engineering record](PRODUCT_ICON_ENGINEERING.md) records approval provenance,
+merged integration and remaining native validation (record updated 2026-10-24). This is a separate
 product design, not another attempt to minimize error against `reference.png`.
-No artwork has been integrated into Anamorph.
+Anamorph native JUCE resources and Windows installer integration are merged as recorded there;
+native desktop/Composer/DAW appearance validation remains unverified.
 
 ![Historical reconstruction, B0 and unchanged B-final](../assets/anamorph/previews/final/before-after.png)
 

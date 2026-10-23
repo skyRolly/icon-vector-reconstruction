@@ -380,8 +380,8 @@ per-component measurement reports the reconstruction was built from.
 
 ## Anamorph product icon — independent design deliverable
 
-Recommended **Candidate B (B0), retained unchanged after final visual review**,
-pending owner brand approval: a genuinely square
+Owner-approved **Candidate B (B0), retained unchanged after final visual review**:
+a square
 960 × 960 visible body, measured-template-inspired corners, restrained blue/cyan
 light and a dedicated 16–32 px optical treatment. The measured opposing curves
 and their asymmetric central interaction are preserved.
@@ -397,7 +397,7 @@ and their asymmetric central interaction are preserved.
 - [All 91 asset files and validation status](assets/anamorph/manifests/ASSET_MATRIX.md)
 - [Engineering/recovery record](docs/PRODUCT_ICON_ENGINEERING.md) and
   [measured product checks](docs/PRODUCT_ICON_VALIDATION.json)
-- [Future Anamorph integration plan — no integration performed](docs/ANAMORPH_ICON_INTEGRATION_PLAN.md)
+- [Merged Anamorph integration and remaining platform plan](docs/ANAMORPH_ICON_INTEGRATION_PLAN.md)
 
 The product source is `design/anamorph.json` + `src/product_icon.py`; its outputs
 live only under `assets/anamorph/`. Rebuild and validate the product package:
@@ -410,6 +410,9 @@ sh tools/publish_product_icon.sh
 The existing `src/build_svg.py`, parameters, reference, `reconstruction.svg`,
 historical tests and `tools/publish.sh` remain the reconstruction workflow.
 Product design is not optimized against the reference PNG's error metrics.
-Apple native material/appearance and macOS/Windows packaging validation remain
-pending. Anamorph has not been modified; adoption and integration require
-separate owner approval.
+The owner confirms final approval of the completed JUCE, namespace and Windows
+installer integration in merged Anamorph #170/#171/#172 and this repository's #12
+Linux resource namespace change. The [engineering record](docs/PRODUCT_ICON_ENGINEERING.md)
+records merge commits and native CI evidence. Finder/Dock, Explorer/DPI, genuine
+Composer appearances, DAW behavior and Linux desktop runtime checks remain unverified.
+Future integration and shipping decisions remain separate.

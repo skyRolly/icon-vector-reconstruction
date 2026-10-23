@@ -265,7 +265,7 @@ def build_package(output):
                      append_images=[images[n] for n in ICO_SIZES if n != 256])
     p.put('windows/Anamorph.ico', stream.getvalue(), 'EXE / Explorer / Start Menu / Taskbar / Inno Setup SetupIconFile',
           dimensions=list(ICO_SIZES), color='sRGB source samples; embedded PNG frames untagged',
-          status='All directory entries and decoded pixels validated; Windows resource/ISCC pending', transparency=True)
+          status='Directory entries/pixels validated; Anamorph #172 Setup/uninstaller resources and disposable-VM installation passed; Explorer/DPI pending', transparency=True)
 
     for size in (16,24,32,48,64,128,256,512):
         p.put(f'linux/hicolor/{size}x{size}/apps/tech.rolly.anamorph.png', rasters[size],
@@ -314,13 +314,13 @@ def build_package(output):
                 'source_files_sha256':sources,
                 'dependencies':{name:importlib.metadata.version(name) for name in ('resvg-py','numpy','pillow')},
                 'raster_policy':'Direct vector render at each size; small optical source only at <=32 px.',
-                'native_platform_validation':'pending; owner brand approval pending; no integration performed',
+                'native_platform_validation':'B0 owner-approved; Anamorph JUCE/Windows integration merged; native shell/Composer validation pending; see docs/PRODUCT_ICON_ENGINEERING.md',
                 'assets':sorted(p.records,key=lambda r:r['path'])}
     dest=output/'manifests';dest.mkdir(parents=True,exist_ok=True)
     (dest/'assets.json').write_text(json.dumps(manifest,indent=2)+'\n')
     rows=['# Generated asset inventory', '',
           'Rebuild with `python tools/export_product_icon.py`. All dimensions are pixels unless noted. '
-          'Native platform validation and brand approval remain pending. `assets.json` records every content digest. '
+          'B0 is owner-approved; Anamorph JUCE/Windows integration is merged. Native shell/Composer validation remains pending; see `docs/PRODUCT_ICON_ENGINEERING.md`. `assets.json` records every content digest. '
           'The inventory and digest index exclude themselves to avoid circular hashes.', '',
           '| Path | Format | Dimensions | Alpha | Color space | Target | Validation |',
           '|---|---|---|---|---|---|---|']

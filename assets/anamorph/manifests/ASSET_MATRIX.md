@@ -1,6 +1,6 @@
 # Generated asset inventory
 
-Rebuild with `python tools/export_product_icon.py`. All dimensions are pixels unless noted. Native platform validation and brand approval remain pending. `assets.json` records every content digest. The inventory and digest index exclude themselves to avoid circular hashes.
+Rebuild with `python tools/export_product_icon.py`. All dimensions are pixels unless noted. B0 is owner-approved; Anamorph JUCE/Windows integration is merged. Native shell/Composer validation remains pending; see `docs/PRODUCT_ICON_ENGINEERING.md`. `assets.json` records every content digest. The inventory and digest index exclude themselves to avoid circular hashes.
 
 | Path | Format | Dimensions | Alpha | Color space | Target | Validation |
 |---|---|---|---|---|---|---|
@@ -92,4 +92,4 @@ Rebuild with `python tools/export_product_icon.py`. All dimensions are pixels un
 | `previews/masking-comparison.png` | PNG | [1120, 620] | no | sRGB | Review: approximate system enclosure versus precomposed icon; native mask pending | structurally validated |
 | `previews/selected-size-ladder.png` | PNG | [1140, 2300] | no | sRGB | Review: selected master and small variant at native sizes | structurally validated |
 | `previews/small-optical-comparison.png` | PNG | [1200, 380] | no | sRGB | Review: same geometry with reduced glow/rays and stronger curve cores | structurally validated |
-| `windows/Anamorph.ico` | ICO | [16, 20, 24, 32, 40, 48, 64, 128, 256] | yes | sRGB source samples; embedded PNG frames untagged | EXE / Explorer / Start Menu / Taskbar / Inno Setup SetupIconFile | All directory entries and decoded pixels validated; Windows resource/ISCC pending |
+| `windows/Anamorph.ico` | ICO | [16, 20, 24, 32, 40, 48, 64, 128, 256] | yes | sRGB source samples; embedded PNG frames untagged | EXE / Explorer / Start Menu / Taskbar / Inno Setup SetupIconFile | Directory entries/pixels validated; Anamorph #172 Setup/uninstaller resources and disposable-VM installation passed; Explorer/DPI pending |

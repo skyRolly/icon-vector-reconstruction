@@ -1,5 +1,11 @@
 # Candidate B final review
 
+> **Acceptance update — record updated 2026-10-24 (Asia/Shanghai):** B0 is owner-approved
+> unchanged, and the completed integration/namespace decisions are approved and merged.
+> See the [current engineering record](PRODUCT_ICON_ENGINEERING.md) for actual merge/CI
+> evidence and remaining manual validation. The review below is the original design-stage
+> snapshot; its recommendation/pending-merge wording and dated JSON evidence are historical.
+
 ## Control and observations recorded before experiments
 
 Control B0 is the published Candidate B at PR #10 head

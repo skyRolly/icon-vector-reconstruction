@@ -1,5 +1,59 @@
 # Product icon engineering and handoff record
 
+## Current approval and integration status — record updated 2026-10-24 (Asia/Shanghai)
+
+The owner explicitly confirms that all five predecessor PRs are merged and their human
+architecture reviews, ADR decisions and associated owner-decision items are approved in
+**“Priority P0 — Record Final Owner Approvals and Close Outstanding Governance Decisions.”**
+B0 remains accepted unchanged, as previously approved with design PR #10. The completed
+Linux resource namespace decision is **Approved**; implementation is **Merged**. The
+original final-approval date is **NOT RECORDED**; this is the record-update date.
+
+| Completed scope | Actual merge commit |
+|---|---|
+| [icon-vector-reconstruction #12](https://github.com/skyRolly/icon-vector-reconstruction/pull/12), Linux handoff `tech.rolly.anamorph` | `233786d3922e7ea144de235db466924147ab213d` |
+| [Anamorph #170](https://github.com/skyRolly/Anamorph/pull/170), Accepted ADR-0062 native JUCE inputs | `b4a95b3a6d86acf222de523c6fb04de23ad8e602` |
+| [Anamorph #171](https://github.com/skyRolly/Anamorph/pull/171), Accepted ADR-0063 namespace | `b4ea7a2ac25b89b943d350a6bb0d42ccc6273727` |
+| [Anamorph #172](https://github.com/skyRolly/Anamorph/pull/172), Accepted ADR-0064 stable uninstall icon | `1e17f5845a90919949435c60d6ddf2bf2bd3fde1` |
+| [Anabasis #51](https://github.com/skyRolly/Anabasis/pull/51), Accepted ADR-0048 namespace `tech.rolly.anabasis` | `626eb9a04d8da37995eb66fcf2c8c1fe986f7989` |
+
+Fetched icon main is `233786d3922e7ea144de235db466924147ab213d`, whose first parent is
+`35cf982f9d2e33bde5c4a1bf84b17205ce1e6b80` and implementation parent is
+`0309f9069268de515b518c8429094af55e4e5047`. Anamorph main is the #172 merge, with
+#170 → #171 → #172 on its first-parent chain. Anabasis main is the #51 merge with
+first parent `1a40afd190d6994e33cfa12ae3fca0f375d4687c`. These are verified merged
+implementations, not pending adoption. No duplicate ADR is introduced here.
+
+Evidence: icon [main product CI 40021007797](https://github.com/skyRolly/icon-vector-reconstruction/actions/runs/40021007797)
+and [historical CI 40021007794](https://github.com/skyRolly/icon-vector-reconstruction/actions/runs/40021007794)
+passed at the icon merge. Anamorph [native JUCE run 39970834429](https://github.com/skyRolly/Anamorph/actions/runs/39970834429)
+passed on `84d74b4c332da76abce780d165d1ec57e41a6fce`. [Installer run 40011141822](https://github.com/skyRolly/Anamorph/actions/runs/40011141822)
+at `cac80161f578dbd570631b3e5c2647f690a0c1ff` passed native B0 Setup/uninstaller
+resources, six install/reinstall snapshots and three uninstalls; artifact 12526403791
+ZIP SHA-256 is `520af953866654edf046cf9a2cba7d96c8598758d07a0365b4167b495348f28c`.
+These checks do not establish Explorer/DPI appearance. Anamorph's JUCE-generated ICNS
+validation does not validate this repository's distinct independent ICNS or a Composer project.
+
+Owner/brand/design and completed-integration approval blockers are closed. Real DAW recall,
+AU/VST3 discovery/cache behavior, human audition, actual macOS installation/receipt
+registration, Finder/Dock, genuine Icon Composer appearances, Explorer/DPI, Linux GNOME/KDE
+runtime appearance and Anabasis Windows runtime installation remain unverified for this work.
+Future Linux/Composer architecture, shipping and unrelated owner decisions are not approved
+by this reconciliation. The original dated design/native reports below, including
+`design/final-review.json`, remain historical evidence; their former pending-approval and
+no-integration wording is superseded by this current record.
+
+Reconciliation validation: pinned numpy 2.4.6 / Pillow 13.0.0 / resvg-py 0.5.0;
+91-file export and isolated `--check` rebuild match; all 15 product tests pass;
+independent Inkscape 1.4 comparisons pass at 32/128/512/1024 px; the canonical Linux
+launcher passes `desktop-file-validate`. All 89 non-index exported files are byte-identical
+to inspected main, and design/historical inputs (including `design/final-review.json`)
+are unchanged. Only status text, exporter status metadata and the two regenerated indices
+change. All 68 local links in changed documentation resolve. Cross-repository ADR/index,
+main-ancestry and protected-file audits pass. No runtime test is inferred from these checks.
+
+## Historical design and validation record
+
 ## Repository safety
 
 | Item | Recorded state |
@@ -132,8 +186,8 @@ project, `iconutil` validation or native Liquid Glass rendering is claimed.
 
 Recommendation: **category 2, ready with documented non-blocking native-platform
 limitations**, as an independent icon-design baseline after current-head CI
-passes. Brand approval, repository merge, Anamorph integration and shipping
-installers remain separate owner decisions. PR #10 stays open and unmerged.
+passes. That was the design-stage recommendation; B0 approval, #10/#12 merges and
+Anamorph's completed integration are now recorded above. Shipping remains separate.
 
 ## Validation record
 
@@ -198,7 +252,7 @@ CI completion; local validation is not represented as a remote CI result.
 
 ## Limits and owner decisions
 
-- Owner brand choice: B0 is recommended unchanged; A/C remain the earlier archive.
+- Owner brand choice: B0 is accepted unchanged; A/C remain the earlier archive.
 - Native Composer import, material tuning, all six iOS/macOS 27 appearances,
   exact system masking and older-OS fallback remain unverified.
 - Xcode/actool/catalog and native iconutil; JUCE `.app`/VST3/AU resources,
@@ -213,9 +267,9 @@ CI completion; local validation is not represented as a remote CI result.
   authorized by this report. The [integration plan](ANAMORPH_ICON_INTEGRATION_PLAN.md)
   specifies the future hooks, destinations, validations and rollback procedure.
 
-Anamorph is unchanged. The original reconstruction is available in main, the
-backup and this design branch. The design PR must remain open and unmerged for
-human review; auto-merge must remain disabled.
+The original reconstruction and backup remain preserved. The original design and
+completed integration PRs are merged as recorded above; no pending brand/merge decision
+remains for that scope. This reconciliation grants no release or future architecture approval.
 
 ## Linux resource namespace — 2026-10-23
 
