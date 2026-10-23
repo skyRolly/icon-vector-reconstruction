@@ -10,7 +10,16 @@ confirms distinct conventional and native Apple inputs. The matrix below
 remains an integration plan, with the same native validation requirements;
 none of its future hooks was applied to Anamorph.
 
-## Inspected implementation
+## Current resource namespace — 2026-10-23
+
+The owner chose `tech.rolly.anamorph` from the domain `rolly.tech`. Current
+Linux desktop/hicolor handoff names use that identifier; pixels and B0 geometry
+are unchanged. The inspected implementation below is dated historical evidence
+at `c4f390f`, including its former bundle ID. The plugin namespace migration and
+Windows installer changes have separate PRs and architecture review gates. This
+source-resource change performs no plugin installation or integration.
+
+## Inspected implementation (historical snapshot)
 
 - Current remote main, confirmed with `git ls-remote`:
   **`c4f390f9cccaa9551d680cb1305fa4a669b24587`** (Anamorph 0.9.9).
@@ -80,7 +89,7 @@ Status describes capability; **none of these future changes is implemented**.
 | Windows uninstall entry / uninstaller | Directly supported existing EXE reference; installer icon hook also relevant | Existing `UninstallDisplayIcon={app}\Anamorph.exe`; `SetupIconFile` also affects Setup/Uninstall | Check VST3-only installation: EXE is absent, so future packaging must provide a stable installed icon for that selection |
 | Inno wizard artwork | Supported but optional; not selected | Current `WizardStyle=modern`, no custom wizard image. Current Inno supports PNG/BMP and 164:314 image-area aspect ratio | Avoid an unnecessary vertical banner; if requested, create a dedicated layout and check current compiler/DPI behavior |
 | Linux Standalone ELF file | Unsupported as a portable embedded file-icon convention | Keep executable; use launcher/icon-theme resources | File managers and JUCE native-window/WM behavior need runtime checks |
-| Linux application launcher / desktop entry | Supported with packaging changes | `linux/com.rollytech.anamorph.desktop` and `linux/hicolor` PNG/SVG | `desktop-file-validate`; launch under GNOME/KDE, icon lookup, WM/taskbar identity, per-user/system install and uninstall |
+| Linux application launcher / desktop entry | Supported with packaging changes | `linux/tech.rolly.anamorph.desktop` and `linux/hicolor` PNG/SVG | `desktop-file-validate`; launch under GNOME/KDE, icon lookup, WM/taskbar identity, per-user/system install and uninstall |
 | Linux VST3 bundle/host list | Host controlled / not verified for custom folder artwork | No icon injection found in JUCE Linux VST3 layout; bundle contains `Contents/x86_64-linux/Anamorph.so` and metadata | Native host/browser test; do not install a global generic VST3 MIME override for this product |
 | Portable/manual ZIP | Supported with packaging changes | Existing executable/bundle resources travel with payload; Linux launcher/theme files would need staging and install/uninstall handling | Archive inventory, platform permissions/Windows attributes and actual launch after extraction |
 | Downloads, docs, GitHub presentation | Directly usable artwork, pending brand approval | Master SVG/opaque or rounded PNG; before/after sheet is review imagery | Owner choice and correct background/scale; no automatic publication |
@@ -105,7 +114,7 @@ Destinations are proposed paths in Anamorph, not files that were created there.
 | `apple/layers/`, `apple/import-manifest.json` | `resources/icons/apple/source/` | Native Composer authoring; do not pass the manifest to Xcode as a project |
 | **Future native-validated** `Anamorph.icon` | `resources/icons/apple/Anamorph.icon` | `ICON_COMPOSER_BUNDLE` after native CI/generator verification |
 | `linux/hicolor/` | `resources/icons/linux/hicolor/` | Stage to `$XDG_DATA_HOME/icons/hicolor` or `/usr/local/share/icons/hicolor` |
-| `linux/com.rollytech.anamorph.desktop` | `packaging/linux/com.rollytech.anamorph.desktop` | Install to `$XDG_DATA_HOME/applications` or `/usr/local/share/applications` |
+| `linux/tech.rolly.anamorph.desktop` | `packaging/linux/tech.rolly.anamorph.desktop` | Install to `$XDG_DATA_HOME/applications` or `/usr/local/share/applications` |
 | `master/anamorph.svg`, opaque/rounded PNGs | `docs/assets/anamorph/` if approved | Documentation/presentation only |
 
 ## Future implementation sequence

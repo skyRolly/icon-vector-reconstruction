@@ -158,7 +158,7 @@ sh tools/publish.sh
 python tools/export_product_icon.py
 python tools/export_product_icon.py --check
 python tools/test_product_icon.py --cross-renderer --engine inkscape --report docs/PRODUCT_ICON_VALIDATION.json
-desktop-file-validate assets/anamorph/linux/com.rollytech.anamorph.desktop
+desktop-file-validate assets/anamorph/linux/tech.rolly.anamorph.desktop
 ```
 
 `sh tools/publish_product_icon.sh` is the single product publish command: it
@@ -216,3 +216,33 @@ CI completion; local validation is not represented as a remote CI result.
 Anamorph is unchanged. The original reconstruction is available in main, the
 backup and this design branch. The design PR must remain open and unmerged for
 human review; auto-merge must remain disabled.
+
+## Linux resource namespace — 2026-10-23
+
+The current handoff uses `tech.rolly.anamorph`, from the owner's `rolly.tech`
+domain: the desktop filename/Icon field, eight hicolor PNG basenames and the
+scalable SVG basename agree. Export definitions, the generated digest inventory,
+launcher validator and integration commands use the same names. The earlier
+inspection and `design/final-review.json` remain historical evidence.
+
+Starting main: `35cf982f9d2e33bde5c4a1bf84b17205ce1e6b80`. Regenerating with the
+pinned pipeline produces 91 reproducible files. Every PNG, SVG, ICO and ICNS is
+byte-identical to that main, including all nine renamed Linux images; the only
+changed asset contents are the desktop Icon field and the two generated indices.
+The historical review guard still checks every old digest; only the intentional
+desktop field rename is reversed for that historical hash comparison. A separate
+namespace test requires the exact current file set and matching portable pixels.
+
+Validation: 15 product tests, `export_product_icon.py --check`,
+`desktop-file-validate`, and independent Inkscape 1.4 comparisons at 32/128/512/1024
+pass with the pinned Python dependencies. Historical reconstruction/master/design
+files and the backup branch are unchanged. No desktop installation, icon cache,
+GNOME/KDE/WM session or native Apple/Windows display result is claimed. This PR
+changes resource names only; plugin namespace/installer work is reviewed separately.
+
+The prepared local environment initially carried Pillow 12.3.0 while current
+requirements.txt pins **13.0.0**. CI rejected only that manifest dependency
+field; no image differed. Regenerated with the actual declared pins
+(numpy 2.4.6 / Pillow 13.0.0 / resvg-py 0.5.0), repeated the reproducible export,
+15 tests and Inkscape checks, and re-compared every visual byte against starting
+main. The source dependency declarations and all visual assets remain unchanged.

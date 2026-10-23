@@ -275,9 +275,34 @@ class ProductTests(unittest.TestCase):
         # the exporter and its refreshed manifest. Existing checks stay intact.
         control=json.loads((ROOT/'design/final-review.json').read_text())
         for path,expected in control['baseline_platform_sha256'].items():
-            self.assertEqual(digest((OUTPUT/path).read_bytes()),expected,path)
+            current=Path(path)
+            if current.parts[0]=='linux':
+                current=current.with_name('tech.rolly.anamorph'+current.suffix)
+            data=(OUTPUT/current).read_bytes()
+            if current.suffix=='.desktop':
+                # The signed review remains historical evidence. Undo only the
+                # intentional Icon-field rename before comparing its old hash;
+                # every other desktop byte, and every image byte, stays guarded.
+                data=data.replace(b'Icon=tech.rolly.anamorph\n',
+                                  f'Icon={Path(path).stem}\n'.encode())
+            self.assertEqual(digest(data),expected,str(current))
         for suffix,key in (('', 'baseline_svg_sha256'),('-small','baseline_small_svg_sha256')):
             self.assertEqual(digest((OUTPUT/f'previews/final/B0{suffix}.svg').read_bytes()),control[key])
+
+    def test_15_linux_desktop_and_hicolor_use_domain_namespace(self):
+        base='tech.rolly.anamorph'
+        expected={f'linux/{base}.desktop',f'linux/hicolor/scalable/apps/{base}.svg'}
+        expected.update(f'linux/hicolor/{n}x{n}/apps/{base}.png' for n in (16,24,32,48,64,128,256,512))
+        actual={p.relative_to(OUTPUT).as_posix() for p in (OUTPUT/'linux').rglob('*') if p.is_file()}
+        self.assertEqual(actual,expected)
+        desktop=(OUTPUT/f'linux/{base}.desktop').read_text()
+        self.assertIn(f'\nIcon={base}\n',desktop)
+        self.assertIn('\nExec=Anamorph\n',desktop)
+        for n in (16,24,32,48,64,128,256,512):
+            self.assertEqual((OUTPUT/f'linux/hicolor/{n}x{n}/apps/{base}.png').read_bytes(),
+                             (OUTPUT/f'portable/png/anamorph-{n}.png').read_bytes())
+        self.assertEqual((OUTPUT/f'linux/hicolor/scalable/apps/{base}.svg').read_bytes(),
+                         (OUTPUT/'master/anamorph.svg').read_bytes())
 
 
 def cross_renderer(engine='auto'):
